@@ -19,8 +19,19 @@ import {
   X, 
   Languages, 
   MessageSquare,
-  FolderPlus
+  FolderPlus,
+  ArrowRight
 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { WysiwygEditor } from './WysiwygEditor';
 import { adminContentTranslator } from '@/ai/flows/admin-content-translator';
 import { toast } from '@/hooks/use-toast';
@@ -31,6 +42,7 @@ export function MenuManagement() {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['root']));
   const [editForm, setEditForm] = useState<Partial<MenuItem>>({});
   const [isTranslating, setIsTranslating] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     setMenus(getStoredMenus());
@@ -67,11 +79,12 @@ export function MenuManagement() {
     }
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm('Are you sure? This will delete all sub-items as well.')) {
-      deleteMenu(id);
+  const confirmDelete = () => {
+    if (itemToDelete) {
+      deleteMenu(itemToDelete);
       refresh();
-      if (editingId === id) setEditingId(null);
+      if (editingId === itemToDelete) setEditingId(null);
+      setItemToDelete(null);
       toast({ title: "Deleted", description: "Item and its children removed." });
     }
   };
@@ -144,7 +157,7 @@ export function MenuManagement() {
                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleStartEdit(item)} title="Edit">
                   <Edit2 size={14} />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(item.id)} title="Delete">
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setItemToDelete(item.id)} title="Delete">
                   <Trash2 size={14} />
                 </Button>
               </div>
@@ -190,7 +203,7 @@ export function MenuManagement() {
               <Button variant="ghost" size="sm" onClick={() => setEditingId(null)} className="h-9">
                 <X size={16} className="mr-2" /> Cancel
               </Button>
-              <Button size="sm" onClick={handleSaveEdit} className="h-9 bg-accent hover:bg-accent/90">
+              <Button size="sm" onClick={handleSaveEdit} className="h-9 bg-accent hover:bg-accent/90 text-white">
                 <Save size={16} className="mr-2" /> Save Changes
               </Button>
             </div>
@@ -261,6 +274,23 @@ export function MenuManagement() {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={!!itemToDelete} onOpenChange={() => setItemToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete this item and all its sub-menus and pages.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete Everything
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
