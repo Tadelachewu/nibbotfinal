@@ -18,7 +18,8 @@ import {
   Save, 
   X, 
   Languages, 
-  MessageSquare 
+  MessageSquare,
+  FolderPlus
 } from 'lucide-react';
 import { WysiwygEditor } from './WysiwygEditor';
 import { adminContentTranslator } from '@/ai/flows/admin-content-translator';
@@ -43,7 +44,7 @@ export function MenuManagement() {
       parentId,
       type,
       content: type === 'content' ? '<p>Write something here...</p>' : undefined,
-      order: 0
+      order: menus.filter(m => m.parentId === parentId).length
     });
     refresh();
     handleStartEdit(newItem);
@@ -71,6 +72,7 @@ export function MenuManagement() {
       deleteMenu(id);
       refresh();
       if (editingId === id) setEditingId(null);
+      toast({ title: "Deleted", description: "Item and its children removed." });
     }
   };
 
@@ -94,41 +96,55 @@ export function MenuManagement() {
         content: contentTranslation.translatedContent || prev.content
       }));
       toast({ title: "Translated", description: `Content translated to ${lang}` });
+    } catch (error) {
+      toast({ variant: "destructive", title: "Translation Failed", description: "Could not translate content." });
     } finally {
       setIsTranslating(false);
     }
   };
 
   const renderTree = (parentId: string | null = null, level = 0) => {
-    const items = menus.filter(m => m.parentId === parentId);
+    const items = menus
+      .filter(m => m.parentId === parentId)
+      .sort((a, b) => a.order - b.order);
+      
     if (items.length === 0 && parentId !== null) return null;
 
     return (
-      <div className={`space-y-1 ${level > 0 ? 'ml-6 border-l pl-2' : ''}`}>
+      <div className={`space-y-1 ${level > 0 ? 'ml-4 border-l pl-2' : ''}`}>
         {items.map(item => (
           <div key={item.id} className="group">
             <div className={`flex items-center justify-between p-2 rounded-md hover:bg-muted/50 transition-colors ${editingId === item.id ? 'bg-primary/5 ring-1 ring-primary/20' : ''}`}>
               <div className="flex items-center gap-2 flex-1 min-w-0">
                 {item.type === 'folder' ? (
-                  <button onClick={() => toggleFolder(item.id)} className="text-muted-foreground hover:text-primary">
-                    {expandedFolders.has(item.id) ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                  <button onClick={() => toggleFolder(item.id)} className="text-muted-foreground hover:text-primary shrink-0">
+                    {expandedFolders.has(item.id) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                   </button>
                 ) : <div className="w-4" />}
                 
-                {item.type === 'folder' ? <Folder size={16} className="text-primary shrink-0" /> : <FileText size={16} className="text-muted-foreground shrink-0" />}
+                {item.type === 'folder' ? (
+                  <Folder size={16} className="text-primary shrink-0" />
+                ) : (
+                  <FileText size={16} className="text-muted-foreground shrink-0" />
+                )}
                 <span className="truncate font-medium text-sm">{item.name}</span>
               </div>
               
               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 {item.type === 'folder' && (
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => handleAdd(item.id, 'content')} title="Add Page">
-                    <Plus size={14} />
-                  </Button>
+                  <>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => handleAdd(item.id, 'folder')} title="Add Sub-menu">
+                      <FolderPlus size={14} />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => handleAdd(item.id, 'content')} title="Add Page">
+                      <Plus size={14} />
+                    </Button>
+                  </>
                 )}
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleStartEdit(item)} title="Edit">
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleStartEdit(item)} title="Edit">
                   <Edit2 size={14} />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(item.id)} title="Delete">
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(item.id)} title="Delete">
                   <Trash2 size={14} />
                 </Button>
               </div>
@@ -142,39 +158,39 @@ export function MenuManagement() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-      <Card className="lg:col-span-4 shadow-sm h-[calc(100vh-140px)] overflow-hidden flex flex-col">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-lg font-bold">Structure</CardTitle>
+      <Card className="lg:col-span-4 shadow-sm h-[calc(100vh-160px)] overflow-hidden flex flex-col">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b">
+          <CardTitle className="text-lg font-bold">Menu Structure</CardTitle>
           <div className="flex gap-1">
-            <Button variant="outline" size="sm" onClick={() => handleAdd(null, 'folder')} className="h-8 gap-1">
-              <Folder size={14} /> New Menu
+            <Button variant="outline" size="sm" onClick={() => handleAdd(null, 'folder')} className="h-8 px-2 gap-1 text-[11px]">
+              <FolderPlus size={12} /> Menu
             </Button>
-            <Button variant="outline" size="sm" onClick={() => handleAdd(null, 'content')} className="h-8 gap-1">
-              <Plus size={14} /> Top Level Page
+            <Button variant="outline" size="sm" onClick={() => handleAdd(null, 'content')} className="h-8 px-2 gap-1 text-[11px]">
+              <Plus size={12} /> Page
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="flex-1 overflow-auto pt-4">
+        <CardContent className="flex-1 overflow-auto pt-4 px-2">
           {renderTree(null)}
           {menus.length === 0 && (
-            <div className="text-center py-10 text-muted-foreground italic">
-              No menus created yet.
+            <div className="text-center py-10 text-muted-foreground italic text-sm">
+              No items created yet.
             </div>
           )}
         </CardContent>
       </Card>
 
-      <Card className="lg:col-span-8 shadow-sm h-[calc(100vh-140px)] overflow-hidden flex flex-col">
+      <Card className="lg:col-span-8 shadow-sm h-[calc(100vh-160px)] overflow-hidden flex flex-col">
         <CardHeader className="border-b pb-4 flex flex-row items-center justify-between">
           <div>
-            <CardTitle>{editingId ? 'Edit Item' : 'Select an item to edit'}</CardTitle>
+            <CardTitle className="text-lg">{editingId ? `Editing: ${editForm.name}` : 'Editor'}</CardTitle>
           </div>
           {editingId && (
             <div className="flex gap-2">
-              <Button variant="ghost" onClick={() => setEditingId(null)} className="h-9">
+              <Button variant="ghost" size="sm" onClick={() => setEditingId(null)} className="h-9">
                 <X size={16} className="mr-2" /> Cancel
               </Button>
-              <Button onClick={handleSaveEdit} className="h-9 bg-accent hover:bg-accent/90">
+              <Button size="sm" onClick={handleSaveEdit} className="h-9 bg-accent hover:bg-accent/90">
                 <Save size={16} className="mr-2" /> Save Changes
               </Button>
             </div>
@@ -183,19 +199,20 @@ export function MenuManagement() {
         <CardContent className="flex-1 overflow-auto p-6">
           {editingId ? (
             <div className="space-y-6">
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-1 space-y-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
                   <Label htmlFor="item-name">Display Name</Label>
                   <Input 
                     id="item-name" 
                     value={editForm.name || ''} 
                     onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    placeholder="Enter menu label..."
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Quick Translate</Label>
-                  <div className="flex gap-1">
-                    {['Spanish', 'French', 'Japanese'].map(lang => (
+                  <Label>Quick Translate (AI)</Label>
+                  <div className="flex flex-wrap gap-1">
+                    {['Spanish', 'French', 'Japanese', 'German'].map(lang => (
                       <Button 
                         key={lang} 
                         variant="outline" 
@@ -213,7 +230,7 @@ export function MenuManagement() {
 
               {editForm.type === 'content' && (
                 <div className="space-y-2">
-                  <Label>Content (WYSIWYG)</Label>
+                  <Label>Page Content</Label>
                   <WysiwygEditor 
                     title={editForm.name || ''}
                     value={editForm.content || ''} 
@@ -225,8 +242,11 @@ export function MenuManagement() {
               {editForm.type === 'folder' && (
                 <div className="p-12 border-2 border-dashed rounded-lg text-center bg-muted/20">
                   <Folder className="mx-auto text-primary/40 mb-4" size={48} />
-                  <p className="text-muted-foreground">This is a folder. It can contain other menus or pages.</p>
-                  <p className="text-xs mt-2">Use the Structure panel on the left to add items inside this folder.</p>
+                  <p className="text-muted-foreground font-medium">This is a Menu Folder</p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Folders act as navigation categories in the chat interface. 
+                    Add sub-menus or pages inside this folder using the tree view on the left.
+                  </p>
                 </div>
               )}
             </div>
@@ -234,7 +254,9 @@ export function MenuManagement() {
             <div className="h-full flex flex-col items-center justify-center text-center opacity-50">
               <MessageSquare size={64} className="mb-4 text-muted-foreground" />
               <h3 className="text-xl font-medium">No Item Selected</h3>
-              <p className="text-muted-foreground max-w-xs">Select an item from the structure on the left to edit its properties or content.</p>
+              <p className="text-muted-foreground max-w-xs text-sm">
+                Select an item from the structure on the left to edit its properties or content.
+              </p>
             </div>
           )}
         </CardContent>
