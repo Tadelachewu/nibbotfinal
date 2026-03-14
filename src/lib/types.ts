@@ -3,6 +3,8 @@ export interface MenuItem {
   parentId: string | null;
   name: string;
   content?: string;
+  nameAm?: string;
+  contentAm?: string;
   order: number;
 }
 

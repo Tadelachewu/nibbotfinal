@@ -29,7 +29,7 @@ export function ChatInterface() {
     const data = getStoredMenus();
     setMenus(data);
     
-    // Initial message
+    // Initial welcome message
     setHistory([
       {
         id: 'welcome',
@@ -46,14 +46,24 @@ export function ChatInterface() {
     }
   }, [history]);
 
+  const getLocalizedName = (menu: MenuItem) => {
+    if (language === 'Amharic' && menu.nameAm) return menu.nameAm;
+    return menu.name;
+  };
+
+  const getLocalizedContent = (menu: MenuItem) => {
+    if (language === 'Amharic' && menu.contentAm) return menu.contentAm;
+    return menu.content;
+  };
+
   const navigateTo = (menu: MenuItem) => {
-    const userMsg: Message = { id: `user-${Date.now()}`, sender: 'user', text: menu.name };
+    const userMsg: Message = { id: `user-${Date.now()}`, sender: 'user', text: getLocalizedName(menu) };
     const children = menus.filter(m => m.parentId === menu.id);
     
     const botMsg: Message = {
       id: `bot-${Date.now()}`,
       sender: 'bot',
-      content: menu.content,
+      content: getLocalizedContent(menu),
       options: children.length > 0 ? children : undefined,
     };
 
@@ -78,11 +88,15 @@ export function ChatInterface() {
   };
 
   const goHome = () => {
-    const userMsg: Message = { id: `home-req-${Date.now()}`, sender: 'user', text: 'Main Menu' };
+    const userMsg: Message = { 
+      id: `home-req-${Date.now()}`, 
+      sender: 'user', 
+      text: language === 'Amharic' ? 'ዋና ሜኑ' : 'Main Menu' 
+    };
     const botMsg: Message = {
       id: `home-resp-${Date.now()}`,
       sender: 'bot',
-      text: 'Returning to main menu. What else can I help with?',
+      text: language === 'Amharic' ? 'ወደ ዋናው ሜኑ መመለስ። ሌላ ምን ልርዳዎት?' : 'Returning to main menu. What else can I help with?',
       options: menus.filter(m => m.parentId === null)
     };
     setHistory(prev => [...prev, userMsg, botMsg]);
@@ -91,23 +105,33 @@ export function ChatInterface() {
 
   const handleLanguageChange = async (newLang: string) => {
     if (newLang === language) return;
+    
     setIsTranslating(true);
+    const oldLang = language;
     setLanguage(newLang);
+    
     try {
-      const lastMsg = history[history.length - 1];
-      if (lastMsg && lastMsg.sender === 'bot') {
-        const textToTranslate = lastMsg.text || lastMsg.content || '';
-        const res = await adminContentTranslator({ content: textToTranslate, targetLanguage: newLang });
-        
-        setHistory(prev => {
-          const updated = [...prev];
-          const last = { ...updated[updated.length - 1] };
-          if (last.text) last.text = res.translatedContent;
-          else if (last.content) last.content = res.translatedContent;
-          updated[updated.length - 1] = last;
-          return updated;
-        });
-      }
+      // Translate only the current interaction to show immediate change
+      const updatedHistory = await Promise.all(history.map(async (msg) => {
+        if (msg.sender === 'bot') {
+          const sourceText = msg.text || msg.content || '';
+          if (!sourceText) return msg;
+          
+          const res = await adminContentTranslator({ content: sourceText, targetLanguage: newLang });
+          return {
+            ...msg,
+            text: msg.text ? res.translatedContent : undefined,
+            content: msg.content ? res.translatedContent : undefined,
+          };
+        }
+        // For user messages, we just translate them too for consistency
+        const res = await adminContentTranslator({ content: msg.text || '', targetLanguage: newLang });
+        return { ...msg, text: res.translatedContent };
+      }));
+      
+      setHistory(updatedHistory);
+    } catch (e) {
+      console.error("Translation failed", e);
     } finally {
       setIsTranslating(false);
     }
@@ -121,10 +145,14 @@ export function ChatInterface() {
             <Globe size={20} />
           </div>
           <div>
-            <h1 className="font-bold text-lg leading-tight">Support Assistant</h1>
+            <h1 className="font-bold text-lg leading-tight">
+              {language === 'Amharic' ? 'ረዳት ረዳት' : 'Support Assistant'}
+            </h1>
             <div className="flex items-center gap-1.5">
               <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-              <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Online</span>
+              <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
+                {language === 'Amharic' ? 'መስመር ላይ' : 'Online'}
+              </span>
             </div>
           </div>
         </div>
@@ -136,11 +164,12 @@ export function ChatInterface() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {['English', 'Amharic'].map(lang => (
-              <DropdownMenuItem key={lang} onClick={() => handleLanguageChange(lang)}>
-                {lang}
-              </DropdownMenuItem>
-            ))}
+            <DropdownMenuItem onClick={() => handleLanguageChange('English')}>
+              English
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleLanguageChange('Amharic')}>
+              አማርኛ (Amharic)
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </header>
@@ -165,7 +194,7 @@ export function ChatInterface() {
                       onClick={() => navigateTo(opt)}
                       className="rounded-full border-primary/20 hover:border-primary hover:bg-primary/5 text-primary text-xs"
                     >
-                      {opt.name}
+                      {getLocalizedName(opt)}
                       <ChevronRight size={14} className="ml-1 opacity-50" />
                     </Button>
                   ))}
@@ -174,9 +203,9 @@ export function ChatInterface() {
             </ChatBubble>
           ))}
           {isTranslating && (
-            <div className="flex gap-2 items-center text-muted-foreground text-xs animate-pulse">
+            <div className="flex gap-2 items-center text-muted-foreground text-xs animate-pulse p-4">
               <div className="w-2 h-2 bg-primary rounded-full" />
-              Translating...
+              {language === 'Amharic' ? 'በመተርጎም ላይ...' : 'Translating conversation...'}
             </div>
           )}
         </div>
@@ -190,7 +219,7 @@ export function ChatInterface() {
           onClick={goHome}
         >
           <Home size={18} />
-          <span className="text-xs font-semibold">Home</span>
+          <span className="text-xs font-semibold">{language === 'Amharic' ? 'ቤት' : 'Home'}</span>
         </Button>
         {currentMenuId && (
           <Button 
@@ -200,7 +229,7 @@ export function ChatInterface() {
             onClick={goBack}
           >
             <ArrowLeft size={18} />
-            <span className="text-xs font-semibold">Back</span>
+            <span className="text-xs font-semibold">{language === 'Amharic' ? 'ተመለስ' : 'Back'}</span>
           </Button>
         )}
       </footer>

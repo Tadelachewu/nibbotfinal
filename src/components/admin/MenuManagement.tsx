@@ -18,7 +18,8 @@ import {
   MessageSquare,
   Info,
   Menu as MenuIcon,
-  FolderPlus
+  FolderPlus,
+  Sparkles
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -37,6 +38,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { WysiwygEditor } from './WysiwygEditor';
 import { adminContentTranslator } from '@/ai/flows/admin-content-translator';
 import { toast } from '@/hooks/use-toast';
@@ -108,21 +110,24 @@ export function MenuManagement() {
     setExpandedFolders(next);
   };
 
-  const handleTranslate = async (lang: string) => {
-    if (!editForm.content && !editForm.name) return;
+  const handleAutoTranslate = async () => {
+    if (!editForm.name && !editForm.content) {
+      toast({ variant: "destructive", title: "Nothing to translate", description: "Please enter English content first." });
+      return;
+    }
     setIsTranslating(true);
     try {
-      const nameTranslation = await adminContentTranslator({ content: editForm.name || '', targetLanguage: lang });
-      const contentTranslation = editForm.content ? await adminContentTranslator({ content: editForm.content, targetLanguage: lang }) : { translatedContent: '' };
+      const nameRes = await adminContentTranslator({ content: editForm.name || '', targetLanguage: 'Amharic' });
+      const contentRes = editForm.content ? await adminContentTranslator({ content: editForm.content, targetLanguage: 'Amharic' }) : { translatedContent: '' };
       
       setEditForm(prev => ({
         ...prev,
-        name: nameTranslation.translatedContent,
-        content: contentTranslation.translatedContent || prev.content
+        nameAm: nameRes.translatedContent,
+        contentAm: contentRes.translatedContent
       }));
-      toast({ title: "Translated", description: `Content translated to ${lang}` });
+      toast({ title: "Translation Complete", description: "Amharic fields have been populated." });
     } catch (error) {
-      toast({ variant: "destructive", title: "Translation Failed", description: "Could not translate content." });
+      toast({ variant: "destructive", title: "Translation Failed", description: "AI could not reach the translation service." });
     } finally {
       setIsTranslating(false);
     }
@@ -138,7 +143,6 @@ export function MenuManagement() {
     return (
       <div className={`space-y-1 ${level > 0 ? 'ml-4 border-l pl-2 mt-1' : ''}`}>
         {items.map(item => {
-          const hasChildren = menus.some(m => m.parentId === item.id);
           return (
             <div key={item.id} className="group">
               <div className={`flex items-center justify-between p-2 rounded-md hover:bg-muted/50 transition-colors ${editingId === item.id ? 'bg-primary/10 ring-1 ring-primary/30' : ''}`}>
@@ -152,9 +156,12 @@ export function MenuManagement() {
                   
                   <MenuIcon size={16} className="text-primary shrink-0 opacity-70" />
                   
-                  <span className={`truncate text-sm font-medium ${editingId === item.id ? 'text-primary' : 'text-foreground'}`}>
-                    {item.name}
-                  </span>
+                  <div className="flex flex-col min-w-0">
+                    <span className={`truncate text-sm font-medium ${editingId === item.id ? 'text-primary' : 'text-foreground'}`}>
+                      {item.name}
+                    </span>
+                    {item.nameAm && <span className="text-[10px] text-muted-foreground truncate">{item.nameAm}</span>}
+                  </div>
                 </div>
                 
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -190,7 +197,7 @@ export function MenuManagement() {
         <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/10">
           <div>
             <CardTitle className="text-xl">Menu Hierarchy</CardTitle>
-            <p className="text-sm text-muted-foreground">Manage your chatbot's conversational structure</p>
+            <p className="text-sm text-muted-foreground">Manage English and Amharic menu structures</p>
           </div>
           <Button onClick={() => handleAdd(null)} className="gap-2">
             <Plus size={16} /> Add Main Menu
@@ -214,28 +221,46 @@ export function MenuManagement() {
         </CardContent>
       </Card>
 
-      {/* Unified Editor Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
           <DialogHeader className="p-6 border-b bg-muted/5">
-            <DialogTitle className="flex items-center gap-2">
-              <Edit2 size={18} className="text-primary" />
-              Editing: {editForm.name}
-            </DialogTitle>
+            <div className="flex items-center justify-between pr-8">
+              <DialogTitle className="flex items-center gap-2">
+                <Edit2 size={18} className="text-primary" />
+                Editing: {editForm.name}
+              </DialogTitle>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="gap-2 text-primary hover:bg-primary/5"
+                onClick={handleAutoTranslate}
+                disabled={isTranslating}
+              >
+                <Sparkles size={14} />
+                {isTranslating ? 'Translating...' : 'Auto-Translate to Amharic'}
+              </Button>
+            </div>
           </DialogHeader>
           
-          <ScrollArea className="flex-1 p-6">
-            <div className="space-y-6 pb-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Tabs defaultValue="english" className="flex-1 flex flex-col">
+            <div className="px-6 border-b">
+              <TabsList className="bg-transparent border-b-0 -mb-px">
+                <TabsTrigger value="english" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent">English Content</TabsTrigger>
+                <TabsTrigger value="amharic" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent">Amharic Translation</TabsTrigger>
+              </TabsList>
+            </div>
+
+            <ScrollArea className="flex-1 p-6">
+              <TabsContent value="english" className="mt-0 space-y-6 pb-4">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <Label htmlFor="item-name">Display Name</Label>
+                    <Label htmlFor="item-name">Menu Button Text (English)</Label>
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Info size={14} className="text-muted-foreground cursor-help" />
                         </TooltipTrigger>
-                        <TooltipContent>This text appears on the button the user clicks.</TooltipContent>
+                        <TooltipContent>The text displayed on the interactive button.</TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                   </div>
@@ -247,37 +272,37 @@ export function MenuManagement() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Translations</Label>
-                  <div className="flex flex-wrap gap-1">
-                    {['Amharic'].map(lang => (
-                      <Button 
-                        key={lang} 
-                        variant="outline" 
-                        size="sm" 
-                        disabled={isTranslating}
-                        onClick={() => handleTranslate(lang)}
-                        className="text-[10px] px-2 h-8"
-                      >
-                        <Languages size={10} className="mr-1" /> {lang}
-                      </Button>
-                    ))}
-                  </div>
+                  <Label>Response Message (English)</Label>
+                  <WysiwygEditor 
+                    title={editForm.name || ''}
+                    value={editForm.content || ''} 
+                    onChange={(val) => setEditForm({ ...editForm, content: val })} 
+                  />
                 </div>
-              </div>
+              </TabsContent>
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Bot Response (Rich Text/HTML)</Label>
-                  <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Message Body</span>
+              <TabsContent value="amharic" className="mt-0 space-y-6 pb-4">
+                <div className="space-y-2">
+                  <Label htmlFor="item-name-am">Menu Button Text (Amharic)</Label>
+                  <Input 
+                    id="item-name-am" 
+                    value={editForm.nameAm || ''} 
+                    onChange={(e) => setEditForm({ ...editForm, nameAm: e.target.value })}
+                    placeholder="ለምሳሌ፡ የክፍያ ጥያቄዎች"
+                    className="font-body"
+                  />
                 </div>
-                <WysiwygEditor 
-                  title={editForm.name || ''}
-                  value={editForm.content || ''} 
-                  onChange={(val) => setEditForm({ ...editForm, content: val })} 
-                />
-              </div>
-            </div>
-          </ScrollArea>
+                <div className="space-y-2">
+                  <Label>Response Message (Amharic)</Label>
+                  <WysiwygEditor 
+                    title={editForm.nameAm || ''}
+                    value={editForm.contentAm || ''} 
+                    onChange={(val) => setEditForm({ ...editForm, contentAm: val })} 
+                  />
+                </div>
+              </TabsContent>
+            </ScrollArea>
+          </Tabs>
 
           <DialogFooter className="p-4 border-t bg-muted/5 flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setIsEditDialogOpen(false)}>
@@ -290,13 +315,12 @@ export function MenuManagement() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation */}
       <AlertDialog open={!!itemToDelete} onOpenChange={() => setItemToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete "{menus.find(m => m.id === itemToDelete)?.name}" and all of its nested sub-menus. This action cannot be undone.
+              This will permanently delete "{menus.find(m => m.id === itemToDelete)?.name}" and all of its nested sub-menus.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
