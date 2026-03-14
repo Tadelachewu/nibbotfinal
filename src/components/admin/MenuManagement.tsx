@@ -6,7 +6,7 @@ import { getStoredMenus, addMenu, updateMenu, deleteMenu } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { 
   Plus, 
   Trash2, 
@@ -17,7 +17,8 @@ import {
   Languages, 
   MessageSquare,
   Info,
-  Menu as MenuIcon
+  Menu as MenuIcon,
+  FolderPlus
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -29,10 +30,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { WysiwygEditor } from './WysiwygEditor';
 import { adminContentTranslator } from '@/ai/flows/admin-content-translator';
 import { toast } from '@/hooks/use-toast';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 export function MenuManagement() {
   const [menus, setMenus] = useState<MenuItem[]>([]);
@@ -41,6 +50,7 @@ export function MenuManagement() {
   const [editForm, setEditForm] = useState<Partial<MenuItem>>({});
   const [isTranslating, setIsTranslating] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   useEffect(() => {
     setMenus(getStoredMenus());
@@ -50,9 +60,9 @@ export function MenuManagement() {
 
   const handleAdd = (parentId: string | null = null) => {
     const newItem = addMenu({
-      name: `New ${parentId ? 'Sub' : 'Main'} Menu`,
+      name: parentId ? 'New Sub Menu' : 'New Main Menu',
       parentId,
-      content: '<p>Enter content for this menu item...</p>',
+      content: '<p>Enter your response message here...</p>',
       order: menus.filter(m => m.parentId === parentId).length
     });
     refresh();
@@ -65,11 +75,13 @@ export function MenuManagement() {
   const handleStartEdit = (menu: MenuItem) => {
     setEditingId(menu.id);
     setEditForm(menu);
+    setIsEditDialogOpen(true);
   };
 
   const handleSaveEdit = () => {
     if (editingId && editForm) {
       updateMenu(editingId, editForm);
+      setIsEditDialogOpen(false);
       setEditingId(null);
       refresh();
       toast({ title: "Saved", description: "Menu updated successfully." });
@@ -80,7 +92,10 @@ export function MenuManagement() {
     if (itemToDelete) {
       deleteMenu(itemToDelete);
       refresh();
-      if (editingId === itemToDelete) setEditingId(null);
+      if (editingId === itemToDelete) {
+        setEditingId(null);
+        setIsEditDialogOpen(false);
+      }
       setItemToDelete(null);
       toast({ title: "Deleted", description: "Menu and all its sub-menus removed." });
     }
@@ -105,7 +120,7 @@ export function MenuManagement() {
         name: nameTranslation.translatedContent,
         content: contentTranslation.translatedContent || prev.content
       }));
-      toast({ title: "Translated", description: `Menu translated to ${lang}` });
+      toast({ title: "Translated", description: `Content translated to ${lang}` });
     } catch (error) {
       toast({ variant: "destructive", title: "Translation Failed", description: "Could not translate content." });
     } finally {
@@ -147,7 +162,7 @@ export function MenuManagement() {
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => handleAdd(item.id)}>
-                          <Plus size={14} />
+                          <FolderPlus size={14} />
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>Add Sub Menu</TooltipContent>
@@ -170,34 +185,47 @@ export function MenuManagement() {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-      <Card className="lg:col-span-4 shadow-sm h-[calc(100vh-160px)] overflow-hidden flex flex-col">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b">
-          <CardTitle className="text-lg font-bold">Menu Structure</CardTitle>
-          <Button variant="outline" size="sm" onClick={() => handleAdd(null)} className="h-8 px-3 gap-1">
-            <Plus size={14} /> Main Menu
+    <div className="max-w-4xl mx-auto">
+      <Card className="shadow-sm">
+        <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/10">
+          <div>
+            <CardTitle className="text-xl">Menu Hierarchy</CardTitle>
+            <p className="text-sm text-muted-foreground">Manage your chatbot's conversational structure</p>
+          </div>
+          <Button onClick={() => handleAdd(null)} className="gap-2">
+            <Plus size={16} /> Add Main Menu
           </Button>
         </CardHeader>
-        <CardContent className="flex-1 overflow-auto pt-4 px-2">
-          {renderTree(null)}
-          {menus.length === 0 && (
-            <div className="text-center py-10 text-muted-foreground italic text-sm">
-              No menus found. Click "Main Menu" to start.
+        <CardContent className="p-6">
+          {menus.length > 0 ? (
+            <div className="bg-white rounded-lg border p-4">
+              {renderTree(null)}
+            </div>
+          ) : (
+            <div className="text-center py-20 bg-muted/10 rounded-lg border-2 border-dashed flex flex-col items-center">
+              <MessageSquare size={48} className="text-muted-foreground/30 mb-4" />
+              <h3 className="text-lg font-medium">Your tree is empty</h3>
+              <p className="text-muted-foreground mb-6">Start by adding your first Main Menu item</p>
+              <Button onClick={() => handleAdd(null)} variant="outline">
+                Create Main Menu
+              </Button>
             </div>
           )}
         </CardContent>
       </Card>
 
-      <Card className="lg:col-span-8 shadow-sm h-[calc(100vh-160px)] overflow-hidden flex flex-col">
-        <CardHeader className="border-b pb-4">
-          <CardTitle className="text-lg">
-            {editingId ? `Editing: ${editForm.name}` : 'Menu Editor'}
-          </CardTitle>
-        </CardHeader>
-        
-        <CardContent className="flex-1 overflow-auto p-6">
-          {editingId ? (
-            <div className="space-y-6">
+      {/* Unified Editor Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="p-6 border-b bg-muted/5">
+            <DialogTitle className="flex items-center gap-2">
+              <Edit2 size={18} className="text-primary" />
+              Editing: {editForm.name}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <ScrollArea className="flex-1 p-6">
+            <div className="space-y-6 pb-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
@@ -207,7 +235,7 @@ export function MenuManagement() {
                         <TooltipTrigger asChild>
                           <Info size={14} className="text-muted-foreground cursor-help" />
                         </TooltipTrigger>
-                        <TooltipContent>The text shown on the button in the chat interface.</TooltipContent>
+                        <TooltipContent>This text appears on the button the user clicks.</TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                   </div>
@@ -215,7 +243,7 @@ export function MenuManagement() {
                     id="item-name" 
                     value={editForm.name || ''} 
                     onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                    placeholder="e.g., Billing Support"
+                    placeholder="e.g., Billing Questions"
                   />
                 </div>
                 <div className="space-y-2">
@@ -239,8 +267,8 @@ export function MenuManagement() {
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label>Bot Response Message (HTML)</Label>
-                  <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Message Content</span>
+                  <Label>Bot Response (Rich Text/HTML)</Label>
+                  <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Message Body</span>
                 </div>
                 <WysiwygEditor 
                   title={editForm.name || ''}
@@ -248,47 +276,27 @@ export function MenuManagement() {
                   onChange={(val) => setEditForm({ ...editForm, content: val })} 
                 />
               </div>
-
-              <div className="mt-4 p-4 border rounded-lg bg-muted/20">
-                <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">Add Child Options</h4>
-                <Button variant="outline" size="sm" onClick={() => handleAdd(editingId)} className="text-xs h-8">
-                  <Plus size={14} className="mr-2" /> Create Sub Menu Item
-                </Button>
-              </div>
             </div>
-          ) : (
-            <div className="h-full flex flex-col items-center justify-center text-center opacity-60">
-              <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mb-6">
-                <MessageSquare size={40} className="text-muted-foreground" />
-              </div>
-              <h3 className="text-xl font-medium mb-2">No Menu Selected</h3>
-              <p className="text-muted-foreground max-w-xs text-sm">
-                Select a menu item from the structure on the left to edit its response message and properties.
-              </p>
-            </div>
-          )}
-        </CardContent>
+          </ScrollArea>
 
-        <CardFooter className="border-t p-4 flex justify-end gap-2 bg-muted/5">
-          {editingId && (
-            <>
-              <Button variant="ghost" size="sm" onClick={() => setEditingId(null)} className="h-9">
-                <X size={16} className="mr-2" /> Cancel
-              </Button>
-              <Button size="sm" onClick={handleSaveEdit} className="h-9 bg-accent hover:bg-accent/90 text-white shadow-md">
-                <Save size={16} className="mr-2" /> Save Changes
-              </Button>
-            </>
-          )}
-        </CardFooter>
-      </Card>
+          <DialogFooter className="p-4 border-t bg-muted/5 flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setIsEditDialogOpen(false)}>
+              <X size={16} className="mr-2" /> Cancel
+            </Button>
+            <Button onClick={handleSaveEdit} className="bg-primary hover:bg-primary/90 text-white min-w-[120px]">
+              <Save size={16} className="mr-2" /> Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
+      {/* Delete Confirmation */}
       <AlertDialog open={!!itemToDelete} onOpenChange={() => setItemToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              Deleting this menu item will also remove all its nested sub-menus. This action is permanent.
+              This will permanently delete "{menus.find(m => m.id === itemToDelete)?.name}" and all of its nested sub-menus. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
