@@ -9,8 +9,6 @@ import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { 
   Plus, 
-  Folder, 
-  FileText, 
   Trash2, 
   Edit2, 
   ChevronRight, 
@@ -19,9 +17,8 @@ import {
   X, 
   Languages, 
   MessageSquare,
-  FolderPlus,
   Info,
-  Layers
+  Menu as MenuIcon
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -52,12 +49,11 @@ export function MenuManagement() {
 
   const refresh = () => setMenus(getStoredMenus());
 
-  const handleAdd = (parentId: string | null = null, type: 'folder' | 'content' = 'content') => {
+  const handleAdd = (parentId: string | null = null) => {
     const newItem = addMenu({
-      name: `New ${type === 'folder' ? 'Category' : 'Page'}`,
+      name: `New ${parentId ? 'Sub' : 'Main'} Menu`,
       parentId,
-      type,
-      content: '<p>Start typing your content here...</p>',
+      content: '<p>Enter content for this menu item...</p>',
       order: menus.filter(m => m.parentId === parentId).length
     });
     refresh();
@@ -77,7 +73,7 @@ export function MenuManagement() {
       updateMenu(editingId, editForm);
       setEditingId(null);
       refresh();
-      toast({ title: "Saved", description: "Changes have been updated successfully." });
+      toast({ title: "Saved", description: "Menu updated successfully." });
     }
   };
 
@@ -87,7 +83,7 @@ export function MenuManagement() {
       refresh();
       if (editingId === itemToDelete) setEditingId(null);
       setItemToDelete(null);
-      toast({ title: "Deleted", description: "Item and all its contents removed." });
+      toast({ title: "Deleted", description: "Menu and all its sub-menus removed." });
     }
   };
 
@@ -110,7 +106,7 @@ export function MenuManagement() {
         name: nameTranslation.translatedContent,
         content: contentTranslation.translatedContent || prev.content
       }));
-      toast({ title: "Translated", description: `Content translated to ${lang}` });
+      toast({ title: "Translated", description: `Menu translated to ${lang}` });
     } catch (error) {
       toast({ variant: "destructive", title: "Translation Failed", description: "Could not translate content." });
     } finally {
@@ -127,62 +123,49 @@ export function MenuManagement() {
 
     return (
       <div className={`space-y-1 ${level > 0 ? 'ml-4 border-l pl-2 mt-1' : ''}`}>
-        {items.map(item => (
-          <div key={item.id} className="group">
-            <div className={`flex items-center justify-between p-2 rounded-md hover:bg-muted/50 transition-colors ${editingId === item.id ? 'bg-primary/10 ring-1 ring-primary/30' : ''}`}>
-              <div className="flex items-center gap-2 flex-1 min-w-0">
-                {item.type === 'folder' ? (
-                  <button onClick={() => toggleFolder(item.id)} className="text-muted-foreground hover:text-primary shrink-0">
-                    {expandedFolders.has(item.id) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        {items.map(item => {
+          const hasChildren = menus.some(m => m.parentId === item.id);
+          return (
+            <div key={item.id} className="group">
+              <div className={`flex items-center justify-between p-2 rounded-md hover:bg-muted/50 transition-colors ${editingId === item.id ? 'bg-primary/10 ring-1 ring-primary/30' : ''}`}>
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <button 
+                    onClick={() => toggleFolder(item.id)} 
+                    className={`text-muted-foreground hover:text-primary shrink-0 transition-transform ${expandedFolders.has(item.id) ? 'rotate-0' : '-rotate-90'}`}
+                  >
+                    <ChevronDown size={14} />
                   </button>
-                ) : <div className="w-4" />}
+                  
+                  <MenuIcon size={16} className="text-primary shrink-0 opacity-70" />
+                  
+                  <span className={`truncate text-sm font-medium ${editingId === item.id ? 'text-primary' : 'text-foreground'}`}>
+                    {item.name}
+                  </span>
+                </div>
                 
-                {item.type === 'folder' ? (
-                  <Folder size={16} className="text-primary shrink-0" />
-                ) : (
-                  <FileText size={16} className="text-muted-foreground shrink-0" />
-                )}
-                <span className={`truncate text-sm ${item.type === 'folder' ? 'font-semibold' : 'font-medium'}`}>
-                  {item.name}
-                </span>
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => handleAdd(item.id)}>
+                          <Plus size={14} />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Add Sub Menu</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleStartEdit(item)}>
+                    <Edit2 size={14} />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setItemToDelete(item.id)}>
+                    <Trash2 size={14} />
+                  </Button>
+                </div>
               </div>
-              
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                {item.type === 'folder' && (
-                  <>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => handleAdd(item.id, 'folder')}>
-                            <FolderPlus size={14} />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Add Sub-category</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => handleAdd(item.id, 'content')}>
-                            <Plus size={14} />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Add Sub-page</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </>
-                )}
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleStartEdit(item)}>
-                  <Edit2 size={14} />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setItemToDelete(item.id)}>
-                  <Trash2 size={14} />
-                </Button>
-              </div>
+              {expandedFolders.has(item.id) && renderTree(item.id, level + 1)}
             </div>
-            {item.type === 'folder' && expandedFolders.has(item.id) && renderTree(item.id, level + 1)}
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   };
@@ -192,20 +175,15 @@ export function MenuManagement() {
       <Card className="lg:col-span-4 shadow-sm h-[calc(100vh-160px)] overflow-hidden flex flex-col">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b">
           <CardTitle className="text-lg font-bold">Menu Structure</CardTitle>
-          <div className="flex gap-1">
-            <Button variant="outline" size="sm" onClick={() => handleAdd(null, 'folder')} className="h-8 px-2 gap-1 text-[11px]">
-              <FolderPlus size={12} /> Category
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => handleAdd(null, 'content')} className="h-8 px-2 gap-1 text-[11px]">
-              <Plus size={12} /> Page
-            </Button>
-          </div>
+          <Button variant="outline" size="sm" onClick={() => handleAdd(null)} className="h-8 px-3 gap-1">
+            <Plus size={14} /> Main Menu
+          </Button>
         </CardHeader>
         <CardContent className="flex-1 overflow-auto pt-4 px-2">
           {renderTree(null)}
           {menus.length === 0 && (
             <div className="text-center py-10 text-muted-foreground italic text-sm">
-              Your structure is empty. Create your first category or page above.
+              No menus found. Click "Main Menu" to start.
             </div>
           )}
         </CardContent>
@@ -215,12 +193,7 @@ export function MenuManagement() {
         <CardHeader className="border-b pb-4 flex flex-row items-center justify-between">
           <div>
             <CardTitle className="text-lg">
-              {editingId ? (
-                <div className="flex items-center gap-2">
-                  {editForm.type === 'folder' ? <Folder className="text-primary" size={18} /> : <FileText className="text-muted-foreground" size={18} />}
-                  <span>Editing: {editForm.name}</span>
-                </div>
-              ) : 'Item Editor'}
+              {editingId ? `Editing: ${editForm.name}` : 'Menu Editor'}
             </CardTitle>
           </div>
           {editingId && (
@@ -246,7 +219,7 @@ export function MenuManagement() {
                         <TooltipTrigger asChild>
                           <Info size={14} className="text-muted-foreground cursor-help" />
                         </TooltipTrigger>
-                        <TooltipContent>This text will appear as a button or title in the chat.</TooltipContent>
+                        <TooltipContent>The text shown on the button in the chat interface.</TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                   </div>
@@ -278,26 +251,8 @@ export function MenuManagement() {
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Label>Display Content (HTML)</Label>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Info size={14} className="text-muted-foreground cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {editForm.type === 'folder' 
-                            ? "This message appears before showing the sub-options." 
-                            : "This content is shown when the user reaches this page."}
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                  {editForm.type === 'folder' && (
-                    <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold uppercase tracking-wider flex items-center gap-1">
-                      <Layers size={10} /> Category Item
-                    </span>
-                  )}
+                  <Label>Message Content (HTML)</Label>
+                  <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Bot Response</span>
                 </div>
                 <WysiwygEditor 
                   title={editForm.name || ''}
@@ -306,30 +261,21 @@ export function MenuManagement() {
                 />
               </div>
 
-              {editForm.type === 'folder' && (
-                <div className="mt-4 p-4 border rounded-lg bg-muted/20">
-                  <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-2">
-                    <FolderPlus size={12} /> Management Actions
-                  </h4>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => handleAdd(editingId, 'folder')} className="text-xs h-8">
-                      <FolderPlus size={14} className="mr-2" /> New Sub-category
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => handleAdd(editingId, 'content')} className="text-xs h-8">
-                      <Plus size={14} className="mr-2" /> New Sub-page
-                    </Button>
-                  </div>
-                </div>
-              )}
+              <div className="mt-4 p-4 border rounded-lg bg-muted/20">
+                <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">Add Child Options</h4>
+                <Button variant="outline" size="sm" onClick={() => handleAdd(editingId)} className="text-xs h-8">
+                  <Plus size={14} className="mr-2" /> Create Sub Menu Item
+                </Button>
+              </div>
             </div>
           ) : (
             <div className="h-full flex flex-col items-center justify-center text-center opacity-60">
               <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mb-6">
                 <MessageSquare size={40} className="text-muted-foreground" />
               </div>
-              <h3 className="text-xl font-medium mb-2">No Item Selected</h3>
+              <h3 className="text-xl font-medium mb-2">No Menu Selected</h3>
               <p className="text-muted-foreground max-w-xs text-sm">
-                Select a category or page from the structure on the left to begin editing its content and properties.
+                Select a menu item from the structure on the left to edit its response message and properties.
               </p>
             </div>
           )}
@@ -341,7 +287,7 @@ export function MenuManagement() {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. Deleting a category will also permanently remove all nested pages and sub-categories inside it.
+              Deleting this menu item will also remove all its nested sub-menus. This action is permanent.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -34,7 +34,7 @@ export function ChatInterface() {
       {
         id: 'welcome',
         sender: 'bot',
-        text: 'Hello! Welcome to TalkTree. How can I assist you today?',
+        text: 'Hello! How can I assist you today?',
         options: data.filter(m => m.parentId === null)
       }
     ]);
@@ -78,7 +78,7 @@ export function ChatInterface() {
   };
 
   const goHome = () => {
-    const userMsg: Message = { id: `home-req-${Date.now()}`, sender: 'user', text: 'Back to main menu' };
+    const userMsg: Message = { id: `home-req-${Date.now()}`, sender: 'user', text: 'Main Menu' };
     const botMsg: Message = {
       id: `home-resp-${Date.now()}`,
       sender: 'bot',
@@ -93,7 +93,6 @@ export function ChatInterface() {
     setIsTranslating(true);
     setLanguage(newLang);
     try {
-      // Translate only the current message for demo purposes
       const lastMsg = history[history.length - 1];
       if (lastMsg && lastMsg.sender === 'bot') {
         const textToTranslate = lastMsg.text || lastMsg.content || '';
@@ -121,10 +120,10 @@ export function ChatInterface() {
             <Globe size={20} />
           </div>
           <div>
-            <h1 className="font-bold text-lg leading-tight">TalkTree Support</h1>
+            <h1 className="font-bold text-lg leading-tight">Support Assistant</h1>
             <div className="flex items-center gap-1.5">
               <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-              <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Online Assistant</span>
+              <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Online</span>
             </div>
           </div>
         </div>
@@ -176,7 +175,7 @@ export function ChatInterface() {
           {isTranslating && (
             <div className="flex gap-2 items-center text-muted-foreground text-xs animate-pulse">
               <div className="w-2 h-2 bg-primary rounded-full" />
-              Translating interface...
+              Translating...
             </div>
           )}
         </div>
@@ -190,7 +189,7 @@ export function ChatInterface() {
           onClick={goHome}
         >
           <Home size={18} />
-          <span className="text-xs font-semibold">Main Menu</span>
+          <span className="text-xs font-semibold">Home</span>
         </Button>
         {currentMenuId && (
           <Button 
@@ -200,7 +199,7 @@ export function ChatInterface() {
             onClick={goBack}
           >
             <ArrowLeft size={18} />
-            <span className="text-xs font-semibold">Previous</span>
+            <span className="text-xs font-semibold">Back</span>
           </Button>
         )}
       </footer>

@@ -1,14 +1,14 @@
 'use client';
 
-import { MenuItem, AppState } from './types';
+import { MenuItem } from './types';
 
 const STORAGE_KEY = 'talktree_menus';
 
 const defaultMenus: MenuItem[] = [
-  { id: '1', parentId: null, name: 'Our Services', type: 'folder', order: 0 },
-  { id: '2', parentId: null, name: 'Contact Us', type: 'content', content: '<p>You can reach us at support@talktree.com</p>', order: 1 },
-  { id: '3', parentId: '1', name: 'Web Development', type: 'content', content: '<h2>Web Development</h2><p>We build responsive and high-performance websites.</p>', order: 0 },
-  { id: '4', parentId: '1', name: 'Mobile Apps', type: 'content', content: '<h2>Mobile Apps</h2><p>Native and cross-platform mobile experiences.</p>', order: 1 },
+  { id: '1', parentId: null, name: 'Our Services', order: 0, content: '<p>Explore what we can do for you.</p>' },
+  { id: '2', parentId: null, name: 'Contact Us', content: '<p>You can reach us at <strong>support@talktree.com</strong></p>', order: 1 },
+  { id: '3', parentId: '1', name: 'Web Development', content: '<h2>Web Development</h2><p>We build responsive and high-performance websites.</p>', order: 0 },
+  { id: '4', parentId: '1', name: 'Mobile Apps', content: '<h2>Mobile Apps</h2><p>Native and cross-platform mobile experiences.</p>', order: 1 },
 ];
 
 export function getStoredMenus(): MenuItem[] {
@@ -37,7 +37,7 @@ export function updateMenu(id: string, updates: Partial<MenuItem>) {
 
 export function deleteMenu(id: string) {
   const menus = getStoredMenus();
-  // Recursive delete if folder
+  // Recursive delete to remove children
   const toDelete = new Set([id]);
   let size = 0;
   while (toDelete.size > size) {
