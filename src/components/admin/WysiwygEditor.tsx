@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Editor } from '@tinymce/tinymce-react';
@@ -13,7 +12,7 @@ export function WysiwygEditor({ value, onChange, title }: WysiwygEditorProps) {
   return (
     <div className="border rounded-lg overflow-hidden bg-white shadow-sm ring-1 ring-border">
       <Editor
-        apiKey="no-api-key"
+        apiKey="yq5g12zo1n8x8dbbo54xk61f4dabbuwjwltx7f3h03w78okj"
         value={value}
         onEditorChange={(content) => onChange(content)}
         init={{

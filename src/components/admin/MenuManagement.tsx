@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -85,7 +84,7 @@ export function MenuManagement() {
         const updatedForm = { ...editForm };
         
         // Background System Localization (AI)
-        // We do this automatically when saving so the admin doesn't need to worry about it.
+        // Automatically localize to Amharic on save to satisfy "the system can localize it"
         if (editForm.name) {
           try {
             const res = await adminContentTranslator({ 
@@ -206,7 +205,7 @@ export function MenuManagement() {
         <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/10">
           <div>
             <CardTitle className="text-xl">Menu Hierarchy</CardTitle>
-            <p className="text-sm text-muted-foreground">Manage your chatbot navigation structure</p>
+            <p className="text-sm text-muted-foreground">Manage your conversational menu structure</p>
           </div>
           <Button onClick={() => handleAdd(null)} className="gap-2">
             <Plus size={16} /> Add Main Menu
@@ -264,7 +263,7 @@ export function MenuManagement() {
             </div>
           </ScrollArea>
 
-          <DialogFooter className="p-4 border-t bg-muted/5 flex shrink-0 sm:justify-end gap-2 mt-auto">
+          <DialogFooter className="p-4 border-t bg-muted/5 flex shrink-0 sm:justify-end gap-2 mt-auto sticky bottom-0">
             <Button variant="ghost" onClick={() => setIsEditDialogOpen(false)} className="flex-1 sm:flex-none">
               <X size={16} className="mr-2" /> Cancel
             </Button>
