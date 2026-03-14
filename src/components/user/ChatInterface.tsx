@@ -7,7 +7,6 @@ import { ChatBubble } from './ChatBubble';
 import { Button } from '@/components/ui/button';
 import { ChevronRight, Home, ArrowLeft, Languages, Globe } from 'lucide-react';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
-import { adminContentTranslator } from '@/ai/flows/admin-content-translator';
 
 interface Message {
   id: string;
@@ -21,7 +20,6 @@ export function ChatInterface() {
   const [menus, setMenus] = useState<MenuItem[]>([]);
   const [history, setHistory] = useState<Message[]>([]);
   const [currentMenuId, setCurrentMenuId] = useState<string | null>(null);
-  const [isTranslating, setIsTranslating] = useState(false);
   const [language, setLanguage] = useState('English');
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -104,36 +102,20 @@ export function ChatInterface() {
     setCurrentMenuId(null);
   };
 
-  const handleLanguageChange = async (newLang: string) => {
-    if (newLang === language) return;
-    
-    setIsTranslating(true);
+  const handleLanguageChange = (newLang: string) => {
     setLanguage(newLang);
-    
-    try {
-      // Re-translate current conversation context for immediate UX
-      const updatedHistory = await Promise.all(history.map(async (msg) => {
-        if (msg.sender === 'bot') {
-          const sourceText = msg.text || msg.content || '';
-          if (!sourceText) return msg;
-          
-          const res = await adminContentTranslator({ content: sourceText, targetLanguage: newLang });
-          return {
-            ...msg,
-            text: msg.text ? res.translatedContent : undefined,
-            content: msg.content ? res.translatedContent : undefined,
-          };
-        }
-        const res = await adminContentTranslator({ content: msg.text || '', targetLanguage: newLang });
-        return { ...msg, text: res.translatedContent };
-      }));
-      
-      setHistory(updatedHistory);
-    } catch (e) {
-      console.error("Translation failed", e);
-    } finally {
-      setIsTranslating(false);
-    }
+    // Restart conversation context for the new language
+    const data = getStoredMenus();
+    const welcomeText = newLang === 'Amharic' ? 'ሰላም! ዛሬ እንዴት ልረዳዎ እችላለሁ?' : 'Hello! How can I assist you today?';
+    setHistory([
+      {
+        id: 'welcome-reset',
+        sender: 'bot',
+        text: welcomeText,
+        options: data.filter(m => m.parentId === null)
+      }
+    ]);
+    setCurrentMenuId(null);
   };
 
   return (
@@ -201,12 +183,6 @@ export function ChatInterface() {
               )}
             </ChatBubble>
           ))}
-          {isTranslating && (
-            <div className="flex gap-2 items-center text-muted-foreground text-xs animate-pulse p-4">
-              <div className="w-2 h-2 bg-primary rounded-full" />
-              {language === 'Amharic' ? 'በመተርጎም ላይ...' : 'Translating conversation...'}
-            </div>
-          )}
         </div>
       </div>
 

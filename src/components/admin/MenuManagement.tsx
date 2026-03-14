@@ -17,8 +17,7 @@ import {
   MessageSquare,
   Info,
   Menu as MenuIcon,
-  FolderPlus,
-  Sparkles
+  FolderPlus
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -39,7 +38,6 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { WysiwygEditor } from './WysiwygEditor';
-import { adminContentTranslator } from '@/ai/flows/admin-content-translator';
 import { toast } from '@/hooks/use-toast';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -49,7 +47,6 @@ export function MenuManagement() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['root']));
   const [editForm, setEditForm] = useState<Partial<MenuItem>>({});
-  const [isTranslating, setIsTranslating] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
@@ -107,29 +104,6 @@ export function MenuManagement() {
     if (next.has(id)) next.delete(id);
     else next.add(id);
     setExpandedFolders(next);
-  };
-
-  const handleAutoTranslate = async () => {
-    if (!editForm.name && !editForm.content) {
-      toast({ variant: "destructive", title: "Nothing to translate", description: "Please enter English content first." });
-      return;
-    }
-    setIsTranslating(true);
-    try {
-      const nameRes = await adminContentTranslator({ content: editForm.name || '', targetLanguage: 'Amharic' });
-      const contentRes = editForm.content ? await adminContentTranslator({ content: editForm.content, targetLanguage: 'Amharic' }) : { translatedContent: '' };
-      
-      setEditForm(prev => ({
-        ...prev,
-        nameAm: nameRes.translatedContent,
-        contentAm: contentRes.translatedContent
-      }));
-      toast({ title: "Translation Complete", description: "Amharic fields have been populated." });
-    } catch (error) {
-      toast({ variant: "destructive", title: "Translation Failed", description: "AI could not reach the translation service." });
-    } finally {
-      setIsTranslating(false);
-    }
   };
 
   const renderTree = (parentId: string | null = null, level = 0) => {
@@ -223,22 +197,10 @@ export function MenuManagement() {
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
           <DialogHeader className="p-6 border-b bg-muted/5 shrink-0">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <DialogTitle className="flex items-center gap-2">
-                <Edit2 size={18} className="text-primary" />
-                Editing: {editForm.name}
-              </DialogTitle>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="gap-2 text-primary hover:bg-primary/5 w-fit"
-                onClick={handleAutoTranslate}
-                disabled={isTranslating}
-              >
-                <Sparkles size={14} />
-                {isTranslating ? 'Translating...' : 'Auto-Translate to Amharic'}
-              </Button>
-            </div>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit2 size={18} className="text-primary" />
+              Editing: {editForm.name}
+            </DialogTitle>
           </DialogHeader>
           
           <Tabs defaultValue="english" className="flex-1 flex flex-col min-h-0">
