@@ -14,7 +14,6 @@ import {
   ChevronDown, 
   Save, 
   X, 
-  Languages, 
   MessageSquare,
   Info,
   Menu as MenuIcon,
@@ -222,9 +221,9 @@ export function MenuManagement() {
       </Card>
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
-          <DialogHeader className="p-6 border-b bg-muted/5">
-            <div className="flex items-center justify-between pr-8">
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="p-6 border-b bg-muted/5 shrink-0">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <DialogTitle className="flex items-center gap-2">
                 <Edit2 size={18} className="text-primary" />
                 Editing: {editForm.name}
@@ -232,7 +231,7 @@ export function MenuManagement() {
               <Button 
                 variant="outline" 
                 size="sm" 
-                className="gap-2 text-primary hover:bg-primary/5"
+                className="gap-2 text-primary hover:bg-primary/5 w-fit"
                 onClick={handleAutoTranslate}
                 disabled={isTranslating}
               >
@@ -242,73 +241,75 @@ export function MenuManagement() {
             </div>
           </DialogHeader>
           
-          <Tabs defaultValue="english" className="flex-1 flex flex-col">
-            <div className="px-6 border-b">
+          <Tabs defaultValue="english" className="flex-1 flex flex-col min-h-0">
+            <div className="px-6 border-b shrink-0">
               <TabsList className="bg-transparent border-b-0 -mb-px">
                 <TabsTrigger value="english" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent">English Content</TabsTrigger>
                 <TabsTrigger value="amharic" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent">Amharic Translation</TabsTrigger>
               </TabsList>
             </div>
 
-            <ScrollArea className="flex-1 p-6">
-              <TabsContent value="english" className="mt-0 space-y-6 pb-4">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="item-name">Menu Button Text (English)</Label>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Info size={14} className="text-muted-foreground cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent>The text displayed on the interactive button.</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+            <ScrollArea className="flex-1">
+              <div className="p-6">
+                <TabsContent value="english" className="mt-0 space-y-6 pb-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="item-name">Menu Button Text (English)</Label>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Info size={14} className="text-muted-foreground cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent>The text displayed on the interactive button.</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                    <Input 
+                      id="item-name" 
+                      value={editForm.name || ''} 
+                      onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                      placeholder="e.g., Billing Questions"
+                    />
                   </div>
-                  <Input 
-                    id="item-name" 
-                    value={editForm.name || ''} 
-                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                    placeholder="e.g., Billing Questions"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Response Message (English)</Label>
-                  <WysiwygEditor 
-                    title={editForm.name || ''}
-                    value={editForm.content || ''} 
-                    onChange={(val) => setEditForm({ ...editForm, content: val })} 
-                  />
-                </div>
-              </TabsContent>
+                  <div className="space-y-2">
+                    <Label>Response Message (English)</Label>
+                    <WysiwygEditor 
+                      title={editForm.name || ''}
+                      value={editForm.content || ''} 
+                      onChange={(val) => setEditForm({ ...editForm, content: val })} 
+                    />
+                  </div>
+                </TabsContent>
 
-              <TabsContent value="amharic" className="mt-0 space-y-6 pb-4">
-                <div className="space-y-2">
-                  <Label htmlFor="item-name-am">Menu Button Text (Amharic)</Label>
-                  <Input 
-                    id="item-name-am" 
-                    value={editForm.nameAm || ''} 
-                    onChange={(e) => setEditForm({ ...editForm, nameAm: e.target.value })}
-                    placeholder="ለምሳሌ፡ የክፍያ ጥያቄዎች"
-                    className="font-body"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Response Message (Amharic)</Label>
-                  <WysiwygEditor 
-                    title={editForm.nameAm || ''}
-                    value={editForm.contentAm || ''} 
-                    onChange={(val) => setEditForm({ ...editForm, contentAm: val })} 
-                  />
-                </div>
-              </TabsContent>
+                <TabsContent value="amharic" className="mt-0 space-y-6 pb-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="item-name-am">Menu Button Text (Amharic)</Label>
+                    <Input 
+                      id="item-name-am" 
+                      value={editForm.nameAm || ''} 
+                      onChange={(e) => setEditForm({ ...editForm, nameAm: e.target.value })}
+                      placeholder="ለምሳሌ፡ የክፍያ ጥያቄዎች"
+                      className="font-body"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Response Message (Amharic)</Label>
+                    <WysiwygEditor 
+                      title={editForm.nameAm || ''}
+                      value={editForm.contentAm || ''} 
+                      onChange={(val) => setEditForm({ ...editForm, contentAm: val })} 
+                    />
+                  </div>
+                </TabsContent>
+              </div>
             </ScrollArea>
           </Tabs>
 
-          <DialogFooter className="p-4 border-t bg-muted/5 flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => setIsEditDialogOpen(false)}>
+          <DialogFooter className="p-4 border-t bg-muted/5 flex shrink-0 sm:justify-end gap-2 mt-auto">
+            <Button variant="ghost" onClick={() => setIsEditDialogOpen(false)} className="flex-1 sm:flex-none">
               <X size={16} className="mr-2" /> Cancel
             </Button>
-            <Button onClick={handleSaveEdit} className="bg-primary hover:bg-primary/90 text-white min-w-[120px]">
+            <Button onClick={handleSaveEdit} className="flex-1 sm:flex-none bg-primary hover:bg-primary/90 text-white min-w-[120px]">
               <Save size={16} className="mr-2" /> Save Changes
             </Button>
           </DialogFooter>

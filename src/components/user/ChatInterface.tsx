@@ -29,12 +29,13 @@ export function ChatInterface() {
     const data = getStoredMenus();
     setMenus(data);
     
-    // Initial welcome message
+    // Initial welcome message localized
+    const welcomeText = language === 'Amharic' ? 'ሰላም! ዛሬ እንዴት ልረዳዎ እችላለሁ?' : 'Hello! How can I assist you today?';
     setHistory([
       {
         id: 'welcome',
         sender: 'bot',
-        text: 'Hello! How can I assist you today?',
+        text: welcomeText,
         options: data.filter(m => m.parentId === null)
       }
     ]);
@@ -107,11 +108,10 @@ export function ChatInterface() {
     if (newLang === language) return;
     
     setIsTranslating(true);
-    const oldLang = language;
     setLanguage(newLang);
     
     try {
-      // Translate only the current interaction to show immediate change
+      // Re-translate current conversation context for immediate UX
       const updatedHistory = await Promise.all(history.map(async (msg) => {
         if (msg.sender === 'bot') {
           const sourceText = msg.text || msg.content || '';
@@ -124,7 +124,6 @@ export function ChatInterface() {
             content: msg.content ? res.translatedContent : undefined,
           };
         }
-        // For user messages, we just translate them too for consistency
         const res = await adminContentTranslator({ content: msg.text || '', targetLanguage: newLang });
         return { ...msg, text: res.translatedContent };
       }));
@@ -211,7 +210,7 @@ export function ChatInterface() {
         </div>
       </div>
 
-      <footer className="bg-white border-t p-4 pb-8 flex justify-center gap-4">
+      <footer className="bg-white border-t p-4 pb-8 flex justify-center gap-4 shrink-0">
         <Button 
           variant="ghost" 
           size="sm" 
