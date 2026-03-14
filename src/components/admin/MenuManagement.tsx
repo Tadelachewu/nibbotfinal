@@ -15,10 +15,8 @@ import {
   Save, 
   X, 
   MessageSquare,
-  Info,
   Menu as MenuIcon,
   FolderPlus,
-  Sparkles,
   Loader2
 } from 'lucide-react';
 import {
@@ -38,7 +36,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { WysiwygEditor } from './WysiwygEditor';
 import { toast } from '@/hooks/use-toast';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -52,7 +49,7 @@ export function MenuManagement() {
   const [editForm, setEditForm] = useState<Partial<MenuItem>>({});
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isTranslating, setIsTranslating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     setMenus(getStoredMenus());
@@ -80,43 +77,47 @@ export function MenuManagement() {
     setIsEditDialogOpen(true);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (editingId && editForm) {
-      updateMenu(editingId, editForm);
-      setIsEditDialogOpen(false);
-      setEditingId(null);
-      refresh();
-      toast({ title: "Saved", description: "Menu updated successfully." });
-    }
-  };
-
-  const handleAutoTranslate = async () => {
-    if (!editForm.name && !editForm.content) {
-      toast({ title: "Empty content", description: "Provide English content first.", variant: "destructive" });
-      return;
-    }
-
-    setIsTranslating(true);
-    try {
-      const nameTranslation = editForm.name 
-        ? await adminContentTranslator({ content: editForm.name, targetLanguage: 'Amharic' })
-        : { translatedContent: '' };
+      setIsSaving(true);
+      try {
+        const updatedForm = { ...editForm };
         
-      const contentTranslation = editForm.content 
-        ? await adminContentTranslator({ content: editForm.content, targetLanguage: 'Amharic' })
-        : { translatedContent: '' };
+        // Automatic system localization in the background
+        if (editForm.name) {
+          try {
+            const res = await adminContentTranslator({ 
+              content: editForm.name, 
+              targetLanguage: 'Amharic' 
+            });
+            updatedForm.nameAm = res.translatedContent;
+          } catch (e) {
+            console.error("Name localization failed", e);
+          }
+        }
+        
+        if (editForm.content) {
+          try {
+            const res = await adminContentTranslator({ 
+              content: editForm.content, 
+              targetLanguage: 'Amharic' 
+            });
+            updatedForm.contentAm = res.translatedContent;
+          } catch (e) {
+            console.error("Content localization failed", e);
+          }
+        }
 
-      setEditForm(prev => ({
-        ...prev,
-        nameAm: nameTranslation.translatedContent,
-        contentAm: contentTranslation.translatedContent
-      }));
-      
-      toast({ title: "Success", description: "Translated to Amharic successfully." });
-    } catch (error) {
-      toast({ title: "Translation failed", description: "System could not translate at this time.", variant: "destructive" });
-    } finally {
-      setIsTranslating(false);
+        updateMenu(editingId, updatedForm);
+        setIsEditDialogOpen(false);
+        setEditingId(null);
+        refresh();
+        toast({ title: "Saved", description: "Menu updated and localized successfully." });
+      } catch (error) {
+        toast({ title: "Save Error", description: "Could not save menu item.", variant: "destructive" });
+      } finally {
+        setIsSaving(false);
+      }
     }
   };
 
@@ -203,7 +204,7 @@ export function MenuManagement() {
         <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/10">
           <div>
             <CardTitle className="text-xl">Menu Hierarchy</CardTitle>
-            <p className="text-sm text-muted-foreground">Organize your chatbot menus</p>
+            <p className="text-sm text-muted-foreground">Organize your English menus</p>
           </div>
           <Button onClick={() => handleAdd(null)} className="gap-2">
             <Plus size={16} /> Add Main Menu
@@ -229,85 +230,49 @@ export function MenuManagement() {
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
-          <DialogHeader className="p-6 border-b bg-muted/5 shrink-0 flex flex-row items-center justify-between">
+          <DialogHeader className="p-6 border-b bg-muted/5 shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <Edit2 size={18} className="text-primary" />
               Editing: {editForm.name}
             </DialogTitle>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="gap-2 text-primary border-primary/20"
-              onClick={handleAutoTranslate}
-              disabled={isTranslating}
-            >
-              {isTranslating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-              System Localize (Amharic)
-            </Button>
           </DialogHeader>
           
-          <Tabs defaultValue="english" className="flex-1 flex flex-col min-h-0">
-            <div className="px-6 border-b shrink-0">
-              <TabsList className="bg-transparent border-b-0 -mb-px">
-                <TabsTrigger value="english" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent">English Content</TabsTrigger>
-                <TabsTrigger value="amharic" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent">Amharic Translation</TabsTrigger>
-              </TabsList>
-            </div>
-
-            <ScrollArea className="flex-1">
-              <div className="p-6">
-                <TabsContent value="english" className="mt-0 space-y-6 pb-4">
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor="item-name">Menu Button Text (English)</Label>
-                    </div>
-                    <Input 
-                      id="item-name" 
-                      value={editForm.name || ''} 
-                      onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                      placeholder="e.g., Billing Questions"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Response Message (English)</Label>
-                    <WysiwygEditor 
-                      title={editForm.name || ''}
-                      value={editForm.content || ''} 
-                      onChange={(val) => setEditForm({ ...editForm, content: val })} 
-                    />
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="amharic" className="mt-0 space-y-6 pb-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="item-name-am">Menu Button Text (Amharic)</Label>
-                    <Input 
-                      id="item-name-am" 
-                      value={editForm.nameAm || ''} 
-                      onChange={(e) => setEditForm({ ...editForm, nameAm: e.target.value })}
-                      placeholder="አማርኛ ስም..."
-                      className="font-body"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Response Message (Amharic)</Label>
-                    <WysiwygEditor 
-                      title={editForm.nameAm || ''}
-                      value={editForm.contentAm || ''} 
-                      onChange={(val) => setEditForm({ ...editForm, contentAm: val })} 
-                    />
-                  </div>
-                </TabsContent>
+          <ScrollArea className="flex-1">
+            <div className="p-6 space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="item-name">Menu Button Text</Label>
+                <Input 
+                  id="item-name" 
+                  value={editForm.name || ''} 
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  placeholder="e.g., Billing Questions"
+                />
               </div>
-            </ScrollArea>
-          </Tabs>
+              <div className="space-y-2">
+                <Label>Response Message</Label>
+                <WysiwygEditor 
+                  title={editForm.name || ''}
+                  value={editForm.content || ''} 
+                  onChange={(val) => setEditForm({ ...editForm, content: val })} 
+                />
+              </div>
+            </div>
+          </ScrollArea>
 
           <DialogFooter className="p-4 border-t bg-muted/5 flex shrink-0 sm:justify-end gap-2 mt-auto">
             <Button variant="ghost" onClick={() => setIsEditDialogOpen(false)} className="flex-1 sm:flex-none">
               <X size={16} className="mr-2" /> Cancel
             </Button>
-            <Button onClick={handleSaveEdit} className="flex-1 sm:flex-none bg-primary hover:bg-primary/90 text-white min-w-[120px]">
-              <Save size={16} className="mr-2" /> Save Changes
+            <Button 
+              onClick={handleSaveEdit} 
+              disabled={isSaving}
+              className="flex-1 sm:flex-none bg-primary hover:bg-primary/90 text-white min-w-[140px]"
+            >
+              {isSaving ? (
+                <><Loader2 size={16} className="mr-2 animate-spin" /> Saving...</>
+              ) : (
+                <><Save size={16} className="mr-2" /> Save Changes</>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
