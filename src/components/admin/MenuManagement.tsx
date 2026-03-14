@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -230,7 +231,7 @@ export function MenuManagement() {
       </Card>
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-5xl max-h-[95vh] flex flex-col p-0 overflow-hidden">
+        <DialogContent className="sm:max-w-5xl h-[90vh] flex flex-col p-0 overflow-hidden">
           <DialogHeader className="p-6 border-b bg-muted/5 shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <Edit2 size={18} className="text-primary" />
