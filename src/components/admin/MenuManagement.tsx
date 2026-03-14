@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -83,7 +84,8 @@ export function MenuManagement() {
       try {
         const updatedForm = { ...editForm };
         
-        // Automatic system localization in the background
+        // Background System Localization (AI)
+        // We do this automatically when saving so the admin doesn't need to worry about it.
         if (editForm.name) {
           try {
             const res = await adminContentTranslator({ 
@@ -112,7 +114,7 @@ export function MenuManagement() {
         setIsEditDialogOpen(false);
         setEditingId(null);
         refresh();
-        toast({ title: "Saved", description: "Menu updated and localized successfully." });
+        toast({ title: "Saved", description: "Menu updated and system-localized successfully." });
       } catch (error) {
         toast({ title: "Save Error", description: "Could not save menu item.", variant: "destructive" });
       } finally {
@@ -130,7 +132,7 @@ export function MenuManagement() {
         setIsEditDialogOpen(false);
       }
       setItemToDelete(null);
-      toast({ title: "Deleted", description: "Menu and all its sub-menus removed." });
+      toast({ title: "Deleted", description: "Menu removed successfully." });
     }
   };
 
@@ -204,7 +206,7 @@ export function MenuManagement() {
         <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/10">
           <div>
             <CardTitle className="text-xl">Menu Hierarchy</CardTitle>
-            <p className="text-sm text-muted-foreground">Organize your English menus</p>
+            <p className="text-sm text-muted-foreground">Manage your chatbot navigation structure</p>
           </div>
           <Button onClick={() => handleAdd(null)} className="gap-2">
             <Plus size={16} /> Add Main Menu
@@ -218,8 +220,8 @@ export function MenuManagement() {
           ) : (
             <div className="text-center py-20 bg-muted/10 rounded-lg border-2 border-dashed flex flex-col items-center">
               <MessageSquare size={48} className="text-muted-foreground/30 mb-4" />
-              <h3 className="text-lg font-medium">Your tree is empty</h3>
-              <p className="text-muted-foreground mb-6">Start by adding your first Main Menu item</p>
+              <h3 className="text-lg font-medium">Your menu tree is empty</h3>
+              <p className="text-muted-foreground mb-6">Create your first Main Menu to get started</p>
               <Button onClick={() => handleAdd(null)} variant="outline">
                 Create Main Menu
               </Button>
@@ -229,32 +231,35 @@ export function MenuManagement() {
       </Card>
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+        <DialogContent className="sm:max-w-5xl max-h-[95vh] flex flex-col p-0 overflow-hidden">
           <DialogHeader className="p-6 border-b bg-muted/5 shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <Edit2 size={18} className="text-primary" />
-              Editing: {editForm.name}
+              Editing Menu: {editForm.name}
             </DialogTitle>
           </DialogHeader>
           
           <ScrollArea className="flex-1">
             <div className="p-6 space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="item-name">Menu Button Text</Label>
+                <Label htmlFor="item-name">Button Label (English)</Label>
                 <Input 
                   id="item-name" 
                   value={editForm.name || ''} 
                   onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  placeholder="e.g., Billing Questions"
+                  placeholder="e.g., Support, Billing, etc."
+                  className="max-w-md"
                 />
+                <p className="text-[10px] text-muted-foreground">The system will automatically generate the Amharic version for users.</p>
               </div>
               <div className="space-y-2">
-                <Label>Response Message</Label>
+                <Label>Rich Content (English)</Label>
                 <WysiwygEditor 
                   title={editForm.name || ''}
                   value={editForm.content || ''} 
                   onChange={(val) => setEditForm({ ...editForm, content: val })} 
                 />
+                <p className="text-[10px] text-muted-foreground">This content is shown when the menu is selected. System handles background localization.</p>
               </div>
             </div>
           </ScrollArea>
@@ -266,10 +271,10 @@ export function MenuManagement() {
             <Button 
               onClick={handleSaveEdit} 
               disabled={isSaving}
-              className="flex-1 sm:flex-none bg-primary hover:bg-primary/90 text-white min-w-[140px]"
+              className="flex-1 sm:flex-none bg-primary hover:bg-primary/90 text-white min-w-[160px]"
             >
               {isSaving ? (
-                <><Loader2 size={16} className="mr-2 animate-spin" /> Saving...</>
+                <><Loader2 size={16} className="mr-2 animate-spin" /> Localizing & Saving...</>
               ) : (
                 <><Save size={16} className="mr-2" /> Save Changes</>
               )}
@@ -281,15 +286,15 @@ export function MenuManagement() {
       <AlertDialog open={!!itemToDelete} onOpenChange={() => setItemToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogTitle>Delete this menu?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete "{menus.find(m => m.id === itemToDelete)?.name}" and all of its nested sub-menus.
+              "{menus.find(m => m.id === itemToDelete)?.name}" and all its nested sub-menus will be removed forever.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Delete Permanently
+              Confirm Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

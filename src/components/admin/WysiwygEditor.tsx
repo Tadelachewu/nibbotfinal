@@ -1,8 +1,7 @@
+
 'use client';
 
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Bold, Italic, List, Heading1, Heading2 } from 'lucide-react';
+import { Editor } from '@tinymce/tinymce-react';
 
 interface WysiwygEditorProps {
   value: string;
@@ -11,41 +10,30 @@ interface WysiwygEditorProps {
 }
 
 export function WysiwygEditor({ value, onChange, title }: WysiwygEditorProps) {
-  const insertTag = (tag: string, closingTag: string = '') => {
-    onChange(value + (closingTag ? `<${tag}>Text</${tag}>` : `<${tag}/>`));
-  };
-
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between bg-muted/50 p-2 rounded-t-lg border border-b-0">
-        <div className="flex gap-1">
-          <Button variant="ghost" size="icon" onClick={() => insertTag('strong', 'strong')} title="Bold">
-            <Bold size={16} />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={() => insertTag('em', 'em')} title="Italic">
-            <Italic size={16} />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={() => insertTag('h1', 'h1')} title="H1">
-            <Heading1 size={16} />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={() => insertTag('h2', 'h2')} title="H2">
-            <Heading2 size={16} />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={() => insertTag('ul', 'ul')} title="List">
-            <List size={16} />
-          </Button>
-        </div>
-      </div>
-      <Textarea
+    <div className="border rounded-lg overflow-hidden bg-white shadow-sm ring-1 ring-border">
+      <Editor
+        apiKey="no-api-key"
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="min-h-[300px] rounded-t-none border-t-0 font-mono text-sm"
-        placeholder="Enter HTML content..."
+        onEditorChange={(content) => onChange(content)}
+        init={{
+          height: 450,
+          menubar: true,
+          plugins: [
+            'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
+            'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
+            'insertdatetime', 'media', 'table', 'code', 'help', 'wordcount'
+          ],
+          toolbar: 'undo redo | blocks fontfamily fontsize | ' +
+            'bold italic forecolor backcolor | alignleft aligncenter ' +
+            'alignright alignjustify | bullist numlist outdent indent | ' +
+            'removeformat | help',
+          content_style: 'body { font-family:Inter,Helvetica,Arial,sans-serif; font-size:16px; color: #1a1a1a; line-height: 1.6; }',
+          skin: 'oxide',
+          branding: false,
+          promotion: false,
+        }}
       />
-      <div className="p-4 border rounded-lg bg-white overflow-auto max-h-[300px]">
-        <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Preview</p>
-        <div className="wysiwyg-content" dangerouslySetInnerHTML={{ __html: value || '<p class="text-muted-foreground italic">No content yet...</p>' }} />
-      </div>
     </div>
   );
 }
