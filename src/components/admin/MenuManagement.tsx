@@ -7,7 +7,19 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Plus, Folder, FileText, Trash2, Edit2, ChevronRight, ChevronDown, Save, X, Languages } from 'lucide-react';
+import { 
+  Plus, 
+  Folder, 
+  FileText, 
+  Trash2, 
+  Edit2, 
+  ChevronRight, 
+  ChevronDown, 
+  Save, 
+  X, 
+  Languages, 
+  MessageSquare 
+} from 'lucide-react';
 import { WysiwygEditor } from './WysiwygEditor';
 import { adminContentTranslator } from '@/ai/flows/admin-content-translator';
 import { toast } from '@/hooks/use-toast';
