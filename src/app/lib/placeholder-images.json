@@ -1,0 +1,16 @@
+{
+  "placeholderImages": [
+    {
+      "id": "bot-avatar",
+      "description": "Friendly AI Bot Avatar",
+      "imageUrl": "https://picsum.photos/seed/bot/100/100",
+      "imageHint": "bot robot"
+    },
+    {
+      "id": "user-avatar",
+      "description": "User Profile Placeholder",
+      "imageUrl": "https://picsum.photos/seed/user/100/100",
+      "imageHint": "user person"
+    }
+  ]
+}

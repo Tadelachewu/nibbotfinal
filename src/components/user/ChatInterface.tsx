@@ -1,0 +1,209 @@
+'use client';
+
+import { useState, useEffect, useRef } from 'react';
+import { MenuItem } from '@/lib/types';
+import { getStoredMenus } from '@/lib/store';
+import { ChatBubble } from './ChatBubble';
+import { Button } from '@/components/ui/button';
+import { ChevronRight, Home, ArrowLeft, Languages, Globe } from 'lucide-react';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import { adminContentTranslator } from '@/ai/flows/admin-content-translator';
+
+interface Message {
+  id: string;
+  sender: 'bot' | 'user';
+  text?: string;
+  content?: string;
+  options?: MenuItem[];
+}
+
+export function ChatInterface() {
+  const [menus, setMenus] = useState<MenuItem[]>([]);
+  const [history, setHistory] = useState<Message[]>([]);
+  const [currentMenuId, setCurrentMenuId] = useState<string | null>(null);
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [language, setLanguage] = useState('English');
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const data = getStoredMenus();
+    setMenus(data);
+    
+    // Initial message
+    setHistory([
+      {
+        id: 'welcome',
+        sender: 'bot',
+        text: 'Hello! Welcome to TalkTree. How can I assist you today?',
+        options: data.filter(m => m.parentId === null)
+      }
+    ]);
+  }, []);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [history]);
+
+  const navigateTo = (menu: MenuItem) => {
+    const userMsg: Message = { id: `user-${Date.now()}`, sender: 'user', text: menu.name };
+    const children = menus.filter(m => m.parentId === menu.id);
+    
+    const botMsg: Message = {
+      id: `bot-${Date.now()}`,
+      sender: 'bot',
+      content: menu.content,
+      options: children.length > 0 ? children : undefined,
+    };
+
+    setHistory(prev => [...prev, userMsg, botMsg]);
+    setCurrentMenuId(menu.id);
+  };
+
+  const goBack = () => {
+    if (!currentMenuId) return;
+    const current = menus.find(m => m.id === currentMenuId);
+    if (!current) {
+      goHome();
+      return;
+    }
+    
+    const parent = menus.find(m => m.id === current.parentId);
+    if (!parent) {
+      goHome();
+    } else {
+      navigateTo(parent);
+    }
+  };
+
+  const goHome = () => {
+    const userMsg: Message = { id: `home-req-${Date.now()}`, sender: 'user', text: 'Back to main menu' };
+    const botMsg: Message = {
+      id: `home-resp-${Date.now()}`,
+      sender: 'bot',
+      text: 'Returning to main menu. What else can I help with?',
+      options: menus.filter(m => m.parentId === null)
+    };
+    setHistory(prev => [...prev, userMsg, botMsg]);
+    setCurrentMenuId(null);
+  };
+
+  const handleLanguageChange = async (newLang: string) => {
+    setIsTranslating(true);
+    setLanguage(newLang);
+    try {
+      // Translate only the current message for demo purposes
+      const lastMsg = history[history.length - 1];
+      if (lastMsg && lastMsg.sender === 'bot') {
+        const textToTranslate = lastMsg.text || lastMsg.content || '';
+        const res = await adminContentTranslator({ content: textToTranslate, targetLanguage: newLang });
+        
+        setHistory(prev => {
+          const updated = [...prev];
+          const last = { ...updated[updated.length - 1] };
+          if (last.text) last.text = res.translatedContent;
+          else if (last.content) last.content = res.translatedContent;
+          updated[updated.length - 1] = last;
+          return updated;
+        });
+      }
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-full bg-background max-w-2xl mx-auto border-x shadow-2xl relative">
+      <header className="bg-white border-b p-4 flex items-center justify-between sticky top-0 z-10">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white shadow-md">
+            <Globe size={20} />
+          </div>
+          <div>
+            <h1 className="font-bold text-lg leading-tight">TalkTree Support</h1>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Online Assistant</span>
+            </div>
+          </div>
+        </div>
+        
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="gap-2 text-xs font-semibold">
+              <Languages size={14} /> {language}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {['English', 'Spanish', 'French', 'Japanese', 'German'].map(lang => (
+              <DropdownMenuItem key={lang} onClick={() => handleLanguageChange(lang)}>
+                {lang}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </header>
+
+      <div 
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto p-4 md:p-6 scroll-smooth"
+      >
+        <div className="space-y-2">
+          {history.map((msg) => (
+            <ChatBubble key={msg.id} isBot={msg.sender === 'bot'}>
+              {msg.text && <p>{msg.text}</p>}
+              {msg.content && <div dangerouslySetInnerHTML={{ __html: msg.content }} />}
+              
+              {msg.options && (
+                <div className="flex flex-wrap gap-2 mt-4">
+                  {msg.options.map(opt => (
+                    <Button 
+                      key={opt.id} 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => navigateTo(opt)}
+                      className="rounded-full border-primary/20 hover:border-primary hover:bg-primary/5 text-primary text-xs"
+                    >
+                      {opt.name}
+                      <ChevronRight size={14} className="ml-1 opacity-50" />
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </ChatBubble>
+          ))}
+          {isTranslating && (
+            <div className="flex gap-2 items-center text-muted-foreground text-xs animate-pulse">
+              <div className="w-2 h-2 bg-primary rounded-full" />
+              Translating interface...
+            </div>
+          )}
+        </div>
+      </div>
+
+      <footer className="bg-white border-t p-4 pb-8 flex justify-center gap-4">
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="rounded-full gap-2 text-muted-foreground hover:text-primary"
+          onClick={goHome}
+        >
+          <Home size={18} />
+          <span className="text-xs font-semibold">Main Menu</span>
+        </Button>
+        {currentMenuId && (
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="rounded-full gap-2 text-muted-foreground hover:text-primary"
+            onClick={goBack}
+          >
+            <ArrowLeft size={18} />
+            <span className="text-xs font-semibold">Previous</span>
+          </Button>
+        )}
+      </footer>
+    </div>
+  );
+}
