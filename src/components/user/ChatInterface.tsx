@@ -90,6 +90,7 @@ export function ChatInterface() {
   };
 
   const handleLanguageChange = async (newLang: string) => {
+    if (newLang === language) return;
     setIsTranslating(true);
     setLanguage(newLang);
     try {
@@ -135,7 +136,7 @@ export function ChatInterface() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {['English', 'Spanish', 'French', 'Japanese', 'German'].map(lang => (
+            {['English', 'Amharic'].map(lang => (
               <DropdownMenuItem key={lang} onClick={() => handleLanguageChange(lang)}>
                 {lang}
               </DropdownMenuItem>

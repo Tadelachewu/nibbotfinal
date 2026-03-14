@@ -247,9 +247,9 @@ export function MenuManagement() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>AI Translations</Label>
+                  <Label>Translations</Label>
                   <div className="flex flex-wrap gap-1">
-                    {['Spanish', 'French', 'Japanese', 'German'].map(lang => (
+                    {['Amharic'].map(lang => (
                       <Button 
                         key={lang} 
                         variant="outline" 
