@@ -20,7 +20,8 @@ import {
   Languages, 
   MessageSquare,
   FolderPlus,
-  Info
+  Info,
+  Layers
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -53,10 +54,10 @@ export function MenuManagement() {
 
   const handleAdd = (parentId: string | null = null, type: 'folder' | 'content' = 'content') => {
     const newItem = addMenu({
-      name: `New ${type === 'folder' ? 'Category' : 'Article'}`,
+      name: `New ${type === 'folder' ? 'Category' : 'Page'}`,
       parentId,
       type,
-      content: type === 'content' ? '<p>Start typing your content here...</p>' : undefined,
+      content: '<p>Start typing your content here...</p>',
       order: menus.filter(m => m.parentId === parentId).length
     });
     refresh();
@@ -166,7 +167,7 @@ export function MenuManagement() {
                             <Plus size={14} />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Add Content Page</TooltipContent>
+                        <TooltipContent>Add Sub-page</TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                   </>
@@ -190,7 +191,7 @@ export function MenuManagement() {
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
       <Card className="lg:col-span-4 shadow-sm h-[calc(100vh-160px)] overflow-hidden flex flex-col">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b">
-          <CardTitle className="text-lg font-bold">Structure</CardTitle>
+          <CardTitle className="text-lg font-bold">Menu Structure</CardTitle>
           <div className="flex gap-1">
             <Button variant="outline" size="sm" onClick={() => handleAdd(null, 'folder')} className="h-8 px-2 gap-1 text-[11px]">
               <FolderPlus size={12} /> Category
@@ -275,40 +276,47 @@ export function MenuManagement() {
                 </div>
               </div>
 
-              {editForm.type === 'content' ? (
-                <div className="space-y-2">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Label>Article Content (HTML)</Label>
+                    <Label>Display Content (HTML)</Label>
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Info size={14} className="text-muted-foreground cursor-help" />
                         </TooltipTrigger>
-                        <TooltipContent>This HTML content is displayed directly to the user when they select this page.</TooltipContent>
+                        <TooltipContent>
+                          {editForm.type === 'folder' 
+                            ? "This message appears before showing the sub-options." 
+                            : "This content is shown when the user reaches this page."}
+                        </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                   </div>
-                  <WysiwygEditor 
-                    title={editForm.name || ''}
-                    value={editForm.content || ''} 
-                    onChange={(val) => setEditForm({ ...editForm, content: val })} 
-                  />
+                  {editForm.type === 'folder' && (
+                    <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold uppercase tracking-wider flex items-center gap-1">
+                      <Layers size={10} /> Category Item
+                    </span>
+                  )}
                 </div>
-              ) : (
-                <div className="p-12 border-2 border-dashed rounded-xl text-center bg-muted/20 flex flex-col items-center">
-                  <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
-                    <Folder className="text-primary" size={32} />
-                  </div>
-                  <h3 className="text-lg font-semibold mb-2">Navigation Category</h3>
-                  <p className="text-muted-foreground max-w-sm text-sm mb-4">
-                    Categories don't have their own content. Instead, they group other items together. In the chat, users will see the items inside this folder as multiple-choice options.
-                  </p>
-                  <div className="flex gap-3">
-                    <Button variant="outline" size="sm" onClick={() => handleAdd(editingId, 'folder')}>
-                      <FolderPlus size={14} className="mr-2" /> Add Sub-category
+                <WysiwygEditor 
+                  title={editForm.name || ''}
+                  value={editForm.content || ''} 
+                  onChange={(val) => setEditForm({ ...editForm, content: val })} 
+                />
+              </div>
+
+              {editForm.type === 'folder' && (
+                <div className="mt-4 p-4 border rounded-lg bg-muted/20">
+                  <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-2">
+                    <FolderPlus size={12} /> Management Actions
+                  </h4>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => handleAdd(editingId, 'folder')} className="text-xs h-8">
+                      <FolderPlus size={14} className="mr-2" /> New Sub-category
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => handleAdd(editingId, 'content')}>
-                      <Plus size={14} className="mr-2" /> Add Content Page
+                    <Button variant="outline" size="sm" onClick={() => handleAdd(editingId, 'content')} className="text-xs h-8">
+                      <Plus size={14} className="mr-2" /> New Sub-page
                     </Button>
                   </div>
                 </div>
@@ -321,7 +329,7 @@ export function MenuManagement() {
               </div>
               <h3 className="text-xl font-medium mb-2">No Item Selected</h3>
               <p className="text-muted-foreground max-w-xs text-sm">
-                Select a category or page from the structure on the left to begin editing.
+                Select a category or page from the structure on the left to begin editing its content and properties.
               </p>
             </div>
           )}
@@ -333,7 +341,7 @@ export function MenuManagement() {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. Deleting a category will also permanently remove all pages and sub-categories stored inside it.
+              This action cannot be undone. Deleting a category will also permanently remove all nested pages and sub-categories inside it.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
