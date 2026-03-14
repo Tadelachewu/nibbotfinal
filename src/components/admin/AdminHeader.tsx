@@ -10,7 +10,7 @@ export function AdminHeader() {
         <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white">
           <LayoutDashboard size={18} />
         </div>
-        <h1 className="text-xl font-bold text-foreground">TalkTree Admin</h1>
+        <h1 className="text-xl font-bold text-foreground">Admin</h1>
       </div>
       <nav className="flex items-center gap-4">
         <Link 

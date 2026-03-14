@@ -170,7 +170,7 @@ export function MenuManagement() {
         <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/10">
           <div>
             <CardTitle className="text-xl">Menu Hierarchy</CardTitle>
-            <p className="text-sm text-muted-foreground">Manage English and Amharic menu structures</p>
+            <p className="text-sm text-muted-foreground">Organize your English and Amharic menus</p>
           </div>
           <Button onClick={() => handleAdd(null)} className="gap-2">
             <Plus size={16} /> Add Main Menu

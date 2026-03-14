@@ -10,7 +10,7 @@ export default function AdminPage() {
       <AdminHeader />
       <main className="flex-1 container mx-auto p-4 md:p-8">
         <div className="mb-6">
-          <h2 className="text-2xl font-bold tracking-tight">Content Management</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Define your menu</h2>
           <p className="text-muted-foreground">Build and organize your conversational menu structure here.</p>
         </div>
         <MenuManagement />
