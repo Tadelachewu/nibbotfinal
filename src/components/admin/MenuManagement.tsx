@@ -6,12 +6,11 @@ import { getStoredMenus, addMenu, updateMenu, deleteMenu } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { 
   Plus, 
   Trash2, 
   Edit2, 
-  ChevronRight, 
   ChevronDown, 
   Save, 
   X, 
@@ -190,23 +189,12 @@ export function MenuManagement() {
       </Card>
 
       <Card className="lg:col-span-8 shadow-sm h-[calc(100vh-160px)] overflow-hidden flex flex-col">
-        <CardHeader className="border-b pb-4 flex flex-row items-center justify-between">
-          <div>
-            <CardTitle className="text-lg">
-              {editingId ? `Editing: ${editForm.name}` : 'Menu Editor'}
-            </CardTitle>
-          </div>
-          {editingId && (
-            <div className="flex gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setEditingId(null)} className="h-9">
-                <X size={16} className="mr-2" /> Cancel
-              </Button>
-              <Button size="sm" onClick={handleSaveEdit} className="h-9 bg-accent hover:bg-accent/90 text-white shadow-md">
-                <Save size={16} className="mr-2" /> Save Changes
-              </Button>
-            </div>
-          )}
+        <CardHeader className="border-b pb-4">
+          <CardTitle className="text-lg">
+            {editingId ? `Editing: ${editForm.name}` : 'Menu Editor'}
+          </CardTitle>
         </CardHeader>
+        
         <CardContent className="flex-1 overflow-auto p-6">
           {editingId ? (
             <div className="space-y-6">
@@ -251,8 +239,8 @@ export function MenuManagement() {
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label>Message Content (HTML)</Label>
-                  <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Bot Response</span>
+                  <Label>Bot Response Message (HTML)</Label>
+                  <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Message Content</span>
                 </div>
                 <WysiwygEditor 
                   title={editForm.name || ''}
@@ -280,6 +268,19 @@ export function MenuManagement() {
             </div>
           )}
         </CardContent>
+
+        <CardFooter className="border-t p-4 flex justify-end gap-2 bg-muted/5">
+          {editingId && (
+            <>
+              <Button variant="ghost" size="sm" onClick={() => setEditingId(null)} className="h-9">
+                <X size={16} className="mr-2" /> Cancel
+              </Button>
+              <Button size="sm" onClick={handleSaveEdit} className="h-9 bg-accent hover:bg-accent/90 text-white shadow-md">
+                <Save size={16} className="mr-2" /> Save Changes
+              </Button>
+            </>
+          )}
+        </CardFooter>
       </Card>
 
       <AlertDialog open={!!itemToDelete} onOpenChange={() => setItemToDelete(null)}>
