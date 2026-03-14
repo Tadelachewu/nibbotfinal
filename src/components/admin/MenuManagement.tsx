@@ -17,7 +17,9 @@ import {
   MessageSquare,
   Info,
   Menu as MenuIcon,
-  FolderPlus
+  FolderPlus,
+  Sparkles,
+  Loader2
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -41,6 +43,7 @@ import { WysiwygEditor } from './WysiwygEditor';
 import { toast } from '@/hooks/use-toast';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { adminContentTranslator } from '@/ai/flows/admin-content-translator';
 
 export function MenuManagement() {
   const [menus, setMenus] = useState<MenuItem[]>([]);
@@ -49,6 +52,7 @@ export function MenuManagement() {
   const [editForm, setEditForm] = useState<Partial<MenuItem>>({});
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isTranslating, setIsTranslating] = useState(false);
 
   useEffect(() => {
     setMenus(getStoredMenus());
@@ -83,6 +87,36 @@ export function MenuManagement() {
       setEditingId(null);
       refresh();
       toast({ title: "Saved", description: "Menu updated successfully." });
+    }
+  };
+
+  const handleAutoTranslate = async () => {
+    if (!editForm.name && !editForm.content) {
+      toast({ title: "Empty content", description: "Provide English content first.", variant: "destructive" });
+      return;
+    }
+
+    setIsTranslating(true);
+    try {
+      const nameTranslation = editForm.name 
+        ? await adminContentTranslator({ content: editForm.name, targetLanguage: 'Amharic' })
+        : { translatedContent: '' };
+        
+      const contentTranslation = editForm.content 
+        ? await adminContentTranslator({ content: editForm.content, targetLanguage: 'Amharic' })
+        : { translatedContent: '' };
+
+      setEditForm(prev => ({
+        ...prev,
+        nameAm: nameTranslation.translatedContent,
+        contentAm: contentTranslation.translatedContent
+      }));
+      
+      toast({ title: "Success", description: "Translated to Amharic successfully." });
+    } catch (error) {
+      toast({ title: "Translation failed", description: "System could not translate at this time.", variant: "destructive" });
+    } finally {
+      setIsTranslating(false);
     }
   };
 
@@ -133,7 +167,6 @@ export function MenuManagement() {
                     <span className={`truncate text-sm font-medium ${editingId === item.id ? 'text-primary' : 'text-foreground'}`}>
                       {item.name}
                     </span>
-                    {item.nameAm && <span className="text-[10px] text-muted-foreground truncate">{item.nameAm}</span>}
                   </div>
                 </div>
                 
@@ -170,7 +203,7 @@ export function MenuManagement() {
         <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/10">
           <div>
             <CardTitle className="text-xl">Menu Hierarchy</CardTitle>
-            <p className="text-sm text-muted-foreground">Organize your English and Amharic menus</p>
+            <p className="text-sm text-muted-foreground">Organize your chatbot menus</p>
           </div>
           <Button onClick={() => handleAdd(null)} className="gap-2">
             <Plus size={16} /> Add Main Menu
@@ -196,11 +229,21 @@ export function MenuManagement() {
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
-          <DialogHeader className="p-6 border-b bg-muted/5 shrink-0">
+          <DialogHeader className="p-6 border-b bg-muted/5 shrink-0 flex flex-row items-center justify-between">
             <DialogTitle className="flex items-center gap-2">
               <Edit2 size={18} className="text-primary" />
               Editing: {editForm.name}
             </DialogTitle>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="gap-2 text-primary border-primary/20"
+              onClick={handleAutoTranslate}
+              disabled={isTranslating}
+            >
+              {isTranslating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+              System Localize (Amharic)
+            </Button>
           </DialogHeader>
           
           <Tabs defaultValue="english" className="flex-1 flex flex-col min-h-0">
@@ -217,14 +260,6 @@ export function MenuManagement() {
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <Label htmlFor="item-name">Menu Button Text (English)</Label>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Info size={14} className="text-muted-foreground cursor-help" />
-                          </TooltipTrigger>
-                          <TooltipContent>The text displayed on the interactive button.</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
                     </div>
                     <Input 
                       id="item-name" 
@@ -250,7 +285,7 @@ export function MenuManagement() {
                       id="item-name-am" 
                       value={editForm.nameAm || ''} 
                       onChange={(e) => setEditForm({ ...editForm, nameAm: e.target.value })}
-                      placeholder="ለምሳሌ፡ የክፍያ ጥያቄዎች"
+                      placeholder="አማርኛ ስም..."
                       className="font-body"
                     />
                   </div>
