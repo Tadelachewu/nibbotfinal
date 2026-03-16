@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -121,7 +122,7 @@ export function MenuManagement() {
       try {
         const updatedForm = { ...editForm };
         
-        // Make translation resilient - don't block save if AI fails
+        // AI Translation - wrap in try/catch to ensure save is resilient
         try {
           if (editForm.name) {
             const res = await adminContentTranslator({ content: editForm.name, targetLanguage: 'Amharic' });
@@ -132,7 +133,7 @@ export function MenuManagement() {
             updatedForm.contentAm = res.translatedContent;
           }
         } catch (aiError) {
-          console.warn("Localization failed, saving original content:", aiError);
+          console.warn("Localization failed, but saving menu item anyway:", aiError);
         }
 
         updateMenu(editingId, updatedForm);
@@ -155,7 +156,7 @@ export function MenuManagement() {
     }
     setIsTestingApi(true);
     try {
-      // Ensure we handle relative URLs correctly for testing
+      // Ensure local endpoints work correctly
       const endpoint = editForm.apiConfig.endpoint.startsWith('/') 
         ? editForm.apiConfig.endpoint 
         : `/api/${editForm.apiConfig.endpoint}`;
@@ -174,7 +175,7 @@ export function MenuManagement() {
       if (response.ok) {
         toast({ title: "API Test Successful", description: "Response received from endpoint." });
       } else {
-        toast({ title: "API Response Error", description: data.message || "Endpoint returned an error status.", variant: "destructive" });
+        toast({ title: "API Info", description: "Endpoint returned a status info/error. Mapping keys still available.", variant: "default" });
       }
     } catch (e) {
       toast({ title: "API Network Error", description: "Could not reach endpoint. Ensure the URL is correct.", variant: "destructive" });
@@ -189,71 +190,23 @@ export function MenuManagement() {
     if (path) {
       target = path.split('.').reduce((acc, part) => acc && acc[part], obj);
     }
+    
+    // If it's an array, look at the first item's keys
     if (Array.isArray(target) && target.length > 0) {
       target = target[0];
     }
+    
     if (typeof target !== 'object' || target === null) return [];
-    return Object.keys(target);
-  };
-
-  const addTableColumn = () => {
-    const config = editForm.apiConfig!;
-    const cols = config.responseMapping.tableColumns || [];
-    setEditForm({
-      ...editForm,
-      apiConfig: {
-        ...config,
-        responseMapping: { ...config.responseMapping, tableColumns: [...cols, { header: 'New Column', key: '' }] }
+    
+    // Flatten keys one level deep for convenience
+    const keys: string[] = [];
+    Object.keys(target).forEach(k => {
+      keys.push(k);
+      if (typeof target[k] === 'object' && target[k] !== null && !Array.isArray(target[k])) {
+        Object.keys(target[k]).forEach(subK => keys.push(`${k}.${subK}`));
       }
     });
-  };
-
-  const removeTableColumn = (index: number) => {
-    const config = editForm.apiConfig!;
-    const cols = (config.responseMapping.tableColumns || []).filter((_, i) => i !== index);
-    setEditForm({
-      ...editForm,
-      apiConfig: {
-        ...config,
-        responseMapping: { ...config.responseMapping, tableColumns: cols }
-      }
-    });
-  };
-
-  const addRequestParameter = () => {
-    const config = editForm.apiConfig!;
-    const params = config.requestParameters || [];
-    setEditForm({
-      ...editForm,
-      apiConfig: {
-        ...config,
-        requestParameters: [...params, { apiKey: '', sourceType: 'kyc', sourceValue: '' }]
-      }
-    });
-  };
-
-  const removeRequestParameter = (index: number) => {
-    const config = editForm.apiConfig!;
-    const params = (config.requestParameters || []).filter((_, i) => i !== index);
-    setEditForm({
-      ...editForm,
-      apiConfig: {
-        ...config,
-        requestParameters: params
-      }
-    });
-  };
-
-  const removeKYCField = (index: number) => {
-    const config = editForm.apiConfig!;
-    const fields = (config.kycFields || []).filter((_, i) => i !== index);
-    setEditForm({
-      ...editForm,
-      apiConfig: {
-        ...config,
-        kycFields: fields
-      }
-    });
+    return Array.from(new Set(keys));
   };
 
   const renderTree = (parentId: string | null = null, level = 0) => {
@@ -305,16 +258,9 @@ export function MenuManagement() {
               <div className={cn("flex items-center gap-2 p-2 rounded-md transition-all cursor-pointer hover:bg-muted/50", isSelected && "bg-primary/5 ring-1 ring-primary/10")} onClick={() => {
                 const currentIds = editForm.attachedMenuIds || [];
                 if (!currentIds.includes(item.id)) {
-                  if (item.parentId && !currentIds.includes(item.parentId)) {
-                    toast({ title: "Selection Order", description: "Select the parent menu first.", variant: "destructive" });
-                    return;
-                  }
                   setEditForm({ ...editForm, attachedMenuIds: [...currentIds, item.id] });
                 } else {
-                  const toRemove = new Set([item.id]);
-                  const findChilds = (pid: string) => menus.forEach(m => { if (m.parentId === pid) { toRemove.add(m.id); findChilds(m.id); } });
-                  findChilds(item.id);
-                  setEditForm({ ...editForm, attachedMenuIds: currentIds.filter(id => !toRemove.has(id)) });
+                  setEditForm({ ...editForm, attachedMenuIds: currentIds.filter(id => id !== item.id) });
                 }
               }}>
                 <Checkbox checked={isSelected} className="h-4 w-4 rounded-full" onClick={(e) => e.stopPropagation()} />
@@ -415,7 +361,10 @@ export function MenuManagement() {
                                 setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, kycFields: fields } });
                               }} />
                             </div>
-                            <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => removeKYCField(idx)}>
+                            <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => {
+                               const fields = editForm.apiConfig!.kycFields.filter((_, i) => i !== idx);
+                               setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, kycFields: fields } });
+                            }}>
                               <Trash2 size={14} />
                             </Button>
                           </div>
@@ -425,7 +374,10 @@ export function MenuManagement() {
                       <div className="space-y-4">
                         <div className="flex items-center justify-between">
                           <Label className="text-xs font-bold uppercase">2. API Request Mapping</Label>
-                          <Button variant="ghost" size="sm" onClick={addRequestParameter}><Link2 className="mr-1" /> Map Parameter</Button>
+                          <Button variant="ghost" size="sm" onClick={() => {
+                             const params = editForm.apiConfig?.requestParameters || [];
+                             setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, requestParameters: [...params, { apiKey: '', sourceType: 'kyc', sourceValue: '' }] } });
+                          }}><Link2 className="mr-1" /> Map Parameter</Button>
                         </div>
                         {editForm.apiConfig?.requestParameters?.map((param, idx) => (
                           <div key={idx} className="flex gap-2 items-center group">
@@ -445,7 +397,10 @@ export function MenuManagement() {
                                 <SelectItem value="user.id">User ID</SelectItem>
                               </SelectContent>
                             </Select>
-                            <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => removeRequestParameter(idx)}>
+                            <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => {
+                               const params = editForm.apiConfig!.requestParameters.filter((_, i) => i !== idx);
+                               setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, requestParameters: params } });
+                            }}>
                               <Trash2 size={14} />
                             </Button>
                           </div>
@@ -481,14 +436,14 @@ export function MenuManagement() {
                         <TabsContent value="table" className="space-y-4 pt-4">
                           <div className="space-y-2">
                             <Label className="text-xs">Array Data Path in JSON</Label>
-                            <Input value={editForm.apiConfig?.responseMapping?.tableDataKey} onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, tableDataKey: e.target.value } } })} placeholder="e.g. data.items" />
+                            <Input value={editForm.apiConfig?.responseMapping?.tableDataKey} onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, tableDataKey: e.target.value } } })} placeholder="e.g. rates" />
                           </div>
                           {apiPreviewResult && (
                             <div className="p-3 border rounded-md bg-muted/5">
                               <span className="text-[9px] font-bold uppercase text-muted-foreground">Detected Row Keys:</span>
                               <div className="flex flex-wrap gap-1 mt-2">
                                 {getDetectedKeys(apiPreviewResult, editForm.apiConfig?.responseMapping?.tableDataKey).map(k => (
-                                  <Badge key={k} variant="secondary" className="text-[9px] cursor-copy" onClick={() => toast({ title: "Copied", description: `${k} copied to clipboard.` })}>{k}</Badge>
+                                  <Badge key={k} variant="secondary" className="text-[9px] cursor-copy" onClick={() => toast({ title: "Key copied", description: `You can use ${k} as a key.` })}>{k}</Badge>
                                 ))}
                               </div>
                             </div>
@@ -496,7 +451,10 @@ export function MenuManagement() {
                           <div className="space-y-4">
                             <div className="flex items-center justify-between">
                               <Label className="text-xs font-bold">Table Columns Mapping</Label>
-                              <Button variant="ghost" size="sm" onClick={addTableColumn}><Plus className="mr-1" /> Add Column</Button>
+                              <Button variant="ghost" size="sm" onClick={() => {
+                                 const cols = editForm.apiConfig!.responseMapping.tableColumns || [];
+                                 setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, tableColumns: [...cols, { header: 'New Column', key: '' }] } } });
+                              }}><Plus className="mr-1" /> Add Column</Button>
                             </div>
                             <div className="space-y-3">
                               {editForm.apiConfig?.responseMapping?.tableColumns?.map((col, idx) => (
@@ -517,7 +475,10 @@ export function MenuManagement() {
                                       setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, tableColumns: cols } } });
                                     }} />
                                   </div>
-                                  <Button variant="ghost" size="icon" className="mt-5 h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => removeTableColumn(idx)}>
+                                  <Button variant="ghost" size="icon" className="mt-5 h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => {
+                                     const cols = editForm.apiConfig!.responseMapping.tableColumns!.filter((_, i) => i !== idx);
+                                     setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, tableColumns: cols } } });
+                                  }}>
                                     <Trash2 size={12} />
                                   </Button>
                                 </div>

@@ -38,7 +38,16 @@ export async function GET(request: Request) {
 
   const accountId = searchParams.get('account_id');
 
-  if (accountId && mockAccounts[accountId]) {
+  // If no ID is provided, check if it's a preview request to help with mapping
+  if (!accountId) {
+    return NextResponse.json({
+      status: "success",
+      message: "Preview Mode: Showing data structure for mapping.",
+      data: mockAccounts['88991122']
+    });
+  }
+
+  if (mockAccounts[accountId]) {
     return NextResponse.json({
       status: "success",
       data: mockAccounts[accountId]
@@ -49,7 +58,7 @@ export async function GET(request: Request) {
   return NextResponse.json(
     { 
       status: "error", 
-      message: `The account ID "${accountId || 'none'}" was not recognized. Please try with one of our test IDs: 88991122, 11223344, 99887766, or 12345678.` 
+      message: `The account ID "${accountId}" was not recognized. Please try with one of our test IDs: 88991122, 11223344, 99887766, or 12345678.` 
     },
     { status: 404 }
   );
