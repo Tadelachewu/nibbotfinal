@@ -133,27 +133,36 @@ export function ChatInterface() {
     if (!menu.apiConfig) return;
     setIsLoadingApi(true);
     
-    // Simulate API logic
     await new Promise(r => setTimeout(r, 1500));
     
-    // Mocking response based on endpoint or title
-    const isExRate = menu.apiConfig.endpoint.toLowerCase().includes('rate') || menu.name.toLowerCase().includes('rate');
+    const endpoint = menu.apiConfig.endpoint.toLowerCase();
+    const isExRate = endpoint.includes('rate') || menu.name.toLowerCase().includes('rate');
+    const isBalance = endpoint.includes('balance');
     
-    const mockApiResponse: any = isExRate 
-      ? { 
-          status: "success", 
-          base: "USD",
-          rates: [
-            { currency: "ETB", rate: "57.50", updated: "2024-05-20" },
-            { currency: "EUR", rate: "0.92", updated: "2024-05-20" },
-            { currency: "GBP", rate: "0.78", updated: "2024-05-20" },
-            { currency: "KES", rate: "132.00", updated: "2024-05-20" }
-          ]
-        }
-      : { 
-          status: "success", 
-          data: { balance: "5,400.00", currency: "ETB" } 
-        };
+    let mockApiResponse: any;
+
+    if (isExRate) {
+      mockApiResponse = { 
+        status: "success", 
+        base: "USD",
+        rates: [
+          { currency: "ETB", rate: "57.50", updated: "2024-05-20" },
+          { currency: "EUR", rate: "0.92", updated: "2024-05-20" },
+          { currency: "GBP", rate: "0.78", updated: "2024-05-20" },
+          { currency: "KES", rate: "132.00", updated: "2024-05-20" }
+        ]
+      };
+    } else if (isBalance) {
+      mockApiResponse = {
+        status: "success",
+        data: { balance: "12,500.00", currency: "ETB" }
+      };
+    } else {
+      mockApiResponse = { 
+        status: "success", 
+        data: { info: "Response processed successfully." } 
+      };
+    }
 
     const mapping = menu.apiConfig.responseMapping;
     let botMsg: Message = { id: `bot-api-${Date.now()}`, sender: 'bot' };
@@ -165,7 +174,7 @@ export function ChatInterface() {
       const matches = resultText.match(/{{response\.(.*?)}}/g);
       matches?.forEach(match => {
         const path = match.replace('{{response.', '').replace('}}', '');
-        resultText = resultText.replace(match, getVal(path, mockApiResponse) || '');
+        resultText = resultText.replace(match, String(getVal(path, mockApiResponse) || ''));
       });
       botMsg.text = resultText;
     } else if (mapping.type === 'table') {

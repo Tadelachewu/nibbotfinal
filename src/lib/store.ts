@@ -50,6 +50,33 @@ const defaultMenus: MenuItem[] = [
     }
   },
   { 
+    id: 'balance-check', 
+    parentId: null, 
+    name: 'Check Balance', 
+    nameAm: 'ሒሳብ ማረጋገጥ',
+    responseType: 'api',
+    order: 2,
+    apiConfig: {
+      name: 'Account Balance',
+      endpoint: 'https://api.test/v1/user/balance',
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 5000,
+      retry: 0,
+      loginRequired: true,
+      requiredKYC: [],
+      kycFields: [],
+      requestMapping: {},
+      responseMapping: {
+        type: 'message',
+        template: 'Your current balance is {{response.data.balance}} {{response.data.currency}}.',
+        errorFallback: 'Failed to retrieve balance.',
+        timeoutMessage: 'Server timed out.',
+        authRequiredMessage: 'Please log in to view your balance.'
+      }
+    }
+  },
+  { 
     id: '3', 
     parentId: '1', 
     name: 'Web Development', 

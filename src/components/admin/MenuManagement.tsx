@@ -183,11 +183,11 @@ export function MenuManagement() {
     }
     setIsTestingApi(true);
     try {
-      // Simulate real API behavior for the admin to see mapping structure
-      // We'll mock the specific Exchange Rate response requested
       await new Promise(r => setTimeout(r, 1000));
       
-      const isExRate = editForm.apiConfig.endpoint.toLowerCase().includes('rate') || editForm.name?.toLowerCase().includes('rate');
+      const endpoint = editForm.apiConfig.endpoint.toLowerCase();
+      const isExRate = endpoint.includes('rate') || editForm.name?.toLowerCase().includes('rate');
+      const isBalance = endpoint.includes('balance');
       
       const mockResponses: Record<string, any> = {
         "exchange": {
@@ -199,13 +199,25 @@ export function MenuManagement() {
             { "currency": "GBP", "rate": "0.78", "updated": "2024-05-20" }
           ]
         },
+        "balance": {
+          "status": "success",
+          "data": { 
+            "balance": "12,500.00", 
+            "currency": "ETB", 
+            "account_id": "88991122",
+            "last_updated": new Date().toISOString()
+          }
+        },
         "default": { 
           "status": "success", 
-          "data": { "balance": "5,400.00", "currency": "ETB", "last_updated": "2024-05-20" } 
+          "data": { "info": "Standard generic response data" } 
         }
       };
       
-      setApiPreviewResult(isExRate ? mockResponses["exchange"] : mockResponses["default"]);
+      if (isExRate) setApiPreviewResult(mockResponses["exchange"]);
+      else if (isBalance) setApiPreviewResult(mockResponses["balance"]);
+      else setApiPreviewResult(mockResponses["default"]);
+
       toast({ title: "API Test Successful", description: "Response received. Use the log below to map your keys." });
     } catch (e) {
       toast({ title: "API Test Failed", description: "Check console or network.", variant: "destructive" });
