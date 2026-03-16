@@ -548,7 +548,7 @@ export function MenuManagement() {
                       </CardHeader>
                       <CardContent className="p-4 space-y-4">
                         <div className="space-y-2">
-                          <Label className="text-xs">Success Template (Use {{response.key}} syntax)</Label>
+                          <Label className="text-xs">Success Template (Use {'{{response.key}}'} syntax)</Label>
                           <Input 
                             value={editForm.apiConfig?.responseMapping?.template}
                             onChange={(e) => setEditForm({ 
