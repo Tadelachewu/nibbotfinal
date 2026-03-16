@@ -10,6 +10,12 @@ export interface KYCField {
   order: number;
 }
 
+export interface TableColumn {
+  header: string;
+  headerAm?: string;
+  key: string; // The property name in the array item, e.g., "id" or "amount"
+}
+
 export interface ApiConfig {
   name: string;
   endpoint: string;
@@ -22,8 +28,10 @@ export interface ApiConfig {
   kycFields: KYCField[];
   requestMapping: Record<string, string>; // API Key -> Source (e.g., "user.phone")
   responseMapping: {
-    type: 'message' | 'buttons' | 'trigger';
-    template: string; // Handlebars-style template for response
+    type: 'message' | 'table' | 'buttons' | 'trigger';
+    template: string; // Handlebars-style template for message type
+    tableDataKey?: string; // Path to the array in the response, e.g., "response.items"
+    tableColumns?: TableColumn[];
     errorFallback: string;
     timeoutMessage: string;
     authRequiredMessage: string;

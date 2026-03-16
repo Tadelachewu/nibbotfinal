@@ -1,13 +1,22 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { MenuItem, KYCField } from '@/lib/types';
+import { MenuItem, KYCField, TableColumn } from '@/lib/types';
 import { getStoredMenus } from '@/lib/store';
 import { ChatBubble } from './ChatBubble';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ChevronRight, Home, ArrowLeft, Languages, Globe, Link as LinkIcon, Sparkles, Send, Loader2 } from 'lucide-react';
+import { ChevronRight, Home, ArrowLeft, Languages, Globe, Link as LinkIcon, Send, Loader2 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface Message {
   id: string;
@@ -19,13 +28,14 @@ interface Message {
   scopeIds?: string[];
   originatingAttachedIds?: string[];
   isKYC?: boolean;
+  tableData?: {
+    columns: TableColumn[];
+    rows: any[];
+  };
 }
 
 interface UserData {
   isLoggedIn: boolean;
-  phone?: string;
-  nationality?: string;
-  idNumber?: string;
   kyc: Record<string, any>;
 }
 
@@ -39,7 +49,6 @@ export function ChatInterface() {
     kyc: {}
   });
   
-  // KYC Collection State
   const [kycFlow, setKycFlow] = useState<{
     active: boolean;
     menuId: string;
@@ -88,34 +97,32 @@ export function ChatInterface() {
     return field.prompt;
   };
 
+  const getLocalizedTableHeader = (col: TableColumn) => {
+    if (language === 'Amharic' && col.headerAm) return col.headerAm;
+    return col.header;
+  };
+
   const handleKycSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!kycFlow || !kycInput.trim()) return;
 
     const currentField = kycFlow.fields[kycFlow.fieldIndex];
-    
-    // Save to user data
     const newKYC = { ...userData.kyc, [currentField.name]: kycInput };
     setUserData(prev => ({ ...prev, kyc: newKYC }));
     
-    // Add user message
-    const userMsg: Message = { id: `user-kyc-${Date.now()}`, sender: 'user', text: kycInput };
-    setHistory(prev => [...prev, userMsg]);
+    setHistory(prev => [...prev, { id: `user-kyc-${Date.now()}`, sender: 'user', text: kycInput }]);
     setKycInput('');
 
-    // Check if more fields are needed
     if (kycFlow.fieldIndex < kycFlow.fields.length - 1) {
       const nextField = kycFlow.fields[kycFlow.fieldIndex + 1];
-      const botMsg: Message = {
+      setHistory(prev => [...prev, {
         id: `bot-kyc-${Date.now()}`,
         sender: 'bot',
         text: getLocalizedKYCPrompt(nextField),
         isKYC: true
-      };
-      setHistory(prev => [...prev, botMsg]);
+      }]);
       setKycFlow({ ...kycFlow, fieldIndex: kycFlow.fieldIndex + 1 });
     } else {
-      // All KYC collected, proceed to API
       setKycFlow(null);
       const menu = menus.find(m => m.id === kycFlow.menuId);
       if (menu) executeApiCall(menu, newKYC);
@@ -124,29 +131,48 @@ export function ChatInterface() {
 
   const executeApiCall = async (menu: MenuItem, kycData: Record<string, any>) => {
     if (!menu.apiConfig) return;
-    
     setIsLoadingApi(true);
-    const botId = `bot-api-${Date.now()}`;
     
-    // Simulate API latency
+    // Simulate API logic
     await new Promise(r => setTimeout(r, 1500));
     
-    // Mock response logic based on configured template
-    // In a real app, this would use fetch() and a template parser
-    const mockApiResponse = { balance: '1,250.00', currency: 'ETB', status: 'success' };
-    
-    let resultText = menu.apiConfig.responseMapping.template;
-    Object.entries(mockApiResponse).forEach(([key, val]) => {
-      resultText = resultText.replace(`{{response.${key}}}`, val);
-    });
+    const mockApiResponse: any = menu.apiConfig.endpoint.toLowerCase().includes('transaction') 
+      ? { transactions: [
+          { id: "TX1001", amount: "-150.00", desc: "Grocery Store", date: "2024-05-19" },
+          { id: "TX1002", amount: "+2,000.00", desc: "Salary", date: "2024-05-18" }
+        ]}
+      : { status: "success", data: { balance: "5,400.00", currency: "ETB" } };
 
-    const botMsg: Message = {
-      id: botId,
-      sender: 'bot',
-      text: resultText,
-      options: menus.filter(m => m.parentId === menu.id)
-    };
+    const mapping = menu.apiConfig.responseMapping;
+    let botMsg: Message = { id: `bot-api-${Date.now()}`, sender: 'bot' };
 
+    if (mapping.type === 'message') {
+      let resultText = mapping.template;
+      const getVal = (path: string, obj: any) => path.split('.').reduce((acc, part) => acc && acc[part], obj);
+      
+      // Basic implementation of template replacement
+      const matches = resultText.match(/{{response\.(.*?)}}/g);
+      matches?.forEach(match => {
+        const path = match.replace('{{response.', '').replace('}}', '');
+        resultText = resultText.replace(match, getVal(path, mockApiResponse) || '');
+      });
+      botMsg.text = resultText;
+    } else if (mapping.type === 'table') {
+      const dataPath = mapping.tableDataKey || '';
+      const rows = dataPath === '' ? mockApiResponse : dataPath.split('.').reduce((acc, part) => acc && acc[part], mockApiResponse);
+      
+      if (Array.isArray(rows)) {
+        botMsg.tableData = {
+          columns: mapping.tableColumns || [],
+          rows: rows
+        };
+        botMsg.text = language === 'Amharic' ? 'እነዚህ የእርስዎ የቅርብ ጊዜ ግብይቶች ናቸው።' : 'Here are your recent transactions:';
+      } else {
+        botMsg.text = mapping.errorFallback;
+      }
+    }
+
+    botMsg.options = menus.filter(m => m.parentId === menu.id);
     setHistory(prev => [...prev, botMsg]);
     setIsLoadingApi(false);
   };
@@ -156,45 +182,25 @@ export function ChatInterface() {
     setHistory(prev => [...prev, userMsg]);
 
     if (menu.responseType === 'api' && menu.apiConfig) {
-      // Handle Login Requirement
       if (menu.apiConfig.loginRequired && !userData.isLoggedIn) {
-        const botMsg: Message = {
-          id: `bot-auth-${Date.now()}`,
-          sender: 'bot',
-          text: menu.apiConfig.responseMapping.authRequiredMessage
-        };
-        setHistory(prev => [...prev, botMsg]);
+        setHistory(prev => [...prev, { id: `bot-auth-${Date.now()}`, sender: 'bot', text: menu.apiConfig!.responseMapping.authRequiredMessage }]);
         return;
       }
 
-      // Handle KYC Requirement
       const missingFields = menu.apiConfig.kycFields
         .sort((a, b) => a.order - b.order)
         .filter(f => !userData.kyc[f.name]);
 
       if (missingFields.length > 0) {
-        setKycFlow({
-          active: true,
-          menuId: menu.id,
-          fieldIndex: 0,
-          fields: missingFields
-        });
-        const botMsg: Message = {
-          id: `bot-kyc-start-${Date.now()}`,
-          sender: 'bot',
-          text: getLocalizedKYCPrompt(missingFields[0]),
-          isKYC: true
-        };
-        setHistory(prev => [...prev, botMsg]);
+        setKycFlow({ active: true, menuId: menu.id, fieldIndex: 0, fields: missingFields });
+        setHistory(prev => [...prev, { id: `bot-kyc-start-${Date.now()}`, sender: 'bot', text: getLocalizedKYCPrompt(missingFields[0]), isKYC: true }]);
         return;
       }
 
-      // If already has KYC, just call API
       executeApiCall(menu, userData.kyc);
       return;
     }
 
-    // Standard Static Navigation
     let children = menus.filter(m => m.parentId === menu.id);
     if (scopeIds && scopeIds.length > 0) {
       children = children.filter(c => scopeIds.includes(c.id));
@@ -202,14 +208,14 @@ export function ChatInterface() {
 
     const relatedIds = menu.attachedMenuIds || [];
     const allSelectedRelated = menus.filter(m => relatedIds.includes(m.id));
-    const related = allSelectedRelated.filter(item => !item.parentId || !relatedIds.includes(item.parentId));
+    const entryPoints = allSelectedRelated.filter(item => !item.parentId || !relatedIds.includes(item.parentId));
     
     const botMsg: Message = {
       id: `bot-${Date.now()}`,
       sender: 'bot',
       content: getLocalizedContent(menu),
       options: children.length > 0 ? children : undefined,
-      relatedOptions: related.length > 0 ? related : undefined,
+      relatedOptions: entryPoints.length > 0 ? entryPoints : undefined,
       scopeIds: scopeIds,
       originatingAttachedIds: relatedIds,
     };
@@ -219,13 +225,8 @@ export function ChatInterface() {
   };
 
   const goHome = () => {
-    const homeMsg: Message = {
-      id: `home-${Date.now()}`,
-      sender: 'bot',
-      text: language === 'Amharic' ? 'እንዴት ልረዳዎ እችላለሁ?' : 'How can I help you?',
-      options: menus.filter(m => m.parentId === null)
-    };
-    setHistory(prev => [...prev, homeMsg]);
+    const welcome = language === 'Amharic' ? 'እንዴት ልረዳዎ እችላለሁ?' : 'How can I help you?';
+    setHistory(prev => [...prev, { id: `home-${Date.now()}`, sender: 'bot', text: welcome, options: menus.filter(m => m.parentId === null) }]);
     setCurrentMenuId(null);
     setKycFlow(null);
   };
@@ -265,6 +266,35 @@ export function ChatInterface() {
             <ChatBubble key={msg.id} isBot={msg.sender === 'bot'}>
               {msg.text && <p>{msg.text}</p>}
               {msg.content && <div dangerouslySetInnerHTML={{ __html: msg.content }} />}
+              
+              {msg.tableData && (
+                <div className="mt-4 border rounded-lg overflow-hidden bg-muted/20">
+                  <ScrollArea className="max-h-60">
+                    <Table>
+                      <TableHeader className="bg-muted/30">
+                        <TableRow>
+                          {msg.tableData.columns.map((col, i) => (
+                            <TableHead key={i} className="text-[10px] uppercase font-bold text-muted-foreground">
+                              {getLocalizedTableHeader(col)}
+                            </TableHead>
+                          ))}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {msg.tableData.rows.map((row, i) => (
+                          <TableRow key={i}>
+                            {msg.tableData!.columns.map((col, j) => (
+                              <TableCell key={j} className="text-xs">
+                                {row[col.key]}
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </ScrollArea>
+                </div>
+              )}
               
               <div className="space-y-4 mt-4">
                 {msg.options && (
@@ -332,7 +362,6 @@ export function ChatInterface() {
               value={kycInput}
               onChange={(e) => setKycInput(e.target.value)}
               placeholder={language === 'Amharic' ? 'እዚህ ይጻፉ...' : 'Type here...'}
-              type={kycFlow.fields[kycFlow.fieldIndex].type}
               className="flex-1 rounded-full border-primary/30 focus-visible:ring-primary"
             />
             <Button type="submit" size="icon" className="rounded-full bg-primary hover:bg-primary/90">
