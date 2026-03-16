@@ -70,8 +70,8 @@ const defaultMenus: MenuItem[] = [
         {
           id: 'kyc-acc-id',
           name: 'account_id',
-          prompt: 'Please enter your account ID (Try 88991122)',
-          promptAm: 'እባክዎን የሂሳብ መለያዎን ያስገቡ (88991122 ይሞክሩ)',
+          prompt: 'Please enter your account ID (Test IDs: 88991122, 11223344, 99887766)',
+          promptAm: 'እባክዎን የሂሳብ መለያዎን ያስገቡ (88991122, 11223344, 99887766 ይሞክሩ)',
           type: 'text',
           order: 0
         }
@@ -81,7 +81,7 @@ const defaultMenus: MenuItem[] = [
       },
       responseMapping: {
         type: 'message',
-        template: 'Your current balance is {{response.data.balance}} {{response.data.currency}}.',
+        template: 'Your current balance is {{response.data.balance}} {{response.data.currency}}. Account Type: {{response.data.account_type}}.',
         errorFallback: 'Failed to retrieve balance. Account not found.',
         timeoutMessage: 'Server timed out.',
         authRequiredMessage: 'Please log in to view your balance.'
