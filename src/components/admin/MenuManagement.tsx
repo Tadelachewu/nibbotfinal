@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { MenuItem, KYCField, RequestParameter, TableColumn } from '@/lib/types';
+import { MenuItem, KYCField, TableColumn } from '@/lib/types';
 import { getStoredMenus, addMenu, updateMenu, deleteMenu } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,21 +14,15 @@ import {
   ChevronDown, 
   Save, 
   X, 
-  MessageSquare,
   Menu as MenuIcon,
   FolderPlus,
   Loader2,
-  Search,
   ListTree,
   Globe,
   Settings2,
-  ShieldCheck,
   Zap,
-  Layout,
   PlayCircle,
-  Table as TableIcon,
-  Link2,
-  Code2
+  Link2
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -48,7 +42,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { WysiwygEditor } from './WysiwygEditor';
 import { toast } from '@/hooks/use-toast';
@@ -62,7 +55,6 @@ export function MenuManagement() {
   const [menus, setMenus] = useState<MenuItem[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['root']));
-  const [browserExpanded, setBrowserExpanded] = useState<Set<string>>(new Set(['root']));
   const [editForm, setEditForm] = useState<Partial<MenuItem>>({});
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -128,21 +120,28 @@ export function MenuManagement() {
       setIsSaving(true);
       try {
         const updatedForm = { ...editForm };
-        if (editForm.name) {
-          const res = await adminContentTranslator({ content: editForm.name, targetLanguage: 'Amharic' });
-          updatedForm.nameAm = res.translatedContent;
+        
+        // Make translation resilient - don't block save if AI fails
+        try {
+          if (editForm.name) {
+            const res = await adminContentTranslator({ content: editForm.name, targetLanguage: 'Amharic' });
+            updatedForm.nameAm = res.translatedContent;
+          }
+          if (editForm.responseType === 'static' && editForm.content) {
+            const res = await adminContentTranslator({ content: editForm.content, targetLanguage: 'Amharic' });
+            updatedForm.contentAm = res.translatedContent;
+          }
+        } catch (aiError) {
+          console.warn("Localization failed, saving original content:", aiError);
         }
-        if (editForm.responseType === 'static' && editForm.content) {
-          const res = await adminContentTranslator({ content: editForm.content, targetLanguage: 'Amharic' });
-          updatedForm.contentAm = res.translatedContent;
-        }
+
         updateMenu(editingId, updatedForm);
         setIsEditDialogOpen(false);
         setEditingId(null);
         refresh();
-        toast({ title: "Saved", description: "Menu updated and localized successfully." });
+        toast({ title: "Saved", description: "Menu updated successfully." });
       } catch (error) {
-        toast({ title: "Save Error", description: "Could not save menu item.", variant: "destructive" });
+        toast({ title: "Save Error", description: "Could not save menu item. Check console for details.", variant: "destructive" });
       } finally {
         setIsSaving(false);
       }
@@ -156,19 +155,29 @@ export function MenuManagement() {
     }
     setIsTestingApi(true);
     try {
-      const response = await fetch(editForm.apiConfig.endpoint, {
+      // Ensure we handle relative URLs correctly for testing
+      const endpoint = editForm.apiConfig.endpoint.startsWith('/') 
+        ? editForm.apiConfig.endpoint 
+        : `/api/${editForm.apiConfig.endpoint}`;
+
+      const response = await fetch(endpoint, {
         method: editForm.apiConfig.method,
-        headers: editForm.apiConfig.headers,
+        headers: {
+          'Content-Type': 'application/json',
+          ...editForm.apiConfig.headers
+        },
       });
+      
+      const data = await response.json();
+      setApiPreviewResult(data);
+
       if (response.ok) {
-        const data = await response.json();
-        setApiPreviewResult(data);
         toast({ title: "API Test Successful", description: "Response received from endpoint." });
       } else {
-        throw new Error("Endpoint failed");
+        toast({ title: "API Response Error", description: data.message || "Endpoint returned an error status.", variant: "destructive" });
       }
     } catch (e) {
-      toast({ title: "API Test Failed", description: "Could not reach endpoint.", variant: "destructive" });
+      toast({ title: "API Network Error", description: "Could not reach endpoint. Ensure the URL is correct.", variant: "destructive" });
     } finally {
       setIsTestingApi(false);
     }
@@ -290,7 +299,6 @@ export function MenuManagement() {
     return (
       <div className={`space-y-1 ${level > 0 ? 'ml-6 border-l pl-3' : ''}`}>
         {items.map(item => {
-          const hasChildren = menus.some(m => m.parentId === item.id);
           const isSelected = editForm.attachedMenuIds?.includes(item.id);
           return (
             <div key={item.id} className="space-y-1">
@@ -312,7 +320,7 @@ export function MenuManagement() {
                 <Checkbox checked={isSelected} className="h-4 w-4 rounded-full" onClick={(e) => e.stopPropagation()} />
                 <span className="text-xs font-medium">{item.name}</span>
               </div>
-              {(browserExpanded.has(item.id) || isSelected) && renderBrowserTree(item.id, level + 1)}
+              {isSelected && renderBrowserTree(item.id, level + 1)}
             </div>
           );
         })}
@@ -359,7 +367,7 @@ export function MenuManagement() {
                     <CardHeader className="bg-muted/10 flex flex-row items-center justify-between">
                       <CardTitle className="text-sm">API Connectivity</CardTitle>
                       <Button variant="outline" size="sm" onClick={testApi} disabled={isTestingApi}>
-                        {isTestingApi ? <Loader2 className="animate-spin" /> : <PlayCircle />} Live Preview
+                        {isTestingApi ? <Loader2 className="animate-spin" /> : <PlayCircle className="mr-2" />} Live Preview
                       </Button>
                     </CardHeader>
                     <CardContent className="p-4 space-y-4">
@@ -368,7 +376,7 @@ export function MenuManagement() {
                           <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
                           <SelectContent><SelectItem value="GET">GET</SelectItem><SelectItem value="POST">POST</SelectItem></SelectContent>
                         </Select>
-                        <Input value={editForm.apiConfig?.endpoint} onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, endpoint: e.target.value } })} placeholder="https://api.example.com/endpoint" />
+                        <Input value={editForm.apiConfig?.endpoint} onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, endpoint: e.target.value } })} placeholder="e.g. /api/test/balance" />
                       </div>
                       {apiPreviewResult && (
                         <div className="bg-slate-950 p-3 rounded-md">
@@ -391,7 +399,7 @@ export function MenuManagement() {
                           <Button variant="ghost" size="sm" onClick={() => {
                             const fields = editForm.apiConfig?.kycFields || [];
                             setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, kycFields: [...fields, { id: Math.random().toString(36).substr(2, 9), name: '', prompt: '', type: 'text', order: fields.length }] } });
-                          }}><Plus /> Add KYC</Button>
+                          }}><Plus className="mr-1" /> Add KYC</Button>
                         </div>
                         {editForm.apiConfig?.kycFields?.map((field, idx) => (
                           <div key={field.id} className="flex gap-2 items-start p-3 border rounded-md bg-muted/5 group">
@@ -417,7 +425,7 @@ export function MenuManagement() {
                       <div className="space-y-4">
                         <div className="flex items-center justify-between">
                           <Label className="text-xs font-bold uppercase">2. API Request Mapping</Label>
-                          <Button variant="ghost" size="sm" onClick={addRequestParameter}><Link2 /> Map Parameter</Button>
+                          <Button variant="ghost" size="sm" onClick={addRequestParameter}><Link2 className="mr-1" /> Map Parameter</Button>
                         </div>
                         {editForm.apiConfig?.requestParameters?.map((param, idx) => (
                           <div key={idx} className="flex gap-2 items-center group">
@@ -488,7 +496,7 @@ export function MenuManagement() {
                           <div className="space-y-4">
                             <div className="flex items-center justify-between">
                               <Label className="text-xs font-bold">Table Columns Mapping</Label>
-                              <Button variant="ghost" size="sm" onClick={addTableColumn}><Plus /> Add Column</Button>
+                              <Button variant="ghost" size="sm" onClick={addTableColumn}><Plus className="mr-1" /> Add Column</Button>
                             </div>
                             <div className="space-y-3">
                               {editForm.apiConfig?.responseMapping?.tableColumns?.map((col, idx) => (
@@ -524,7 +532,7 @@ export function MenuManagement() {
               )}
 
               <div className="pt-8 border-t">
-                <Label className="text-sm font-bold flex items-center gap-2 mb-4"><ListTree size={16} /> Attach Related Menus</                     Label>
+                <Label className="text-sm font-bold flex items-center gap-2 mb-4"><ListTree size={16} /> Attach Related Menus</Label>
                 <div className="bg-white rounded-xl border p-4">{renderBrowserTree(null)}</div>
               </div>
             </div>
