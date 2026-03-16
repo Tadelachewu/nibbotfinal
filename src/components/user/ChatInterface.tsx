@@ -27,7 +27,6 @@ export function ChatInterface() {
     const data = getStoredMenus();
     setMenus(data);
     
-    // Initial welcome message localized
     const welcomeText = language === 'Amharic' ? 'ሰላም! ዛሬ እንዴት ልረዳዎ እችላለሁ?' : 'Hello! How can I assist you today?';
     setHistory([
       {
@@ -57,13 +56,22 @@ export function ChatInterface() {
 
   const navigateTo = (menu: MenuItem) => {
     const userMsg: Message = { id: `user-${Date.now()}`, sender: 'user', text: getLocalizedName(menu) };
-    const children = menus.filter(m => m.parentId === menu.id);
+    
+    // Logic: Use attachedMenuIds first, fallback to traditional tree children
+    const optionIds = menu.attachedMenuIds || [];
+    let options: MenuItem[] = [];
+    
+    if (optionIds.length > 0) {
+      options = menus.filter(m => optionIds.includes(m.id));
+    } else {
+      options = menus.filter(m => m.parentId === menu.id);
+    }
     
     const botMsg: Message = {
       id: `bot-${Date.now()}`,
       sender: 'bot',
       content: getLocalizedContent(menu),
-      options: children.length > 0 ? children : undefined,
+      options: options.length > 0 ? options : undefined,
     };
 
     setHistory(prev => [...prev, userMsg, botMsg]);
@@ -104,7 +112,6 @@ export function ChatInterface() {
 
   const handleLanguageChange = (newLang: string) => {
     setLanguage(newLang);
-    // Restart conversation context for the new language
     const data = getStoredMenus();
     const welcomeText = newLang === 'Amharic' ? 'ሰላም! ዛሬ እንዴት ልረዳዎ እችላለሁ?' : 'Hello! How can I assist you today?';
     setHistory([
@@ -173,10 +180,10 @@ export function ChatInterface() {
                       variant="outline" 
                       size="sm"
                       onClick={() => navigateTo(opt)}
-                      className="rounded-full border-primary/20 hover:border-primary hover:bg-primary/5 text-primary text-xs"
+                      className="rounded-full border-primary/20 hover:border-primary hover:bg-primary/5 text-primary text-xs h-auto py-2 px-4 text-left justify-start"
                     >
                       {getLocalizedName(opt)}
-                      <ChevronRight size={14} className="ml-1 opacity-50" />
+                      <ChevronRight size={14} className="ml-2 opacity-50 shrink-0" />
                     </Button>
                   ))}
                 </div>

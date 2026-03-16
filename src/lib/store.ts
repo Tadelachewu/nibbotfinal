@@ -12,7 +12,8 @@ const defaultMenus: MenuItem[] = [
     nameAm: 'የእኛ አገልግሎቶች',
     order: 0, 
     content: '<p>Explore what we can do for you.</p>',
-    contentAm: '<p>ለእርስዎ ምን ማድረግ እንደምንችል ይመርምሩ።</p>'
+    contentAm: '<p>ለእርስዎ ምን ማድረግ እንደምንችል ይመርምሩ።</p>',
+    attachedMenuIds: ['3', '4']
   },
   { 
     id: '2', 
@@ -56,7 +57,7 @@ export function saveMenus(menus: MenuItem[]) {
 
 export function addMenu(menu: Omit<MenuItem, 'id'>): MenuItem {
   const menus = getStoredMenus();
-  const newItem = { ...menu, id: Math.random().toString(36).substr(2, 9) };
+  const newItem = { ...menu, id: Math.random().toString(36).substr(2, 9), attachedMenuIds: [] };
   saveMenus([...menus, newItem]);
   return newItem;
 }

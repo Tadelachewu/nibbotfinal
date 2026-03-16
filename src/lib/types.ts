@@ -6,6 +6,7 @@ export interface MenuItem {
   nameAm?: string;
   contentAm?: string;
   order: number;
+  attachedMenuIds?: string[]; // IDs of menus to show as sub-options
 }
 
 export interface AppState {

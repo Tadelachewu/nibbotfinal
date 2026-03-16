@@ -17,7 +17,9 @@ import {
   MessageSquare,
   Menu as MenuIcon,
   FolderPlus,
-  Loader2
+  Loader2,
+  Check,
+  Search
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -43,6 +45,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { adminContentTranslator } from '@/ai/flows/admin-content-translator';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { Checkbox } from '@/components/ui/checkbox';
 
 export function MenuManagement() {
   const [menus, setMenus] = useState<MenuItem[]>([]);
@@ -52,6 +55,7 @@ export function MenuManagement() {
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     setMenus(getStoredMenus());
@@ -64,7 +68,8 @@ export function MenuManagement() {
       name: parentId ? 'New Sub Menu' : 'New Main Menu',
       parentId,
       content: '<p>Enter your response message here...</p>',
-      order: menus.filter(m => m.parentId === parentId).length
+      order: menus.filter(m => m.parentId === parentId).length,
+      attachedMenuIds: []
     });
     refresh();
     handleStartEdit(newItem);
@@ -75,7 +80,7 @@ export function MenuManagement() {
 
   const handleStartEdit = (menu: MenuItem) => {
     setEditingId(menu.id);
-    setEditForm(menu);
+    setEditForm({ ...menu, attachedMenuIds: menu.attachedMenuIds || [] });
     setIsEditDialogOpen(true);
   };
 
@@ -85,8 +90,7 @@ export function MenuManagement() {
       try {
         const updatedForm = { ...editForm };
         
-        // Background System Localization (AI)
-        // Automatically localize to Amharic on save
+        // Background AI Localization (System handles Amharic automatically)
         if (editForm.name) {
           try {
             const res = await adminContentTranslator({ 
@@ -95,7 +99,7 @@ export function MenuManagement() {
             });
             updatedForm.nameAm = res.translatedContent;
           } catch (e) {
-            console.error("Name localization failed", e);
+            console.error("Localization failed", e);
           }
         }
         
@@ -107,7 +111,7 @@ export function MenuManagement() {
             });
             updatedForm.contentAm = res.translatedContent;
           } catch (e) {
-            console.error("Content localization failed", e);
+            console.error("Localization failed", e);
           }
         }
 
@@ -115,7 +119,7 @@ export function MenuManagement() {
         setIsEditDialogOpen(false);
         setEditingId(null);
         refresh();
-        toast({ title: "Saved", description: "Menu updated and system-localized successfully." });
+        toast({ title: "Saved", description: "Menu updated and localized in background." });
       } catch (error) {
         toast({ title: "Save Error", description: "Could not save menu item.", variant: "destructive" });
       } finally {
@@ -142,6 +146,14 @@ export function MenuManagement() {
     if (next.has(id)) next.delete(id);
     else next.add(id);
     setExpandedFolders(next);
+  };
+
+  const toggleAttachment = (id: string) => {
+    const currentIds = editForm.attachedMenuIds || [];
+    const newIds = currentIds.includes(id) 
+      ? currentIds.filter(mid => mid !== id) 
+      : [...currentIds, id];
+    setEditForm({ ...editForm, attachedMenuIds: newIds });
   };
 
   const renderTree = (parentId: string | null = null, level = 0) => {
@@ -201,13 +213,18 @@ export function MenuManagement() {
     );
   };
 
+  const filteredAttachmentList = menus.filter(m => 
+    m.id !== editingId && 
+    m.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <div className="max-w-4xl mx-auto">
       <Card className="shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/10">
           <div>
             <CardTitle className="text-xl">Menu Hierarchy</CardTitle>
-            <p className="text-sm text-muted-foreground">Manage your conversational menu structure</p>
+            <p className="text-sm text-muted-foreground">Define your menu structure</p>
           </div>
           <Button onClick={() => handleAdd(null)} className="gap-2">
             <Plus size={16} /> Add Main Menu
@@ -221,7 +238,7 @@ export function MenuManagement() {
           ) : (
             <div className="text-center py-20 bg-muted/10 rounded-lg border-2 border-dashed flex flex-col items-center">
               <MessageSquare size={48} className="text-muted-foreground/30 mb-4" />
-              <h3 className="text-lg font-medium">Your menu tree is empty</h3>
+              <h3 className="text-lg font-medium">No menus defined</h3>
               <p className="text-muted-foreground mb-6">Create your first Main Menu to get started</p>
               <Button onClick={() => handleAdd(null)} variant="outline">
                 Create Main Menu
@@ -232,84 +249,103 @@ export function MenuManagement() {
       </Card>
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-5xl h-[90vh] flex flex-col p-0 overflow-hidden">
+        <DialogContent className="sm:max-w-5xl h-[90vh] flex flex-col p-0 overflow-hidden bg-background">
           <DialogHeader className="p-6 border-b bg-muted/5 shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <Edit2 size={18} className="text-primary" />
-              Editing: {editForm.name}
+              Edit Menu: {editForm.name}
             </DialogTitle>
           </DialogHeader>
           
           <ScrollArea className="flex-1">
-            <div className="p-6 space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="item-name">Button Label (English)</Label>
-                <Input 
-                  id="item-name" 
-                  value={editForm.name || ''} 
-                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  placeholder="e.g., Support, Billing, etc."
-                  className="max-w-md"
-                />
-                <p className="text-[10px] text-muted-foreground">The system will automatically generate the Amharic version for users.</p>
-              </div>
-              <div className="space-y-2">
-                <Label>Rich Content (English)</Label>
-                <WysiwygEditor 
-                  title={editForm.name || ''}
-                  value={editForm.content || ''} 
-                  onChange={(val) => setEditForm({ ...editForm, content: val })} 
-                />
-                <p className="text-[10px] text-muted-foreground">This content is shown when the menu is selected. System handles background localization.</p>
+            <div className="p-6 space-y-8">
+              <div className="grid gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="item-name" className="text-sm font-semibold">Menu Button Text (English)</Label>
+                  <Input 
+                    id="item-name" 
+                    value={editForm.name || ''} 
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    placeholder="e.g., Get Support, View Pricing"
+                    className="max-w-md"
+                  />
+                  <p className="text-[10px] text-muted-foreground italic">System will automatically localize this to Amharic on save.</p>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Chat Response Content (English)</Label>
+                  <WysiwygEditor 
+                    title={editForm.name || ''}
+                    value={editForm.content || ''} 
+                    onChange={(val) => setEditForm({ ...editForm, content: val })} 
+                  />
+                  <p className="text-[10px] text-muted-foreground italic">System handles background localization for the rich content.</p>
+                </div>
               </div>
 
-              {/* Quick Switch Selectable List */}
-              <div className="mt-12 pt-6 border-t space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold flex items-center gap-2">
-                    <MenuIcon size={16} className="text-primary" />
-                    All Menus (Quick Switch)
-                  </h3>
-                  <Badge variant="outline" className="text-[10px]">
-                    {menus.length} total
-                  </Badge>
+              <div className="pt-8 border-t">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
+                      <Plus size={16} className="text-primary" />
+                      Attached Sub-menus
+                    </h3>
+                    <p className="text-[11px] text-muted-foreground">Select existing menus to appear as buttons after this message.</p>
+                  </div>
+                  <div className="relative max-w-[200px]">
+                    <Search size={14} className="absolute left-2.5 top-2.5 text-muted-foreground" />
+                    <Input 
+                      placeholder="Search menus..." 
+                      className="pl-8 h-8 text-xs" 
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                  </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {menus.map(m => (
-                    <Button 
-                      key={m.id} 
-                      variant="ghost" 
-                      size="sm" 
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {filteredAttachmentList.map(m => (
+                    <div 
+                      key={m.id}
                       className={cn(
-                        "justify-start h-auto py-2 px-3 text-left border hover:bg-muted/50 transition-all",
-                        editingId === m.id ? "border-primary bg-primary/5 text-primary" : "border-transparent bg-muted/20"
+                        "flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer hover:shadow-sm",
+                        editForm.attachedMenuIds?.includes(m.id) 
+                          ? "border-primary bg-primary/5 ring-1 ring-primary/20" 
+                          : "bg-card border-border hover:border-primary/40"
                       )}
-                      onClick={() => {
-                        setEditingId(m.id);
-                        setEditForm(m);
-                      }}
+                      onClick={() => toggleAttachment(m.id)}
                     >
-                      <div className="flex flex-col items-start overflow-hidden w-full">
-                        <span className="text-xs font-medium truncate w-full">{m.name}</span>
-                        <span className="text-[10px] text-muted-foreground truncate w-full">
-                          {m.parentId ? `Sub of: ${menus.find(p => p.id === m.parentId)?.name || 'Parent'}` : 'Main Menu'}
+                      <Checkbox 
+                        checked={editForm.attachedMenuIds?.includes(m.id)}
+                        onCheckedChange={() => toggleAttachment(m.id)}
+                        className="rounded-full h-4 w-4"
+                      />
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-xs font-medium truncate">{m.name}</span>
+                        <span className="text-[10px] text-muted-foreground truncate">
+                          {m.parentId ? `Sub of: ${menus.find(p => p.id === m.parentId)?.name}` : 'Main Menu'}
                         </span>
                       </div>
-                    </Button>
+                    </div>
                   ))}
+                  {filteredAttachmentList.length === 0 && (
+                    <div className="col-span-full py-6 text-center text-muted-foreground text-xs bg-muted/20 rounded-lg border border-dashed">
+                      No matching menus found.
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
           </ScrollArea>
 
-          <DialogFooter className="p-4 border-t bg-muted/5 flex shrink-0 sm:justify-end gap-2 mt-auto sticky bottom-0">
-            <Button variant="ghost" onClick={() => setIsEditDialogOpen(false)} className="flex-1 sm:flex-none">
+          <DialogFooter className="p-4 border-t bg-white flex shrink-0 sm:justify-end gap-2 sticky bottom-0 z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+            <Button variant="ghost" onClick={() => setIsEditDialogOpen(false)} className="px-6">
               <X size={16} className="mr-2" /> Cancel
             </Button>
             <Button 
               onClick={handleSaveEdit} 
               disabled={isSaving}
-              className="flex-1 sm:flex-none bg-primary hover:bg-primary/90 text-white min-w-[160px]"
+              className="px-8 bg-primary hover:bg-primary/90 text-white min-w-[180px]"
             >
               {isSaving ? (
                 <><Loader2 size={16} className="mr-2 animate-spin" /> Localizing & Saving...</>
@@ -326,7 +362,7 @@ export function MenuManagement() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this menu?</AlertDialogTitle>
             <AlertDialogDescription>
-              "{menus.find(m => m.id === itemToDelete)?.name}" and all its nested sub-menus will be removed forever.
+              "{menus.find(m => m.id === itemToDelete)?.name}" will be removed. Nested sub-menus in the tree view will also be deleted.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
