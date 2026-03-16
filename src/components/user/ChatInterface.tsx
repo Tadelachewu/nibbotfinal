@@ -79,6 +79,11 @@ export function ChatInterface() {
   const getLocalizedKYCPrompt = (field: KYCField) => language === 'Amharic' && field.promptAm ? field.promptAm : field.prompt;
   const getLocalizedTableHeader = (col: TableColumn) => language === 'Amharic' && col.headerAm ? col.headerAm : col.header;
 
+  const getVal = (path: string, obj: any) => {
+    if (!path) return obj;
+    return path.split('.').reduce((acc, part) => acc && acc[part], obj);
+  };
+
   const handleKycSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!kycFlow || !kycInput.trim()) return;
@@ -135,7 +140,10 @@ export function ChatInterface() {
 
       const res = await fetch(url, options);
       if (res.ok) { success = true; apiResponse = await res.json(); }
-      else { apiResponse = await res.json().catch(() => null); }
+      else { 
+        const errData = await res.json().catch(() => null);
+        apiResponse = errData;
+      }
     } catch (e) { success = false; }
 
     let botMsg: Message = { id: `bot-api-${Date.now()}`, sender: 'bot' };
@@ -144,7 +152,6 @@ export function ChatInterface() {
     } else {
       if (mapping.type === 'message') {
         let resultText = mapping.template;
-        const getVal = (path: string, obj: any) => path.split('.').reduce((acc, part) => acc && acc[part], obj);
         const matches = resultText.match(/{{response\.(.*?)}}/g);
         matches?.forEach(match => {
           const path = match.replace('{{response.', '').replace('}}', '');
@@ -153,7 +160,7 @@ export function ChatInterface() {
         botMsg.text = resultText;
       } else if (mapping.type === 'table') {
         const dataPath = mapping.tableDataKey || '';
-        const rows = dataPath === '' ? apiResponse : dataPath.split('.').reduce((acc, part) => acc && acc[part], apiResponse);
+        const rows = getVal(dataPath, apiResponse);
         if (Array.isArray(rows)) {
           botMsg.tableData = { columns: mapping.tableColumns || [], rows };
           botMsg.text = language === 'Amharic' ? 'የተገኙ ውጤቶች የሚከተሉት ናቸው' : 'Here are the results:';
@@ -206,8 +213,30 @@ export function ChatInterface() {
             {msg.content && <div dangerouslySetInnerHTML={{ __html: msg.content }} />}
             {msg.tableData && (
               <div className="mt-4 border rounded-lg overflow-hidden bg-muted/20">
-                <ScrollArea className="max-h-60"><Table><TableHeader className="bg-muted/30"><TableRow>{msg.tableData.columns.map((col, i) => <TableHead key={i} className="text-[10px] font-bold">{getLocalizedTableHeader(col)}</TableHead>)}</TableRow></TableHeader>
-                <TableBody>{msg.tableData.rows.map((row, i) => <TableRow key={i}>{msg.tableData!.columns.map((col, j) => <TableCell key={j} className="text-xs">{row[col.key]}</TableCell>)}</TableRow>)}</TableBody></Table></ScrollArea>
+                <ScrollArea className="max-h-60">
+                  <Table>
+                    <TableHeader className="bg-muted/30">
+                      <TableRow>
+                        {msg.tableData.columns.map((col, i) => (
+                          <TableHead key={i} className="text-[10px] font-bold">
+                            {getLocalizedTableHeader(col)}
+                          </TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {msg.tableData.rows.map((row, i) => (
+                        <TableRow key={i}>
+                          {msg.tableData!.columns.map((col, j) => (
+                            <TableCell key={j} className="text-xs">
+                              {String(getVal(col.key, row) || '')}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
               </div>
             )}
             <div className="flex flex-wrap gap-2 mt-4">
@@ -219,7 +248,22 @@ export function ChatInterface() {
         ))}
         {isLoadingApi && <div className="flex justify-start"><div className="bg-white border rounded-2xl p-4 shadow-sm flex items-center gap-2"><Loader2 size={16} className="animate-spin text-primary" /><span className="text-xs italic">Fetching data...</span></div></div>}
       </div>
-      {kycFlow && <div className="p-4 bg-white border-t"><form onSubmit={handleKycSubmit} className="flex gap-2"><Input autoFocus value={kycInput} onChange={e => setKycInput(e.target.value)} placeholder={language === 'Amharic' ? 'እዚህ ይጻፉ...' : 'Type here...'} /><Button type="submit" size="icon"><Send size={18} /></Button></form></div>}
+      {kycFlow && <div className="p-4 bg-white border-t flex flex-col gap-2 animate-in slide-in-from-bottom-2">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-bold text-primary uppercase tracking-wider">Input Required</span>
+          <span className="text-[10px] text-muted-foreground">{kycFlow.fieldIndex + 1} of {kycFlow.fields.length}</span>
+        </div>
+        <form onSubmit={handleKycSubmit} className="flex gap-2">
+          <Input 
+            autoFocus 
+            value={kycInput} 
+            onChange={e => setKycInput(e.target.value)} 
+            placeholder={language === 'Amharic' ? 'እዚህ ይጻፉ...' : 'Type here...'} 
+            className="rounded-full"
+          />
+          <Button type="submit" size="icon" className="rounded-full"><Send size={18} /></Button>
+        </form>
+      </div>}
       <footer className="bg-white border-t p-4 flex justify-center gap-4 shrink-0">
         <Button variant="ghost" size="sm" onClick={() => { setHistory(prev => [...prev, { id: `home-${Date.now()}`, sender: 'bot', text: language === 'Amharic' ? 'እንዴት ልረዳዎ እችላለሁ?' : 'How can I help you?', options: menus.filter(m => m.parentId === null) }]); setCurrentMenuId(null); setKycFlow(null); }}><Home className="mr-2" size={18} /> {language === 'Amharic' ? 'ቤት' : 'Home'}</Button>
         {currentMenuId && !kycFlow && <Button variant="ghost" size="sm" onClick={() => { const current = menus.find(m => m.id === currentMenuId); const parent = menus.find(m => m.id === current?.parentId); if (parent) navigateTo(parent); else setHistory(p => [...p, { id: 'reset', sender: 'bot', text: 'Reset', options: menus.filter(m => !m.parentId) }]); }}><ArrowLeft className="mr-2" size={18} /> {language === 'Amharic' ? 'ተመለስ' : 'Back'}</Button>}

@@ -199,6 +199,18 @@ export function MenuManagement() {
     });
   };
 
+  const removeTableColumn = (index: number) => {
+    const config = editForm.apiConfig!;
+    const cols = (config.responseMapping.tableColumns || []).filter((_, i) => i !== index);
+    setEditForm({
+      ...editForm,
+      apiConfig: {
+        ...config,
+        responseMapping: { ...config.responseMapping, tableColumns: cols }
+      }
+    });
+  };
+
   const addRequestParameter = () => {
     const config = editForm.apiConfig!;
     const params = config.requestParameters || [];
@@ -207,6 +219,30 @@ export function MenuManagement() {
       apiConfig: {
         ...config,
         requestParameters: [...params, { apiKey: '', sourceType: 'kyc', sourceValue: '' }]
+      }
+    });
+  };
+
+  const removeRequestParameter = (index: number) => {
+    const config = editForm.apiConfig!;
+    const params = (config.requestParameters || []).filter((_, i) => i !== index);
+    setEditForm({
+      ...editForm,
+      apiConfig: {
+        ...config,
+        requestParameters: params
+      }
+    });
+  };
+
+  const removeKYCField = (index: number) => {
+    const config = editForm.apiConfig!;
+    const fields = (config.kycFields || []).filter((_, i) => i !== index);
+    setEditForm({
+      ...editForm,
+      apiConfig: {
+        ...config,
+        kycFields: fields
       }
     });
   };
@@ -336,8 +372,11 @@ export function MenuManagement() {
                       </div>
                       {apiPreviewResult && (
                         <div className="bg-slate-950 p-3 rounded-md">
-                          <span className="text-[10px] text-slate-400 font-mono">LATEST API RESPONSE:</span>
-                          <ScrollArea className="h-32 mt-2"><pre className="text-[10px] text-emerald-400 font-mono">{JSON.stringify(apiPreviewResult, null, 2)}</pre></ScrollArea>
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-[10px] text-slate-400 font-mono">LATEST API RESPONSE:</span>
+                            <Button variant="ghost" size="sm" className="h-6 text-[9px] text-slate-400" onClick={() => setApiPreviewResult(null)}><X size={10} className="mr-1"/> Clear</Button>
+                          </div>
+                          <ScrollArea className="h-48 mt-2"><pre className="text-[10px] text-emerald-400 font-mono">{JSON.stringify(apiPreviewResult, null, 2)}</pre></ScrollArea>
                         </div>
                       )}
                     </CardContent>
@@ -355,17 +394,22 @@ export function MenuManagement() {
                           }}><Plus /> Add KYC</Button>
                         </div>
                         {editForm.apiConfig?.kycFields?.map((field, idx) => (
-                          <div key={field.id} className="grid grid-cols-3 gap-2 p-2 border rounded-md">
-                            <Input placeholder="Field Name (e.g. phone)" value={field.name} onChange={e => {
-                              const fields = [...editForm.apiConfig!.kycFields];
-                              fields[idx].name = e.target.value;
-                              setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, kycFields: fields } });
-                            }} />
-                            <Input className="col-span-2" placeholder="User Prompt" value={field.prompt} onChange={e => {
-                              const fields = [...editForm.apiConfig!.kycFields];
-                              fields[idx].prompt = e.target.value;
-                              setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, kycFields: fields } });
-                            }} />
+                          <div key={field.id} className="flex gap-2 items-start p-3 border rounded-md bg-muted/5 group">
+                            <div className="grid grid-cols-3 gap-2 flex-1">
+                              <Input placeholder="Field Name (e.g. phone)" value={field.name} onChange={e => {
+                                const fields = [...editForm.apiConfig!.kycFields];
+                                fields[idx].name = e.target.value;
+                                setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, kycFields: fields } });
+                              }} />
+                              <Input className="col-span-2" placeholder="User Prompt" value={field.prompt} onChange={e => {
+                                const fields = [...editForm.apiConfig!.kycFields];
+                                fields[idx].prompt = e.target.value;
+                                setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, kycFields: fields } });
+                              }} />
+                            </div>
+                            <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => removeKYCField(idx)}>
+                              <Trash2 size={14} />
+                            </Button>
                           </div>
                         ))}
                       </div>
@@ -376,7 +420,7 @@ export function MenuManagement() {
                           <Button variant="ghost" size="sm" onClick={addRequestParameter}><Link2 /> Map Parameter</Button>
                         </div>
                         {editForm.apiConfig?.requestParameters?.map((param, idx) => (
-                          <div key={idx} className="flex gap-2 items-center">
+                          <div key={idx} className="flex gap-2 items-center group">
                             <Input placeholder="API Param Key" value={param.apiKey} onChange={e => {
                               const params = [...editForm.apiConfig!.requestParameters];
                               params[idx].apiKey = e.target.value;
@@ -393,6 +437,9 @@ export function MenuManagement() {
                                 <SelectItem value="user.id">User ID</SelectItem>
                               </SelectContent>
                             </Select>
+                            <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => removeRequestParameter(idx)}>
+                              <Trash2 size={14} />
+                            </Button>
                           </div>
                         ))}
                       </div>
@@ -404,41 +451,70 @@ export function MenuManagement() {
                     <CardContent className="p-4 space-y-4">
                       <Tabs value={editForm.apiConfig?.responseMapping?.type} onValueChange={v => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, type: v as any } } })}>
                         <TabsList className="grid w-full grid-cols-2"><TabsTrigger value="message">Message</TabsTrigger><TabsTrigger value="table">Table</TabsTrigger></TabsList>
-                        <TabsContent value="message" className="pt-4">
-                          <Label className="text-[10px] uppercase font-bold text-muted-foreground">Success Template (Use {'{{response.key}}'} syntax)</Label>
-                          <Input value={editForm.apiConfig?.responseMapping?.template} onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, template: e.target.value } } })} placeholder="Balance is {{response.data.balance}}" />
+                        <TabsContent value="message" className="pt-4 space-y-4">
+                          <div className="space-y-2">
+                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Success Template (Use {'{{response.key}}'} syntax)</Label>
+                            <Input value={editForm.apiConfig?.responseMapping?.template} onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, template: e.target.value } } })} placeholder="Balance is {{response.data.balance}}" />
+                          </div>
+                          {apiPreviewResult && (
+                            <div className="p-3 border rounded-md bg-muted/5">
+                              <span className="text-[9px] font-bold uppercase text-muted-foreground">Available Response Keys:</span>
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {getDetectedKeys(apiPreviewResult).map(k => (
+                                  <Badge key={k} variant="outline" className="text-[9px] cursor-copy hover:bg-primary/10" onClick={() => {
+                                    const current = editForm.apiConfig?.responseMapping?.template || '';
+                                    setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, template: current + `{{response.${k}}}` } } });
+                                  }}>{k}</Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </TabsContent>
                         <TabsContent value="table" className="space-y-4 pt-4">
                           <div className="space-y-2">
-                            <Label className="text-xs">Array Data Path</Label>
-                            <Input value={editForm.apiConfig?.responseMapping?.tableDataKey} onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, tableDataKey: e.target.value } } })} placeholder="e.g. rates" />
+                            <Label className="text-xs">Array Data Path in JSON</Label>
+                            <Input value={editForm.apiConfig?.responseMapping?.tableDataKey} onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, tableDataKey: e.target.value } } })} placeholder="e.g. data.items" />
                           </div>
                           {apiPreviewResult && (
-                            <div className="p-2 border rounded-md bg-muted/5">
-                              <span className="text-[9px] font-bold uppercase text-muted-foreground">Detected Data Keys:</span>
-                              <div className="flex flex-wrap gap-1 mt-1">
+                            <div className="p-3 border rounded-md bg-muted/5">
+                              <span className="text-[9px] font-bold uppercase text-muted-foreground">Detected Row Keys:</span>
+                              <div className="flex flex-wrap gap-1 mt-2">
                                 {getDetectedKeys(apiPreviewResult, editForm.apiConfig?.responseMapping?.tableDataKey).map(k => (
                                   <Badge key={k} variant="secondary" className="text-[9px] cursor-copy" onClick={() => toast({ title: "Copied", description: `${k} copied to clipboard.` })}>{k}</Badge>
                                 ))}
                               </div>
                             </div>
                           )}
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between"><Label className="text-xs">Columns</Label><Button variant="ghost" size="sm" onClick={addTableColumn}><Plus /> Add Col</Button></div>
-                            {editForm.apiConfig?.responseMapping?.tableColumns?.map((col, idx) => (
-                              <div key={idx} className="flex gap-2">
-                                <Input placeholder="Header" value={col.header} onChange={e => {
-                                  const cols = [...editForm.apiConfig!.responseMapping.tableColumns!];
-                                  cols[idx].header = e.target.value;
-                                  setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, tableColumns: cols } } });
-                                }} />
-                                <Input placeholder="JSON Key" value={col.key} onChange={e => {
-                                  const cols = [...editForm.apiConfig!.responseMapping.tableColumns!];
-                                  cols[idx].key = e.target.value;
-                                  setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, tableColumns: cols } } });
-                                }} />
-                              </div>
-                            ))}
+                          <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                              <Label className="text-xs font-bold">Table Columns Mapping</Label>
+                              <Button variant="ghost" size="sm" onClick={addTableColumn}><Plus /> Add Column</Button>
+                            </div>
+                            <div className="space-y-3">
+                              {editForm.apiConfig?.responseMapping?.tableColumns?.map((col, idx) => (
+                                <div key={idx} className="flex gap-2 items-start p-2 border rounded-md bg-white group">
+                                  <div className="flex-1 space-y-1">
+                                    <Label className="text-[9px] text-muted-foreground">Header Label</Label>
+                                    <Input className="h-8 text-xs" placeholder="e.g. Price" value={col.header} onChange={e => {
+                                      const cols = [...editForm.apiConfig!.responseMapping.tableColumns!];
+                                      cols[idx].header = e.target.value;
+                                      setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, tableColumns: cols } } });
+                                    }} />
+                                  </div>
+                                  <div className="flex-1 space-y-1">
+                                    <Label className="text-[9px] text-muted-foreground">JSON Data Key</Label>
+                                    <Input className="h-8 text-xs font-mono" placeholder="e.g. price.amount" value={col.key} onChange={e => {
+                                      const cols = [...editForm.apiConfig!.responseMapping.tableColumns!];
+                                      cols[idx].key = e.target.value;
+                                      setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, tableColumns: cols } } });
+                                    }} />
+                                  </div>
+                                  <Button variant="ghost" size="icon" className="mt-5 h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => removeTableColumn(idx)}>
+                                    <Trash2 size={12} />
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         </TabsContent>
                       </Tabs>
