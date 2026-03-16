@@ -7,7 +7,6 @@ import { ChatBubble } from './ChatBubble';
 import { Button } from '@/components/ui/button';
 import { ChevronRight, Home, ArrowLeft, Languages, Globe, Link as LinkIcon, Sparkles } from 'lucide-react';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
-import { Separator } from '@/components/ui/separator';
 
 interface Message {
   id: string;
@@ -16,6 +15,8 @@ interface Message {
   content?: string;
   options?: MenuItem[];
   relatedOptions?: MenuItem[];
+  scopeIds?: string[]; // The list of allowed IDs in this navigation context
+  originatingAttachedIds?: string[]; // The full list of attachments from the parent to pass forward
 }
 
 export function ChatInterface() {
@@ -56,13 +57,28 @@ export function ChatInterface() {
     return menu.content;
   };
 
-  const navigateTo = (menu: MenuItem) => {
+  const navigateTo = (menu: MenuItem, scopeIds?: string[]) => {
     const userMsg: Message = { id: `user-${Date.now()}`, sender: 'user', text: getLocalizedName(menu) };
     
-    const children = menus.filter(m => m.parentId === menu.id);
+    // Determine children (standard options)
+    let children = menus.filter(m => m.parentId === menu.id);
+    
+    // If we are in a scoped journey (reached via Related Menu), 
+    // we MUST only show children that were explicitly selected in the attachment list.
+    if (scopeIds && scopeIds.length > 0) {
+      children = children.filter(c => scopeIds.includes(c.id));
+    }
+
     const relatedIds = menu.attachedMenuIds || [];
-    // Ensure uniqueness and that only explicitly selected items are shown (excluding unselected siblings)
-    const related = menus.filter(m => relatedIds.includes(m.id));
+    // 1. Get all selected menus for the "Related" section
+    const allSelectedRelated = menus.filter(m => relatedIds.includes(m.id));
+    
+    // 2. Progressive Disclosure: Only show the "top-level" items of the related set.
+    // If an item is selected BUT its parent is also in the selected list, 
+    // we hide it here so it only appears when its parent is clicked.
+    const related = allSelectedRelated.filter(item => 
+      !item.parentId || !relatedIds.includes(item.parentId)
+    );
     
     const botMsg: Message = {
       id: `bot-${Date.now()}`,
@@ -70,6 +86,8 @@ export function ChatInterface() {
       content: getLocalizedContent(menu),
       options: children.length > 0 ? children : undefined,
       relatedOptions: related.length > 0 ? related : undefined,
+      scopeIds: scopeIds, // Carry current scope forward for nested navigation
+      originatingAttachedIds: relatedIds, // Store this menu's own attachments for its "Related" buttons
     };
 
     setHistory(prev => [...prev, userMsg, botMsg]);
@@ -88,6 +106,7 @@ export function ChatInterface() {
     if (!parent) {
       goHome();
     } else {
+      // When going back, we lose the related scope for simplicity in this MVP
       navigateTo(parent);
     }
   };
@@ -178,7 +197,7 @@ export function ChatInterface() {
                         key={opt.id} 
                         variant="outline" 
                         size="sm"
-                        onClick={() => navigateTo(opt)}
+                        onClick={() => navigateTo(opt, msg.scopeIds)}
                         className="rounded-full border-primary/20 hover:border-primary hover:bg-primary/5 text-primary text-xs h-auto py-2 px-4 text-left justify-start"
                       >
                         {getLocalizedName(opt)}
@@ -205,7 +224,7 @@ export function ChatInterface() {
                           key={opt.id} 
                           variant="secondary" 
                           size="sm"
-                          onClick={() => navigateTo(opt)}
+                          onClick={() => navigateTo(opt, msg.originatingAttachedIds)}
                           className="rounded-full text-xs h-auto py-2 px-4 text-left justify-start gap-2 bg-white border border-border hover:bg-muted hover:border-primary/30 transition-all group"
                         >
                           <LinkIcon size={12} className="opacity-50 group-hover:text-primary group-hover:opacity-100" />
