@@ -192,7 +192,6 @@ export function MenuManagement() {
       if (!data || typeof data !== 'object') return;
       
       if (Array.isArray(data)) {
-        // If it's an array, look at the first element to find keys for rows
         if (data.length > 0) extractKeys(data[0], prefix);
         return;
       }
@@ -201,13 +200,7 @@ export function MenuManagement() {
         const fullKey = prefix ? `${prefix}.${k}` : k;
         keys.add(fullKey);
         
-        // Go one level deeper for nested objects but don't over-complicate for MVP
-        if (data[k] && typeof data[k] === 'object' && !Array.isArray(data[k])) {
-          extractKeys(data[k], fullKey);
-        }
-        
-        // Special case: if it's an array, we want to know it exists
-        if (Array.isArray(data[k])) {
+        if (data[k] && typeof data[k] === 'object') {
           extractKeys(data[k], fullKey);
         }
       });

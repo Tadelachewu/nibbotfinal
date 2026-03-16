@@ -32,6 +32,8 @@ interface Message {
   tableData?: {
     columns: TableColumn[];
     rows: any[];
+    rootData: any;
+    arrayPath: string;
   };
 }
 
@@ -85,18 +87,34 @@ export function ChatInterface() {
     return path.split('.').reduce((acc, part) => acc && acc[part], obj);
   };
 
-  const findFirstArray = (obj: any): any[] | null => {
-    if (Array.isArray(obj)) return obj;
+  const findArrayData = (obj: any): { path: string; data: any[] } | null => {
+    if (Array.isArray(obj)) return { path: '', data: obj };
     if (typeof obj !== 'object' || obj === null) return null;
     
     for (const key in obj) {
-      if (Array.isArray(obj[key])) return obj[key];
+      if (Array.isArray(obj[key])) return { path: key, data: obj[key] };
       if (typeof obj[key] === 'object') {
-        const found = findFirstArray(obj[key]);
-        if (found) return found;
+        const found = findArrayData(obj[key]);
+        if (found) return { path: key + (found.path ? '.' + found.path : ''), data: found.data };
       }
     }
     return null;
+  };
+
+  const resolveTableCell = (key: string, row: any, root: any, arrayPath: string) => {
+    // 1. Try stripping the array prefix if key starts with it (e.g. rates.rate -> rate)
+    if (arrayPath && key.startsWith(arrayPath + '.')) {
+      const strippedKey = key.substring(arrayPath.length + 1);
+      const val = getVal(strippedKey, row);
+      if (val !== undefined) return val;
+    }
+
+    // 2. Try looking inside the row directly
+    const rowVal = getVal(key, row);
+    if (rowVal !== undefined) return rowVal;
+
+    // 3. Fallback to looking in the root response
+    return getVal(key, root);
   };
 
   const handleKycSubmit = (e?: React.FormEvent) => {
@@ -167,14 +185,14 @@ export function ChatInterface() {
         });
         botMsg.text = resultText;
       } else if (mapping.type === 'table') {
-        // Automatically find the array to iterate over if tableDataKey is not specified or doesn't work
-        let rows = mapping.tableDataKey ? getVal(mapping.tableDataKey, apiResponse) : null;
-        if (!Array.isArray(rows)) {
-          rows = findFirstArray(apiResponse);
-        }
-
-        if (Array.isArray(rows)) {
-          botMsg.tableData = { columns: mapping.tableColumns || [], rows };
+        const foundArray = findArrayData(apiResponse);
+        if (foundArray && Array.isArray(foundArray.data)) {
+          botMsg.tableData = { 
+            columns: mapping.tableColumns || [], 
+            rows: foundArray.data,
+            rootData: apiResponse,
+            arrayPath: foundArray.path
+          };
           botMsg.text = language === 'Amharic' ? 'የተገኙ ውጤቶች የሚከተሉት ናቸው' : 'Here are the results:';
         } else { botMsg.text = mapping.errorFallback; }
       }
@@ -241,7 +259,7 @@ export function ChatInterface() {
                         <TableRow key={i}>
                           {msg.tableData!.columns.map((col, j) => (
                             <TableCell key={j} className="text-xs">
-                              {String(getVal(col.key, row) || '')}
+                              {String(resolveTableCell(col.key, row, msg.tableData!.rootData, msg.tableData!.arrayPath) ?? '')}
                             </TableCell>
                           ))}
                         </TableRow>
