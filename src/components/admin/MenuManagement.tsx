@@ -23,7 +23,8 @@ import {
   Settings2,
   Zap,
   PlayCircle,
-  Link2
+  Link2,
+  Table as TableIcon
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -122,7 +123,6 @@ export function MenuManagement() {
       try {
         const updatedForm = { ...editForm };
         
-        // AI Translation - wrap in try/catch to ensure save is resilient
         try {
           if (editForm.name) {
             const res = await adminContentTranslator({ content: editForm.name, targetLanguage: 'Amharic' });
@@ -156,7 +156,6 @@ export function MenuManagement() {
     }
     setIsTestingApi(true);
     try {
-      // Ensure local endpoints work correctly
       const endpoint = editForm.apiConfig.endpoint.startsWith('/') 
         ? editForm.apiConfig.endpoint 
         : `/api/${editForm.apiConfig.endpoint}`;
@@ -184,29 +183,38 @@ export function MenuManagement() {
     }
   };
 
-  const getDetectedKeys = (obj: any, path = ''): string[] => {
+  const getDetectedKeys = (obj: any): string[] => {
     if (!obj) return [];
-    let target = obj;
-    if (path) {
-      target = path.split('.').reduce((acc, part) => acc && acc[part], obj);
-    }
     
-    // If it's an array, look at the first item's keys
-    if (Array.isArray(target) && target.length > 0) {
-      target = target[0];
-    }
+    const keys: Set<string> = new Set();
     
-    if (typeof target !== 'object' || target === null) return [];
-    
-    // Flatten keys one level deep for convenience
-    const keys: string[] = [];
-    Object.keys(target).forEach(k => {
-      keys.push(k);
-      if (typeof target[k] === 'object' && target[k] !== null && !Array.isArray(target[k])) {
-        Object.keys(target[k]).forEach(subK => keys.push(`${k}.${subK}`));
+    const extractKeys = (data: any, prefix = '') => {
+      if (!data || typeof data !== 'object') return;
+      
+      if (Array.isArray(data)) {
+        // If it's an array, look at the first element to find keys for rows
+        if (data.length > 0) extractKeys(data[0], prefix);
+        return;
       }
-    });
-    return Array.from(new Set(keys));
+      
+      Object.keys(data).forEach(k => {
+        const fullKey = prefix ? `${prefix}.${k}` : k;
+        keys.add(fullKey);
+        
+        // Go one level deeper for nested objects but don't over-complicate for MVP
+        if (data[k] && typeof data[k] === 'object' && !Array.isArray(data[k])) {
+          extractKeys(data[k], fullKey);
+        }
+        
+        // Special case: if it's an array, we want to know it exists
+        if (Array.isArray(data[k])) {
+          extractKeys(data[k], fullKey);
+        }
+      });
+    };
+    
+    extractKeys(obj);
+    return Array.from(keys);
   };
 
   const renderTree = (parentId: string | null = null, level = 0) => {
@@ -434,56 +442,71 @@ export function MenuManagement() {
                           )}
                         </TabsContent>
                         <TabsContent value="table" className="space-y-4 pt-4">
-                          <div className="space-y-2">
-                            <Label className="text-xs">Array Data Path in JSON</Label>
-                            <Input value={editForm.apiConfig?.responseMapping?.tableDataKey} onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, tableDataKey: e.target.value } } })} placeholder="e.g. rates" />
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs font-bold flex items-center gap-2"><TableIcon size={14} /> Table Columns Mapping</Label>
+                            <Button variant="ghost" size="sm" onClick={() => {
+                               const cols = editForm.apiConfig!.responseMapping.tableColumns || [];
+                               setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, tableColumns: [...cols, { header: 'New Column', key: '' }] } } });
+                            }}><Plus className="mr-1" /> Add Column</Button>
                           </div>
+                          
                           {apiPreviewResult && (
-                            <div className="p-3 border rounded-md bg-muted/5">
-                              <span className="text-[9px] font-bold uppercase text-muted-foreground">Detected Row Keys:</span>
-                              <div className="flex flex-wrap gap-1 mt-2">
-                                {getDetectedKeys(apiPreviewResult, editForm.apiConfig?.responseMapping?.tableDataKey).map(k => (
-                                  <Badge key={k} variant="secondary" className="text-[9px] cursor-copy" onClick={() => toast({ title: "Key copied", description: `You can use ${k} as a key.` })}>{k}</Badge>
-                                ))}
-                              </div>
-                            </div>
+                             <div className="p-3 border rounded-md bg-muted/5 mb-4">
+                               <span className="text-[9px] font-bold uppercase text-muted-foreground">Detected Response Fields (Select to fill Key):</span>
+                               <div className="flex flex-wrap gap-1 mt-2">
+                                 {getDetectedKeys(apiPreviewResult).map(k => (
+                                   <Badge key={k} variant="secondary" className="text-[9px] cursor-pointer hover:bg-primary/20" onClick={() => {
+                                      toast({ title: "Field selected", description: `Field ${k} is ready for column mapping.` });
+                                   }}>{k}</Badge>
+                                 ))}
+                               </div>
+                             </div>
                           )}
-                          <div className="space-y-4">
-                            <div className="flex items-center justify-between">
-                              <Label className="text-xs font-bold">Table Columns Mapping</Label>
-                              <Button variant="ghost" size="sm" onClick={() => {
-                                 const cols = editForm.apiConfig!.responseMapping.tableColumns || [];
-                                 setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, tableColumns: [...cols, { header: 'New Column', key: '' }] } } });
-                              }}><Plus className="mr-1" /> Add Column</Button>
-                            </div>
-                            <div className="space-y-3">
-                              {editForm.apiConfig?.responseMapping?.tableColumns?.map((col, idx) => (
-                                <div key={idx} className="flex gap-2 items-start p-2 border rounded-md bg-white group">
-                                  <div className="flex-1 space-y-1">
-                                    <Label className="text-[9px] text-muted-foreground">Header Label</Label>
+
+                          <div className="space-y-3">
+                            {editForm.apiConfig?.responseMapping?.tableColumns?.map((col, idx) => (
+                              <div key={idx} className="flex flex-col gap-3 p-3 border rounded-md bg-white group relative">
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="space-y-1">
+                                    <Label className="text-[9px] text-muted-foreground uppercase font-bold">Header Label</Label>
                                     <Input className="h-8 text-xs" placeholder="e.g. Price" value={col.header} onChange={e => {
                                       const cols = [...editForm.apiConfig!.responseMapping.tableColumns!];
                                       cols[idx].header = e.target.value;
                                       setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, tableColumns: cols } } });
                                     }} />
                                   </div>
-                                  <div className="flex-1 space-y-1">
-                                    <Label className="text-[9px] text-muted-foreground">JSON Data Key</Label>
-                                    <Input className="h-8 text-xs font-mono" placeholder="e.g. price.amount" value={col.key} onChange={e => {
-                                      const cols = [...editForm.apiConfig!.responseMapping.tableColumns!];
-                                      cols[idx].key = e.target.value;
-                                      setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, tableColumns: cols } } });
-                                    }} />
+                                  <div className="space-y-1">
+                                    <Label className="text-[9px] text-muted-foreground uppercase font-bold">JSON Data Key</Label>
+                                    <div className="flex gap-1">
+                                      <Input className="h-8 text-xs font-mono" placeholder="e.g. price.amount" value={col.key} onChange={e => {
+                                        const cols = [...editForm.apiConfig!.responseMapping.tableColumns!];
+                                        cols[idx].key = e.target.value;
+                                        setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, tableColumns: cols } } });
+                                      }} />
+                                    </div>
                                   </div>
-                                  <Button variant="ghost" size="icon" className="mt-5 h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => {
-                                     const cols = editForm.apiConfig!.responseMapping.tableColumns!.filter((_, i) => i !== idx);
-                                     setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, tableColumns: cols } } });
-                                  }}>
-                                    <Trash2 size={12} />
-                                  </Button>
                                 </div>
-                              ))}
-                            </div>
+                                
+                                {apiPreviewResult && (
+                                  <div className="flex flex-wrap gap-1">
+                                    {getDetectedKeys(apiPreviewResult).slice(0, 8).map(k => (
+                                      <Badge key={k} variant="outline" className="text-[8px] cursor-pointer hover:bg-primary/5 py-0 px-1" onClick={() => {
+                                        const cols = [...editForm.apiConfig!.responseMapping.tableColumns!];
+                                        cols[idx].key = k;
+                                        setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, tableColumns: cols } } });
+                                      }}>{k}</Badge>
+                                    ))}
+                                  </div>
+                                )}
+
+                                <Button variant="ghost" size="icon" className="absolute -right-2 -top-2 h-6 w-6 rounded-full bg-destructive text-white shadow-sm hover:bg-destructive/90 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => {
+                                   const cols = editForm.apiConfig!.responseMapping.tableColumns!.filter((_, i) => i !== idx);
+                                   setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, tableColumns: cols } } });
+                                }}>
+                                  <Trash2 size={10} />
+                                </Button>
+                              </div>
+                            ))}
                           </div>
                         </TabsContent>
                       </Tabs>

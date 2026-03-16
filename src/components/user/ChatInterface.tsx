@@ -1,7 +1,8 @@
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { MenuItem, KYCField, TableColumn, RequestParameter } from '@/lib/types';
+import { MenuItem, KYCField, TableColumn } from '@/lib/types';
 import { getStoredMenus } from '@/lib/store';
 import { ChatBubble } from './ChatBubble';
 import { Button } from '@/components/ui/button';
@@ -80,8 +81,22 @@ export function ChatInterface() {
   const getLocalizedTableHeader = (col: TableColumn) => language === 'Amharic' && col.headerAm ? col.headerAm : col.header;
 
   const getVal = (path: string, obj: any) => {
-    if (!path) return obj;
+    if (!path || !obj) return obj;
     return path.split('.').reduce((acc, part) => acc && acc[part], obj);
+  };
+
+  const findFirstArray = (obj: any): any[] | null => {
+    if (Array.isArray(obj)) return obj;
+    if (typeof obj !== 'object' || obj === null) return null;
+    
+    for (const key in obj) {
+      if (Array.isArray(obj[key])) return obj[key];
+      if (typeof obj[key] === 'object') {
+        const found = findFirstArray(obj[key]);
+        if (found) return found;
+      }
+    }
+    return null;
   };
 
   const handleKycSubmit = (e?: React.FormEvent) => {
@@ -114,15 +129,11 @@ export function ChatInterface() {
       let url = menu.apiConfig.endpoint;
       const requestPayload: Record<string, any> = {};
       
-      // Handle Request Mapping
       if (menu.apiConfig.requestParameters && menu.apiConfig.requestParameters.length > 0) {
         menu.apiConfig.requestParameters.forEach(param => {
           if (param.sourceValue === 'user.id') requestPayload[param.apiKey] = userData.id;
           else if (kycData[param.sourceValue]) requestPayload[param.apiKey] = kycData[param.sourceValue];
         });
-      } else {
-        // Fallback: send all KYC data
-        Object.assign(requestPayload, kycData);
       }
 
       const options: RequestInit = {
@@ -140,10 +151,7 @@ export function ChatInterface() {
 
       const res = await fetch(url, options);
       if (res.ok) { success = true; apiResponse = await res.json(); }
-      else { 
-        const errData = await res.json().catch(() => null);
-        apiResponse = errData;
-      }
+      else { apiResponse = await res.json().catch(() => null); }
     } catch (e) { success = false; }
 
     let botMsg: Message = { id: `bot-api-${Date.now()}`, sender: 'bot' };
@@ -159,8 +167,12 @@ export function ChatInterface() {
         });
         botMsg.text = resultText;
       } else if (mapping.type === 'table') {
-        const dataPath = mapping.tableDataKey || '';
-        const rows = getVal(dataPath, apiResponse);
+        // Automatically find the array to iterate over if tableDataKey is not specified or doesn't work
+        let rows = mapping.tableDataKey ? getVal(mapping.tableDataKey, apiResponse) : null;
+        if (!Array.isArray(rows)) {
+          rows = findFirstArray(apiResponse);
+        }
+
         if (Array.isArray(rows)) {
           botMsg.tableData = { columns: mapping.tableColumns || [], rows };
           botMsg.text = language === 'Amharic' ? 'የተገኙ ውጤቶች የሚከተሉት ናቸው' : 'Here are the results:';
