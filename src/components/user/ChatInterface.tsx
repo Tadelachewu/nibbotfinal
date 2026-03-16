@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -133,35 +134,48 @@ export function ChatInterface() {
     if (!menu.apiConfig) return;
     setIsLoadingApi(true);
     
-    await new Promise(r => setTimeout(r, 1500));
-    
-    const endpoint = menu.apiConfig.endpoint.toLowerCase();
-    const isExRate = endpoint.includes('rate') || menu.name.toLowerCase().includes('rate');
-    const isBalance = endpoint.includes('balance');
-    
-    let mockApiResponse: any;
-
-    if (isExRate) {
-      mockApiResponse = { 
-        status: "success", 
-        base: "USD",
-        rates: [
-          { currency: "ETB", rate: "57.50", updated: "2024-05-20" },
-          { currency: "EUR", rate: "0.92", updated: "2024-05-20" },
-          { currency: "GBP", rate: "0.78", updated: "2024-05-20" },
-          { currency: "KES", rate: "132.00", updated: "2024-05-20" }
-        ]
-      };
-    } else if (isBalance) {
-      mockApiResponse = {
-        status: "success",
-        data: { balance: "12,500.00", currency: "ETB" }
-      };
-    } else {
-      mockApiResponse = { 
-        status: "success", 
-        data: { info: "Response processed successfully." } 
-      };
+    let apiResponse: any;
+    try {
+      // Attempt real fetch
+      const res = await fetch(menu.apiConfig.endpoint, {
+        method: menu.apiConfig.method,
+        headers: menu.apiConfig.headers,
+      });
+      
+      if (res.ok) {
+        apiResponse = await res.json();
+      } else {
+        throw new Error("API Unreachable");
+      }
+    } catch (e) {
+      // Fallback to internal mocks for demo testing
+      await new Promise(r => setTimeout(r, 1000));
+      const endpoint = menu.apiConfig.endpoint.toLowerCase();
+      const isExRate = endpoint.includes('rate') || menu.name.toLowerCase().includes('rate');
+      const isBalance = endpoint.includes('balance');
+      
+      if (isExRate) {
+        apiResponse = { 
+          status: "success", 
+          base: "USD",
+          rates: [
+            { currency: "ETB", rate: "57.50", updated: "2024-05-20" },
+            { currency: "EUR", rate: "0.92", updated: "2024-05-20" },
+            { currency: "GBP", rate: "0.78", updated: "2024-05-20" },
+            { currency: "KES", rate: "132.00", updated: "2024-05-20" }
+          ]
+        };
+      } else if (isBalance) {
+        apiResponse = {
+          status: "success",
+          data: { balance: "12,500.00", currency: "ETB" }
+        };
+      } else {
+        apiResponse = { 
+          status: "success", 
+          data: { info: "Response processed successfully (Mock)." } 
+        };
+      }
     }
 
     const mapping = menu.apiConfig.responseMapping;
@@ -174,19 +188,19 @@ export function ChatInterface() {
       const matches = resultText.match(/{{response\.(.*?)}}/g);
       matches?.forEach(match => {
         const path = match.replace('{{response.', '').replace('}}', '');
-        resultText = resultText.replace(match, String(getVal(path, mockApiResponse) || ''));
+        resultText = resultText.replace(match, String(getVal(path, apiResponse) || ''));
       });
       botMsg.text = resultText;
     } else if (mapping.type === 'table') {
       const dataPath = mapping.tableDataKey || '';
-      const rows = dataPath === '' ? mockApiResponse : dataPath.split('.').reduce((acc, part) => acc && acc[part], mockApiResponse);
+      const rows = dataPath === '' ? apiResponse : dataPath.split('.').reduce((acc, part) => acc && acc[part], apiResponse);
       
       if (Array.isArray(rows)) {
         botMsg.tableData = {
           columns: mapping.tableColumns || [],
           rows: rows
         };
-        botMsg.text = language === 'Amharic' ? 'እነዚህ የእርስዎ የምንዛሬ ተመኖች ናቸው።' : 'Here are the latest rates:';
+        botMsg.text = language === 'Amharic' ? 'እነዚህ የእርስዎ የምንዛሬ ተመኖች ናቸው።' : 'Here are the results:';
       } else {
         botMsg.text = mapping.errorFallback;
       }

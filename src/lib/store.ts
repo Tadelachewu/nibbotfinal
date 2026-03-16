@@ -1,3 +1,4 @@
+
 'use client';
 
 import { MenuItem } from './types';
@@ -25,7 +26,7 @@ const defaultMenus: MenuItem[] = [
     order: 1,
     apiConfig: {
       name: 'Daily Exchange Rates',
-      endpoint: 'https://api.exchangerate.host/latest',
+      endpoint: '/api/test/exchange-rate',
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
       timeout: 5000,
@@ -58,7 +59,7 @@ const defaultMenus: MenuItem[] = [
     order: 2,
     apiConfig: {
       name: 'Account Balance',
-      endpoint: 'https://api.test/v1/user/balance',
+      endpoint: '/api/test/balance',
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
       timeout: 5000,

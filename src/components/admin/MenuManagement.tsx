@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -183,8 +184,21 @@ export function MenuManagement() {
     }
     setIsTestingApi(true);
     try {
-      await new Promise(r => setTimeout(r, 1000));
-      
+      // Attempt real fetch first
+      const response = await fetch(editForm.apiConfig.endpoint, {
+        method: editForm.apiConfig.method,
+        headers: editForm.apiConfig.headers,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setApiPreviewResult(data);
+        toast({ title: "API Test Successful", description: "Response received from endpoint." });
+      } else {
+        throw new Error("Endpoint failed");
+      }
+    } catch (e) {
+      // Fallback to internal mocks for common test patterns
       const endpoint = editForm.apiConfig.endpoint.toLowerCase();
       const isExRate = endpoint.includes('rate') || editForm.name?.toLowerCase().includes('rate');
       const isBalance = endpoint.includes('balance');
@@ -214,13 +228,9 @@ export function MenuManagement() {
         }
       };
       
-      if (isExRate) setApiPreviewResult(mockResponses["exchange"]);
-      else if (isBalance) setApiPreviewResult(mockResponses["balance"]);
-      else setApiPreviewResult(mockResponses["default"]);
-
-      toast({ title: "API Test Successful", description: "Response received. Use the log below to map your keys." });
-    } catch (e) {
-      toast({ title: "API Test Failed", description: "Check console or network.", variant: "destructive" });
+      const result = isExRate ? mockResponses["exchange"] : (isBalance ? mockResponses["balance"] : mockResponses["default"]);
+      setApiPreviewResult(result);
+      toast({ title: "API Preview (Mocked)", description: "Used internal mock as endpoint was unreachable." });
     } finally {
       setIsTestingApi(false);
     }
@@ -539,7 +549,7 @@ export function MenuManagement() {
                                 ...editForm, 
                                 apiConfig: { ...editForm.apiConfig!, endpoint: e.target.value } 
                               })}
-                              placeholder="https://api.example.com/v1/user/balance"
+                              placeholder="/api/test/balance or https://api.example.com"
                             />
                           </div>
                         </div>
@@ -636,7 +646,7 @@ export function MenuManagement() {
                                 <Label className="text-[10px] uppercase font-bold text-muted-foreground block">Array Data Path</Label>
                                 <Input 
                                   value={editForm.apiConfig?.responseMapping?.tableDataKey}
-                                  placeholder="e.g., response.rates"
+                                  placeholder="e.g., rates or response.items"
                                   className="h-8 text-xs"
                                   onChange={(e) => setEditForm({
                                     ...editForm,
