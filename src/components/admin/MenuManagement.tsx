@@ -19,7 +19,8 @@ import {
   FolderPlus,
   Loader2,
   Search,
-  ListTree
+  ListTree,
+  AlertCircle
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -84,7 +85,30 @@ export function MenuManagement() {
     setIsEditDialogOpen(true);
   };
 
+  const validateAttachments = (): boolean => {
+    const selectedIds = editForm.attachedMenuIds || [];
+    if (selectedIds.length === 0) return true;
+
+    for (const id of selectedIds) {
+      const item = menus.find(m => m.id === id);
+      if (item && item.parentId) {
+        // If it's a child, its parent must also be selected for "parent then child" integrity
+        if (!selectedIds.includes(item.parentId)) {
+          toast({
+            variant: "destructive",
+            title: "Hierarchy Error",
+            description: `To attach "${item.name}", you must also select its parent menu.`,
+          });
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+
   const handleSaveEdit = async () => {
+    if (!validateAttachments()) return;
+
     if (editingId && editForm) {
       setIsSaving(true);
       try {
@@ -119,7 +143,7 @@ export function MenuManagement() {
         setIsEditDialogOpen(false);
         setEditingId(null);
         refresh();
-        toast({ title: "Saved", description: "Menu updated and localized in background." });
+        toast({ title: "Saved", description: "Menu updated and localized successfully." });
       } catch (error) {
         toast({ title: "Save Error", description: "Could not save menu item.", variant: "destructive" });
       } finally {
@@ -156,7 +180,7 @@ export function MenuManagement() {
     const newIds = currentIds.includes(id) 
       ? currentIds.filter(mid => mid !== id) 
       : [...currentIds, id];
-    setEditForm({ ...editForm, attachedMenuIds: newIds });
+    setEditForm({ ...editForm, attachedMenuIds: Array.from(new Set(newIds)) });
   };
 
   const renderTree = (parentId: string | null = null, level = 0) => {
@@ -235,13 +259,15 @@ export function MenuManagement() {
         {items.map(item => {
           const hasChildren = menus.some(m => m.parentId === item.id);
           const isSelected = editForm.attachedMenuIds?.includes(item.id);
+          const isParentSelected = !item.parentId || editForm.attachedMenuIds?.includes(item.parentId);
 
           return (
             <div key={item.id} className="space-y-1">
               <div 
                 className={cn(
                   "flex items-center gap-2 p-2 rounded-md transition-all cursor-pointer hover:bg-muted/50",
-                  isSelected && "bg-primary/5 ring-1 ring-primary/10"
+                  isSelected && "bg-primary/5 ring-1 ring-primary/10",
+                  !isParentSelected && isSelected && "ring-destructive/30 bg-destructive/5"
                 )}
                 onClick={() => toggleAttachment(item.id)}
               >
@@ -272,6 +298,11 @@ export function MenuManagement() {
                   <span className={cn("text-xs font-medium truncate", isSelected && "text-primary")}>
                     {item.name}
                   </span>
+                  {!isParentSelected && isSelected && (
+                    <span className="text-[9px] text-destructive flex items-center gap-1">
+                      <AlertCircle size={8} /> Parent required
+                    </span>
+                  )}
                 </div>
               </div>
               {browserExpanded.has(item.id) && renderBrowserTree(item.id, level + 1)}
@@ -333,7 +364,7 @@ export function MenuManagement() {
                     placeholder="e.g., Get Support, View Pricing"
                     className="max-w-md"
                   />
-                  <p className="text-[10px] text-muted-foreground italic">System will automatically handle Amharic localization.</p>
+                  <p className="text-[10px] text-muted-foreground italic">System handles Amharic localization automatically.</p>
                 </div>
                 
                 <div className="space-y-2">
@@ -353,7 +384,7 @@ export function MenuManagement() {
                       <ListTree size={16} className="text-primary" />
                       Attach Related Menus
                     </h3>
-                    <p className="text-[11px] text-muted-foreground">Browse all menus to select which additional buttons appear after this message.</p>
+                    <p className="text-[11px] text-muted-foreground">Select parent then child to display as follow-up buttons. Unselected siblings are excluded.</p>
                   </div>
                   <div className="relative max-w-[240px]">
                     <Search size={14} className="absolute left-2.5 top-2.5 text-muted-foreground" />

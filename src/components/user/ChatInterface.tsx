@@ -5,7 +5,7 @@ import { MenuItem } from '@/lib/types';
 import { getStoredMenus } from '@/lib/store';
 import { ChatBubble } from './ChatBubble';
 import { Button } from '@/components/ui/button';
-import { ChevronRight, Home, ArrowLeft, Languages, Globe, Link as LinkIcon } from 'lucide-react';
+import { ChevronRight, Home, ArrowLeft, Languages, Globe, Link as LinkIcon, Sparkles } from 'lucide-react';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { Separator } from '@/components/ui/separator';
 
@@ -61,6 +61,7 @@ export function ChatInterface() {
     
     const children = menus.filter(m => m.parentId === menu.id);
     const relatedIds = menu.attachedMenuIds || [];
+    // Ensure uniqueness and that only explicitly selected items are shown (excluding unselected siblings)
     const related = menus.filter(m => relatedIds.includes(m.id));
     
     const botMsg: Message = {
@@ -187,30 +188,31 @@ export function ChatInterface() {
                   </div>
                 )}
 
-                {msg.options && msg.relatedOptions && (
-                  <div className="flex items-center gap-2">
-                    <Separator className="flex-1" />
-                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest whitespace-nowrap">
-                      {language === 'Amharic' ? 'ተዛማጅ' : 'Related'}
-                    </span>
-                    <Separator className="flex-1" />
-                  </div>
-                )}
-
                 {msg.relatedOptions && (
-                  <div className="flex flex-wrap gap-2">
-                    {msg.relatedOptions.map(opt => (
-                      <Button 
-                        key={opt.id} 
-                        variant="secondary" 
-                        size="sm"
-                        onClick={() => navigateTo(opt)}
-                        className="rounded-full text-xs h-auto py-2 px-4 text-left justify-start gap-2 bg-muted/50 hover:bg-muted"
-                      >
-                        <LinkIcon size={12} className="opacity-50" />
-                        {getLocalizedName(opt)}
-                      </Button>
-                    ))}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3 pt-2">
+                      <div className="h-px bg-muted flex-1" />
+                      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground font-bold uppercase tracking-widest bg-muted/20 px-2 py-0.5 rounded-full border border-muted/30">
+                        <Sparkles size={10} className="text-primary" />
+                        {language === 'Amharic' ? 'ተዛማጅ' : 'Related'}
+                      </div>
+                      <div className="h-px bg-muted flex-1" />
+                    </div>
+                    
+                    <div className="flex flex-wrap gap-2">
+                      {msg.relatedOptions.map(opt => (
+                        <Button 
+                          key={opt.id} 
+                          variant="secondary" 
+                          size="sm"
+                          onClick={() => navigateTo(opt)}
+                          className="rounded-full text-xs h-auto py-2 px-4 text-left justify-start gap-2 bg-white border border-border hover:bg-muted hover:border-primary/30 transition-all group"
+                        >
+                          <LinkIcon size={12} className="opacity-50 group-hover:text-primary group-hover:opacity-100" />
+                          {getLocalizedName(opt)}
+                        </Button>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
