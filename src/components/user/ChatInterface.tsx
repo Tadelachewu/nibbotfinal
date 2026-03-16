@@ -148,7 +148,6 @@ export function ChatInterface() {
         },
       };
 
-      // Real injection of KYC Data into the request
       if (menu.apiConfig.method === 'GET') {
         const params = new URLSearchParams();
         Object.entries(kycData).forEach(([key, value]) => {
@@ -167,7 +166,6 @@ export function ChatInterface() {
         apiResponse = await res.json();
         success = true;
       } else {
-        // Try to parse error message from body if available
         try {
           const errData = await res.json();
           apiResponse = errData;
@@ -177,7 +175,6 @@ export function ChatInterface() {
         success = false;
       }
     } catch (e) {
-      // Fallback to internal mocks only for demonstration if the endpoint is unreachable
       success = false;
     }
 
