@@ -10,6 +10,7 @@ const defaultMenus: MenuItem[] = [
     parentId: null, 
     name: 'Our Services', 
     nameAm: 'የእኛ አገልግሎቶች',
+    responseType: 'static',
     order: 0, 
     content: '<p>Explore what we can do for you.</p>',
     contentAm: '<p>ለእርስዎ ምን ማድረግ እንደምንችል ይመርምሩ።</p>',
@@ -18,17 +19,56 @@ const defaultMenus: MenuItem[] = [
   { 
     id: '2', 
     parentId: null, 
-    name: 'Contact Us', 
-    nameAm: 'ያግኙን',
-    content: '<p>You can reach us at <strong>support@talktree.com</strong></p>', 
-    contentAm: '<p>በ <strong>support@talktree.com</strong> ሊያገኙን ይችላሉ።</p>',
-    order: 1 
+    name: 'Check Balance', 
+    nameAm: 'ሂሳብ ይፈትሹ',
+    responseType: 'api',
+    order: 1,
+    apiConfig: {
+      name: 'Balance Inquiry',
+      endpoint: 'https://api.example.com/v1/balance',
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 5000,
+      retry: 1,
+      loginRequired: true,
+      requiredKYC: ['phone', 'id_number'],
+      kycFields: [
+        {
+          id: 'phone',
+          name: 'phone',
+          prompt: 'Please enter your phone number.',
+          promptAm: 'እባክዎን ስልክ ቁጥርዎን ያስገቡ።',
+          type: 'tel',
+          order: 1
+        },
+        {
+          id: 'id_number',
+          name: 'id_number',
+          prompt: 'Please enter your ID number.',
+          promptAm: 'እባክዎን የመታወቂያ ቁጥርዎን ያስገቡ።',
+          type: 'text',
+          order: 2
+        }
+      ],
+      requestMapping: {
+        'msisdn': 'user.phone',
+        'national_id': 'user.kyc.id_number'
+      },
+      responseMapping: {
+        type: 'message',
+        template: 'Your current balance is {{response.balance}} {{response.currency}}.',
+        errorFallback: 'We could not retrieve your balance at this time.',
+        timeoutMessage: 'The request timed out. Please try again.',
+        authRequiredMessage: 'Please log in to check your balance.'
+      }
+    }
   },
   { 
     id: '3', 
     parentId: '1', 
     name: 'Web Development', 
     nameAm: 'የዌብ ልማት',
+    responseType: 'static',
     content: '<h2>Web Development</h2><p>We build responsive and high-performance websites.</p>', 
     contentAm: '<h2>የዌብ ልማት</h2><p>ምላሽ ሰጪ እና ከፍተኛ አፈጻጸም ያላቸውን ድረ-ገጾች እንገነባለን።</p>',
     order: 0 
@@ -38,6 +78,7 @@ const defaultMenus: MenuItem[] = [
     parentId: '1', 
     name: 'Mobile Apps', 
     nameAm: 'የሞባይል መተግበሪያዎች',
+    responseType: 'static',
     content: '<h2>Mobile Apps</h2><p>Native and cross-platform mobile experiences.</p>', 
     contentAm: '<h2>የሞባይል መተግበሪያዎች</h2><p>ተወላጅ እና የመስቀል-ፕላትፎርም የሞባይል ተሞክሮዎች።</p>',
     order: 1 
@@ -57,7 +98,7 @@ export function saveMenus(menus: MenuItem[]) {
 
 export function addMenu(menu: Omit<MenuItem, 'id'>): MenuItem {
   const menus = getStoredMenus();
-  const newItem = { ...menu, id: Math.random().toString(36).substr(2, 9), attachedMenuIds: [] };
+  const newItem = { ...menu, id: Math.random().toString(36).substr(2, 9), attachedMenuIds: [] } as MenuItem;
   saveMenus([...menus, newItem]);
   return newItem;
 }

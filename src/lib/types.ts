@@ -1,12 +1,46 @@
+export type KYCFieldType = 'text' | 'number' | 'tel' | 'select';
+
+export interface KYCField {
+  id: string;
+  name: string;
+  prompt: string;
+  promptAm?: string;
+  type: KYCFieldType;
+  validation?: string;
+  order: number;
+}
+
+export interface ApiConfig {
+  name: string;
+  endpoint: string;
+  method: 'GET' | 'POST';
+  headers: Record<string, string>;
+  timeout: number;
+  retry: number;
+  loginRequired: boolean;
+  requiredKYC: string[]; // IDs of KYC fields
+  kycFields: KYCField[];
+  requestMapping: Record<string, string>; // API Key -> Source (e.g., "user.phone")
+  responseMapping: {
+    type: 'message' | 'buttons' | 'trigger';
+    template: string; // Handlebars-style template for response
+    errorFallback: string;
+    timeoutMessage: string;
+    authRequiredMessage: string;
+  };
+}
+
 export interface MenuItem {
   id: string;
   parentId: string | null;
   name: string;
-  content?: string;
   nameAm?: string;
-  contentAm?: string;
+  responseType: 'static' | 'api';
+  content?: string; // For static
+  contentAm?: string; // For static
+  apiConfig?: ApiConfig; // For API
   order: number;
-  attachedMenuIds?: string[]; // IDs of menus to show as sub-options
+  attachedMenuIds?: string[];
 }
 
 export interface AppState {

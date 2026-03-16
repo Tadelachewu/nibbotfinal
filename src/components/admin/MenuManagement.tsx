@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { MenuItem } from '@/lib/types';
+import { MenuItem, KYCField, ApiConfig } from '@/lib/types';
 import { getStoredMenus, addMenu, updateMenu, deleteMenu } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,7 +20,12 @@ import {
   Loader2,
   Search,
   ListTree,
-  AlertCircle
+  AlertCircle,
+  Globe,
+  Settings2,
+  ShieldCheck,
+  Zap,
+  Layout
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -39,6 +44,9 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { WysiwygEditor } from './WysiwygEditor';
 import { toast } from '@/hooks/use-toast';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -68,6 +76,7 @@ export function MenuManagement() {
     const newItem = addMenu({
       name: parentId ? 'New Sub Menu' : 'New Main Menu',
       parentId,
+      responseType: 'static',
       content: '<p>Enter your response message here...</p>',
       order: menus.filter(m => m.parentId === parentId).length,
       attachedMenuIds: []
@@ -81,34 +90,34 @@ export function MenuManagement() {
 
   const handleStartEdit = (menu: MenuItem) => {
     setEditingId(menu.id);
-    setEditForm({ ...menu, attachedMenuIds: menu.attachedMenuIds || [] });
+    setEditForm({ 
+      ...menu, 
+      responseType: menu.responseType || 'static',
+      attachedMenuIds: menu.attachedMenuIds || [],
+      apiConfig: menu.apiConfig || {
+        name: '',
+        endpoint: '',
+        method: 'GET',
+        headers: {},
+        timeout: 5000,
+        retry: 0,
+        loginRequired: false,
+        requiredKYC: [],
+        kycFields: [],
+        requestMapping: {},
+        responseMapping: {
+          type: 'message',
+          template: '',
+          errorFallback: 'An error occurred.',
+          timeoutMessage: 'Request timed out.',
+          authRequiredMessage: 'Login required.'
+        }
+      }
+    });
     setIsEditDialogOpen(true);
   };
 
-  const validateAttachments = (): boolean => {
-    const selectedIds = editForm.attachedMenuIds || [];
-    if (selectedIds.length === 0) return true;
-
-    for (const id of selectedIds) {
-      const item = menus.find(m => m.id === id);
-      if (item && item.parentId) {
-        // If it's a child, its parent must also be selected for "parent then child" integrity
-        if (!selectedIds.includes(item.parentId)) {
-          toast({
-            variant: "destructive",
-            title: "Hierarchy Error",
-            description: `To attach "${item.name}", you must also select its parent menu.`,
-          });
-          return false;
-        }
-      }
-    }
-    return true;
-  };
-
   const handleSaveEdit = async () => {
-    if (!validateAttachments()) return;
-
     if (editingId && editForm) {
       setIsSaving(true);
       try {
@@ -117,26 +126,27 @@ export function MenuManagement() {
         // Background AI Localization
         if (editForm.name) {
           try {
-            const res = await adminContentTranslator({ 
-              content: editForm.name, 
-              targetLanguage: 'Amharic' 
-            });
+            const res = await adminContentTranslator({ content: editForm.name, targetLanguage: 'Amharic' });
             updatedForm.nameAm = res.translatedContent;
-          } catch (e) {
-            console.error("Localization failed", e);
-          }
+          } catch (e) {}
         }
         
-        if (editForm.content) {
+        if (editForm.responseType === 'static' && editForm.content) {
           try {
-            const res = await adminContentTranslator({ 
-              content: editForm.content, 
-              targetLanguage: 'Amharic' 
-            });
+            const res = await adminContentTranslator({ content: editForm.content, targetLanguage: 'Amharic' });
             updatedForm.contentAm = res.translatedContent;
-          } catch (e) {
-            console.error("Localization failed", e);
-          }
+          } catch (e) {}
+        }
+
+        // Localize KYC prompts if they exist
+        if (editForm.responseType === 'api' && editForm.apiConfig?.kycFields) {
+          const localizedFields = await Promise.all(editForm.apiConfig.kycFields.map(async field => {
+            try {
+              const res = await adminContentTranslator({ content: field.prompt, targetLanguage: 'Amharic' });
+              return { ...field, promptAm: res.translatedContent };
+            } catch (e) { return field; }
+          }));
+          updatedForm.apiConfig = { ...updatedForm.apiConfig!, kycFields: localizedFields };
         }
 
         updateMenu(editingId, updatedForm);
@@ -152,27 +162,32 @@ export function MenuManagement() {
     }
   };
 
-  const confirmDelete = () => {
-    if (itemToDelete) {
-      deleteMenu(itemToDelete);
-      refresh();
-      if (editingId === itemToDelete) {
-        setEditingId(null);
-        setIsEditDialogOpen(false);
-      }
-      setItemToDelete(null);
-      toast({ title: "Deleted", description: "Menu removed successfully." });
-    }
+  const addKYCField = () => {
+    const apiConfig = editForm.apiConfig || {} as ApiConfig;
+    const fields = apiConfig.kycFields || [];
+    const newField: KYCField = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: '',
+      prompt: '',
+      type: 'text',
+      order: fields.length + 1
+    };
+    setEditForm({
+      ...editForm,
+      apiConfig: { ...apiConfig, kycFields: [...fields, newField] } as ApiConfig
+    });
   };
 
-  const toggleFolder = (id: string, state: 'main' | 'browser') => {
-    const set = state === 'main' ? expandedFolders : browserExpanded;
-    const next = new Set(set);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    
-    if (state === 'main') setExpandedFolders(next);
-    else setBrowserExpanded(next);
+  const updateKYCField = (id: string, updates: Partial<KYCField>) => {
+    const apiConfig = editForm.apiConfig as ApiConfig;
+    const fields = apiConfig.kycFields.map(f => f.id === id ? { ...f, ...updates } : f);
+    setEditForm({ ...editForm, apiConfig: { ...apiConfig, kycFields: fields } });
+  };
+
+  const removeKYCField = (id: string) => {
+    const apiConfig = editForm.apiConfig as ApiConfig;
+    const fields = apiConfig.kycFields.filter(f => f.id !== id);
+    setEditForm({ ...editForm, apiConfig: { ...apiConfig, kycFields: fields } });
   };
 
   const toggleAttachment = (id: string) => {
@@ -199,7 +214,12 @@ export function MenuManagement() {
               <div className={`flex items-center justify-between p-2 rounded-md hover:bg-muted/50 transition-colors ${editingId === item.id ? 'bg-primary/10 ring-1 ring-primary/30' : ''}`}>
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                   <button 
-                    onClick={() => toggleFolder(item.id, 'main')} 
+                    onClick={() => {
+                      const next = new Set(expandedFolders);
+                      if (next.has(item.id)) next.delete(item.id);
+                      else next.add(item.id);
+                      setExpandedFolders(next);
+                    }} 
                     className={cn(
                       "text-muted-foreground hover:text-primary shrink-0 transition-transform",
                       !hasChildren && "opacity-0 cursor-default",
@@ -210,7 +230,7 @@ export function MenuManagement() {
                     <ChevronDown size={14} />
                   </button>
                   
-                  <MenuIcon size={16} className="text-primary shrink-0 opacity-70" />
+                  {item.responseType === 'api' ? <Zap size={16} className="text-amber-500 shrink-0" /> : <MenuIcon size={16} className="text-primary shrink-0" />}
                   
                   <div className="flex flex-col min-w-0">
                     <span className={`truncate text-sm font-medium ${editingId === item.id ? 'text-primary' : 'text-foreground'}`}>
@@ -220,16 +240,9 @@ export function MenuManagement() {
                 </div>
                 
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => handleAdd(item.id)}>
-                          <FolderPlus size={14} />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Add Sub Menu</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => handleAdd(item.id)}>
+                    <FolderPlus size={14} />
+                  </Button>
                   <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleStartEdit(item)}>
                     <Edit2 size={14} />
                   </Button>
@@ -259,15 +272,13 @@ export function MenuManagement() {
         {items.map(item => {
           const hasChildren = menus.some(m => m.parentId === item.id);
           const isSelected = editForm.attachedMenuIds?.includes(item.id);
-          const isParentSelected = !item.parentId || editForm.attachedMenuIds?.includes(item.parentId);
 
           return (
             <div key={item.id} className="space-y-1">
               <div 
                 className={cn(
                   "flex items-center gap-2 p-2 rounded-md transition-all cursor-pointer hover:bg-muted/50",
-                  isSelected && "bg-primary/5 ring-1 ring-primary/10",
-                  !isParentSelected && isSelected && "ring-destructive/30 bg-destructive/5"
+                  isSelected && "bg-primary/5 ring-1 ring-primary/10"
                 )}
                 onClick={() => toggleAttachment(item.id)}
               >
@@ -276,7 +287,10 @@ export function MenuManagement() {
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
-                        toggleFolder(item.id, 'browser');
+                        const next = new Set(browserExpanded);
+                        if (next.has(item.id)) next.delete(item.id);
+                        else next.add(item.id);
+                        setBrowserExpanded(next);
                       }}
                       className={cn(
                         "text-muted-foreground transition-transform",
@@ -294,16 +308,9 @@ export function MenuManagement() {
                     onClick={(e) => e.stopPropagation()}
                   />
                 </div>
-                <div className="flex flex-col min-w-0">
-                  <span className={cn("text-xs font-medium truncate", isSelected && "text-primary")}>
-                    {item.name}
-                  </span>
-                  {!isParentSelected && isSelected && (
-                    <span className="text-[9px] text-destructive flex items-center gap-1">
-                      <AlertCircle size={8} /> Parent required
-                    </span>
-                  )}
-                </div>
+                <span className={cn("text-xs font-medium truncate", isSelected && "text-primary")}>
+                  {item.name}
+                </span>
               </div>
               {browserExpanded.has(item.id) && renderBrowserTree(item.id, level + 1)}
             </div>
@@ -335,56 +342,268 @@ export function MenuManagement() {
               <MessageSquare size={48} className="text-muted-foreground/30 mb-4" />
               <h3 className="text-lg font-medium">No menus defined</h3>
               <p className="text-muted-foreground mb-6">Create your first Main Menu to get started</p>
-              <Button onClick={() => handleAdd(null)} variant="outline">
-                Create Main Menu
-              </Button>
+              <Button onClick={() => handleAdd(null)} variant="outline">Create Main Menu</Button>
             </div>
           )}
         </CardContent>
       </Card>
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-5xl h-[90vh] flex flex-col p-0 overflow-hidden bg-background">
+        <DialogContent className="sm:max-w-5xl h-[95vh] flex flex-col p-0 overflow-hidden bg-background">
           <DialogHeader className="p-6 border-b bg-white shrink-0">
             <DialogTitle className="flex items-center gap-2">
-              <Edit2 size={18} className="text-primary" />
+              <Settings2 size={18} className="text-primary" />
               Edit {editForm.parentId ? 'Sub Menu' : 'Main Menu'}: {editForm.name}
             </DialogTitle>
           </DialogHeader>
           
           <ScrollArea className="flex-1">
             <div className="p-6 space-y-8">
-              <div className="grid gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="item-name" className="text-sm font-semibold">Menu Button Text (English)</Label>
-                  <Input 
-                    id="item-name" 
-                    value={editForm.name || ''} 
-                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                    placeholder="e.g., Get Support, View Pricing"
-                    className="max-w-md"
-                  />
-                  <p className="text-[10px] text-muted-foreground italic">System handles Amharic localization automatically.</p>
+              <div className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">Menu Button Text (English)</Label>
+                    <Input 
+                      value={editForm.name || ''} 
+                      onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                      placeholder="e.g., Get Support"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">Response Type</Label>
+                    <Select 
+                      value={editForm.responseType} 
+                      onValueChange={(val: any) => setEditForm({ ...editForm, responseType: val })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="static">Static Content Response</SelectItem>
+                        <SelectItem value="api">API Action</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                
-                <div className="space-y-2">
-                  <Label className="text-sm font-semibold">Chat Response Content (English)</Label>
-                  <WysiwygEditor 
-                    title={editForm.name || ''}
-                    value={editForm.content || ''} 
-                    onChange={(val) => setEditForm({ ...editForm, content: val })} 
-                  />
-                </div>
+
+                <Tabs value={editForm.responseType} className="w-full">
+                  <TabsContent value="static" className="space-y-4 pt-4 mt-0">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Chat Response Content (English)</Label>
+                      <WysiwygEditor 
+                        title={editForm.name || ''}
+                        value={editForm.content || ''} 
+                        onChange={(val) => setEditForm({ ...editForm, content: val })} 
+                      />
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="api" className="space-y-6 pt-4 mt-0">
+                    <Card>
+                      <CardHeader className="bg-muted/20 py-3">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <Zap size={14} className="text-amber-500" />
+                          API Endpoint Configuration
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-4 space-y-4">
+                        <div className="grid gap-4 sm:grid-cols-4">
+                          <div className="sm:col-span-1">
+                            <Label className="text-xs">Method</Label>
+                            <Select 
+                              value={editForm.apiConfig?.method}
+                              onValueChange={(v: any) => setEditForm({ 
+                                ...editForm, 
+                                apiConfig: { ...editForm.apiConfig!, method: v } 
+                              })}
+                            >
+                              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="GET">GET</SelectItem>
+                                <SelectItem value="POST">POST</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="sm:col-span-3">
+                            <Label className="text-xs">Endpoint URL</Label>
+                            <Input 
+                              className="h-9"
+                              value={editForm.apiConfig?.endpoint}
+                              onChange={(e) => setEditForm({ 
+                                ...editForm, 
+                                apiConfig: { ...editForm.apiConfig!, endpoint: e.target.value } 
+                              })}
+                              placeholder="https://api.example.com/..."
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center space-x-2">
+                            <Switch 
+                              checked={editForm.apiConfig?.loginRequired}
+                              onCheckedChange={(v) => setEditForm({ 
+                                ...editForm, 
+                                apiConfig: { ...editForm.apiConfig!, loginRequired: v } 
+                              })}
+                            />
+                            <Label className="text-xs">Login Required</Label>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Label className="text-xs whitespace-nowrap">Timeout (ms)</Label>
+                            <Input 
+                              type="number" 
+                              className="h-9 w-20"
+                              value={editForm.apiConfig?.timeout}
+                              onChange={(e) => setEditForm({ 
+                                ...editForm, 
+                                apiConfig: { ...editForm.apiConfig!, timeout: parseInt(e.target.value) } 
+                              })}
+                            />
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="bg-muted/20 py-3 flex flex-row items-center justify-between">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <ShieldCheck size={14} className="text-primary" />
+                          KYC Requirements & Data Collection
+                        </CardTitle>
+                        <Button variant="outline" size="sm" className="h-8 text-xs" onClick={addKYCField}>
+                          <Plus size={14} className="mr-1" /> Add Field
+                        </Button>
+                      </CardHeader>
+                      <CardContent className="p-4 space-y-4">
+                        {editForm.apiConfig?.kycFields?.length === 0 ? (
+                          <p className="text-center py-6 text-xs text-muted-foreground italic">No KYC fields defined. API will be called directly.</p>
+                        ) : (
+                          <div className="space-y-3">
+                            {editForm.apiConfig?.kycFields?.sort((a, b) => a.order - b.order).map((field, idx) => (
+                              <div key={field.id} className="border rounded-lg p-3 bg-white space-y-3 relative group">
+                                <div className="grid gap-3 sm:grid-cols-3">
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Field ID / Key</Label>
+                                    <Input 
+                                      className="h-8 text-xs"
+                                      value={field.name}
+                                      onChange={(e) => updateKYCField(field.id, { name: e.target.value })}
+                                      placeholder="e.g., phone"
+                                    />
+                                  </div>
+                                  <div className="sm:col-span-2 space-y-1">
+                                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Bot Prompt (English)</Label>
+                                    <Input 
+                                      className="h-8 text-xs"
+                                      value={field.prompt}
+                                      onChange={(e) => updateKYCField(field.id, { prompt: e.target.value })}
+                                      placeholder="e.g., Please enter your phone number"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-3">
+                                    <div className="flex flex-col gap-1">
+                                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Input Type</Label>
+                                      <Select 
+                                        value={field.type}
+                                        onValueChange={(v: any) => updateKYCField(field.id, { type: v })}
+                                      >
+                                        <SelectTrigger className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="text">Text</SelectItem>
+                                          <SelectItem value="number">Number</SelectItem>
+                                          <SelectItem value="tel">Telephone</SelectItem>
+                                          <SelectItem value="select">Selection</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                    <div className="flex flex-col gap-1">
+                                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Order</Label>
+                                      <Input 
+                                        type="number" 
+                                        className="h-8 w-16 text-xs" 
+                                        value={field.order}
+                                        onChange={(e) => updateKYCField(field.id, { order: parseInt(e.target.value) })}
+                                      />
+                                    </div>
+                                  </div>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeKYCField(field.id)}>
+                                    <Trash2 size={14} />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="bg-muted/20 py-3">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <Layout size={14} className="text-primary" />
+                          Response Mapping & Templates
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-4 space-y-4">
+                        <div className="space-y-2">
+                          <Label className="text-xs">Success Template (Use {{response.key}} syntax)</Label>
+                          <Input 
+                            value={editForm.apiConfig?.responseMapping?.template}
+                            onChange={(e) => setEditForm({ 
+                              ...editForm, 
+                              apiConfig: { 
+                                ...editForm.apiConfig!, 
+                                responseMapping: { ...editForm.apiConfig!.responseMapping, template: e.target.value } 
+                              } 
+                            })}
+                            placeholder="Your balance is {{response.balance}}."
+                          />
+                        </div>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label className="text-xs">Error Message</Label>
+                            <Input 
+                              className="text-xs"
+                              value={editForm.apiConfig?.responseMapping?.errorFallback}
+                              onChange={(e) => setEditForm({ 
+                                ...editForm, 
+                                apiConfig: { 
+                                  ...editForm.apiConfig!, 
+                                  responseMapping: { ...editForm.apiConfig!.responseMapping, errorFallback: e.target.value } 
+                                } 
+                              })}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs">Timeout Message</Label>
+                            <Input 
+                              className="text-xs"
+                              value={editForm.apiConfig?.responseMapping?.timeoutMessage}
+                              onChange={(e) => setEditForm({ 
+                                ...editForm, 
+                                apiConfig: { 
+                                  ...editForm.apiConfig!, 
+                                  responseMapping: { ...editForm.apiConfig!.responseMapping, timeoutMessage: e.target.value } 
+                                } 
+                              })}
+                            />
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                </Tabs>
               </div>
 
               <div className="pt-8 border-t">
-                <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center justify-between mb-4">
                   <div>
                     <h3 className="text-sm font-bold flex items-center gap-2">
                       <ListTree size={16} className="text-primary" />
                       Attach Related Menus
                     </h3>
-                    <p className="text-[11px] text-muted-foreground">Select parent then child to display as follow-up buttons. Unselected siblings are excluded.</p>
                   </div>
                   <div className="relative max-w-[240px]">
                     <Search size={14} className="absolute left-2.5 top-2.5 text-muted-foreground" />
@@ -396,14 +615,8 @@ export function MenuManagement() {
                     />
                   </div>
                 </div>
-
-                <div className="bg-white rounded-xl border p-4 min-h-[200px]">
+                <div className="bg-white rounded-xl border p-4 min-h-[150px]">
                   {renderBrowserTree(null)}
-                  {menus.length <= 1 && (
-                    <div className="py-12 text-center text-muted-foreground text-xs italic">
-                      No other menus available to attach. Create more menus first.
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
@@ -438,7 +651,14 @@ export function MenuManagement() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogAction onClick={() => {
+              if (itemToDelete) {
+                deleteMenu(itemToDelete);
+                refresh();
+                setItemToDelete(null);
+                toast({ title: "Deleted", description: "Menu removed successfully." });
+              }
+            }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Confirm Delete
             </AlertDialogAction>
           </AlertDialogFooter>

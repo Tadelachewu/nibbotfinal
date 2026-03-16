@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { MenuItem } from '@/lib/types';
+import { MenuItem, KYCField } from '@/lib/types';
 import { getStoredMenus } from '@/lib/store';
 import { ChatBubble } from './ChatBubble';
 import { Button } from '@/components/ui/button';
-import { ChevronRight, Home, ArrowLeft, Languages, Globe, Link as LinkIcon, Sparkles } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { ChevronRight, Home, ArrowLeft, Languages, Globe, Link as LinkIcon, Sparkles, Send, Loader2 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 
 interface Message {
@@ -15,8 +16,17 @@ interface Message {
   content?: string;
   options?: MenuItem[];
   relatedOptions?: MenuItem[];
-  scopeIds?: string[]; // The list of allowed IDs in this navigation context
-  originatingAttachedIds?: string[]; // The full list of attachments from the parent to pass forward
+  scopeIds?: string[];
+  originatingAttachedIds?: string[];
+  isKYC?: boolean;
+}
+
+interface UserData {
+  isLoggedIn: boolean;
+  phone?: string;
+  nationality?: string;
+  idNumber?: string;
+  kyc: Record<string, any>;
 }
 
 export function ChatInterface() {
@@ -24,6 +34,22 @@ export function ChatInterface() {
   const [history, setHistory] = useState<Message[]>([]);
   const [currentMenuId, setCurrentMenuId] = useState<string | null>(null);
   const [language, setLanguage] = useState('English');
+  const [userData, setUserData] = useState<UserData>({
+    isLoggedIn: true,
+    kyc: {}
+  });
+  
+  // KYC Collection State
+  const [kycFlow, setKycFlow] = useState<{
+    active: boolean;
+    menuId: string;
+    fieldIndex: number;
+    fields: KYCField[];
+  } | null>(null);
+  
+  const [kycInput, setKycInput] = useState('');
+  const [isLoadingApi, setIsLoadingApi] = useState(false);
+  
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -57,28 +83,126 @@ export function ChatInterface() {
     return menu.content;
   };
 
+  const getLocalizedKYCPrompt = (field: KYCField) => {
+    if (language === 'Amharic' && field.promptAm) return field.promptAm;
+    return field.prompt;
+  };
+
+  const handleKycSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!kycFlow || !kycInput.trim()) return;
+
+    const currentField = kycFlow.fields[kycFlow.fieldIndex];
+    
+    // Save to user data
+    const newKYC = { ...userData.kyc, [currentField.name]: kycInput };
+    setUserData(prev => ({ ...prev, kyc: newKYC }));
+    
+    // Add user message
+    const userMsg: Message = { id: `user-kyc-${Date.now()}`, sender: 'user', text: kycInput };
+    setHistory(prev => [...prev, userMsg]);
+    setKycInput('');
+
+    // Check if more fields are needed
+    if (kycFlow.fieldIndex < kycFlow.fields.length - 1) {
+      const nextField = kycFlow.fields[kycFlow.fieldIndex + 1];
+      const botMsg: Message = {
+        id: `bot-kyc-${Date.now()}`,
+        sender: 'bot',
+        text: getLocalizedKYCPrompt(nextField),
+        isKYC: true
+      };
+      setHistory(prev => [...prev, botMsg]);
+      setKycFlow({ ...kycFlow, fieldIndex: kycFlow.fieldIndex + 1 });
+    } else {
+      // All KYC collected, proceed to API
+      setKycFlow(null);
+      const menu = menus.find(m => m.id === kycFlow.menuId);
+      if (menu) executeApiCall(menu, newKYC);
+    }
+  };
+
+  const executeApiCall = async (menu: MenuItem, kycData: Record<string, any>) => {
+    if (!menu.apiConfig) return;
+    
+    setIsLoadingApi(true);
+    const botId = `bot-api-${Date.now()}`;
+    
+    // Simulate API latency
+    await new Promise(r => setTimeout(r, 1500));
+    
+    // Mock response logic based on configured template
+    // In a real app, this would use fetch() and a template parser
+    const mockApiResponse = { balance: '1,250.00', currency: 'ETB', status: 'success' };
+    
+    let resultText = menu.apiConfig.responseMapping.template;
+    Object.entries(mockApiResponse).forEach(([key, val]) => {
+      resultText = resultText.replace(`{{response.${key}}}`, val);
+    });
+
+    const botMsg: Message = {
+      id: botId,
+      sender: 'bot',
+      text: resultText,
+      options: menus.filter(m => m.parentId === menu.id)
+    };
+
+    setHistory(prev => [...prev, botMsg]);
+    setIsLoadingApi(false);
+  };
+
   const navigateTo = (menu: MenuItem, scopeIds?: string[]) => {
     const userMsg: Message = { id: `user-${Date.now()}`, sender: 'user', text: getLocalizedName(menu) };
-    
-    // Determine children (standard options)
+    setHistory(prev => [...prev, userMsg]);
+
+    if (menu.responseType === 'api' && menu.apiConfig) {
+      // Handle Login Requirement
+      if (menu.apiConfig.loginRequired && !userData.isLoggedIn) {
+        const botMsg: Message = {
+          id: `bot-auth-${Date.now()}`,
+          sender: 'bot',
+          text: menu.apiConfig.responseMapping.authRequiredMessage
+        };
+        setHistory(prev => [...prev, botMsg]);
+        return;
+      }
+
+      // Handle KYC Requirement
+      const missingFields = menu.apiConfig.kycFields
+        .sort((a, b) => a.order - b.order)
+        .filter(f => !userData.kyc[f.name]);
+
+      if (missingFields.length > 0) {
+        setKycFlow({
+          active: true,
+          menuId: menu.id,
+          fieldIndex: 0,
+          fields: missingFields
+        });
+        const botMsg: Message = {
+          id: `bot-kyc-start-${Date.now()}`,
+          sender: 'bot',
+          text: getLocalizedKYCPrompt(missingFields[0]),
+          isKYC: true
+        };
+        setHistory(prev => [...prev, botMsg]);
+        return;
+      }
+
+      // If already has KYC, just call API
+      executeApiCall(menu, userData.kyc);
+      return;
+    }
+
+    // Standard Static Navigation
     let children = menus.filter(m => m.parentId === menu.id);
-    
-    // If we are in a scoped journey (reached via Related Menu), 
-    // we MUST only show children that were explicitly selected in the attachment list.
     if (scopeIds && scopeIds.length > 0) {
       children = children.filter(c => scopeIds.includes(c.id));
     }
 
     const relatedIds = menu.attachedMenuIds || [];
-    // 1. Get all selected menus for the "Related" section
     const allSelectedRelated = menus.filter(m => relatedIds.includes(m.id));
-    
-    // 2. Progressive Disclosure: Only show the "top-level" items of the related set.
-    // If an item is selected BUT its parent is also in the selected list, 
-    // we hide it here so it only appears when its parent is clicked.
-    const related = allSelectedRelated.filter(item => 
-      !item.parentId || !relatedIds.includes(item.parentId)
-    );
+    const related = allSelectedRelated.filter(item => !item.parentId || !relatedIds.includes(item.parentId));
     
     const botMsg: Message = {
       id: `bot-${Date.now()}`,
@@ -86,60 +210,24 @@ export function ChatInterface() {
       content: getLocalizedContent(menu),
       options: children.length > 0 ? children : undefined,
       relatedOptions: related.length > 0 ? related : undefined,
-      scopeIds: scopeIds, // Carry current scope forward for nested navigation
-      originatingAttachedIds: relatedIds, // Store this menu's own attachments for its "Related" buttons
+      scopeIds: scopeIds,
+      originatingAttachedIds: relatedIds,
     };
 
-    setHistory(prev => [...prev, userMsg, botMsg]);
+    setHistory(prev => [...prev, botMsg]);
     setCurrentMenuId(menu.id);
   };
 
-  const goBack = () => {
-    if (!currentMenuId) return;
-    const current = menus.find(m => m.id === currentMenuId);
-    if (!current) {
-      goHome();
-      return;
-    }
-    
-    const parent = menus.find(m => m.id === current.parentId);
-    if (!parent) {
-      goHome();
-    } else {
-      // When going back, we lose the related scope for simplicity in this MVP
-      navigateTo(parent);
-    }
-  };
-
   const goHome = () => {
-    const userMsg: Message = { 
-      id: `home-req-${Date.now()}`, 
-      sender: 'user', 
-      text: language === 'Amharic' ? 'ዋና ሜኑ' : 'Main Menu' 
-    };
-    const botMsg: Message = {
-      id: `home-resp-${Date.now()}`,
+    const homeMsg: Message = {
+      id: `home-${Date.now()}`,
       sender: 'bot',
-      text: language === 'Amharic' ? 'ወደ ዋናው ሜኑ መመለስ። ሌላ ምን ልርዳዎት?' : 'Returning to main menu. What else can I help with?',
+      text: language === 'Amharic' ? 'እንዴት ልረዳዎ እችላለሁ?' : 'How can I help you?',
       options: menus.filter(m => m.parentId === null)
     };
-    setHistory(prev => [...prev, userMsg, botMsg]);
+    setHistory(prev => [...prev, homeMsg]);
     setCurrentMenuId(null);
-  };
-
-  const handleLanguageChange = (newLang: string) => {
-    setLanguage(newLang);
-    const data = getStoredMenus();
-    const welcomeText = newLang === 'Amharic' ? 'ሰላም! ዛሬ እንዴት ልረዳዎ እችላለሁ?' : 'Hello! How can I assist you today?';
-    setHistory([
-      {
-        id: 'welcome-reset',
-        sender: 'bot',
-        text: welcomeText,
-        options: data.filter(m => m.parentId === null)
-      }
-    ]);
-    setCurrentMenuId(null);
+    setKycFlow(null);
   };
 
   return (
@@ -150,14 +238,10 @@ export function ChatInterface() {
             <Globe size={20} />
           </div>
           <div>
-            <h1 className="font-bold text-lg leading-tight">
-              {language === 'Amharic' ? 'ረዳት ረዳት' : 'Support Assistant'}
-            </h1>
+            <h1 className="font-bold text-lg leading-tight">Support Assistant</h1>
             <div className="flex items-center gap-1.5">
               <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-              <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
-                {language === 'Amharic' ? 'መስመር ላይ' : 'Online'}
-              </span>
+              <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Online</span>
             </div>
           </div>
         </div>
@@ -169,20 +253,13 @@ export function ChatInterface() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => handleLanguageChange('English')}>
-              English
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleLanguageChange('Amharic')}>
-              አማርኛ (Amharic)
-            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setLanguage('English')}>English</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setLanguage('Amharic')}>አማርኛ (Amharic)</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </header>
 
-      <div 
-        ref={scrollRef}
-        className="flex-1 overflow-y-auto p-4 md:p-6 scroll-smooth"
-      >
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 md:p-6 scroll-smooth">
         <div className="space-y-4">
           {history.map((msg) => (
             <ChatBubble key={msg.id} isBot={msg.sender === 'bot'}>
@@ -198,10 +275,10 @@ export function ChatInterface() {
                         variant="outline" 
                         size="sm"
                         onClick={() => navigateTo(opt, msg.scopeIds)}
-                        className="rounded-full border-primary/20 hover:border-primary hover:bg-primary/5 text-primary text-xs h-auto py-2 px-4 text-left justify-start"
+                        className="rounded-full border-primary/20 hover:border-primary hover:bg-primary/5 text-primary text-xs h-auto py-2 px-4"
                       >
                         {getLocalizedName(opt)}
-                        <ChevronRight size={14} className="ml-2 opacity-50 shrink-0" />
+                        <ChevronRight size={14} className="ml-1 opacity-50" />
                       </Button>
                     ))}
                   </div>
@@ -211,13 +288,11 @@ export function ChatInterface() {
                   <div className="space-y-3">
                     <div className="flex items-center gap-3 pt-2">
                       <div className="h-px bg-muted flex-1" />
-                      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground font-bold uppercase tracking-widest bg-muted/20 px-2 py-0.5 rounded-full border border-muted/30">
-                        <Sparkles size={10} className="text-primary" />
+                      <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest bg-muted/20 px-2 py-0.5 rounded-full">
                         {language === 'Amharic' ? 'ተዛማጅ' : 'Related'}
                       </div>
                       <div className="h-px bg-muted flex-1" />
                     </div>
-                    
                     <div className="flex flex-wrap gap-2">
                       {msg.relatedOptions.map(opt => (
                         <Button 
@@ -225,9 +300,9 @@ export function ChatInterface() {
                           variant="secondary" 
                           size="sm"
                           onClick={() => navigateTo(opt, msg.originatingAttachedIds)}
-                          className="rounded-full text-xs h-auto py-2 px-4 text-left justify-start gap-2 bg-white border border-border hover:bg-muted hover:border-primary/30 transition-all group"
+                          className="rounded-full text-xs h-auto py-2 px-4 gap-2 bg-white border border-border"
                         >
-                          <LinkIcon size={12} className="opacity-50 group-hover:text-primary group-hover:opacity-100" />
+                          <LinkIcon size={12} className="opacity-50" />
                           {getLocalizedName(opt)}
                         </Button>
                       ))}
@@ -237,25 +312,51 @@ export function ChatInterface() {
               </div>
             </ChatBubble>
           ))}
+          
+          {isLoadingApi && (
+            <div className="flex justify-start mb-6">
+              <div className="bg-white border rounded-2xl p-4 shadow-sm flex items-center gap-2">
+                <Loader2 size={16} className="animate-spin text-primary" />
+                <span className="text-xs text-muted-foreground italic">Fetching data...</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
+      {kycFlow && (
+        <div className="p-4 bg-white border-t border-primary/20 shadow-[0_-4px_20px_rgba(0,0,0,0.1)]">
+          <form onSubmit={handleKycSubmit} className="flex gap-2">
+            <Input 
+              autoFocus
+              value={kycInput}
+              onChange={(e) => setKycInput(e.target.value)}
+              placeholder={language === 'Amharic' ? 'እዚህ ይጻፉ...' : 'Type here...'}
+              type={kycFlow.fields[kycFlow.fieldIndex].type}
+              className="flex-1 rounded-full border-primary/30 focus-visible:ring-primary"
+            />
+            <Button type="submit" size="icon" className="rounded-full bg-primary hover:bg-primary/90">
+              <Send size={18} />
+            </Button>
+          </form>
+        </div>
+      )}
+
       <footer className="bg-white border-t p-4 pb-8 flex justify-center gap-4 shrink-0">
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          className="rounded-full gap-2 text-muted-foreground hover:text-primary"
-          onClick={goHome}
-        >
+        <Button variant="ghost" size="sm" className="rounded-full gap-2 text-muted-foreground" onClick={goHome}>
           <Home size={18} />
           <span className="text-xs font-semibold">{language === 'Amharic' ? 'ቤት' : 'Home'}</span>
         </Button>
-        {currentMenuId && (
+        {currentMenuId && !kycFlow && (
           <Button 
             variant="ghost" 
             size="sm" 
-            className="rounded-full gap-2 text-muted-foreground hover:text-primary"
-            onClick={goBack}
+            className="rounded-full gap-2 text-muted-foreground"
+            onClick={() => {
+              const current = menus.find(m => m.id === currentMenuId);
+              const parent = menus.find(m => m.id === current?.parentId);
+              if (parent) navigateTo(parent); else goHome();
+            }}
           >
             <ArrowLeft size={18} />
             <span className="text-xs font-semibold">{language === 'Amharic' ? 'ተመለስ' : 'Back'}</span>
