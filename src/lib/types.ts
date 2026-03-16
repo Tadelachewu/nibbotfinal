@@ -16,6 +16,12 @@ export interface TableColumn {
   key: string; // The property name in the array item, e.g., "id" or "amount"
 }
 
+export interface RequestParameter {
+  apiKey: string;
+  sourceType: 'kyc' | 'static' | 'user_profile';
+  sourceValue: string; // The ID/Name of the KYC field or a static value
+}
+
 export interface ApiConfig {
   name: string;
   endpoint: string;
@@ -26,7 +32,7 @@ export interface ApiConfig {
   loginRequired: boolean;
   requiredKYC: string[]; // IDs of KYC fields
   kycFields: KYCField[];
-  requestMapping: Record<string, string>; // API Key -> Source (e.g., "user.phone")
+  requestParameters: RequestParameter[]; // Mapping for the API request
   responseMapping: {
     type: 'message' | 'table' | 'buttons' | 'trigger';
     template: string; // Handlebars-style template for message type

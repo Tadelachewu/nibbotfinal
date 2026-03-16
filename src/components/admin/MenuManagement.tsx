@@ -1,8 +1,7 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
-import { MenuItem, KYCField, ApiConfig, TableColumn } from '@/lib/types';
+import { MenuItem, KYCField, RequestParameter, TableColumn } from '@/lib/types';
 import { getStoredMenus, addMenu, updateMenu, deleteMenu } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,7 +20,6 @@ import {
   Loader2,
   Search,
   ListTree,
-  AlertCircle,
   Globe,
   Settings2,
   ShieldCheck,
@@ -29,8 +27,8 @@ import {
   Layout,
   PlayCircle,
   Table as TableIcon,
-  Columns,
-  Hash
+  Link2,
+  Code2
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -54,7 +52,6 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { WysiwygEditor } from './WysiwygEditor';
 import { toast } from '@/hooks/use-toast';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { adminContentTranslator } from '@/ai/flows/admin-content-translator';
 import { cn } from '@/lib/utils';
@@ -72,7 +69,6 @@ export function MenuManagement() {
   const [isSaving, setIsSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   
-  // API Preview State
   const [apiPreviewResult, setApiPreviewResult] = useState<any>(null);
   const [isTestingApi, setIsTestingApi] = useState(false);
 
@@ -93,9 +89,7 @@ export function MenuManagement() {
     });
     refresh();
     handleStartEdit(newItem);
-    if (parentId) {
-      setExpandedFolders(prev => new Set([...prev, parentId]));
-    }
+    if (parentId) setExpandedFolders(prev => new Set([...prev, parentId]));
   };
 
   const handleStartEdit = (menu: MenuItem) => {
@@ -113,9 +107,8 @@ export function MenuManagement() {
         timeout: 5000,
         retry: 0,
         loginRequired: false,
-        requiredKYC: [],
         kycFields: [],
-        requestMapping: {},
+        requestParameters: [],
         responseMapping: {
           type: 'message',
           template: '',
@@ -135,50 +128,14 @@ export function MenuManagement() {
       setIsSaving(true);
       try {
         const updatedForm = { ...editForm };
-        
-        // Background AI Localization for Menu Items
         if (editForm.name) {
-          try {
-            const res = await adminContentTranslator({ content: editForm.name, targetLanguage: 'Amharic' });
-            updatedForm.nameAm = res.translatedContent;
-          } catch (e) {}
+          const res = await adminContentTranslator({ content: editForm.name, targetLanguage: 'Amharic' });
+          updatedForm.nameAm = res.translatedContent;
         }
-        
         if (editForm.responseType === 'static' && editForm.content) {
-          try {
-            const res = await adminContentTranslator({ content: editForm.content, targetLanguage: 'Amharic' });
-            updatedForm.contentAm = res.translatedContent;
-          } catch (e) {}
+          const res = await adminContentTranslator({ content: editForm.content, targetLanguage: 'Amharic' });
+          updatedForm.contentAm = res.translatedContent;
         }
-
-        // Localize Table Headers if exist
-        if (editForm.responseType === 'api' && editForm.apiConfig?.responseMapping?.tableColumns) {
-           const localizedCols = await Promise.all(editForm.apiConfig.responseMapping.tableColumns.map(async col => {
-             try {
-               const res = await adminContentTranslator({ content: col.header, targetLanguage: 'Amharic' });
-               return { ...col, headerAm: res.translatedContent };
-             } catch (e) { return col; }
-           }));
-           updatedForm.apiConfig = {
-             ...updatedForm.apiConfig!,
-             responseMapping: { ...updatedForm.apiConfig!.responseMapping, tableColumns: localizedCols }
-           };
-        }
-
-        // Localize KYC Prompts if exist
-        if (editForm.responseType === 'api' && editForm.apiConfig?.kycFields) {
-           const localizedKyc = await Promise.all(editForm.apiConfig.kycFields.map(async field => {
-             try {
-               const res = await adminContentTranslator({ content: field.prompt, targetLanguage: 'Amharic' });
-               return { ...field, promptAm: res.translatedContent };
-             } catch (e) { return field; }
-           }));
-           updatedForm.apiConfig = {
-             ...updatedForm.apiConfig!,
-             kycFields: localizedKyc
-           };
-        }
-
         updateMenu(editingId, updatedForm);
         setIsEditDialogOpen(false);
         setEditingId(null);
@@ -203,7 +160,6 @@ export function MenuManagement() {
         method: editForm.apiConfig.method,
         headers: editForm.apiConfig.headers,
       });
-
       if (response.ok) {
         const data = await response.json();
         setApiPreviewResult(data);
@@ -212,178 +168,74 @@ export function MenuManagement() {
         throw new Error("Endpoint failed");
       }
     } catch (e) {
-      const endpoint = editForm.apiConfig.endpoint.toLowerCase();
-      const isExRate = endpoint.includes('rate') || editForm.name?.toLowerCase().includes('rate');
-      const isBalance = endpoint.includes('balance');
-      
-      const mockResponses: Record<string, any> = {
-        "exchange": {
-          "status": "success",
-          "base": "USD",
-          "rates": [
-            { "currency": "ETB", "rate": "57.50", "updated": "2024-05-20" },
-            { "currency": "EUR", "rate": "0.92", "updated": "2024-05-20" },
-            { "currency": "GBP", "rate": "0.78", "updated": "2024-05-20" }
-          ]
-        },
-        "balance": {
-          "status": "success",
-          "data": { 
-            "balance": "12,500.00", 
-            "currency": "ETB", 
-            "account_id": "88991122",
-            "last_updated": new Date().toISOString()
-          }
-        },
-        "default": { 
-          "status": "success", 
-          "data": { "info": "Standard generic response data" } 
-        }
-      };
-      
-      const result = isExRate ? mockResponses["exchange"] : (isBalance ? mockResponses["balance"] : mockResponses["default"]);
-      setApiPreviewResult(result);
-      toast({ title: "API Preview (Mocked)", description: "Used internal mock as endpoint was unreachable." });
+      toast({ title: "API Test Failed", description: "Could not reach endpoint.", variant: "destructive" });
     } finally {
       setIsTestingApi(false);
     }
   };
 
+  const getDetectedKeys = (obj: any, path = ''): string[] => {
+    if (!obj) return [];
+    let target = obj;
+    if (path) {
+      target = path.split('.').reduce((acc, part) => acc && acc[part], obj);
+    }
+    if (Array.isArray(target) && target.length > 0) {
+      target = target[0];
+    }
+    if (typeof target !== 'object' || target === null) return [];
+    return Object.keys(target);
+  };
+
   const addTableColumn = () => {
-    const apiConfig = editForm.apiConfig!;
-    const cols = apiConfig.responseMapping.tableColumns || [];
-    const newCol: TableColumn = { header: 'New Column', key: '' };
+    const config = editForm.apiConfig!;
+    const cols = config.responseMapping.tableColumns || [];
     setEditForm({
       ...editForm,
       apiConfig: {
-        ...apiConfig,
-        responseMapping: { ...apiConfig.responseMapping, tableColumns: [...cols, newCol] }
+        ...config,
+        responseMapping: { ...config.responseMapping, tableColumns: [...cols, { header: 'New Column', key: '' }] }
       }
     });
   };
 
-  const removeTableColumn = (idx: number) => {
-    const apiConfig = editForm.apiConfig!;
-    const cols = [...(apiConfig.responseMapping.tableColumns || [])];
-    cols.splice(idx, 1);
+  const addRequestParameter = () => {
+    const config = editForm.apiConfig!;
+    const params = config.requestParameters || [];
     setEditForm({
       ...editForm,
       apiConfig: {
-        ...apiConfig,
-        responseMapping: { ...apiConfig.responseMapping, tableColumns: cols }
-      }
-    });
-  };
-
-  const updateTableColumn = (idx: number, updates: Partial<TableColumn>) => {
-    const apiConfig = editForm.apiConfig!;
-    const cols = [...(apiConfig.responseMapping.tableColumns || [])];
-    cols[idx] = { ...cols[idx], ...updates };
-    setEditForm({
-      ...editForm,
-      apiConfig: {
-        ...apiConfig,
-        responseMapping: { ...apiConfig.responseMapping, tableColumns: cols }
-      }
-    });
-  };
-
-  const addKycField = () => {
-    const apiConfig = editForm.apiConfig!;
-    const fields = apiConfig.kycFields || [];
-    const newField: KYCField = {
-      id: Math.random().toString(36).substr(2, 9),
-      name: 'new_field',
-      prompt: 'Please enter your information',
-      type: 'text',
-      order: fields.length
-    };
-    setEditForm({
-      ...editForm,
-      apiConfig: {
-        ...apiConfig,
-        kycFields: [...fields, newField]
-      }
-    });
-  };
-
-  const removeKycField = (idx: number) => {
-    const apiConfig = editForm.apiConfig!;
-    const fields = [...(apiConfig.kycFields || [])];
-    fields.splice(idx, 1);
-    setEditForm({
-      ...editForm,
-      apiConfig: {
-        ...apiConfig,
-        kycFields: fields
-      }
-    });
-  };
-
-  const updateKycField = (idx: number, updates: Partial<KYCField>) => {
-    const apiConfig = editForm.apiConfig!;
-    const fields = [...(apiConfig.kycFields || [])];
-    fields[idx] = { ...fields[idx], ...updates };
-    setEditForm({
-      ...editForm,
-      apiConfig: {
-        ...apiConfig,
-        kycFields: fields
+        ...config,
+        requestParameters: [...params, { apiKey: '', sourceType: 'kyc', sourceValue: '' }]
       }
     });
   };
 
   const renderTree = (parentId: string | null = null, level = 0) => {
-    const items = menus
-      .filter(m => m.parentId === parentId)
-      .sort((a, b) => a.order - b.order);
-      
+    const items = menus.filter(m => m.parentId === parentId).sort((a, b) => a.order - b.order);
     if (items.length === 0 && parentId !== null) return null;
-
     return (
       <div className={`space-y-1 ${level > 0 ? 'ml-4 border-l pl-2 mt-1' : ''}`}>
         {items.map(item => {
           const hasChildren = menus.some(m => m.parentId === item.id);
           return (
             <div key={item.id} className="group">
-              <div className={`flex items-center justify-between p-2 rounded-md hover:bg-muted/50 transition-colors ${editingId === item.id ? 'bg-primary/10 ring-1 ring-primary/30' : ''}`}>
+              <div className={cn("flex items-center justify-between p-2 rounded-md hover:bg-muted/50 transition-colors", editingId === item.id && 'bg-primary/10 ring-1 ring-primary/30')}>
                 <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <button 
-                    onClick={() => {
-                      const next = new Set(expandedFolders);
-                      if (next.has(item.id)) next.delete(item.id);
-                      else next.add(item.id);
-                      setExpandedFolders(next);
-                    }} 
-                    className={cn(
-                      "text-muted-foreground hover:text-primary shrink-0 transition-transform",
-                      !hasChildren && "opacity-0 cursor-default",
-                      expandedFolders.has(item.id) ? 'rotate-0' : '-rotate-90'
-                    )}
-                    disabled={!hasChildren}
-                  >
+                  <button onClick={() => {
+                    const next = new Set(expandedFolders);
+                    if (next.has(item.id)) next.delete(item.id); else next.add(item.id);
+                    setExpandedFolders(next);
+                  }} className={cn("text-muted-foreground hover:text-primary shrink-0 transition-transform", !hasChildren && "opacity-0 cursor-default", expandedFolders.has(item.id) ? 'rotate-0' : '-rotate-90')} disabled={!hasChildren}>
                     <ChevronDown size={14} />
                   </button>
-                  
                   {item.responseType === 'api' ? <Zap size={16} className="text-amber-500 shrink-0" /> : <MenuIcon size={16} className="text-primary shrink-0" />}
-                  
-                  <div className="flex flex-col min-w-0">
-                    <span className={`truncate text-sm font-medium ${editingId === item.id ? 'text-primary' : 'text-foreground'}`}>
-                      {item.name}
-                    </span>
-                  </div>
+                  <span className="truncate text-sm font-medium">{item.name}</span>
                 </div>
-                
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => handleAdd(item.id)}>
-                    <FolderPlus size={14} />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleStartEdit(item)}>
-                    <Edit2 size={14} />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setItemToDelete(item.id)}>
-                    <Trash2 size={14} />
-                  </Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => handleAdd(item.id)}><FolderPlus size={14} /></Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleStartEdit(item)}><Edit2 size={14} /></Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setItemToDelete(item.id)}><Trash2 size={14} /></Button>
                 </div>
               </div>
               {expandedFolders.has(item.id) && renderTree(item.id, level + 1)}
@@ -395,91 +247,36 @@ export function MenuManagement() {
   };
 
   const renderBrowserTree = (parentId: string | null = null, level = 0) => {
-    const items = menus
-      .filter(m => m.parentId === parentId && m.id !== editingId)
+    const items = menus.filter(m => m.parentId === parentId && m.id !== editingId)
       .filter(m => searchQuery === '' || m.name.toLowerCase().includes(searchQuery.toLowerCase()))
       .sort((a, b) => a.order - b.order);
-
     if (items.length === 0) return null;
-
     return (
       <div className={`space-y-1 ${level > 0 ? 'ml-6 border-l pl-3' : ''}`}>
         {items.map(item => {
           const hasChildren = menus.some(m => m.parentId === item.id);
           const isSelected = editForm.attachedMenuIds?.includes(item.id);
-
           return (
             <div key={item.id} className="space-y-1">
-              <div 
-                className={cn(
-                  "flex items-center gap-2 p-2 rounded-md transition-all cursor-pointer hover:bg-muted/50",
-                  isSelected && "bg-primary/5 ring-1 ring-primary/10"
-                )}
-                onClick={() => {
-                  const currentIds = editForm.attachedMenuIds || [];
-                  const isNowSelected = !currentIds.includes(item.id);
-                  
-                  if (isNowSelected) {
-                    if (item.parentId && item.parentId !== null) {
-                      const parentIsSelected = currentIds.includes(item.parentId);
-                      if (!parentIsSelected) {
-                        toast({ 
-                          title: "Hierarchical Selection Required", 
-                          description: "Please select the parent menu first to maintain the conversational flow.",
-                          variant: "destructive"
-                        });
-                        return;
-                      }
-                    }
-                    setEditForm({ ...editForm, attachedMenuIds: [...currentIds, item.id] });
-                  } else {
-                    const childrenToDeselect = new Set<string>();
-                    const findChildren = (pid: string) => {
-                      menus.forEach(m => {
-                        if (m.parentId === pid) {
-                          childrenToDeselect.add(m.id);
-                          findChildren(m.id);
-                        }
-                      });
-                    };
-                    findChildren(item.id);
-                    setEditForm({ 
-                      ...editForm, 
-                      attachedMenuIds: currentIds.filter(id => id !== item.id && !childrenToDeselect.has(id)) 
-                    });
+              <div className={cn("flex items-center gap-2 p-2 rounded-md transition-all cursor-pointer hover:bg-muted/50", isSelected && "bg-primary/5 ring-1 ring-primary/10")} onClick={() => {
+                const currentIds = editForm.attachedMenuIds || [];
+                if (!currentIds.includes(item.id)) {
+                  if (item.parentId && !currentIds.includes(item.parentId)) {
+                    toast({ title: "Selection Order", description: "Select the parent menu first.", variant: "destructive" });
+                    return;
                   }
-                }}
-              >
-                <div className="flex items-center gap-1 shrink-0">
-                  {hasChildren && (
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const next = new Set(browserExpanded);
-                        if (next.has(item.id)) next.delete(item.id);
-                        else next.add(item.id);
-                        setBrowserExpanded(next);
-                      }}
-                      className={cn(
-                        "text-muted-foreground transition-transform",
-                        browserExpanded.has(item.id) ? 'rotate-0' : '-rotate-90'
-                      )}
-                    >
-                      <ChevronDown size={14} />
-                    </button>
-                  )}
-                  {!hasChildren && <div className="w-4" />}
-                  <Checkbox 
-                    checked={isSelected}
-                    className="h-4 w-4 rounded-full"
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                </div>
-                <span className={cn("text-xs font-medium truncate", isSelected && "text-primary")}>
-                  {item.name}
-                </span>
+                  setEditForm({ ...editForm, attachedMenuIds: [...currentIds, item.id] });
+                } else {
+                  const toRemove = new Set([item.id]);
+                  const findChilds = (pid: string) => menus.forEach(m => { if (m.parentId === pid) { toRemove.add(m.id); findChilds(m.id); } });
+                  findChilds(item.id);
+                  setEditForm({ ...editForm, attachedMenuIds: currentIds.filter(id => !toRemove.has(id)) });
+                }
+              }}>
+                <Checkbox checked={isSelected} className="h-4 w-4 rounded-full" onClick={(e) => e.stopPropagation()} />
+                <span className="text-xs font-medium">{item.name}</span>
               </div>
-              {browserExpanded.has(item.id) && renderBrowserTree(item.id, level + 1)}
+              {(browserExpanded.has(item.id) || isSelected) && renderBrowserTree(item.id, level + 1)}
             </div>
           );
         })}
@@ -489,445 +286,186 @@ export function MenuManagement() {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/10">
-          <div>
-            <CardTitle className="text-xl">Menu Hierarchy</CardTitle>
-            <p className="text-sm text-muted-foreground">Define your conversational structure</p>
-          </div>
-          <Button onClick={() => handleAdd(null)} className="gap-2">
-            <Plus size={16} /> Add Main Menu
-          </Button>
+          <div><CardTitle>Menu Hierarchy</CardTitle></div>
+          <Button onClick={() => handleAdd(null)}><Plus size={16} className="mr-2" /> Add Main Menu</Button>
         </CardHeader>
-        <CardContent className="p-6">
-          {menus.length > 0 ? (
-            <div className="bg-white rounded-lg border p-4">
-              {renderTree(null)}
-            </div>
-          ) : (
-            <div className="text-center py-20 bg-muted/10 rounded-lg border-2 border-dashed flex flex-col items-center">
-              <MessageSquare size={48} className="text-muted-foreground/30 mb-4" />
-              <h3 className="text-lg font-medium">No menus defined</h3>
-              <p className="text-muted-foreground mb-6">Create your first Main Menu to get started</p>
-              <Button onClick={() => handleAdd(null)} variant="outline">Create Main Menu</Button>
-            </div>
-          )}
-        </CardContent>
+        <CardContent className="p-6">{renderTree(null)}</CardContent>
       </Card>
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-5xl h-[95vh] flex flex-col p-0 overflow-hidden bg-background">
-          <DialogHeader className="p-6 border-b bg-white shrink-0">
-            <DialogTitle className="flex items-center justify-between">
-               <div className="flex items-center gap-2">
-                <Settings2 size={18} className="text-primary" />
-                Edit {editForm.parentId ? 'Sub Menu' : 'Main Menu'}: {editForm.name}
-              </div>
-              <Badge variant="outline" className="text-[10px] uppercase tracking-widest font-bold">Admin Panel</Badge>
-            </DialogTitle>
+        <DialogContent className="sm:max-w-5xl h-[95vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="p-6 border-b bg-white">
+            <DialogTitle className="flex items-center gap-2"><Settings2 size={18} /> Configure {editForm.name}</DialogTitle>
           </DialogHeader>
-          
-          <ScrollArea className="flex-1">
-            <div className="p-6 space-y-8 pb-32">
-              <div className="space-y-4">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-semibold">Menu Button Text (English)</Label>
-                    <Input 
-                      value={editForm.name || ''} 
-                      onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                      placeholder="e.g., Get Support"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-semibold">Response Type</Label>
-                    <Select 
-                      value={editForm.responseType} 
-                      onValueChange={(val: any) => setEditForm({ ...editForm, responseType: val })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="static">Static Content Response</SelectItem>
-                        <SelectItem value="api">API Action</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+          <ScrollArea className="flex-1 p-6">
+            <div className="space-y-8 pb-20">
+              <div className="grid gap-6 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Menu Text (English)</Label>
+                  <Input value={editForm.name || ''} onChange={e => setEditForm({ ...editForm, name: e.target.value })} />
                 </div>
+                <div className="space-y-2">
+                  <Label>Action Type</Label>
+                  <Select value={editForm.responseType} onValueChange={(v: any) => setEditForm({ ...editForm, responseType: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="static">Static Response</SelectItem><SelectItem value="api">API Action</SelectItem></SelectContent>
+                  </Select>
+                </div>
+              </div>
 
-                <Tabs value={editForm.responseType} className="w-full">
-                  <TabsContent value="static" className="space-y-4 pt-4 mt-0">
-                    <div className="space-y-2">
-                      <Label className="text-sm font-semibold">Chat Response Content (English)</Label>
-                      <WysiwygEditor 
-                        title={editForm.name || ''}
-                        value={editForm.content || ''} 
-                        onChange={(val) => setEditForm({ ...editForm, content: val })} 
-                      />
-                    </div>
-                  </TabsContent>
+              {editForm.responseType === 'static' ? (
+                <WysiwygEditor title={editForm.name || ''} value={editForm.content || ''} onChange={v => setEditForm({ ...editForm, content: v })} />
+              ) : (
+                <div className="space-y-8">
+                  <Card>
+                    <CardHeader className="bg-muted/10 flex flex-row items-center justify-between">
+                      <CardTitle className="text-sm">API Connectivity</CardTitle>
+                      <Button variant="outline" size="sm" onClick={testApi} disabled={isTestingApi}>
+                        {isTestingApi ? <Loader2 className="animate-spin" /> : <PlayCircle />} Live Preview
+                      </Button>
+                    </CardHeader>
+                    <CardContent className="p-4 space-y-4">
+                      <div className="flex gap-4">
+                        <Select value={editForm.apiConfig?.method} onValueChange={v => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, method: v as any } })}>
+                          <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                          <SelectContent><SelectItem value="GET">GET</SelectItem><SelectItem value="POST">POST</SelectItem></SelectContent>
+                        </Select>
+                        <Input value={editForm.apiConfig?.endpoint} onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, endpoint: e.target.value } })} placeholder="https://api.example.com/endpoint" />
+                      </div>
+                      {apiPreviewResult && (
+                        <div className="bg-slate-950 p-3 rounded-md">
+                          <span className="text-[10px] text-slate-400 font-mono">LATEST API RESPONSE:</span>
+                          <ScrollArea className="h-32 mt-2"><pre className="text-[10px] text-emerald-400 font-mono">{JSON.stringify(apiPreviewResult, null, 2)}</pre></ScrollArea>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
 
-                  <TabsContent value="api" className="space-y-6 pt-4 mt-0">
-                    <Card>
-                      <CardHeader className="bg-muted/20 py-3 flex flex-row items-center justify-between">
-                        <CardTitle className="text-sm flex items-center gap-2">
-                          <Zap size={14} className="text-amber-500" />
-                          API Endpoint Configuration
-                        </CardTitle>
-                        <Button variant="outline" size="sm" onClick={testApi} disabled={isTestingApi} className="h-8 gap-1.5">
-                          {isTestingApi ? <Loader2 size={14} className="animate-spin" /> : <PlayCircle size={14} />}
-                          Live API Preview
-                        </Button>
-                      </CardHeader>
-                      <CardContent className="p-4 space-y-4">
-                        <div className="grid gap-4 sm:grid-cols-4">
-                          <div className="sm:col-span-1">
-                            <Label className="text-xs">Method</Label>
-                            <Select 
-                              value={editForm.apiConfig?.method}
-                              onValueChange={(v: any) => setEditForm({ 
-                                ...editForm, 
-                                apiConfig: { ...editForm.apiConfig!, method: v } 
-                              })}
-                            >
-                              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <Card>
+                    <CardHeader className="bg-muted/10"><CardTitle className="text-sm">KYC & Parameter Mapping</CardTitle></CardHeader>
+                    <CardContent className="p-4 space-y-6">
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs font-bold uppercase">1. Collected KYC Fields</Label>
+                          <Button variant="ghost" size="sm" onClick={() => {
+                            const fields = editForm.apiConfig?.kycFields || [];
+                            setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, kycFields: [...fields, { id: Math.random().toString(36).substr(2, 9), name: '', prompt: '', type: 'text', order: fields.length }] } });
+                          }}><Plus /> Add KYC</Button>
+                        </div>
+                        {editForm.apiConfig?.kycFields?.map((field, idx) => (
+                          <div key={field.id} className="grid grid-cols-3 gap-2 p-2 border rounded-md">
+                            <Input placeholder="Field Name (e.g. phone)" value={field.name} onChange={e => {
+                              const fields = [...editForm.apiConfig!.kycFields];
+                              fields[idx].name = e.target.value;
+                              setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, kycFields: fields } });
+                            }} />
+                            <Input className="col-span-2" placeholder="User Prompt" value={field.prompt} onChange={e => {
+                              const fields = [...editForm.apiConfig!.kycFields];
+                              fields[idx].prompt = e.target.value;
+                              setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, kycFields: fields } });
+                            }} />
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs font-bold uppercase">2. API Request Mapping</Label>
+                          <Button variant="ghost" size="sm" onClick={addRequestParameter}><Link2 /> Map Parameter</Button>
+                        </div>
+                        {editForm.apiConfig?.requestParameters?.map((param, idx) => (
+                          <div key={idx} className="flex gap-2 items-center">
+                            <Input placeholder="API Param Key" value={param.apiKey} onChange={e => {
+                              const params = [...editForm.apiConfig!.requestParameters];
+                              params[idx].apiKey = e.target.value;
+                              setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, requestParameters: params } });
+                            }} />
+                            <Select value={param.sourceValue} onValueChange={v => {
+                              const params = [...editForm.apiConfig!.requestParameters];
+                              params[idx].sourceValue = v;
+                              setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, requestParameters: params } });
+                            }}>
+                              <SelectTrigger><SelectValue placeholder="Source Field" /></SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="GET">GET</SelectItem>
-                                <SelectItem value="POST">POST</SelectItem>
+                                {editForm.apiConfig?.kycFields?.map(f => <SelectItem key={f.id} value={f.name}>KYC: {f.name}</SelectItem>)}
+                                <SelectItem value="user.id">User ID</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
-                          <div className="sm:col-span-3">
-                            <Label className="text-xs">Endpoint URL</Label>
-                            <Input 
-                              className="h-9"
-                              value={editForm.apiConfig?.endpoint}
-                              onChange={(e) => setEditForm({ 
-                                ...editForm, 
-                                apiConfig: { ...editForm.apiConfig!, endpoint: e.target.value } 
-                              })}
-                              placeholder="/api/test/balance or https://api.example.com"
-                            />
-                          </div>
-                        </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
 
-                        {apiPreviewResult && (
-                          <div className="bg-zinc-950 rounded-lg p-3 overflow-hidden">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-[10px] text-zinc-400 font-mono uppercase">API Response Log</span>
-                              <Button variant="ghost" size="icon" className="h-4 w-4 text-zinc-400 hover:text-white" onClick={() => setApiPreviewResult(null)}>
-                                <X size={10} />
-                              </Button>
+                  <Card>
+                    <CardHeader className="bg-muted/10"><CardTitle className="text-sm">Response View Mapping</CardTitle></CardHeader>
+                    <CardContent className="p-4 space-y-4">
+                      <Tabs value={editForm.apiConfig?.responseMapping?.type} onValueChange={v => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, type: v as any } } })}>
+                        <TabsList className="grid w-full grid-cols-2"><TabsTrigger value="message">Message</TabsTrigger><TabsTrigger value="table">Table</TabsTrigger></TabsList>
+                        <TabsContent value="message" className="pt-4">
+                          <Label className="text-[10px] uppercase font-bold text-muted-foreground">Success Template (Use {'{{response.key}}'} syntax)</Label>
+                          <Input value={editForm.apiConfig?.responseMapping?.template} onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, template: e.target.value } } })} placeholder="Balance is {{response.data.balance}}" />
+                        </TabsContent>
+                        <TabsContent value="table" className="space-y-4 pt-4">
+                          <div className="space-y-2">
+                            <Label className="text-xs">Array Data Path</Label>
+                            <Input value={editForm.apiConfig?.responseMapping?.tableDataKey} onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, tableDataKey: e.target.value } } })} placeholder="e.g. rates" />
+                          </div>
+                          {apiPreviewResult && (
+                            <div className="p-2 border rounded-md bg-muted/5">
+                              <span className="text-[9px] font-bold uppercase text-muted-foreground">Detected Data Keys:</span>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {getDetectedKeys(apiPreviewResult, editForm.apiConfig?.responseMapping?.tableDataKey).map(k => (
+                                  <Badge key={k} variant="secondary" className="text-[9px] cursor-copy" onClick={() => toast({ title: "Copied", description: `${k} copied to clipboard.` })}>{k}</Badge>
+                                ))}
+                              </div>
                             </div>
-                            <ScrollArea className="h-32">
-                              <pre className="text-[10px] text-emerald-400 font-mono">
-                                {JSON.stringify(apiPreviewResult, null, 2)}
-                              </pre>
-                            </ScrollArea>
-                          </div>
-                        )}
-
-                        <div className="flex items-center gap-4">
-                          <div className="flex items-center space-x-2">
-                            <Switch 
-                              checked={editForm.apiConfig?.loginRequired}
-                              onCheckedChange={(v) => setEditForm({ 
-                                ...editForm, 
-                                apiConfig: { ...editForm.apiConfig!, loginRequired: v } 
-                              })}
-                            />
-                            <Label className="text-xs">Login Required</Label>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Label className="text-xs whitespace-nowrap">Timeout (ms)</Label>
-                            <Input 
-                              type="number" 
-                              className="h-9 w-20 text-xs"
-                              value={editForm.apiConfig?.timeout}
-                              onChange={(e) => setEditForm({ 
-                                ...editForm, 
-                                apiConfig: { ...editForm.apiConfig!, timeout: parseInt(e.target.value) } 
-                              })}
-                            />
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardHeader className="bg-muted/20 py-3">
-                        <CardTitle className="text-sm flex items-center gap-2">
-                          <Layout size={14} className="text-primary" />
-                          Response Mapping & Templates
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="p-4 space-y-4">
-                        <div className="space-y-3">
-                          <Label className="text-xs">Response Display Type</Label>
-                          <Tabs 
-                            value={editForm.apiConfig?.responseMapping?.type || 'message'} 
-                            onValueChange={(v: any) => setEditForm({
-                              ...editForm,
-                              apiConfig: {
-                                ...editForm.apiConfig!,
-                                responseMapping: { ...editForm.apiConfig!.responseMapping, type: v }
-                              }
-                            })}
-                          >
-                            <TabsList className="grid w-full grid-cols-2 h-9">
-                              <TabsTrigger value="message" className="text-xs gap-2">
-                                <MessageSquare size={14} /> Message
-                              </TabsTrigger>
-                              <TabsTrigger value="table" className="text-xs gap-2">
-                                <TableIcon size={14} /> Table
-                              </TabsTrigger>
-                            </TabsList>
-
-                            <TabsContent value="message" className="pt-3">
-                              <Label className="text-[10px] uppercase font-bold text-muted-foreground mb-1 block">Success Template (Use {'{{response.key}}'} syntax)</Label>
-                              <Input 
-                                value={editForm.apiConfig?.responseMapping?.template}
-                                onChange={(e) => setEditForm({ 
-                                  ...editForm, 
-                                  apiConfig: { 
-                                    ...editForm.apiConfig!, 
-                                    responseMapping: { ...editForm.apiConfig!.responseMapping, template: e.target.value } 
-                                  } 
-                                })}
-                                placeholder="Your balance is {{response.data.balance}} {{response.data.currency}}."
-                              />
-                            </TabsContent>
-
-                            <TabsContent value="table" className="space-y-4 pt-3">
-                              <div className="space-y-1.5">
-                                <Label className="text-[10px] uppercase font-bold text-muted-foreground block">Array Data Path</Label>
-                                <Input 
-                                  value={editForm.apiConfig?.responseMapping?.tableDataKey}
-                                  placeholder="e.g., rates or response.items"
-                                  className="h-8 text-xs"
-                                  onChange={(e) => setEditForm({
-                                    ...editForm,
-                                    apiConfig: {
-                                      ...editForm.apiConfig!,
-                                      responseMapping: { ...editForm.apiConfig!.responseMapping, tableDataKey: e.target.value }
-                                    }
-                                  })}
-                                />
-                              </div>
-                              <div className="space-y-3">
-                                <div className="flex items-center justify-between">
-                                  <Label className="text-[10px] uppercase font-bold text-muted-foreground block">Columns Mapping</Label>
-                                  <Button variant="ghost" size="sm" onClick={addTableColumn} className="h-6 text-[10px] gap-1 hover:bg-primary/5 hover:text-primary">
-                                    <Plus size={10} /> Add Column
-                                  </Button>
-                                </div>
-                                <div className="space-y-2">
-                                  {editForm.apiConfig?.responseMapping?.tableColumns?.map((col, idx) => (
-                                    <div key={idx} className="flex gap-2 items-end">
-                                      <div className="flex-1 space-y-1">
-                                        <Label className="text-[8px] font-bold">Header (EN)</Label>
-                                        <Input 
-                                          value={col.header} 
-                                          className="h-7 text-xs" 
-                                          onChange={(e) => updateTableColumn(idx, { header: e.target.value })}
-                                        />
-                                      </div>
-                                      <div className="flex-1 space-y-1">
-                                        <Label className="text-[8px] font-bold">JSON Key</Label>
-                                        <Input 
-                                          value={col.key} 
-                                          placeholder="e.g., currency"
-                                          className="h-7 text-xs" 
-                                          onChange={(e) => updateTableColumn(idx, { key: e.target.value })}
-                                        />
-                                      </div>
-                                      <Button variant="ghost" size="icon" onClick={() => removeTableColumn(idx)} className="h-7 w-7 text-destructive">
-                                        <Trash2 size={12} />
-                                      </Button>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            </TabsContent>
-                          </Tabs>
-                        </div>
-                        
-                        <div className="grid gap-4 sm:grid-cols-2">
-                          <div className="space-y-1">
-                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Error Message</Label>
-                            <Input 
-                              className="text-xs h-8"
-                              value={editForm.apiConfig?.responseMapping?.errorFallback}
-                              onChange={(e) => setEditForm({ 
-                                ...editForm, 
-                                apiConfig: { 
-                                  ...editForm.apiConfig!, 
-                                  responseMapping: { ...editForm.apiConfig!.responseMapping, errorFallback: e.target.value } 
-                                } 
-                              })}
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Timeout Message</Label>
-                            <Input 
-                              className="text-xs h-8"
-                              value={editForm.apiConfig?.responseMapping?.timeoutMessage}
-                              onChange={(e) => setEditForm({ 
-                                ...editForm, 
-                                apiConfig: { 
-                                  ...editForm.apiConfig!, 
-                                  responseMapping: { ...editForm.apiConfig!.responseMapping, timeoutMessage: e.target.value } 
-                                } 
-                              })}
-                            />
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardHeader className="bg-muted/20 py-3 flex flex-row items-center justify-between">
-                        <CardTitle className="text-sm flex items-center gap-2">
-                          <ShieldCheck size={14} className="text-primary" />
-                          KYC Collection Flow
-                        </CardTitle>
-                        <Button variant="ghost" size="sm" onClick={addKycField} className="h-6 text-[10px] gap-1 hover:bg-primary/5 hover:text-primary">
-                          <Plus size={10} /> Add Field
-                        </Button>
-                      </CardHeader>
-                      <CardContent className="p-4 space-y-4">
-                        <p className="text-[10px] text-muted-foreground">Chatbot will collect these sequentially if missing from user session.</p>
-                        
-                        {editForm.apiConfig?.kycFields && editForm.apiConfig.kycFields.length > 0 ? (
-                          <div className="space-y-3">
-                            {editForm.apiConfig.kycFields.map((field, idx) => (
-                              <div key={field.id} className="p-3 border rounded-lg bg-muted/5 space-y-3">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-5 h-5 bg-primary/10 text-primary rounded-full flex items-center justify-center text-[10px] font-bold">
-                                      {idx + 1}
-                                    </div>
-                                    <span className="text-xs font-bold uppercase tracking-wider">{field.name}</span>
-                                  </div>
-                                  <Button variant="ghost" size="icon" onClick={() => removeKycField(idx)} className="h-6 w-6 text-destructive">
-                                    <Trash2 size={12} />
-                                  </Button>
-                                </div>
-                                <div className="grid gap-3 sm:grid-cols-2">
-                                  <div className="space-y-1">
-                                    <Label className="text-[8px] font-bold uppercase">Field Key Name</Label>
-                                    <Input 
-                                      value={field.name} 
-                                      className="h-7 text-xs" 
-                                      onChange={(e) => updateKycField(idx, { name: e.target.value })}
-                                      placeholder="e.g., phone_number"
-                                    />
-                                  </div>
-                                  <div className="space-y-1">
-                                    <Label className="text-[8px] font-bold uppercase">Input Type</Label>
-                                    <Select 
-                                      value={field.type} 
-                                      onValueChange={(v: any) => updateKycField(idx, { type: v })}
-                                    >
-                                      <SelectTrigger className="h-7 text-xs">
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="text">Text</SelectItem>
-                                        <SelectItem value="number">Number</SelectItem>
-                                        <SelectItem value="tel">Phone</SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                </div>
-                                <div className="space-y-1">
-                                  <Label className="text-[8px] font-bold uppercase">Chat Prompt (EN)</Label>
-                                  <Input 
-                                    value={field.prompt} 
-                                    className="h-7 text-xs" 
-                                    onChange={(e) => updateKycField(idx, { prompt: e.target.value })}
-                                    placeholder="e.g., Please enter your phone number."
-                                  />
-                                </div>
+                          )}
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between"><Label className="text-xs">Columns</Label><Button variant="ghost" size="sm" onClick={addTableColumn}><Plus /> Add Col</Button></div>
+                            {editForm.apiConfig?.responseMapping?.tableColumns?.map((col, idx) => (
+                              <div key={idx} className="flex gap-2">
+                                <Input placeholder="Header" value={col.header} onChange={e => {
+                                  const cols = [...editForm.apiConfig!.responseMapping.tableColumns!];
+                                  cols[idx].header = e.target.value;
+                                  setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, tableColumns: cols } } });
+                                }} />
+                                <Input placeholder="JSON Key" value={col.key} onChange={e => {
+                                  const cols = [...editForm.apiConfig!.responseMapping.tableColumns!];
+                                  cols[idx].key = e.target.value;
+                                  setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, tableColumns: cols } } });
+                                }} />
                               </div>
                             ))}
                           </div>
-                        ) : (
-                          <div className="text-center py-6 text-xs text-muted-foreground italic bg-muted/5 rounded-lg border border-dashed">
-                            Click "Add Field" to define KYC requirements.
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  </TabsContent>
-                </Tabs>
-              </div>
+                        </TabsContent>
+                      </Tabs>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
 
               <div className="pt-8 border-t">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-sm font-bold flex items-center gap-2">
-                      <ListTree size={16} className="text-primary" />
-                      Attach Related Menus
-                    </h3>
-                  </div>
-                  <div className="relative max-w-[240px]">
-                    <Search size={14} className="absolute left-2.5 top-2.5 text-muted-foreground" />
-                    <Input 
-                      placeholder="Search menus..." 
-                      className="pl-8 h-9 text-xs" 
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <div className="bg-white rounded-xl border p-4 min-h-[150px]">
-                  {renderBrowserTree(null)}
-                </div>
+                <Label className="text-sm font-bold flex items-center gap-2 mb-4"><ListTree size={16} /> Attach Related Menus</                     Label>
+                <div className="bg-white rounded-xl border p-4">{renderBrowserTree(null)}</div>
               </div>
             </div>
           </ScrollArea>
-
-          <DialogFooter className="p-4 border-t bg-white flex shrink-0 sm:justify-end gap-2 fixed bottom-0 left-0 right-0 z-50">
-            <Button variant="ghost" onClick={() => setIsEditDialogOpen(false)} className="px-6 h-11">
-              <X size={16} className="mr-2" /> Cancel
-            </Button>
-            <Button 
-              onClick={handleSaveEdit} 
-              disabled={isSaving}
-              className="px-8 bg-primary hover:bg-primary/90 text-white min-w-[200px] h-11"
-            >
-              {isSaving ? (
-                <><Loader2 size={16} className="mr-2 animate-spin" /> Saving & Localizing...</>
-              ) : (
-                <><Save size={16} className="mr-2" /> Save Changes</>
-              )}
-            </Button>
+          <DialogFooter className="p-4 border-t bg-white sticky bottom-0 z-50">
+            <Button variant="ghost" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSaveEdit} disabled={isSaving}>{isSaving ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2" />} Save Changes</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <AlertDialog open={!!itemToDelete} onOpenChange={() => setItemToDelete(null)}>
         <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete this menu?</AlertDialogTitle>
-            <AlertDialogDescription>
-              "{menus.find(m => m.id === itemToDelete)?.name}" and all its nested children will be permanently removed.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
+          <AlertDialogHeader><AlertDialogTitle>Confirm Deletion</AlertDialogTitle><AlertDialogDescription>Delete this menu and all its descendants?</AlertDialogDescription></AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => {
-              if (itemToDelete) {
-                deleteMenu(itemToDelete);
-                refresh();
-                setItemToDelete(null);
-                toast({ title: "Deleted", description: "Menu removed successfully." });
-              }
-            }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Confirm Delete
-            </AlertDialogAction>
+            <AlertDialogAction className="bg-destructive" onClick={() => { deleteMenu(itemToDelete!); refresh(); setItemToDelete(null); }}>Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
