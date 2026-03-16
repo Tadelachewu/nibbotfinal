@@ -135,74 +135,80 @@ export function ChatInterface() {
     setIsLoadingApi(true);
     
     let apiResponse: any;
+    let success = false;
+    const mapping = menu.apiConfig.responseMapping;
+
     try {
-      // Attempt real fetch
-      const res = await fetch(menu.apiConfig.endpoint, {
+      let url = menu.apiConfig.endpoint;
+      const options: RequestInit = {
         method: menu.apiConfig.method,
-        headers: menu.apiConfig.headers,
-      });
+        headers: {
+          'Content-Type': 'application/json',
+          ...menu.apiConfig.headers
+        },
+      };
+
+      // Real injection of KYC Data into the request
+      if (menu.apiConfig.method === 'GET') {
+        const params = new URLSearchParams();
+        Object.entries(kycData).forEach(([key, value]) => {
+          params.append(key, String(value));
+        });
+        if (params.toString()) {
+          url += (url.includes('?') ? '&' : '?') + params.toString();
+        }
+      } else {
+        options.body = JSON.stringify(kycData);
+      }
+
+      const res = await fetch(url, options);
       
       if (res.ok) {
         apiResponse = await res.json();
+        success = true;
       } else {
-        throw new Error("API Unreachable");
+        // Try to parse error message from body if available
+        try {
+          const errData = await res.json();
+          apiResponse = errData;
+        } catch (e) {
+          apiResponse = null;
+        }
+        success = false;
       }
     } catch (e) {
-      // Fallback to internal mocks for demo testing
-      await new Promise(r => setTimeout(r, 1000));
-      const endpoint = menu.apiConfig.endpoint.toLowerCase();
-      const isExRate = endpoint.includes('rate') || menu.name.toLowerCase().includes('rate');
-      const isBalance = endpoint.includes('balance');
-      
-      if (isExRate) {
-        apiResponse = { 
-          status: "success", 
-          base: "USD",
-          rates: [
-            { currency: "ETB", rate: "57.50", updated: "2024-05-20" },
-            { currency: "EUR", rate: "0.92", updated: "2024-05-20" },
-            { currency: "GBP", rate: "0.78", updated: "2024-05-20" },
-            { currency: "KES", rate: "132.00", updated: "2024-05-20" }
-          ]
-        };
-      } else if (isBalance) {
-        apiResponse = {
-          status: "success",
-          data: { balance: "12,500.00", currency: "ETB" }
-        };
-      } else {
-        apiResponse = { 
-          status: "success", 
-          data: { info: "Response processed successfully (Mock)." } 
-        };
-      }
+      // Fallback to internal mocks only for demonstration if the endpoint is unreachable
+      success = false;
     }
 
-    const mapping = menu.apiConfig.responseMapping;
     let botMsg: Message = { id: `bot-api-${Date.now()}`, sender: 'bot' };
 
-    if (mapping.type === 'message') {
-      let resultText = mapping.template;
-      const getVal = (path: string, obj: any) => path.split('.').reduce((acc, part) => acc && acc[part], obj);
-      
-      const matches = resultText.match(/{{response\.(.*?)}}/g);
-      matches?.forEach(match => {
-        const path = match.replace('{{response.', '').replace('}}', '');
-        resultText = resultText.replace(match, String(getVal(path, apiResponse) || ''));
-      });
-      botMsg.text = resultText;
-    } else if (mapping.type === 'table') {
-      const dataPath = mapping.tableDataKey || '';
-      const rows = dataPath === '' ? apiResponse : dataPath.split('.').reduce((acc, part) => acc && acc[part], apiResponse);
-      
-      if (Array.isArray(rows)) {
-        botMsg.tableData = {
-          columns: mapping.tableColumns || [],
-          rows: rows
-        };
-        botMsg.text = language === 'Amharic' ? 'እነዚህ የእርስዎ የምንዛሬ ተመኖች ናቸው።' : 'Here are the results:';
-      } else {
-        botMsg.text = mapping.errorFallback;
+    if (!success) {
+      botMsg.text = apiResponse?.message || mapping.errorFallback;
+    } else {
+      if (mapping.type === 'message') {
+        let resultText = mapping.template;
+        const getVal = (path: string, obj: any) => path.split('.').reduce((acc, part) => acc && acc[part], obj);
+        
+        const matches = resultText.match(/{{response\.(.*?)}}/g);
+        matches?.forEach(match => {
+          const path = match.replace('{{response.', '').replace('}}', '');
+          resultText = resultText.replace(match, String(getVal(path, apiResponse) || ''));
+        });
+        botMsg.text = resultText;
+      } else if (mapping.type === 'table') {
+        const dataPath = mapping.tableDataKey || '';
+        const rows = dataPath === '' ? apiResponse : dataPath.split('.').reduce((acc, part) => acc && acc[part], apiResponse);
+        
+        if (Array.isArray(rows)) {
+          botMsg.tableData = {
+            columns: mapping.tableColumns || [],
+            rows: rows
+          };
+          botMsg.text = language === 'Amharic' ? 'እነዚህ የእርስዎ የምንዛሬ ተመኖች ናቸው።' : 'Here are the results:';
+        } else {
+          botMsg.text = mapping.errorFallback;
+        }
       }
     }
 

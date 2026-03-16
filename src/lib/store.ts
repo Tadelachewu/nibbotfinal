@@ -66,12 +66,23 @@ const defaultMenus: MenuItem[] = [
       retry: 0,
       loginRequired: true,
       requiredKYC: [],
-      kycFields: [],
-      requestMapping: {},
+      kycFields: [
+        {
+          id: 'kyc-acc-id',
+          name: 'account_id',
+          prompt: 'Please enter your account ID (Try 88991122)',
+          promptAm: 'እባክዎን የሂሳብ መለያዎን ያስገቡ (88991122 ይሞክሩ)',
+          type: 'text',
+          order: 0
+        }
+      ],
+      requestMapping: {
+        'account_id': 'kyc.account_id'
+      },
       responseMapping: {
         type: 'message',
         template: 'Your current balance is {{response.data.balance}} {{response.data.currency}}.',
-        errorFallback: 'Failed to retrieve balance.',
+        errorFallback: 'Failed to retrieve balance. Account not found.',
         timeoutMessage: 'Server timed out.',
         authRequiredMessage: 'Please log in to view your balance.'
       }
