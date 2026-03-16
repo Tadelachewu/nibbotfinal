@@ -19,7 +19,6 @@ import {
   FolderPlus,
   Loader2,
   Search,
-  ChevronRight,
   ListTree
 } from 'lucide-react';
 import {
@@ -38,7 +37,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "@/dialog";
+} from "@/components/ui/dialog";
 import { WysiwygEditor } from './WysiwygEditor';
 import { toast } from '@/hooks/use-toast';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -91,7 +90,7 @@ export function MenuManagement() {
       try {
         const updatedForm = { ...editForm };
         
-        // Background AI Localization (System handles Amharic automatically)
+        // Background AI Localization
         if (editForm.name) {
           try {
             const res = await adminContentTranslator({ 
@@ -352,14 +351,14 @@ export function MenuManagement() {
                   <div>
                     <h3 className="text-sm font-bold flex items-center gap-2">
                       <ListTree size={16} className="text-primary" />
-                      Attach Follow-up Sub-menus
+                      Attach Related Menus
                     </h3>
-                    <p className="text-[11px] text-muted-foreground">Browse all menus to select which buttons appear after this message.</p>
+                    <p className="text-[11px] text-muted-foreground">Browse all menus to select which additional buttons appear after this message.</p>
                   </div>
                   <div className="relative max-w-[240px]">
                     <Search size={14} className="absolute left-2.5 top-2.5 text-muted-foreground" />
                     <Input 
-                      placeholder="Search sub-menus..." 
+                      placeholder="Search menus..." 
                       className="pl-8 h-9 text-xs" 
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
