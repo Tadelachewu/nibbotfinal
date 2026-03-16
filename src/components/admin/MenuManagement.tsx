@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -42,6 +41,8 @@ import { toast } from '@/hooks/use-toast';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { adminContentTranslator } from '@/ai/flows/admin-content-translator';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 export function MenuManagement() {
   const [menus, setMenus] = useState<MenuItem[]>([]);
@@ -85,7 +86,7 @@ export function MenuManagement() {
         const updatedForm = { ...editForm };
         
         // Background System Localization (AI)
-        // Automatically localize to Amharic on save to satisfy "the system can localize it"
+        // Automatically localize to Amharic on save
         if (editForm.name) {
           try {
             const res = await adminContentTranslator({ 
@@ -235,7 +236,7 @@ export function MenuManagement() {
           <DialogHeader className="p-6 border-b bg-muted/5 shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <Edit2 size={18} className="text-primary" />
-              Editing Menu: {editForm.name}
+              Editing: {editForm.name}
             </DialogTitle>
           </DialogHeader>
           
@@ -260,6 +261,43 @@ export function MenuManagement() {
                   onChange={(val) => setEditForm({ ...editForm, content: val })} 
                 />
                 <p className="text-[10px] text-muted-foreground">This content is shown when the menu is selected. System handles background localization.</p>
+              </div>
+
+              {/* Quick Switch Selectable List */}
+              <div className="mt-12 pt-6 border-t space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold flex items-center gap-2">
+                    <MenuIcon size={16} className="text-primary" />
+                    All Menus (Quick Switch)
+                  </h3>
+                  <Badge variant="outline" className="text-[10px]">
+                    {menus.length} total
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {menus.map(m => (
+                    <Button 
+                      key={m.id} 
+                      variant="ghost" 
+                      size="sm" 
+                      className={cn(
+                        "justify-start h-auto py-2 px-3 text-left border hover:bg-muted/50 transition-all",
+                        editingId === m.id ? "border-primary bg-primary/5 text-primary" : "border-transparent bg-muted/20"
+                      )}
+                      onClick={() => {
+                        setEditingId(m.id);
+                        setEditForm(m);
+                      }}
+                    >
+                      <div className="flex flex-col items-start overflow-hidden w-full">
+                        <span className="text-xs font-medium truncate w-full">{m.name}</span>
+                        <span className="text-[10px] text-muted-foreground truncate w-full">
+                          {m.parentId ? `Sub of: ${menus.find(p => p.id === m.parentId)?.name || 'Parent'}` : 'Main Menu'}
+                        </span>
+                      </div>
+                    </Button>
+                  ))}
+                </div>
               </div>
             </div>
           </ScrollArea>
