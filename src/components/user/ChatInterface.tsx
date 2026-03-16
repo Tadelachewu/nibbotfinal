@@ -136,12 +136,24 @@ export function ChatInterface() {
     // Simulate API logic
     await new Promise(r => setTimeout(r, 1500));
     
-    const mockApiResponse: any = menu.apiConfig.endpoint.toLowerCase().includes('transaction') 
-      ? { transactions: [
-          { id: "TX1001", amount: "-150.00", desc: "Grocery Store", date: "2024-05-19" },
-          { id: "TX1002", amount: "+2,000.00", desc: "Salary", date: "2024-05-18" }
-        ]}
-      : { status: "success", data: { balance: "5,400.00", currency: "ETB" } };
+    // Mocking response based on endpoint or title
+    const isExRate = menu.apiConfig.endpoint.toLowerCase().includes('rate') || menu.name.toLowerCase().includes('rate');
+    
+    const mockApiResponse: any = isExRate 
+      ? { 
+          status: "success", 
+          base: "USD",
+          rates: [
+            { currency: "ETB", rate: "57.50", updated: "2024-05-20" },
+            { currency: "EUR", rate: "0.92", updated: "2024-05-20" },
+            { currency: "GBP", rate: "0.78", updated: "2024-05-20" },
+            { currency: "KES", rate: "132.00", updated: "2024-05-20" }
+          ]
+        }
+      : { 
+          status: "success", 
+          data: { balance: "5,400.00", currency: "ETB" } 
+        };
 
     const mapping = menu.apiConfig.responseMapping;
     let botMsg: Message = { id: `bot-api-${Date.now()}`, sender: 'bot' };
@@ -150,7 +162,6 @@ export function ChatInterface() {
       let resultText = mapping.template;
       const getVal = (path: string, obj: any) => path.split('.').reduce((acc, part) => acc && acc[part], obj);
       
-      // Basic implementation of template replacement
       const matches = resultText.match(/{{response\.(.*?)}}/g);
       matches?.forEach(match => {
         const path = match.replace('{{response.', '').replace('}}', '');
@@ -166,7 +177,7 @@ export function ChatInterface() {
           columns: mapping.tableColumns || [],
           rows: rows
         };
-        botMsg.text = language === 'Amharic' ? 'እነዚህ የእርስዎ የቅርብ ጊዜ ግብይቶች ናቸው።' : 'Here are your recent transactions:';
+        botMsg.text = language === 'Amharic' ? 'እነዚህ የእርስዎ የምንዛሬ ተመኖች ናቸው።' : 'Here are the latest rates:';
       } else {
         botMsg.text = mapping.errorFallback;
       }

@@ -17,49 +17,35 @@ const defaultMenus: MenuItem[] = [
     attachedMenuIds: ['3', '4']
   },
   { 
-    id: '2', 
+    id: 'ex-rate', 
     parentId: null, 
-    name: 'Check Balance', 
-    nameAm: 'ሂሳብ ይፈትሹ',
+    name: 'Exchange Rates', 
+    nameAm: 'የምንዛሬ ተመኖች',
     responseType: 'api',
     order: 1,
     apiConfig: {
-      name: 'Balance Inquiry',
-      endpoint: 'https://api.example.com/v1/balance',
-      method: 'POST',
+      name: 'Daily Exchange Rates',
+      endpoint: 'https://api.exchangerate.host/latest',
+      method: 'GET',
       headers: { 'Content-Type': 'application/json' },
       timeout: 5000,
       retry: 1,
-      loginRequired: true,
-      requiredKYC: ['phone', 'id_number'],
-      kycFields: [
-        {
-          id: 'phone',
-          name: 'phone',
-          prompt: 'Please enter your phone number.',
-          promptAm: 'እባክዎን ስልክ ቁጥርዎን ያስገቡ።',
-          type: 'tel',
-          order: 1
-        },
-        {
-          id: 'id_number',
-          name: 'id_number',
-          prompt: 'Please enter your ID number.',
-          promptAm: 'እባክዎን የመታወቂያ ቁጥርዎን ያስገቡ።',
-          type: 'text',
-          order: 2
-        }
-      ],
-      requestMapping: {
-        'msisdn': 'user.phone',
-        'national_id': 'user.kyc.id_number'
-      },
+      loginRequired: false,
+      requiredKYC: [],
+      kycFields: [],
+      requestMapping: {},
       responseMapping: {
-        type: 'message',
-        template: 'Your current balance is {{response.balance}} {{response.currency}}.',
-        errorFallback: 'We could not retrieve your balance at this time.',
-        timeoutMessage: 'The request timed out. Please try again.',
-        authRequiredMessage: 'Please log in to check your balance.'
+        type: 'table',
+        template: 'Here are the current rates:',
+        tableDataKey: 'rates',
+        tableColumns: [
+          { header: 'Currency', headerAm: 'ምንዛሬ', key: 'currency' },
+          { header: 'Rate (vs USD)', headerAm: 'ተመን', key: 'rate' },
+          { header: 'Last Update', headerAm: 'መጨረሻ የዘመነው', key: 'updated' }
+        ],
+        errorFallback: 'Could not retrieve exchange rates.',
+        timeoutMessage: 'Request timed out.',
+        authRequiredMessage: 'Login required.'
       }
     }
   },

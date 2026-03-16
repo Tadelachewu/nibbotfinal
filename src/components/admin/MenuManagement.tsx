@@ -184,20 +184,29 @@ export function MenuManagement() {
     setIsTestingApi(true);
     try {
       // Simulate real API behavior for the admin to see mapping structure
-      // In production, this would be a real fetch
+      // We'll mock the specific Exchange Rate response requested
       await new Promise(r => setTimeout(r, 1000));
+      
+      const isExRate = editForm.apiConfig.endpoint.toLowerCase().includes('rate') || editForm.name?.toLowerCase().includes('rate');
+      
       const mockResponses: Record<string, any> = {
-        "balance": { status: "success", data: { balance: "5,400.00", currency: "ETB", last_updated: "2024-05-20" } },
-        "transactions": { status: "success", transactions: [
-          { id: "TX1001", date: "2024-05-19", amount: "-150.00", desc: "Grocery Store" },
-          { id: "TX1002", date: "2024-05-18", amount: "+2,000.00", desc: "Salary" },
-          { id: "TX1003", date: "2024-05-17", amount: "-45.00", desc: "Cafe" }
-        ]}
+        "exchange": {
+          "status": "success",
+          "base": "USD",
+          "rates": [
+            { "currency": "ETB", "rate": "57.50", "updated": "2024-05-20" },
+            { "currency": "EUR", "rate": "0.92", "updated": "2024-05-20" },
+            { "currency": "GBP", "rate": "0.78", "updated": "2024-05-20" }
+          ]
+        },
+        "default": { 
+          "status": "success", 
+          "data": { "balance": "5,400.00", "currency": "ETB", "last_updated": "2024-05-20" } 
+        }
       };
       
-      const key = editForm.apiConfig.endpoint.toLowerCase().includes('transaction') ? 'transactions' : 'balance';
-      setApiPreviewResult(mockResponses[key]);
-      toast({ title: "API Test Successful", description: "Response received and logged below." });
+      setApiPreviewResult(isExRate ? mockResponses["exchange"] : mockResponses["default"]);
+      toast({ title: "API Test Successful", description: "Response received. Use the log below to map your keys." });
     } catch (e) {
       toast({ title: "API Test Failed", description: "Check console or network.", variant: "destructive" });
     } finally {
@@ -331,7 +340,6 @@ export function MenuManagement() {
                   const isNowSelected = !currentIds.includes(item.id);
                   
                   if (isNowSelected) {
-                    // Selection Validation: If selecting a child, parent must be selected (if parent is not root)
                     if (item.parentId && item.parentId !== null) {
                       const parentIsSelected = currentIds.includes(item.parentId);
                       if (!parentIsSelected) {
@@ -345,7 +353,6 @@ export function MenuManagement() {
                     }
                     setEditForm({ ...editForm, attachedMenuIds: [...currentIds, item.id] });
                   } else {
-                    // Deselection: If deselecting a parent, all its children in the attached list must be deselected
                     const childrenToDeselect = new Set<string>();
                     const findChildren = (pid: string) => {
                       menus.forEach(m => {
@@ -617,7 +624,7 @@ export function MenuManagement() {
                                 <Label className="text-[10px] uppercase font-bold text-muted-foreground block">Array Data Path</Label>
                                 <Input 
                                   value={editForm.apiConfig?.responseMapping?.tableDataKey}
-                                  placeholder="e.g., response.transactions"
+                                  placeholder="e.g., response.rates"
                                   className="h-8 text-xs"
                                   onChange={(e) => setEditForm({
                                     ...editForm,
@@ -650,7 +657,7 @@ export function MenuManagement() {
                                         <Label className="text-[8px] font-bold">JSON Key</Label>
                                         <Input 
                                           value={col.key} 
-                                          placeholder="e.g., amount"
+                                          placeholder="e.g., currency"
                                           className="h-7 text-xs" 
                                           onChange={(e) => updateTableColumn(idx, { key: e.target.value })}
                                         />
@@ -708,7 +715,6 @@ export function MenuManagement() {
                       </CardHeader>
                       <CardContent className="p-4">
                          <p className="text-[10px] text-muted-foreground mb-4">Chatbot will collect these sequentially if missing from user session.</p>
-                         {/* KYC Logic implementation remains same as previous prompts */}
                          <div className="text-center py-6 text-xs text-muted-foreground italic bg-muted/5 rounded-lg border border-dashed">
                            Configure KYC fields to gate this API interaction.
                          </div>
