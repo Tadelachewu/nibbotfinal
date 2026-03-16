@@ -29,7 +29,8 @@ import {
   Layout,
   PlayCircle,
   Table as TableIcon,
-  Columns
+  Columns,
+  Hash
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -135,7 +136,7 @@ export function MenuManagement() {
       try {
         const updatedForm = { ...editForm };
         
-        // Background AI Localization
+        // Background AI Localization for Menu Items
         if (editForm.name) {
           try {
             const res = await adminContentTranslator({ content: editForm.name, targetLanguage: 'Amharic' });
@@ -164,6 +165,20 @@ export function MenuManagement() {
            };
         }
 
+        // Localize KYC Prompts if exist
+        if (editForm.responseType === 'api' && editForm.apiConfig?.kycFields) {
+           const localizedKyc = await Promise.all(editForm.apiConfig.kycFields.map(async field => {
+             try {
+               const res = await adminContentTranslator({ content: field.prompt, targetLanguage: 'Amharic' });
+               return { ...field, promptAm: res.translatedContent };
+             } catch (e) { return field; }
+           }));
+           updatedForm.apiConfig = {
+             ...updatedForm.apiConfig!,
+             kycFields: localizedKyc
+           };
+        }
+
         updateMenu(editingId, updatedForm);
         setIsEditDialogOpen(false);
         setEditingId(null);
@@ -184,7 +199,6 @@ export function MenuManagement() {
     }
     setIsTestingApi(true);
     try {
-      // Attempt real fetch first
       const response = await fetch(editForm.apiConfig.endpoint, {
         method: editForm.apiConfig.method,
         headers: editForm.apiConfig.headers,
@@ -198,7 +212,6 @@ export function MenuManagement() {
         throw new Error("Endpoint failed");
       }
     } catch (e) {
-      // Fallback to internal mocks for common test patterns
       const endpoint = editForm.apiConfig.endpoint.toLowerCase();
       const isExRate = endpoint.includes('rate') || editForm.name?.toLowerCase().includes('rate');
       const isBalance = endpoint.includes('balance');
@@ -271,6 +284,51 @@ export function MenuManagement() {
       apiConfig: {
         ...apiConfig,
         responseMapping: { ...apiConfig.responseMapping, tableColumns: cols }
+      }
+    });
+  };
+
+  const addKycField = () => {
+    const apiConfig = editForm.apiConfig!;
+    const fields = apiConfig.kycFields || [];
+    const newField: KYCField = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: 'new_field',
+      prompt: 'Please enter your information',
+      type: 'text',
+      order: fields.length
+    };
+    setEditForm({
+      ...editForm,
+      apiConfig: {
+        ...apiConfig,
+        kycFields: [...fields, newField]
+      }
+    });
+  };
+
+  const removeKycField = (idx: number) => {
+    const apiConfig = editForm.apiConfig!;
+    const fields = [...(apiConfig.kycFields || [])];
+    fields.splice(idx, 1);
+    setEditForm({
+      ...editForm,
+      apiConfig: {
+        ...apiConfig,
+        kycFields: fields
+      }
+    });
+  };
+
+  const updateKycField = (idx: number, updates: Partial<KYCField>) => {
+    const apiConfig = editForm.apiConfig!;
+    const fields = [...(apiConfig.kycFields || [])];
+    fields[idx] = { ...fields[idx], ...updates };
+    setEditForm({
+      ...editForm,
+      apiConfig: {
+        ...apiConfig,
+        kycFields: fields
       }
     });
   };
@@ -719,7 +777,7 @@ export function MenuManagement() {
                                 ...editForm, 
                                 apiConfig: { 
                                   ...editForm.apiConfig!, 
-                                  responseMapping: { ...editForm.apiConfig!.responseMapping, timeoutMessage: e.target.value } 
+                                  responseMapping: { ...editForm.apiConfig!.timeoutMessage: e.target.value } 
                                 } 
                               })}
                             />
@@ -729,17 +787,77 @@ export function MenuManagement() {
                     </Card>
 
                     <Card>
-                      <CardHeader className="bg-muted/20 py-3">
+                      <CardHeader className="bg-muted/20 py-3 flex flex-row items-center justify-between">
                         <CardTitle className="text-sm flex items-center gap-2">
                           <ShieldCheck size={14} className="text-primary" />
                           KYC Collection Flow
                         </CardTitle>
+                        <Button variant="ghost" size="sm" onClick={addKycField} className="h-6 text-[10px] gap-1 hover:bg-primary/5 hover:text-primary">
+                          <Plus size={10} /> Add Field
+                        </Button>
                       </CardHeader>
-                      <CardContent className="p-4">
-                         <p className="text-[10px] text-muted-foreground mb-4">Chatbot will collect these sequentially if missing from user session.</p>
-                         <div className="text-center py-6 text-xs text-muted-foreground italic bg-muted/5 rounded-lg border border-dashed">
-                           Configure KYC fields to gate this API interaction.
-                         </div>
+                      <CardContent className="p-4 space-y-4">
+                        <p className="text-[10px] text-muted-foreground">Chatbot will collect these sequentially if missing from user session.</p>
+                        
+                        {editForm.apiConfig?.kycFields && editForm.apiConfig.kycFields.length > 0 ? (
+                          <div className="space-y-3">
+                            {editForm.apiConfig.kycFields.map((field, idx) => (
+                              <div key={field.id} className="p-3 border rounded-lg bg-muted/5 space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-5 h-5 bg-primary/10 text-primary rounded-full flex items-center justify-center text-[10px] font-bold">
+                                      {idx + 1}
+                                    </div>
+                                    <span className="text-xs font-bold uppercase tracking-wider">{field.name}</span>
+                                  </div>
+                                  <Button variant="ghost" size="icon" onClick={() => removeKycField(idx)} className="h-6 w-6 text-destructive">
+                                    <Trash2 size={12} />
+                                  </Button>
+                                </div>
+                                <div className="grid gap-3 sm:grid-cols-2">
+                                  <div className="space-y-1">
+                                    <Label className="text-[8px] font-bold uppercase">Field Key Name</Label>
+                                    <Input 
+                                      value={field.name} 
+                                      className="h-7 text-xs" 
+                                      onChange={(e) => updateKycField(idx, { name: e.target.value })}
+                                      placeholder="e.g., phone_number"
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-[8px] font-bold uppercase">Input Type</Label>
+                                    <Select 
+                                      value={field.type} 
+                                      onValueChange={(v: any) => updateKycField(idx, { type: v })}
+                                    >
+                                      <SelectTrigger className="h-7 text-xs">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="text">Text</SelectItem>
+                                        <SelectItem value="number">Number</SelectItem>
+                                        <SelectItem value="tel">Phone</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-[8px] font-bold uppercase">Chat Prompt (EN)</Label>
+                                  <Input 
+                                    value={field.prompt} 
+                                    className="h-7 text-xs" 
+                                    onChange={(e) => updateKycField(idx, { prompt: e.target.value })}
+                                    placeholder="e.g., Please enter your phone number."
+                                  />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-center py-6 text-xs text-muted-foreground italic bg-muted/5 rounded-lg border border-dashed">
+                            Click "Add Field" to define KYC requirements.
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   </TabsContent>
