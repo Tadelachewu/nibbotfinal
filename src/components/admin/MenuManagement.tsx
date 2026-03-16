@@ -777,7 +777,7 @@ export function MenuManagement() {
                                 ...editForm, 
                                 apiConfig: { 
                                   ...editForm.apiConfig!, 
-                                  responseMapping: { ...editForm.apiConfig!.timeoutMessage: e.target.value } 
+                                  responseMapping: { ...editForm.apiConfig!.responseMapping, timeoutMessage: e.target.value } 
                                 } 
                               })}
                             />
