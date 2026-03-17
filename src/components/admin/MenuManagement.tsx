@@ -25,7 +25,8 @@ import {
   Link2,
   Table as TableIcon,
   Languages,
-  AlertCircle
+  AlertCircle,
+  ChevronRight
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -277,48 +278,64 @@ export function MenuManagement() {
           return (
             <div key={item.id} className="space-y-1">
               <div className={cn(
-                "flex items-center gap-2 p-1 rounded-md transition-all hover:bg-muted/50 group",
+                "flex items-center gap-1 p-1 rounded-md transition-all hover:bg-muted/50 group",
                 isSelected && "bg-primary/5 ring-1 ring-primary/10"
               )}>
+                {/* SEGREGATED EXPAND ACTION */}
                 <button 
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation();
                     const next = new Set(expandedBrowserFolders);
                     if (next.has(item.id)) next.delete(item.id); else next.add(item.id);
                     setExpandedBrowserFolders(next);
                   }}
                   className={cn(
-                    "text-muted-foreground hover:text-primary transition-transform h-6 w-6 flex items-center justify-center rounded-sm hover:bg-muted",
+                    "text-muted-foreground hover:text-primary transition-transform h-8 w-8 flex items-center justify-center rounded-md hover:bg-muted",
                     !hasChildren && "opacity-0 cursor-default pointer-events-none",
                     isExpanded ? 'rotate-0' : '-rotate-90'
                   )}
                   disabled={!hasChildren}
+                  title={isExpanded ? "Collapse" : "Expand"}
                 >
-                  <ChevronDown size={14} />
+                  <ChevronDown size={16} />
                 </button>
                 
-                <Checkbox 
-                  checked={isSelected} 
-                  className="h-4 w-4 rounded-sm" 
-                  onCheckedChange={(checked) => {
+                {/* SEGREGATED SELECT ACTION */}
+                <div 
+                  className="flex items-center gap-2 flex-1 cursor-pointer py-1 pr-2"
+                  onClick={() => {
                     const currentIds = editForm.attachedMenuIds || [];
-                    if (checked) {
+                    if (!isSelected) {
                       setEditForm({ ...editForm, attachedMenuIds: [...currentIds, item.id] });
                     } else {
                       setEditForm({ ...editForm, attachedMenuIds: currentIds.filter(id => id !== item.id) });
                     }
                   }}
-                />
-                
-                <span className="text-xs font-medium cursor-pointer flex-1 py-1" onClick={() => {
-                  const currentIds = editForm.attachedMenuIds || [];
-                  if (!isSelected) {
-                    setEditForm({ ...editForm, attachedMenuIds: [...currentIds, item.id] });
-                  } else {
-                    setEditForm({ ...editForm, attachedMenuIds: currentIds.filter(id => id !== item.id) });
-                  }
-                }}>
-                  {item.name}
-                </span>
+                >
+                  <Checkbox 
+                    checked={isSelected} 
+                    className="h-4 w-4 rounded-sm" 
+                    onCheckedChange={(checked) => {
+                      const currentIds = editForm.attachedMenuIds || [];
+                      if (checked) {
+                        setEditForm({ ...editForm, attachedMenuIds: [...currentIds, item.id] });
+                      } else {
+                        setEditForm({ ...editForm, attachedMenuIds: currentIds.filter(id => id !== item.id) });
+                      }
+                    }}
+                  />
+                  
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-xs font-medium truncate">
+                      {item.name}
+                    </span>
+                    {item.nameAm && (
+                      <span className="text-[9px] text-muted-foreground truncate italic">
+                        {item.nameAm}
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
               {isExpanded && renderBrowserTree(item.id, level + 1)}
             </div>
