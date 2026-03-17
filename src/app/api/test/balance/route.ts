@@ -4,22 +4,27 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const authHeader = request.headers.get('Authorization');
   
-  // Enforce Authorization for testing purposes
-  // Supports: 
-  // 1. Bearer jwt_sample_token_456 (used by Chat Interface)
-  // 2. Bearer TEST_VALUE (used by Admin Live Preview)
-  // 3. Basic YWRtaW46cGFzc3dvcmQxMjM= (admin:password123)
-  const isValidAuth = 
-    authHeader === 'Bearer jwt_sample_token_456' || 
-    authHeader === 'Bearer TEST_VALUE' ||
-    authHeader === 'Basic YWRtaW46cGFzc3dvcmQxMjM=';
-
-  if (!authHeader || !isValidAuth) {
+  // STRICT VALIDATION: This endpoint tests Bearer or Basic Auth
+  if (!authHeader) {
     return NextResponse.json(
       { 
         status: "error", 
-        message: "Unauthorized: Invalid or missing Authorization header. " + 
-                 "Use Bearer {{user_token}} or Basic Auth (admin:password123) in your config."
+        message: "Unauthorized: Missing 'Authorization' header. Use Bearer {{user_token}} or Basic Auth."
+      },
+      { status: 401 }
+    );
+  }
+
+  // Support specifically configured test values
+  const isValidBearer = authHeader === 'Bearer jwt_sample_token_456' || authHeader === 'Bearer TEST_VALUE';
+  const isValidBasic = authHeader === 'Basic YWRtaW46cGFzc3dvcmQxMjM=';
+
+  if (!isValidBearer && !isValidBasic) {
+    return NextResponse.json(
+      { 
+        status: "error", 
+        message: `Unauthorized: Invalid credentials. Header received: "${authHeader}". ` +
+                 "Try Bearer {{user_token}} (which resolves to 'jwt_sample_token_456' in chat) or admin:password123 for Basic Auth."
       },
       { status: 401 }
     );
@@ -59,7 +64,7 @@ export async function GET(request: Request) {
 
   const accountId = searchParams.get('account_id');
 
-  // If no ID is provided, check if it's a preview request to help with mapping
+  // Preview Mode helper
   if (!accountId) {
     return NextResponse.json({
       status: "success",
@@ -78,7 +83,7 @@ export async function GET(request: Request) {
   return NextResponse.json(
     { 
       status: "error", 
-      message: `The account ID "${accountId}" was not recognized. Please try with one of our test IDs: 88991122, 11223344, 99887766, or 12345678.` 
+      message: `The account ID "${accountId}" was not recognized.` 
     },
     { status: 404 }
   );

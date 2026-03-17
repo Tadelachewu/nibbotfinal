@@ -26,8 +26,6 @@ import {
   Table as TableIcon,
   Languages,
   ShieldCheck,
-  Key,
-  User
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -177,42 +175,42 @@ export function MenuManagement() {
       return;
     }
     setIsTestingApi(true);
+    setApiPreviewResult(null);
     try {
       const endpoint = editForm.apiConfig.endpoint.startsWith('/') 
         ? editForm.apiConfig.endpoint 
         : `/api/${editForm.apiConfig.endpoint}`;
 
-      // Construct headers including auth
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         ...editForm.apiConfig.headers
       };
 
       const auth = editForm.apiConfig.authConfig;
-      if (auth) {
+      if (auth && auth.type !== 'none') {
         if (auth.type === 'apiKey' && auth.apiKey) {
           headers[auth.apiKey.header || 'Authorization'] = auth.apiKey.value;
         } else if (auth.type === 'basic' && auth.basicAuth) {
           const credentials = btoa(`${auth.basicAuth.user}:${auth.basicAuth.pass}`);
           headers['Authorization'] = `Basic ${credentials}`;
         } else if (auth.type === 'bearer' && auth.bearer) {
-          // In test mode, we use literal string for placeholders
           headers['Authorization'] = auth.bearer.template.replace(/{{(.*?)}}/g, 'TEST_VALUE');
         }
       }
 
       const response = await fetch(endpoint, {
         method: editForm.apiConfig.method,
-        headers
+        headers,
+        cache: 'no-store' // CRITICAL: Disable caching for live testing
       });
       
       const data = await response.json();
       setApiPreviewResult(data);
 
       if (response.ok) {
-        toast({ title: "API Test Successful", description: "Response received from endpoint." });
+        toast({ title: "API Test Successful", description: "Response received." });
       } else {
-        toast({ title: "API Info", description: "Endpoint returned a status info/error.", variant: "default" });
+        toast({ title: "API Info", description: `Status ${response.status}: ${data.message || 'Error'}`, variant: response.status === 401 ? "destructive" : "default" });
       }
     } catch (e) {
       toast({ title: "API Network Error", description: "Could not reach endpoint.", variant: "destructive" });
@@ -403,7 +401,7 @@ export function MenuManagement() {
                     <CardHeader className="bg-muted/10 flex flex-row items-center justify-between">
                       <CardTitle className="text-sm">API Connectivity</CardTitle>
                       <Button variant="outline" size="sm" onClick={testApi} disabled={isTestingApi}>
-                        {isTestingApi ? <Loader2 className="animate-spin" /> : <PlayCircle className="mr-2" />} Live Preview
+                        {isTestingApi ? <Loader2 className="animate-spin mr-2" /> : <PlayCircle className="mr-2" />} Live Preview
                       </Button>
                     </CardHeader>
                     <CardContent className="p-4 space-y-6">
@@ -424,7 +422,19 @@ export function MenuManagement() {
                             <Label className="text-[10px] uppercase font-bold text-muted-foreground">Auth Type</Label>
                             <Select 
                               value={editForm.apiConfig?.authConfig?.type || 'none'} 
-                              onValueChange={v => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, type: v as any } } })}
+                              onValueChange={v => setEditForm({ 
+                                ...editForm, 
+                                apiConfig: { 
+                                  ...editForm.apiConfig!, 
+                                  authConfig: { 
+                                    ...editForm.apiConfig?.authConfig, 
+                                    type: v as any,
+                                    apiKey: v === 'apiKey' ? { header: 'X-API-KEY', value: '' } : editForm.apiConfig?.authConfig?.apiKey,
+                                    basicAuth: v === 'basic' ? { user: '', pass: '' } : editForm.apiConfig?.authConfig?.basicAuth,
+                                    bearer: v === 'bearer' ? { template: 'Bearer {{user_token}}' } : editForm.apiConfig?.authConfig?.bearer
+                                  } 
+                                } 
+                              })}
                             >
                               <SelectTrigger><SelectValue /></SelectTrigger>
                               <SelectContent>
@@ -441,17 +451,17 @@ export function MenuManagement() {
                               <div className="space-y-1">
                                 <Label className="text-[9px] uppercase font-bold">Header Name</Label>
                                 <Input 
-                                  placeholder="Authorization" 
+                                  placeholder="X-API-KEY" 
                                   value={editForm.apiConfig?.authConfig?.apiKey?.header} 
-                                  onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, apiKey: { ...editForm.apiConfig?.authConfig?.apiKey, header: e.target.value } } } })} 
+                                  onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, apiKey: { ...editForm.apiConfig!.authConfig!.apiKey!, header: e.target.value } } } })} 
                                 />
                               </div>
                               <div className="space-y-1">
                                 <Label className="text-[9px] uppercase font-bold">Key Value</Label>
                                 <Input 
-                                  placeholder="Secret API Key" 
+                                  placeholder="secret-123" 
                                   value={editForm.apiConfig?.authConfig?.apiKey?.value} 
-                                  onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, apiKey: { ...editForm.apiConfig?.authConfig?.apiKey, value: e.target.value } } } })} 
+                                  onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, apiKey: { ...editForm.apiConfig!.authConfig!.apiKey!, value: e.target.value } } } })} 
                                 />
                               </div>
                             </div>
@@ -463,7 +473,7 @@ export function MenuManagement() {
                                 <Label className="text-[9px] uppercase font-bold">Username</Label>
                                 <Input 
                                   value={editForm.apiConfig?.authConfig?.basicAuth?.user} 
-                                  onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, basicAuth: { ...editForm.apiConfig?.authConfig?.basicAuth, user: e.target.value } } } })} 
+                                  onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, basicAuth: { ...editForm.apiConfig!.authConfig!.basicAuth!, user: e.target.value } } } })} 
                                 />
                               </div>
                               <div className="space-y-1">
@@ -471,7 +481,7 @@ export function MenuManagement() {
                                 <Input 
                                   type="password" 
                                   value={editForm.apiConfig?.authConfig?.basicAuth?.pass} 
-                                  onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, basicAuth: { ...editForm.apiConfig?.authConfig?.basicAuth, pass: e.target.value } } } })} 
+                                  onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, basicAuth: { ...editForm.apiConfig!.authConfig!.basicAuth!, pass: e.target.value } } } })} 
                                 />
                               </div>
                             </div>
@@ -484,7 +494,7 @@ export function MenuManagement() {
                                 <Input 
                                   placeholder="Bearer {{user_token}}" 
                                   value={editForm.apiConfig?.authConfig?.bearer?.template} 
-                                  onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, bearer: { ...editForm.apiConfig?.authConfig?.bearer, template: e.target.value } } } })} 
+                                  onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, bearer: { ...editForm.apiConfig!.authConfig!.bearer!, template: e.target.value } } } })} 
                                 />
                                 <p className="text-[8px] text-muted-foreground mt-1">Placeholders like {'{{user_token}}'} will be replaced at runtime.</p>
                               </div>

@@ -1,16 +1,24 @@
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
-  // Enforce API Key validation for testing
+  // STRICT VALIDATION: This endpoint specifically tests API Key authentication
   const apiKey = request.headers.get('X-API-KEY');
-  const authHeader = request.headers.get('Authorization');
-
-  // Accept either X-API-KEY: secret-123 OR standard Authorization header
-  if (apiKey !== 'secret-123' && authHeader !== 'Bearer TEST_VALUE' && authHeader !== 'Bearer jwt_sample_token_456') {
+  
+  if (!apiKey) {
     return NextResponse.json(
       { 
         status: "error", 
-        message: "Unauthorized: Invalid API Key. Set header 'X-API-KEY' to 'secret-123' in your admin config." 
+        message: "Unauthorized: Missing 'X-API-KEY' header. This endpoint requires an API Key." 
+      },
+      { status: 401 }
+    );
+  }
+
+  if (apiKey !== 'secret-123') {
+    return NextResponse.json(
+      { 
+        status: "error", 
+        message: `Unauthorized: Invalid API Key. You sent "${apiKey}", but the server expects "secret-123".` 
       },
       { status: 401 }
     );
