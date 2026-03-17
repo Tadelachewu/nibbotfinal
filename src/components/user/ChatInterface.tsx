@@ -36,6 +36,7 @@ interface Message {
 
 interface UserData {
   id: string;
+  token: string;
   isLoggedIn: boolean;
   kyc: Record<string, any>;
 }
@@ -47,6 +48,7 @@ export function ChatInterface() {
   const [language, setLanguage] = useState('English');
   const [userData, setUserData] = useState<UserData>({
     id: 'user_123',
+    token: 'jwt_sample_token_456',
     isLoggedIn: true,
     kyc: {}
   });
@@ -74,7 +76,6 @@ export function ChatInterface() {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [history]);
 
-  // Fallback Logic: Amharic if available AND language is Amharic, otherwise English
   const getLocalizedName = (menu: MenuItem) => language === 'Amharic' && menu.nameAm ? menu.nameAm : menu.name;
   const getLocalizedContent = (menu: MenuItem) => language === 'Amharic' && menu.contentAm ? menu.contentAm : menu.content;
   const getLocalizedKYCPrompt = (field: KYCField) => language === 'Amharic' && field.promptAm ? field.promptAm : field.prompt;
@@ -112,6 +113,18 @@ export function ChatInterface() {
     return getVal(key, root);
   };
 
+  const replacePlaceholders = (template: string, kycData: Record<string, any>) => {
+    let res = template;
+    // Replace user profile placeholders
+    res = res.replace(/{{user_id}}/g, userData.id);
+    res = res.replace(/{{user_token}}/g, userData.token);
+    // Replace KYC placeholders
+    Object.entries(kycData).forEach(([k, v]) => {
+      res = res.replace(new RegExp(`{{${k}}}`, 'g'), String(v));
+    });
+    return res;
+  };
+
   const handleKycSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!kycFlow || !kycInput.trim()) return;
@@ -145,13 +158,32 @@ export function ChatInterface() {
       if (menu.apiConfig.requestParameters && menu.apiConfig.requestParameters.length > 0) {
         menu.apiConfig.requestParameters.forEach(param => {
           if (param.sourceValue === 'user.id') requestPayload[param.apiKey] = userData.id;
+          else if (param.sourceValue === 'user.token') requestPayload[param.apiKey] = userData.token;
           else if (kycData[param.sourceValue]) requestPayload[param.apiKey] = kycData[param.sourceValue];
         });
       }
 
+      // Handle Authentication Headers
+      const headers: Record<string, string> = { 
+        'Content-Type': 'application/json', 
+        ...menu.apiConfig.headers 
+      };
+
+      const auth = menu.apiConfig.authConfig;
+      if (auth) {
+        if (auth.type === 'apiKey' && auth.apiKey) {
+          headers[auth.apiKey.header || 'Authorization'] = replacePlaceholders(auth.apiKey.value, kycData);
+        } else if (auth.type === 'basic' && auth.basicAuth) {
+          const credentials = btoa(`${auth.basicAuth.user}:${auth.basicAuth.pass}`);
+          headers['Authorization'] = `Basic ${credentials}`;
+        } else if (auth.type === 'bearer' && auth.bearer) {
+          headers['Authorization'] = replacePlaceholders(auth.bearer.template, kycData);
+        }
+      }
+
       const options: RequestInit = {
         method: menu.apiConfig.method,
-        headers: { 'Content-Type': 'application/json', ...menu.apiConfig.headers },
+        headers,
       };
 
       if (menu.apiConfig.method === 'GET') {

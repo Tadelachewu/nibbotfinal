@@ -22,11 +22,19 @@ export interface RequestParameter {
   sourceValue: string; // The ID/Name of the KYC field or a static value
 }
 
+export type AuthType = 'none' | 'apiKey' | 'basic' | 'bearer';
+
 export interface ApiConfig {
   name: string;
   endpoint: string;
   method: 'GET' | 'POST';
   headers: Record<string, string>;
+  authConfig?: {
+    type: AuthType;
+    apiKey?: { header: string; value: string };
+    basicAuth?: { user: string; pass: string };
+    bearer?: { template: string };
+  };
   timeout: number;
   retry: number;
   loginRequired: boolean;

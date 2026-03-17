@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { MenuItem, KYCField, TableColumn } from '@/lib/types';
+import { MenuItem, KYCField, TableColumn, AuthType } from '@/lib/types';
 import { getStoredMenus, addMenu, updateMenu, deleteMenu } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,8 +25,9 @@ import {
   Link2,
   Table as TableIcon,
   Languages,
-  AlertCircle,
-  ChevronRight
+  ShieldCheck,
+  Key,
+  User
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -44,7 +45,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "@/components/ui/dialog";
+} from "@/Dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { WysiwygEditor } from './WysiwygEditor';
@@ -102,6 +103,7 @@ export function MenuManagement() {
         endpoint: '',
         method: 'GET',
         headers: {},
+        authConfig: { type: 'none' },
         timeout: 5000,
         retry: 0,
         loginRequired: false,
@@ -131,7 +133,6 @@ export function MenuManagement() {
       try {
         const updatedForm = JSON.parse(JSON.stringify(editForm));
         
-        // AI Suggestion only for missing fields
         try {
           if (updatedForm.name && !updatedForm.nameAm) {
             const res = await adminContentTranslator({ content: updatedForm.name, targetLanguage: 'Amharic' });
@@ -181,12 +182,28 @@ export function MenuManagement() {
         ? editForm.apiConfig.endpoint 
         : `/api/${editForm.apiConfig.endpoint}`;
 
+      // Construct headers including auth
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...editForm.apiConfig.headers
+      };
+
+      const auth = editForm.apiConfig.authConfig;
+      if (auth) {
+        if (auth.type === 'apiKey' && auth.apiKey) {
+          headers[auth.apiKey.header || 'Authorization'] = auth.apiKey.value;
+        } else if (auth.type === 'basic' && auth.basicAuth) {
+          const credentials = btoa(`${auth.basicAuth.user}:${auth.basicAuth.pass}`);
+          headers['Authorization'] = `Basic ${credentials}`;
+        } else if (auth.type === 'bearer' && auth.bearer) {
+          // In test mode, we use literal string
+          headers['Authorization'] = auth.bearer.template.replace(/{{(.*?)}}/g, 'TEST_VALUE');
+        }
+      }
+
       const response = await fetch(endpoint, {
         method: editForm.apiConfig.method,
-        headers: {
-          'Content-Type': 'application/json',
-          ...editForm.apiConfig.headers
-        },
+        headers
       });
       
       const data = await response.json();
@@ -281,7 +298,6 @@ export function MenuManagement() {
                 "flex items-center gap-1 p-1 rounded-md transition-all hover:bg-muted/50 group",
                 isSelected && "bg-primary/5 ring-1 ring-primary/10"
               )}>
-                {/* SEGREGATED EXPAND ACTION */}
                 <button 
                   onClick={(e) => {
                     e.stopPropagation();
@@ -295,12 +311,10 @@ export function MenuManagement() {
                     isExpanded ? 'rotate-0' : '-rotate-90'
                   )}
                   disabled={!hasChildren}
-                  title={isExpanded ? "Collapse" : "Expand"}
                 >
                   <ChevronDown size={16} />
                 </button>
                 
-                {/* SEGREGATED SELECT ACTION */}
                 <div 
                   className="flex items-center gap-2 flex-1 cursor-pointer py-1 pr-2"
                   onClick={() => {
@@ -315,25 +329,11 @@ export function MenuManagement() {
                   <Checkbox 
                     checked={isSelected} 
                     className="h-4 w-4 rounded-sm" 
-                    onCheckedChange={(checked) => {
-                      const currentIds = editForm.attachedMenuIds || [];
-                      if (checked) {
-                        setEditForm({ ...editForm, attachedMenuIds: [...currentIds, item.id] });
-                      } else {
-                        setEditForm({ ...editForm, attachedMenuIds: currentIds.filter(id => id !== item.id) });
-                      }
-                    }}
                   />
                   
                   <div className="flex flex-col min-w-0">
-                    <span className="text-xs font-medium truncate">
-                      {item.name}
-                    </span>
-                    {item.nameAm && (
-                      <span className="text-[9px] text-muted-foreground truncate italic">
-                        {item.nameAm}
-                      </span>
-                    )}
+                    <span className="text-xs font-medium truncate">{item.name}</span>
+                    {item.nameAm && <span className="text-[9px] text-muted-foreground truncate italic">{item.nameAm}</span>}
                   </div>
                 </div>
               </div>
@@ -406,7 +406,7 @@ export function MenuManagement() {
                         {isTestingApi ? <Loader2 className="animate-spin" /> : <PlayCircle className="mr-2" />} Live Preview
                       </Button>
                     </CardHeader>
-                    <CardContent className="p-4 space-y-4">
+                    <CardContent className="p-4 space-y-6">
                       <div className="flex gap-4">
                         <Select value={editForm.apiConfig?.method} onValueChange={v => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, method: v as any } })}>
                           <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
@@ -414,6 +414,66 @@ export function MenuManagement() {
                         </Select>
                         <Input value={editForm.apiConfig?.endpoint} onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, endpoint: e.target.value } })} placeholder="e.g. /api/test/balance" />
                       </div>
+
+                      <Separator />
+                      
+                      <div className="space-y-4">
+                        <Label className="text-xs font-bold uppercase flex items-center gap-2"><ShieldCheck size={14} className="text-primary" /> Authorization</Label>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Auth Type</Label>
+                            <Select 
+                              value={editForm.apiConfig?.authConfig?.type || 'none'} 
+                              onValueChange={v => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, type: v as any } } })}
+                            >
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">None</SelectItem>
+                                <SelectItem value="apiKey">API Key</SelectItem>
+                                <SelectItem value="basic">Basic Auth</SelectItem>
+                                <SelectItem value="bearer">Bearer Token</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {editForm.apiConfig?.authConfig?.type === 'apiKey' && (
+                            <div className="space-y-3 p-3 border rounded-md bg-muted/5">
+                              <div className="space-y-1">
+                                <Label className="text-[9px] uppercase font-bold">Header Name</Label>
+                                <Input placeholder="Authorization" value={editForm.apiConfig?.authConfig?.apiKey?.header} onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, apiKey: { ...editForm.apiConfig!.authConfig!.apiKey!, header: e.target.value } } } })} />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[9px] uppercase font-bold">Key Value</Label>
+                                <Input placeholder="Secret API Key" value={editForm.apiConfig?.authConfig?.apiKey?.value} onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, apiKey: { ...editForm.apiConfig!.authConfig!.apiKey!, value: e.target.value } } } })} />
+                              </div>
+                            </div>
+                          )}
+
+                          {editForm.apiConfig?.authConfig?.type === 'basic' && (
+                            <div className="space-y-3 p-3 border rounded-md bg-muted/5">
+                              <div className="space-y-1">
+                                <Label className="text-[9px] uppercase font-bold">Username</Label>
+                                <Input value={editForm.apiConfig?.authConfig?.basicAuth?.user} onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, basicAuth: { ...editForm.apiConfig!.authConfig!.basicAuth!, user: e.target.value } } } })} />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[9px] uppercase font-bold">Password</Label>
+                                <Input type="password" value={editForm.apiConfig?.authConfig?.basicAuth?.pass} onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, basicAuth: { ...editForm.apiConfig!.authConfig!.basicAuth!, pass: e.target.value } } } })} />
+                              </div>
+                            </div>
+                          )}
+
+                          {editForm.apiConfig?.authConfig?.type === 'bearer' && (
+                            <div className="space-y-3 p-3 border rounded-md bg-muted/5">
+                              <div className="space-y-1">
+                                <Label className="text-[9px] uppercase font-bold">Token Template</Label>
+                                <Input placeholder="Bearer {{user_token}}" value={editForm.apiConfig?.authConfig?.bearer?.template} onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, bearer: { ...editForm.apiConfig!.authConfig!.bearer!, template: e.target.value } } } })} />
+                                <p className="text-[8px] text-muted-foreground mt-1">Placeholders like {'{{user_token}}'} will be replaced at runtime.</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
                       {apiPreviewResult && (
                         <div className="bg-slate-950 p-3 rounded-md">
                           <div className="flex justify-between items-center mb-2">
@@ -499,6 +559,7 @@ export function MenuManagement() {
                               <SelectContent>
                                 {editForm.apiConfig?.kycFields?.map(f => <SelectItem key={f.id} value={f.name}>KYC: {f.name}</SelectItem>)}
                                 <SelectItem value="user.id">User ID</SelectItem>
+                                <SelectItem value="user.token">User Token</SelectItem>
                               </SelectContent>
                             </Select>
                             <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => {
