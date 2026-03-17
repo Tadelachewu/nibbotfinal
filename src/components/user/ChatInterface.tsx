@@ -118,7 +118,6 @@ export function ChatInterface() {
     res = res.replace(/{{\s*user_id\s*}}/g, userData.id);
     res = res.replace(/{{\s*user_token\s*}}/g, userData.token);
     Object.entries(kycData).forEach(([k, v]) => {
-      // Robust global replacement for KYC fields
       const regex = new RegExp(`{{\\s*${k}\\s*}}`, 'g');
       res = res.replace(regex, String(v));
     });
@@ -251,12 +250,17 @@ export function ChatInterface() {
           if (name !== 'user_id' && name !== 'user_token') requiredFieldNames.push(name);
         });
       }
+      if (auth?.type === 'apiKey' && auth.apiKey?.value) {
+        const matches = auth.apiKey.value.match(/{{\s*(.*?)\s*}}/g);
+        matches?.forEach(m => {
+          const name = m.replace('{{', '').replace('}}', '').trim();
+          if (name !== 'user_id' && name !== 'user_token') requiredFieldNames.push(name);
+        });
+      }
 
       menu.apiConfig.requestParameters?.forEach(p => {
         if (p.sourceType === 'kyc') requiredFieldNames.push(p.sourceValue);
       });
-
-      menu.apiConfig.kycFields.forEach(f => requiredFieldNames.push(f.name));
 
       const uniqueRequired = Array.from(new Set(requiredFieldNames));
       const missingFields = menu.apiConfig.kycFields
