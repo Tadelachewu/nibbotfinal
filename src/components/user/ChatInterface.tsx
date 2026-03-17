@@ -263,7 +263,7 @@ export function ChatInterface() {
       });
 
       const uniqueRequired = Array.from(new Set(requiredFieldNames));
-      const missingFields = menu.apiConfig.kycFields
+      const missingFields = (menu.apiConfig.kycFields || [])
         .filter(f => uniqueRequired.includes(f.name) && !userData.kyc[f.name])
         .sort((a, b) => a.order - b.order);
       
