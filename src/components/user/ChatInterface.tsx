@@ -90,15 +90,20 @@ export function ChatInterface() {
   };
 
   const findArrayData = (obj: any): { path: string; data: any[] } | null => {
+    if (!obj || typeof obj !== 'object') return null;
     if (Array.isArray(obj)) return { path: '', data: obj };
-    if (typeof obj !== 'object' || obj === null) return null;
+    
+    // Look for any array inside
     for (const key in obj) {
       if (Array.isArray(obj[key])) return { path: key, data: obj[key] };
-      if (typeof obj[key] === 'object') {
-        const found = findArrayData(obj[key]);
-        if (found) return { path: key + (found.path ? '.' + found.path : ''), data: found.data };
-      }
     }
+    
+    // If no array is found, but it is a successful object, treat the object itself as a single-item array.
+    // This allows "Table" view mapping even for single-object responses (like auth checks).
+    if (obj.status === 'success' || obj.status === 'ok' || !obj.status) {
+      return { path: '', data: [obj] };
+    }
+    
     return null;
   };
 
@@ -263,7 +268,8 @@ export function ChatInterface() {
       });
 
       const uniqueRequired = Array.from(new Set(requiredFieldNames));
-      const missingFields = (menu.apiConfig.kycFields || [])
+      const kycFields = menu.apiConfig.kycFields || [];
+      const missingFields = kycFields
         .filter(f => uniqueRequired.includes(f.name) && !userData.kyc[f.name])
         .sort((a, b) => a.order - b.order);
       
