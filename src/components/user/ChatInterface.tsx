@@ -48,7 +48,8 @@ export function ChatInterface() {
   const [language, setLanguage] = useState('English');
   const [userData, setUserData] = useState<UserData>({
     id: 'user_123',
-    token: 'jwt_sample_token_456',
+    // Realistic JWT format (Header.Payload.Signature)
+    token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c',
     isLoggedIn: true,
     kyc: {}
   });
@@ -115,11 +116,9 @@ export function ChatInterface() {
 
   const replacePlaceholders = (template: string, kycData: Record<string, any>) => {
     let res = template;
-    // Improved regex to handle spaces: {{ space? key space? }}
     res = res.replace(/{{\s*user_id\s*}}/g, userData.id);
     res = res.replace(/{{\s*user_token\s*}}/g, userData.token);
     Object.entries(kycData).forEach(([k, v]) => {
-      // Escape potential regex special chars in key and handle spaces
       res = res.replace(new RegExp(`{{\\s*${k}\\s*}}`, 'g'), String(v));
     });
     return res;
@@ -155,13 +154,11 @@ export function ChatInterface() {
       let url = menu.apiConfig.endpoint;
       const requestPayload: Record<string, any> = {};
       
-      if (menu.apiConfig.requestParameters && menu.apiConfig.requestParameters.length > 0) {
-        menu.apiConfig.requestParameters.forEach(param => {
-          if (param.sourceValue === 'user.id') requestPayload[param.apiKey] = userData.id;
-          else if (param.sourceValue === 'user.token') requestPayload[param.apiKey] = userData.token;
-          else if (kycData[param.sourceValue]) requestPayload[param.apiKey] = kycData[param.sourceValue];
-        });
-      }
+      menu.apiConfig.requestParameters?.forEach(param => {
+        if (param.sourceValue === 'user.id') requestPayload[param.apiKey] = userData.id;
+        else if (param.sourceValue === 'user.token') requestPayload[param.apiKey] = userData.token;
+        else if (kycData[param.sourceValue]) requestPayload[param.apiKey] = kycData[param.sourceValue];
+      });
 
       const headers: Record<string, string> = { 
         'Content-Type': 'application/json', 

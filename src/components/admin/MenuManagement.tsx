@@ -96,36 +96,7 @@ export function MenuManagement() {
     setEditingId(menu.id);
     setApiPreviewResult(null);
     setSentHeaders(null);
-    setEditForm({ 
-      ...menu, 
-      responseType: menu.responseType || 'static',
-      attachedMenuIds: menu.attachedMenuIds || [],
-      apiConfig: menu.apiConfig || {
-        name: '',
-        endpoint: '',
-        method: 'GET',
-        headers: {},
-        authConfig: { type: 'none' },
-        timeout: 5000,
-        retry: 0,
-        loginRequired: false,
-        kycFields: [],
-        requestParameters: [],
-        responseMapping: {
-          type: 'message',
-          template: '',
-          templateAm: '',
-          tableDataKey: '',
-          tableColumns: [],
-          errorFallback: 'An error occurred.',
-          errorFallbackAm: 'ችግር ተፈጥሯል።',
-          timeoutMessage: 'Request timed out.',
-          timeoutMessageAm: 'ጊዜው አልቋል።',
-          authRequiredMessage: 'Login required.',
-          authRequiredMessageAm: 'መግባት ያስፈልጋል።'
-        }
-      }
-    });
+    setEditForm(JSON.parse(JSON.stringify(menu))); // Deep clone to avoid mutations
     setIsEditDialogOpen(true);
   };
 
@@ -159,6 +130,22 @@ export function MenuManagement() {
         setIsSaving(false);
       }
     }
+  };
+
+  const updateApiConfig = (updates: any) => {
+    const config = editForm.apiConfig || {} as ApiConfig;
+    setEditForm(prev => ({
+      ...prev,
+      apiConfig: { ...config, ...updates }
+    }));
+  };
+
+  const updateAuthConfig = (updates: any) => {
+    const config = editForm.apiConfig || {} as ApiConfig;
+    const auth = config.authConfig || { type: 'none' };
+    updateApiConfig({
+      authConfig: { ...auth, ...updates }
+    });
   };
 
   const testApi = async () => {
@@ -404,17 +391,11 @@ export function MenuManagement() {
                     </CardHeader>
                     <CardContent className="p-4 space-y-6">
                       <div className="flex gap-4">
-                        <Select value={editForm.apiConfig?.method} onValueChange={v => {
-                          const current = editForm.apiConfig || {} as ApiConfig;
-                          setEditForm({ ...editForm, apiConfig: { ...current, method: v as any } });
-                        }}>
+                        <Select value={editForm.apiConfig?.method} onValueChange={v => updateApiConfig({ method: v })}>
                           <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
                           <SelectContent><SelectItem value="GET">GET</SelectItem><SelectItem value="POST">POST</SelectItem></SelectContent>
                         </Select>
-                        <Input value={editForm.apiConfig?.endpoint} onChange={e => {
-                          const current = editForm.apiConfig || {} as ApiConfig;
-                          setEditForm({ ...editForm, apiConfig: { ...current, endpoint: e.target.value } });
-                        }} placeholder="e.g. /api/test/balance" />
+                        <Input value={editForm.apiConfig?.endpoint} onChange={e => updateApiConfig({ endpoint: e.target.value })} placeholder="e.g. /api/test/balance" />
                       </div>
 
                       <Separator />
@@ -428,18 +409,11 @@ export function MenuManagement() {
                               value={editForm.apiConfig?.authConfig?.type || 'none'} 
                               onValueChange={v => {
                                 const authType = v as AuthType;
-                                const currentApiConfig = editForm.apiConfig || {} as ApiConfig;
-                                setEditForm({
-                                  ...editForm,
-                                  apiConfig: {
-                                    ...currentApiConfig,
-                                    authConfig: {
-                                      type: authType,
-                                      apiKey: authType === 'apiKey' ? { header: 'X-API-KEY', value: '' } : undefined,
-                                      basicAuth: authType === 'basic' ? { mode: 'fixed', user: '', pass: '' } : undefined,
-                                      bearer: authType === 'bearer' ? { template: 'Bearer {{user_token}}' } : undefined,
-                                    }
-                                  }
+                                updateAuthConfig({
+                                  type: authType,
+                                  apiKey: authType === 'apiKey' ? { header: 'X-API-KEY', value: '' } : undefined,
+                                  basicAuth: authType === 'basic' ? { mode: 'fixed', user: '', pass: '' } : undefined,
+                                  bearer: authType === 'bearer' ? { template: 'Bearer {{user_token}}' } : undefined,
                                 });
                               }}
                             >
@@ -461,9 +435,8 @@ export function MenuManagement() {
                                   placeholder="X-API-KEY" 
                                   value={editForm.apiConfig?.authConfig?.apiKey?.header} 
                                   onChange={e => {
-                                    const config = editForm.apiConfig!;
-                                    const auth = config.authConfig!;
-                                    setEditForm({ ...editForm, apiConfig: { ...config, authConfig: { ...auth, apiKey: { ...auth.apiKey!, header: e.target.value } } } });
+                                    const apiKey = editForm.apiConfig!.authConfig!.apiKey!;
+                                    updateAuthConfig({ apiKey: { ...apiKey, header: e.target.value } });
                                   }} 
                                 />
                               </div>
@@ -473,9 +446,8 @@ export function MenuManagement() {
                                   placeholder="secret-123" 
                                   value={editForm.apiConfig?.authConfig?.apiKey?.value} 
                                   onChange={e => {
-                                    const config = editForm.apiConfig!;
-                                    const auth = config.authConfig!;
-                                    setEditForm({ ...editForm, apiConfig: { ...config, authConfig: { ...auth, apiKey: { ...auth.apiKey!, value: e.target.value } } } });
+                                    const apiKey = editForm.apiConfig!.authConfig!.apiKey!;
+                                    updateAuthConfig({ apiKey: { ...apiKey, value: e.target.value } });
                                   }} 
                                 />
                               </div>
@@ -487,9 +459,8 @@ export function MenuManagement() {
                               <RadioGroup 
                                 value={editForm.apiConfig?.authConfig?.basicAuth?.mode || 'fixed'} 
                                 onValueChange={v => {
-                                  const config = editForm.apiConfig!;
-                                  const auth = config.authConfig!;
-                                  setEditForm({ ...editForm, apiConfig: { ...config, authConfig: { ...auth, basicAuth: { ...auth.basicAuth!, mode: v as any } } } });
+                                  const basicAuth = editForm.apiConfig!.authConfig!.basicAuth!;
+                                  updateAuthConfig({ basicAuth: { ...basicAuth, mode: v as any } });
                                 }}
                                 className="flex gap-4 mb-4"
                               >
@@ -510,9 +481,8 @@ export function MenuManagement() {
                                     <Input 
                                       value={editForm.apiConfig?.authConfig?.basicAuth?.user} 
                                       onChange={e => {
-                                        const config = editForm.apiConfig!;
-                                        const auth = config.authConfig!;
-                                        setEditForm({ ...editForm, apiConfig: { ...config, authConfig: { ...auth, basicAuth: { ...auth.basicAuth!, user: e.target.value } } } });
+                                        const basicAuth = editForm.apiConfig!.authConfig!.basicAuth!;
+                                        updateAuthConfig({ basicAuth: { ...basicAuth, user: e.target.value } });
                                       }} 
                                     />
                                   </div>
@@ -522,9 +492,8 @@ export function MenuManagement() {
                                       type="password" 
                                       value={editForm.apiConfig?.authConfig?.basicAuth?.pass} 
                                       onChange={e => {
-                                        const config = editForm.apiConfig!;
-                                        const auth = config.authConfig!;
-                                        setEditForm({ ...editForm, apiConfig: { ...config, authConfig: { ...auth, basicAuth: { ...auth.basicAuth!, pass: e.target.value } } } });
+                                        const basicAuth = editForm.apiConfig!.authConfig!.basicAuth!;
+                                        updateAuthConfig({ basicAuth: { ...basicAuth, pass: e.target.value } });
                                       }} 
                                     />
                                   </div>
@@ -536,9 +505,8 @@ export function MenuManagement() {
                                     <Select 
                                       value={editForm.apiConfig?.authConfig?.basicAuth?.userSource} 
                                       onValueChange={v => {
-                                        const config = editForm.apiConfig!;
-                                        const auth = config.authConfig!;
-                                        setEditForm({ ...editForm, apiConfig: { ...config, authConfig: { ...auth, basicAuth: { ...auth.basicAuth!, userSource: v } } } });
+                                        const basicAuth = editForm.apiConfig!.authConfig!.basicAuth!;
+                                        updateAuthConfig({ basicAuth: { ...basicAuth, userSource: v } });
                                       }}
                                     >
                                       <SelectTrigger><SelectValue placeholder="Select KYC Field" /></SelectTrigger>
@@ -552,9 +520,8 @@ export function MenuManagement() {
                                     <Select 
                                       value={editForm.apiConfig?.authConfig?.basicAuth?.passSource} 
                                       onValueChange={v => {
-                                        const config = editForm.apiConfig!;
-                                        const auth = config.authConfig!;
-                                        setEditForm({ ...editForm, apiConfig: { ...config, authConfig: { ...auth, basicAuth: { ...auth.basicAuth!, passSource: v } } } });
+                                        const basicAuth = editForm.apiConfig!.authConfig!.basicAuth!;
+                                        updateAuthConfig({ basicAuth: { ...basicAuth, passSource: v } });
                                       }}
                                     >
                                       <SelectTrigger><SelectValue placeholder="Select KYC Field" /></SelectTrigger>
@@ -576,21 +543,8 @@ export function MenuManagement() {
                                   placeholder="Bearer {{user_token}}" 
                                   value={editForm.apiConfig?.authConfig?.bearer?.template} 
                                   onChange={e => {
-                                    const config = editForm.apiConfig!;
-                                    const auth = config.authConfig!;
-                                    setEditForm({ 
-                                      ...editForm, 
-                                      apiConfig: { 
-                                        ...config, 
-                                        authConfig: { 
-                                          ...auth, 
-                                          bearer: { 
-                                            ...(auth.bearer || { template: 'Bearer ' }), 
-                                            template: e.target.value 
-                                          } 
-                                        } 
-                                      } 
-                                    });
+                                    const bearer = editForm.apiConfig!.authConfig!.bearer || { template: 'Bearer ' };
+                                    updateAuthConfig({ bearer: { ...bearer, template: e.target.value } });
                                   }} 
                                 />
                                 <div className="flex flex-wrap gap-1 mt-2">
@@ -601,22 +555,8 @@ export function MenuManagement() {
                                       variant="outline" 
                                       className="text-[8px] cursor-pointer hover:bg-primary/5 py-0 px-1"
                                       onClick={() => {
-                                        const config = editForm.apiConfig!;
-                                        const auth = config.authConfig!;
-                                        const current = auth.bearer?.template || 'Bearer ';
-                                        setEditForm({ 
-                                          ...editForm, 
-                                          apiConfig: { 
-                                            ...config, 
-                                            authConfig: { 
-                                              ...auth, 
-                                              bearer: { 
-                                                ...(auth.bearer || { template: 'Bearer ' }), 
-                                                template: current + `{{${f.name}}}` 
-                                              } 
-                                            } 
-                                          } 
-                                        });
+                                        const bearer = editForm.apiConfig!.authConfig!.bearer || { template: 'Bearer ' };
+                                        updateAuthConfig({ bearer: { ...bearer, template: bearer.template + `{{${f.name}}}` } });
                                       }}
                                     >
                                       {f.name}
@@ -659,9 +599,8 @@ export function MenuManagement() {
                         <div className="flex items-center justify-between">
                           <Label className="text-xs font-bold uppercase">1. Collected KYC Fields</Label>
                           <Button variant="ghost" size="sm" onClick={() => {
-                            const config = editForm.apiConfig || {} as ApiConfig;
-                            const fields = config.kycFields || [];
-                            setEditForm({ ...editForm, apiConfig: { ...config, kycFields: [...fields, { id: Math.random().toString(36).substr(2, 9), name: '', prompt: '', promptAm: '', type: 'text', order: fields.length }] } });
+                            const fields = editForm.apiConfig?.kycFields || [];
+                            updateApiConfig({ kycFields: [...fields, { id: Math.random().toString(36).substr(2, 9), name: '', prompt: '', promptAm: '', type: 'text', order: fields.length }] });
                           }}><Plus className="mr-1" /> Add KYC</Button>
                         </div>
                         {editForm.apiConfig?.kycFields?.map((field, idx) => (
@@ -670,19 +609,17 @@ export function MenuManagement() {
                               <div className="space-y-1">
                                 <Label className="text-[10px] uppercase font-bold">Field Key</Label>
                                 <Input placeholder="e.g. phone" value={field.name} onChange={e => {
-                                  const config = editForm.apiConfig!;
-                                  const fields = [...config.kycFields];
+                                  const fields = [...editForm.apiConfig!.kycFields];
                                   fields[idx].name = e.target.value;
-                                  setEditForm({ ...editForm, apiConfig: { ...config, kycFields: fields } });
+                                  updateApiConfig({ kycFields: fields });
                                 }} />
                               </div>
                               <div className="space-y-1">
                                 <Label className="text-[10px] uppercase font-bold">Input Type</Label>
                                 <Select value={field.type} onValueChange={v => {
-                                   const config = editForm.apiConfig!;
-                                   const fields = [...config.kycFields];
+                                   const fields = [...editForm.apiConfig!.kycFields];
                                    fields[idx].type = v as any;
-                                   setEditForm({ ...editForm, apiConfig: { ...config, kycFields: fields } });
+                                   updateApiConfig({ kycFields: fields });
                                 }}>
                                   <SelectTrigger><SelectValue /></SelectTrigger>
                                   <SelectContent>
@@ -696,26 +633,23 @@ export function MenuManagement() {
                               <div className="col-span-2 space-y-1">
                                 <Label className="text-[10px] uppercase font-bold">English Prompt</Label>
                                 <Input placeholder="e.g. Please enter your phone number" value={field.prompt} onChange={e => {
-                                  const config = editForm.apiConfig!;
-                                  const fields = [...config.kycFields];
+                                  const fields = [...editForm.apiConfig!.kycFields];
                                   fields[idx].prompt = e.target.value;
-                                  setEditForm({ ...editForm, apiConfig: { ...config, kycFields: fields } });
+                                  updateApiConfig({ kycFields: fields });
                                 }} />
                               </div>
                             </div>
                             <div className="space-y-1">
                               <Label className="text-[10px] uppercase font-bold text-primary">Amharic Prompt</Label>
                               <Input placeholder="ለምሳሌ፡ እባክዎን ስልክ ቁጥርዎን ያስገቡ" value={field.promptAm} onChange={e => {
-                                const config = editForm.apiConfig!;
-                                const fields = [...config.kycFields];
+                                const fields = [...editForm.apiConfig!.kycFields];
                                 fields[idx].promptAm = e.target.value;
-                                setEditForm({ ...editForm, apiConfig: { ...config, kycFields: fields } });
+                                updateApiConfig({ kycFields: fields });
                               }} />
                             </div>
                             <Button variant="ghost" size="icon" className="absolute -right-2 -top-2 h-7 w-7 rounded-full bg-white border text-destructive shadow-sm opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => {
-                               const config = editForm.apiConfig!;
-                               const fields = config.kycFields.filter((_, i) => i !== idx);
-                               setEditForm({ ...editForm, apiConfig: { ...config, kycFields: fields } });
+                               const fields = editForm.apiConfig!.kycFields.filter((_, i) => i !== idx);
+                               updateApiConfig({ kycFields: fields });
                             }}>
                               <Trash2 size={12} />
                             </Button>
@@ -727,24 +661,21 @@ export function MenuManagement() {
                         <div className="flex items-center justify-between">
                           <Label className="text-xs font-bold uppercase">2. API Request Mapping</Label>
                           <Button variant="ghost" size="sm" onClick={() => {
-                             const config = editForm.apiConfig || {} as ApiConfig;
-                             const params = config.requestParameters || [];
-                             setEditForm({ ...editForm, apiConfig: { ...config, requestParameters: [...params, { apiKey: '', sourceType: 'kyc', sourceValue: '' }] } });
+                             const params = editForm.apiConfig?.requestParameters || [];
+                             updateApiConfig({ requestParameters: [...params, { apiKey: '', sourceType: 'kyc', sourceValue: '' }] });
                           }}><Link2 className="mr-1" /> Map Parameter</Button>
                         </div>
                         {editForm.apiConfig?.requestParameters?.map((param, idx) => (
                           <div key={idx} className="flex gap-2 items-center group">
                             <Input placeholder="API Param Key" value={param.apiKey} onChange={e => {
-                              const config = editForm.apiConfig!;
-                              const params = [...config.requestParameters];
+                              const params = [...editForm.apiConfig!.requestParameters];
                               params[idx].apiKey = e.target.value;
-                              setEditForm({ ...editForm, apiConfig: { ...config, requestParameters: params } });
+                              updateApiConfig({ requestParameters: params });
                             }} />
                             <Select value={param.sourceValue} onValueChange={v => {
-                              const config = editForm.apiConfig!;
-                              const params = [...config.requestParameters];
+                              const params = [...editForm.apiConfig!.requestParameters];
                               params[idx].sourceValue = v;
-                              setEditForm({ ...editForm, apiConfig: { ...config, requestParameters: params } });
+                              updateApiConfig({ requestParameters: params });
                             }}>
                               <SelectTrigger><SelectValue placeholder="Source Field" /></SelectTrigger>
                               <SelectContent>
@@ -754,9 +685,8 @@ export function MenuManagement() {
                               </SelectContent>
                             </Select>
                             <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => {
-                               const config = editForm.apiConfig!;
-                               const params = config.requestParameters.filter((_, i) => i !== idx);
-                               setEditForm({ ...editForm, apiConfig: { ...config, requestParameters: params } });
+                               const params = editForm.apiConfig!.requestParameters.filter((_, i) => i !== idx);
+                               updateApiConfig({ requestParameters: params });
                             }}>
                               <Trash2 size={14} />
                             </Button>
@@ -770,8 +700,8 @@ export function MenuManagement() {
                     <CardHeader className="bg-muted/10"><CardTitle className="text-sm">Response View Mapping</CardTitle></CardHeader>
                     <CardContent className="p-4 space-y-4">
                       <Tabs value={editForm.apiConfig?.responseMapping?.type} onValueChange={v => {
-                        const config = editForm.apiConfig!;
-                        setEditForm({ ...editForm, apiConfig: { ...config, responseMapping: { ...config.responseMapping, type: v as any } } });
+                        const mapping = editForm.apiConfig!.responseMapping;
+                        updateApiConfig({ responseMapping: { ...mapping, type: v as any } });
                       }}>
                         <TabsList className="grid w-full grid-cols-2"><TabsTrigger value="message">Message</TabsTrigger><TabsTrigger value="table">Table</TabsTrigger></TabsList>
                         <TabsContent value="message" className="pt-4 space-y-6">
@@ -779,15 +709,15 @@ export function MenuManagement() {
                             <div className="space-y-2">
                               <Label className="text-[10px] uppercase font-bold text-muted-foreground">Success Template (English)</Label>
                               <Input value={editForm.apiConfig?.responseMapping?.template} onChange={e => {
-                                const config = editForm.apiConfig!;
-                                setEditForm({ ...editForm, apiConfig: { ...config, responseMapping: { ...config.responseMapping, template: e.target.value } } });
+                                const mapping = editForm.apiConfig!.responseMapping;
+                                updateApiConfig({ responseMapping: { ...mapping, template: e.target.value } });
                               }} placeholder="Balance is {{response.data.balance}}" />
                             </div>
                             <div className="space-y-2">
                               <Label className="text-[10px] uppercase font-bold text-primary">Success Template (Amharic)</Label>
                               <Input value={editForm.apiConfig?.responseMapping?.templateAm} onChange={e => {
-                                const config = editForm.apiConfig!;
-                                setEditForm({ ...editForm, apiConfig: { ...config, responseMapping: { ...config.responseMapping, templateAm: e.target.value } } });
+                                const mapping = editForm.apiConfig!.responseMapping;
+                                updateApiConfig({ responseMapping: { ...mapping, templateAm: e.target.value } });
                               }} placeholder="የሂሳብዎ መጠን {{response.data.balance}} ነው" />
                             </div>
                           </div>
@@ -798,9 +728,8 @@ export function MenuManagement() {
                               <div className="flex flex-wrap gap-1 mt-2">
                                 {getDetectedKeys(apiPreviewResult).map(k => (
                                   <Badge key={k} variant="outline" className="text-[9px] cursor-copy hover:bg-primary/10" onClick={() => {
-                                    const config = editForm.apiConfig!;
-                                    const current = config.responseMapping.template || '';
-                                    setEditForm({ ...editForm, apiConfig: { ...config, responseMapping: { ...config.responseMapping, template: current + `{{response.${k}}}` } } });
+                                    const mapping = editForm.apiConfig!.responseMapping;
+                                    updateApiConfig({ responseMapping: { ...mapping, template: mapping.template + `{{response.${k}}}` } });
                                   }}>{k}</Badge>
                                 ))}
                               </div>
@@ -813,15 +742,15 @@ export function MenuManagement() {
                             <div className="space-y-2">
                               <Label className="text-[10px] uppercase font-bold text-muted-foreground">Error Fallback (English)</Label>
                               <Input value={editForm.apiConfig?.responseMapping?.errorFallback} onChange={e => {
-                                const config = editForm.apiConfig!;
-                                setEditForm({ ...editForm, apiConfig: { ...config, responseMapping: { ...config.responseMapping, errorFallback: e.target.value } } });
+                                const mapping = editForm.apiConfig!.responseMapping;
+                                updateApiConfig({ responseMapping: { ...mapping, errorFallback: e.target.value } });
                               }} />
                             </div>
                             <div className="space-y-2">
                               <Label className="text-[10px] uppercase font-bold text-primary">Error Fallback (Amharic)</Label>
                               <Input value={editForm.apiConfig?.responseMapping?.errorFallbackAm} onChange={e => {
-                                const config = editForm.apiConfig!;
-                                setEditForm({ ...editForm, apiConfig: { ...config, responseMapping: { ...config.responseMapping, errorFallbackAm: e.target.value } } });
+                                const mapping = editForm.apiConfig!.responseMapping;
+                                updateApiConfig({ responseMapping: { ...mapping, errorFallbackAm: e.target.value } });
                               }} />
                             </div>
                           </div>
@@ -830,9 +759,9 @@ export function MenuManagement() {
                           <div className="flex items-center justify-between">
                             <Label className="text-xs font-bold flex items-center gap-2"><TableIcon size={14} /> Table Columns Mapping</Label>
                             <Button variant="ghost" size="sm" onClick={() => {
-                               const config = editForm.apiConfig!;
-                               const cols = config.responseMapping.tableColumns || [];
-                               setEditForm({ ...editForm, apiConfig: { ...config, responseMapping: { ...config.responseMapping, tableColumns: [...cols, { header: 'New Column', key: '' }] } } });
+                               const mapping = editForm.apiConfig!.responseMapping;
+                               const cols = mapping.tableColumns || [];
+                               updateApiConfig({ responseMapping: { ...mapping, tableColumns: [...cols, { header: 'New Column', key: '' }] } });
                             }}><Plus className="mr-1" /> Add Column</Button>
                           </div>
                           
@@ -843,28 +772,28 @@ export function MenuManagement() {
                                   <div className="space-y-1">
                                     <Label className="text-[9px] text-muted-foreground uppercase font-bold">English Header</Label>
                                     <Input className="h-8 text-xs" placeholder="e.g. Price" value={col.header} onChange={e => {
-                                      const config = editForm.apiConfig!;
-                                      const cols = [...config.responseMapping.tableColumns!];
+                                      const mapping = editForm.apiConfig!.responseMapping;
+                                      const cols = [...mapping.tableColumns!];
                                       cols[idx].header = e.target.value;
-                                      setEditForm({ ...editForm, apiConfig: { ...config, responseMapping: { ...config.responseMapping, tableColumns: cols } } });
+                                      updateApiConfig({ responseMapping: { ...mapping, tableColumns: cols } });
                                     }} />
                                   </div>
                                   <div className="space-y-1">
                                     <Label className="text-[9px] text-primary uppercase font-bold">Amharic Header</Label>
                                     <Input className="h-8 text-xs" placeholder="ለምሳሌ፡ ዋጋ" value={col.headerAm} onChange={e => {
-                                      const config = editForm.apiConfig!;
-                                      const cols = [...config.responseMapping.tableColumns!];
+                                      const mapping = editForm.apiConfig!.responseMapping;
+                                      const cols = [...mapping.tableColumns!];
                                       cols[idx].headerAm = e.target.value;
-                                      setEditForm({ ...editForm, apiConfig: { ...config, responseMapping: { ...config.responseMapping, tableColumns: cols } } });
+                                      updateApiConfig({ responseMapping: { ...mapping, tableColumns: cols } });
                                     }} />
                                   </div>
                                   <div className="space-y-1">
                                     <Label className="text-[9px] text-muted-foreground uppercase font-bold">JSON Data Key</Label>
                                     <Input className="h-8 text-xs font-mono" placeholder="e.g. price.amount" value={col.key} onChange={e => {
-                                      const config = editForm.apiConfig!;
-                                      const cols = [...config.responseMapping.tableColumns!];
+                                      const mapping = editForm.apiConfig!.responseMapping;
+                                      const cols = [...mapping.tableColumns!];
                                       cols[idx].key = e.target.value;
-                                      setEditForm({ ...editForm, apiConfig: { ...config, responseMapping: { ...config.responseMapping, tableColumns: cols } } });
+                                      updateApiConfig({ responseMapping: { ...mapping, tableColumns: cols } });
                                     }} />
                                   </div>
                                 </div>
@@ -874,19 +803,19 @@ export function MenuManagement() {
                                     <span className="text-[8px] text-muted-foreground self-center mr-1">DETECTED:</span>
                                     {getDetectedKeys(apiPreviewResult).slice(0, 12).map(k => (
                                       <Badge key={k} variant="outline" className="text-[8px] cursor-pointer hover:bg-primary/5 py-0 px-1" onClick={() => {
-                                        const config = editForm.apiConfig!;
-                                        const cols = [...config.responseMapping.tableColumns!];
+                                        const mapping = editForm.apiConfig!.responseMapping;
+                                        const cols = [...mapping.tableColumns!];
                                         cols[idx].key = k;
-                                        setEditForm({ ...editForm, apiConfig: { ...config, responseMapping: { ...config.responseMapping, tableColumns: cols } } });
+                                        updateApiConfig({ responseMapping: { ...mapping, tableColumns: cols } });
                                       }}>{k}</Badge>
                                     ))}
                                   </div>
                                 )}
 
                                 <Button variant="ghost" size="icon" className="absolute -right-2 -top-2 h-7 w-7 rounded-full bg-white border text-destructive shadow-sm opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => {
-                                   const config = editForm.apiConfig!;
-                                   const cols = config.responseMapping.tableColumns!.filter((_, i) => i !== idx);
-                                   setEditForm({ ...editForm, apiConfig: { ...config, responseMapping: { ...config.responseMapping, tableColumns: cols } } });
+                                   const mapping = editForm.apiConfig!.responseMapping;
+                                   const cols = mapping.tableColumns!.filter((_, i) => i !== idx);
+                                   updateApiConfig({ responseMapping: { ...mapping, tableColumns: cols } });
                                 }}>
                                   <Trash2 size={12} />
                                 </Button>
