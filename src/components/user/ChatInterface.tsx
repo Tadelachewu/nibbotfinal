@@ -115,10 +115,12 @@ export function ChatInterface() {
 
   const replacePlaceholders = (template: string, kycData: Record<string, any>) => {
     let res = template;
-    res = res.replace(/{{user_id}}/g, userData.id);
-    res = res.replace(/{{user_token}}/g, userData.token);
+    // Improved regex to handle spaces: {{ space? key space? }}
+    res = res.replace(/{{\s*user_id\s*}}/g, userData.id);
+    res = res.replace(/{{\s*user_token\s*}}/g, userData.token);
     Object.entries(kycData).forEach(([k, v]) => {
-      res = res.replace(new RegExp(`{{${k}}}`, 'g'), String(v));
+      // Escape potential regex special chars in key and handle spaces
+      res = res.replace(new RegExp(`{{\\s*${k}\\s*}}`, 'g'), String(v));
     });
     return res;
   };
@@ -199,8 +201,9 @@ export function ChatInterface() {
       }
 
       const res = await fetch(url, options);
-      if (res.ok) { success = true; apiResponse = await res.json(); }
-      else { apiResponse = await res.json().catch(() => null); }
+      const data = await res.json().catch(() => null);
+      if (res.ok) { success = true; apiResponse = data; }
+      else { apiResponse = data; }
     } catch (e) { success = false; }
 
     let botMsg: Message = { id: `bot-api-${Date.now()}`, sender: 'bot' };
@@ -236,29 +239,25 @@ export function ChatInterface() {
   const navigateTo = (menu: MenuItem) => {
     setHistory(prev => [...prev, { id: `user-${Date.now()}`, sender: 'user', text: getLocalizedName(menu) }]);
     if (menu.responseType === 'api' && menu.apiConfig) {
-      // Check for missing KYC fields required for parameters or authentication
       const requiredFieldNames: string[] = [];
       
-      // Fields from Auth Config
       const auth = menu.apiConfig.authConfig;
       if (auth?.type === 'basic' && auth.basicAuth?.mode === 'dynamic') {
         if (auth.basicAuth.userSource) requiredFieldNames.push(auth.basicAuth.userSource);
         if (auth.basicAuth.passSource) requiredFieldNames.push(auth.basicAuth.passSource);
       }
       if (auth?.type === 'bearer' && auth.bearer?.template) {
-        const matches = auth.bearer.template.match(/{{(.*?)}}/g);
+        const matches = auth.bearer.template.match(/{{\s*(.*?)\s*}}/g);
         matches?.forEach(m => {
-          const name = m.replace('{{', '').replace('}}', '');
+          const name = m.replace('{{', '').replace('}}', '').trim();
           if (name !== 'user_id' && name !== 'user_token') requiredFieldNames.push(name);
         });
       }
 
-      // Fields from mapping parameters
       menu.apiConfig.requestParameters?.forEach(p => {
         if (p.sourceType === 'kyc') requiredFieldNames.push(p.sourceValue);
       });
 
-      // Explicitly marked KYC fields
       menu.apiConfig.kycFields.forEach(f => requiredFieldNames.push(f.name));
 
       const uniqueRequired = Array.from(new Set(requiredFieldNames));

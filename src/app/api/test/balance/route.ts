@@ -30,7 +30,7 @@ export async function GET(request: Request) {
     }
   };
 
-  // PUBLIC PREVIEW MODE: If no account_id is requested, return sample data to help with mapping
+  // PUBLIC PREVIEW MODE: If no account_id is requested, return sample data
   if (!accountId) {
     return NextResponse.json({
       status: "success",
@@ -45,26 +45,28 @@ export async function GET(request: Request) {
     return NextResponse.json(
       { 
         status: "error", 
-        message: `Unauthorized: This endpoint (/api/test/balance) is SECURE and requires an Authorization header. Your request was sent without any credentials (Auth Type: None).`
+        message: `Unauthorized: Missing Authorization header for account "${accountId}". (Auth Type: None detected).`
       },
       { status: 401 }
     );
   }
 
-  // Support Bearer TEST_TOKEN, Basic admin:password123, and Basic TEST_USER:TEST_PASS
-  const isValidBearer = authHeader === 'Bearer jwt_sample_token_456' || authHeader === 'Bearer TEST_TOKEN';
-  const isValidBasicFixed = authHeader === 'Basic YWRtaW46cGFzc3dvcmQxMjM=';
-  const isValidBasicDynamic = authHeader === `Basic ${btoa('TEST_USER:TEST_PASS')}`;
+  // Support various valid auth formats for testing
+  const isValidFixedBasic = authHeader === `Basic ${btoa('admin:password123')}`;
+  const isValidDynamicBasic = authHeader === `Basic ${btoa('TEST_USER:TEST_PASS')}`;
+  const isValidSimpleBearer = authHeader === 'Bearer jwt_sample_token_456' || authHeader === 'Bearer TEST_TOKEN';
   
-  // Also support template-based Bearer like Bearer jwt_sample_token_456-88991122
+  // SUPPORTED BEARER TEMPLATE: Bearer token-accountId
   const isValidBearerTemplate = authHeader === `Bearer jwt_sample_token_456-${accountId}`;
+  
+  // ALSO SUPPORT CONCATENATED VERSION for user's specific request
+  const isValidBearerConcatenated = authHeader === `Bearer jwt_sample_token_456${accountId}`;
 
-  if (!isValidBearer && !isValidBasicFixed && !isValidBasicDynamic && !isValidBearerTemplate) {
+  if (!isValidFixedBasic && !isValidDynamicBasic && !isValidSimpleBearer && !isValidBearerTemplate && !isValidBearerConcatenated) {
     return NextResponse.json(
       { 
         status: "error", 
-        message: `Unauthorized: Invalid credentials. Received: "${authHeader}". ` +
-                 "To fix this, use Bearer {{user_token}}, Basic Auth (admin:password123), or dynamic KYC Basic Auth."
+        message: `Unauthorized: Invalid credentials provided. Received: "${authHeader}". Expected formats include: Basic Auth (admin:password123), Bearer token, or Bearer token-accountId.`
       },
       { status: 401 }
     );

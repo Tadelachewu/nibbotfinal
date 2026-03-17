@@ -179,14 +179,18 @@ export function MenuManagement() {
       const auth = editForm.apiConfig.authConfig;
       if (auth && auth.type !== 'none') {
         if (auth.type === 'apiKey' && auth.apiKey) {
-          headers[auth.apiKey.header || 'Authorization'] = auth.apiKey.value;
+          headers[auth.apiKey.header || 'Authorization'] = auth.apiKey.value.replace(/{{\s*(.*?)\s*}}/g, 'TEST_VAL');
         } else if (auth.type === 'basic' && auth.basicAuth) {
           const user = auth.basicAuth.mode === 'fixed' ? auth.basicAuth.user || 'admin' : 'TEST_USER';
           const pass = auth.basicAuth.mode === 'fixed' ? auth.basicAuth.pass || 'password123' : 'TEST_PASS';
           headers['Authorization'] = `Basic ${btoa(`${user}:${pass}`)}`;
         } else if (auth.type === 'bearer' && auth.bearer) {
-          // Simulate placeholder replacement for testing
-          headers['Authorization'] = auth.bearer.template.replace(/{{(.*?)}}/g, 'TEST_TOKEN');
+          headers['Authorization'] = auth.bearer.template.replace(/{{\s*(.*?)\s*}}/g, (match, p1) => {
+            const key = p1.trim();
+            if (key === 'user_token') return 'jwt_sample_token_456';
+            if (key === 'user_id') return 'user_123';
+            return '88991122'; 
+          });
         }
       }
 
@@ -198,7 +202,7 @@ export function MenuManagement() {
         cache: 'no-store'
       });
       
-      const data = await response.json();
+      const data = await response.json().catch(() => ({ status: 'error', message: 'Could not parse JSON response.' }));
       setApiPreviewResult(data);
 
       if (response.ok) {
