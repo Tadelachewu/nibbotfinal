@@ -51,12 +51,12 @@ const defaultMenus: MenuItem[] = [
   { 
     id: 'multi-kyc-test', 
     parentId: null, 
-    name: 'Multi-KYC Secure Action', 
+    name: 'Secure Account Access (Multi-KYC)', 
     nameAm: 'ሁለገብ ማረጋገጫ',
     responseType: 'api',
     order: 2,
     apiConfig: {
-      name: 'Multi-KYC Validator',
+      name: 'Multi-KYC Secure Action',
       endpoint: '/api/test/multi-kyc',
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -74,16 +74,16 @@ const defaultMenus: MenuItem[] = [
         {
           id: 'kyc-acc',
           name: 'account_number',
-          prompt: 'Please enter your Account Number (Test: 12345)',
-          promptAm: 'እባክዎን የሂሳብ ቁጥርዎን ያስገቡ (12345 ይሞክሩ)',
+          prompt: 'Please enter your Account Number (Try: 12345, 67890, or 11223)',
+          promptAm: 'እባክዎን የሂሳብ ቁጥርዎን ያስገቡ (12345, 67890, ወይም 11223 ይሞክሩ)',
           type: 'text',
           order: 0
         },
         {
           id: 'kyc-code',
           name: 'verification_code',
-          prompt: 'Please enter your 4-digit verification code (Test: 9988)',
-          promptAm: 'እባክዎን ባለ 4 አሃዝ የማረጋገጫ ኮድዎን ያስገቡ (9988 ይሞክሩ)',
+          prompt: 'Please enter your verification code (12345 use 9988, 67890 use 1122)',
+          promptAm: 'እባክዎን የማረጋገጫ ኮድዎን ያስገቡ',
           type: 'text',
           order: 1
         }
@@ -94,11 +94,11 @@ const defaultMenus: MenuItem[] = [
       ],
       responseMapping: {
         type: 'message',
-        template: 'Verification Success! Account Status: {{response.data.account_status}}. KYC Level: {{response.data.kyc_level}}',
-        templateAm: 'ማረጋገጫ ተሳክቷል! የሂሳብ ሁኔታ፡ {{response.data.account_status}}። የማረጋገጫ ደረጃ፡ {{response.data.kyc_level}}',
-        errorFallback: 'Multi-KYC validation failed. Please ensure you use 12345 and 9988.',
+        template: 'Access Granted! Account: {{response.data.account_number}}. Status: {{response.data.account_status}}. Balance: {{response.data.current_balance}}',
+        templateAm: 'መግቢያ ተፈቅዷል! የሂሳብ ቁጥር፡ {{response.data.account_number}}። ሁኔታ፡ {{response.data.account_status}}። ቀሪ ሂሳብ፡ {{response.data.current_balance}}',
+        errorFallback: 'Verification failed. Please check your account number and code.',
         timeoutMessage: 'Request timed out.',
-        authRequiredMessage: 'Credentials required.'
+        authRequiredMessage: 'Secure credentials required.'
       }
     }
   },
