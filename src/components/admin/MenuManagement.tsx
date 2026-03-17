@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -25,7 +24,8 @@ import {
   PlayCircle,
   Link2,
   Table as TableIcon,
-  Languages
+  Languages,
+  AlertCircle
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -108,11 +108,15 @@ export function MenuManagement() {
         responseMapping: {
           type: 'message',
           template: '',
+          templateAm: '',
           tableDataKey: '',
           tableColumns: [],
           errorFallback: 'An error occurred.',
+          errorFallbackAm: 'ችግር ተፈጥሯል።',
           timeoutMessage: 'Request timed out.',
-          authRequiredMessage: 'Login required.'
+          timeoutMessageAm: 'ጊዜው አልቋል።',
+          authRequiredMessage: 'Login required.',
+          authRequiredMessageAm: 'መግባት ያስፈልጋል።'
         }
       }
     });
@@ -123,17 +127,29 @@ export function MenuManagement() {
     if (editingId && editForm) {
       setIsSaving(true);
       try {
-        const updatedForm = { ...editForm };
+        const updatedForm = JSON.parse(JSON.stringify(editForm));
         
         // AI Suggestion only for missing fields
         try {
-          if (editForm.name && !editForm.nameAm) {
-            const res = await adminContentTranslator({ content: editForm.name, targetLanguage: 'Amharic' });
+          if (updatedForm.name && !updatedForm.nameAm) {
+            const res = await adminContentTranslator({ content: updatedForm.name, targetLanguage: 'Amharic' });
             updatedForm.nameAm = res.translatedContent;
           }
-          if (editForm.responseType === 'static' && editForm.content && !editForm.contentAm) {
-            const res = await adminContentTranslator({ content: editForm.content, targetLanguage: 'Amharic' });
+          if (updatedForm.responseType === 'static' && updatedForm.content && !updatedForm.contentAm) {
+            const res = await adminContentTranslator({ content: updatedForm.content, targetLanguage: 'Amharic' });
             updatedForm.contentAm = res.translatedContent;
+          }
+          
+          if (updatedForm.responseType === 'api' && updatedForm.apiConfig) {
+            const mapping = updatedForm.apiConfig.responseMapping;
+            if (mapping.template && !mapping.templateAm) {
+              const res = await adminContentTranslator({ content: mapping.template, targetLanguage: 'Amharic' });
+              mapping.templateAm = res.translatedContent;
+            }
+            if (mapping.errorFallback && !mapping.errorFallbackAm) {
+              const res = await adminContentTranslator({ content: mapping.errorFallback, targetLanguage: 'Amharic' });
+              mapping.errorFallbackAm = res.translatedContent;
+            }
           }
         } catch (aiError) {
           console.warn("Localization AI suggestion failed, saving manual entries:", aiError);
@@ -145,7 +161,7 @@ export function MenuManagement() {
         refresh();
         toast({ title: "Saved", description: "Menu updated successfully." });
       } catch (error) {
-        toast({ title: "Save Error", description: "Could not save menu item. Check console for details.", variant: "destructive" });
+        toast({ title: "Save Error", description: "Could not save menu item.", variant: "destructive" });
       } finally {
         setIsSaving(false);
       }
@@ -177,10 +193,10 @@ export function MenuManagement() {
       if (response.ok) {
         toast({ title: "API Test Successful", description: "Response received from endpoint." });
       } else {
-        toast({ title: "API Info", description: "Endpoint returned a status info/error. Mapping keys still available.", variant: "default" });
+        toast({ title: "API Info", description: "Endpoint returned a status info/error.", variant: "default" });
       }
     } catch (e) {
-      toast({ title: "API Network Error", description: "Could not reach endpoint. Ensure the URL is correct.", variant: "destructive" });
+      toast({ title: "API Network Error", description: "Could not reach endpoint.", variant: "destructive" });
     } finally {
       setIsTestingApi(false);
     }
@@ -188,27 +204,19 @@ export function MenuManagement() {
 
   const getDetectedKeys = (obj: any): string[] => {
     if (!obj) return [];
-    
     const keys: Set<string> = new Set();
-    
     const extractKeys = (data: any, prefix = '') => {
       if (!data || typeof data !== 'object') return;
-      
       if (Array.isArray(data)) {
         if (data.length > 0) extractKeys(data[0], prefix);
         return;
       }
-      
       Object.keys(data).forEach(k => {
         const fullKey = prefix ? `${prefix}.${k}` : k;
         keys.add(fullKey);
-        
-        if (data[k] && typeof data[k] === 'object') {
-          extractKeys(data[k], fullKey);
-        }
+        if (data[k] && typeof data[k] === 'object') extractKeys(data[k], fullKey);
       });
     };
-    
     extractKeys(obj);
     return Array.from(keys);
   };
@@ -454,11 +462,18 @@ export function MenuManagement() {
                     <CardContent className="p-4 space-y-4">
                       <Tabs value={editForm.apiConfig?.responseMapping?.type} onValueChange={v => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, type: v as any } } })}>
                         <TabsList className="grid w-full grid-cols-2"><TabsTrigger value="message">Message</TabsTrigger><TabsTrigger value="table">Table</TabsTrigger></TabsList>
-                        <TabsContent value="message" className="pt-4 space-y-4">
-                          <div className="space-y-2">
-                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Success Template (Use {'{{response.key}}'} syntax)</Label>
-                            <Input value={editForm.apiConfig?.responseMapping?.template} onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, template: e.target.value } } })} placeholder="Balance is {{response.data.balance}}" />
+                        <TabsContent value="message" className="pt-4 space-y-6">
+                          <div className="space-y-4">
+                            <div className="space-y-2">
+                              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Success Template (English)</Label>
+                              <Input value={editForm.apiConfig?.responseMapping?.template} onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, template: e.target.value } } })} placeholder="Balance is {{response.data.balance}}" />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-[10px] uppercase font-bold text-primary">Success Template (Amharic)</Label>
+                              <Input value={editForm.apiConfig?.responseMapping?.templateAm} onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, templateAm: e.target.value } } })} placeholder="የሂሳብዎ መጠን {{response.data.balance}} ነው" />
+                            </div>
                           </div>
+                          
                           {apiPreviewResult && (
                             <div className="p-3 border rounded-md bg-muted/5">
                               <span className="text-[9px] font-bold uppercase text-muted-foreground">Available Response Keys:</span>
@@ -472,6 +487,19 @@ export function MenuManagement() {
                               </div>
                             </div>
                           )}
+
+                          <Separator />
+                          
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Error Fallback (English)</Label>
+                              <Input value={editForm.apiConfig?.responseMapping?.errorFallback} onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, errorFallback: e.target.value } } })} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-[10px] uppercase font-bold text-primary">Error Fallback (Amharic)</Label>
+                              <Input value={editForm.apiConfig?.responseMapping?.errorFallbackAm} onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, errorFallbackAm: e.target.value } } })} />
+                            </div>
+                          </div>
                         </TabsContent>
                         <TabsContent value="table" className="space-y-4 pt-4">
                           <div className="flex items-center justify-between">

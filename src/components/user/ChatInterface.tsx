@@ -1,8 +1,7 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { MenuItem, KYCField, TableColumn } from '@/lib/types';
+import { MenuItem, KYCField, TableColumn, ApiConfig } from '@/lib/types';
 import { getStoredMenus } from '@/lib/store';
 import { ChatBubble } from './ChatBubble';
 import { Button } from '@/components/ui/button';
@@ -71,16 +70,20 @@ export function ChatInterface() {
     setMenus(data);
     const welcomeText = language === 'Amharic' ? 'ሰላም! ዛሬ እንዴት ልረዳዎ እችላለሁ?' : 'Hello! How can I assist you today?';
     setHistory([{ id: 'welcome', sender: 'bot', text: welcomeText, options: data.filter(m => m.parentId === null) }]);
-  }, []);
+  }, [language]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [history]);
 
+  // Fallback Logic: Amharic if available AND language is Amharic, otherwise English
   const getLocalizedName = (menu: MenuItem) => language === 'Amharic' && menu.nameAm ? menu.nameAm : menu.name;
   const getLocalizedContent = (menu: MenuItem) => language === 'Amharic' && menu.contentAm ? menu.contentAm : menu.content;
   const getLocalizedKYCPrompt = (field: KYCField) => language === 'Amharic' && field.promptAm ? field.promptAm : field.prompt;
   const getLocalizedTableHeader = (col: TableColumn) => language === 'Amharic' && col.headerAm ? col.headerAm : col.header;
+  
+  const getLocalizedTemplate = (mapping: ApiConfig['responseMapping']) => language === 'Amharic' && mapping.templateAm ? mapping.templateAm : mapping.template;
+  const getLocalizedErrorFallback = (mapping: ApiConfig['responseMapping']) => language === 'Amharic' && mapping.errorFallbackAm ? mapping.errorFallbackAm : mapping.errorFallback;
 
   const getVal = (path: string, obj: any) => {
     if (!path || !obj) return obj;
@@ -90,7 +93,6 @@ export function ChatInterface() {
   const findArrayData = (obj: any): { path: string; data: any[] } | null => {
     if (Array.isArray(obj)) return { path: '', data: obj };
     if (typeof obj !== 'object' || obj === null) return null;
-    
     for (const key in obj) {
       if (Array.isArray(obj[key])) return { path: key, data: obj[key] };
       if (typeof obj[key] === 'object') {
@@ -102,18 +104,13 @@ export function ChatInterface() {
   };
 
   const resolveTableCell = (key: string, row: any, root: any, arrayPath: string) => {
-    // 1. Try stripping the array prefix if key starts with it (e.g. rates.rate -> rate)
     if (arrayPath && key.startsWith(arrayPath + '.')) {
       const strippedKey = key.substring(arrayPath.length + 1);
       const val = getVal(strippedKey, row);
       if (val !== undefined) return val;
     }
-
-    // 2. Try looking inside the row directly
     const rowVal = getVal(key, row);
     if (rowVal !== undefined) return rowVal;
-
-    // 3. Fallback to looking in the root response
     return getVal(key, root);
   };
 
@@ -174,10 +171,10 @@ export function ChatInterface() {
 
     let botMsg: Message = { id: `bot-api-${Date.now()}`, sender: 'bot' };
     if (!success) {
-      botMsg.text = apiResponse?.message || mapping.errorFallback;
+      botMsg.text = apiResponse?.message || getLocalizedErrorFallback(mapping);
     } else {
       if (mapping.type === 'message') {
-        let resultText = mapping.template;
+        let resultText = getLocalizedTemplate(mapping);
         const matches = resultText.match(/{{response\.(.*?)}}/g);
         matches?.forEach(match => {
           const path = match.replace('{{response.', '').replace('}}', '');
@@ -194,7 +191,7 @@ export function ChatInterface() {
             arrayPath: foundArray.path
           };
           botMsg.text = language === 'Amharic' ? 'የተገኙ ውጤቶች የሚከተሉት ናቸው' : 'Here are the results:';
-        } else { botMsg.text = mapping.errorFallback; }
+        } else { botMsg.text = getLocalizedErrorFallback(mapping); }
       }
     }
     botMsg.options = menus.filter(m => m.parentId === menu.id);

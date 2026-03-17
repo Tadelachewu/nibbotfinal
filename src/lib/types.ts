@@ -36,11 +36,15 @@ export interface ApiConfig {
   responseMapping: {
     type: 'message' | 'table' | 'buttons' | 'trigger';
     template: string; // Handlebars-style template for message type
+    templateAm?: string;
     tableDataKey?: string; // Path to the array in the response, e.g., "response.items"
     tableColumns?: TableColumn[];
     errorFallback: string;
+    errorFallbackAm?: string;
     timeoutMessage: string;
+    timeoutMessageAm?: string;
     authRequiredMessage: string;
+    authRequiredMessageAm?: string;
   };
 }
 
