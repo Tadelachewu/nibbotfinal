@@ -181,11 +181,11 @@ export function MenuManagement() {
         if (auth.type === 'apiKey' && auth.apiKey) {
           headers[auth.apiKey.header || 'Authorization'] = auth.apiKey.value;
         } else if (auth.type === 'basic' && auth.basicAuth) {
-          const user = auth.basicAuth.mode === 'fixed' ? auth.basicAuth.user : 'TEST_USER';
-          const pass = auth.basicAuth.mode === 'fixed' ? auth.basicAuth.pass : 'TEST_PASS';
+          const user = auth.basicAuth.mode === 'fixed' ? auth.basicAuth.user || 'admin' : 'TEST_USER';
+          const pass = auth.basicAuth.mode === 'fixed' ? auth.basicAuth.pass || 'password123' : 'TEST_PASS';
           headers['Authorization'] = `Basic ${btoa(`${user}:${pass}`)}`;
         } else if (auth.type === 'bearer' && auth.bearer) {
-          // Simulate placeholder replacement
+          // Simulate placeholder replacement for testing
           headers['Authorization'] = auth.bearer.template.replace(/{{(.*?)}}/g, 'TEST_TOKEN');
         }
       }
@@ -574,7 +574,19 @@ export function MenuManagement() {
                                   onChange={e => {
                                     const config = editForm.apiConfig!;
                                     const auth = config.authConfig!;
-                                    setEditForm({ ...editForm, apiConfig: { ...config, authConfig: { ...auth, bearer: { ...auth.bearer!, template: e.target.value } } } });
+                                    setEditForm({ 
+                                      ...editForm, 
+                                      apiConfig: { 
+                                        ...config, 
+                                        authConfig: { 
+                                          ...auth, 
+                                          bearer: { 
+                                            ...(auth.bearer || { template: 'Bearer ' }), 
+                                            template: e.target.value 
+                                          } 
+                                        } 
+                                      } 
+                                    });
                                   }} 
                                 />
                                 <div className="flex flex-wrap gap-1 mt-2">
@@ -588,7 +600,19 @@ export function MenuManagement() {
                                         const config = editForm.apiConfig!;
                                         const auth = config.authConfig!;
                                         const current = auth.bearer?.template || 'Bearer ';
-                                        setEditForm({ ...editForm, apiConfig: { ...config, authConfig: { ...auth, bearer: { ...auth.bearer!, template: current + `{{${f.name}}}` } } } });
+                                        setEditForm({ 
+                                          ...editForm, 
+                                          apiConfig: { 
+                                            ...config, 
+                                            authConfig: { 
+                                              ...auth, 
+                                              bearer: { 
+                                                ...(auth.bearer || { template: 'Bearer ' }), 
+                                                template: current + `{{${f.name}}}` 
+                                              } 
+                                            } 
+                                          } 
+                                        });
                                       }}
                                     >
                                       {f.name}

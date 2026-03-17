@@ -55,9 +55,11 @@ export async function GET(request: Request) {
   const isValidBearer = authHeader === 'Bearer jwt_sample_token_456' || authHeader === 'Bearer TEST_TOKEN';
   const isValidBasicFixed = authHeader === 'Basic YWRtaW46cGFzc3dvcmQxMjM=';
   const isValidBasicDynamic = authHeader === `Basic ${btoa('TEST_USER:TEST_PASS')}`;
-  const isCustomUserPass = authHeader.startsWith('Basic ') && accountId === '88991122'; // Allow custom basic auth for demo
+  
+  // Also support template-based Bearer like Bearer jwt_sample_token_456-88991122
+  const isValidBearerTemplate = authHeader === `Bearer jwt_sample_token_456-${accountId}`;
 
-  if (!isValidBearer && !isValidBasicFixed && !isValidBasicDynamic && !isCustomUserPass) {
+  if (!isValidBearer && !isValidBasicFixed && !isValidBasicDynamic && !isValidBearerTemplate) {
     return NextResponse.json(
       { 
         status: "error", 
