@@ -1,24 +1,27 @@
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
-  // STRICT VALIDATION: This endpoint specifically tests API Key authentication
   const apiKey = request.headers.get('X-API-KEY');
   
+  // PUBLIC PREVIEW MODE: If no API Key is provided, return limited data
   if (!apiKey) {
-    return NextResponse.json(
-      { 
-        status: "error", 
-        message: "Unauthorized: Missing 'X-API-KEY' header. This endpoint requires an API Key." 
-      },
-      { status: 401 }
-    );
+    return NextResponse.json({
+      status: "success",
+      mode: "public_preview",
+      message: "Public Preview: Limited rates shown. Provide 'X-API-KEY: secret-123' for full list.",
+      base: "USD",
+      rates: [
+        { currency: "ETB", rate: "57.50", updated: "2024-05-20" }
+      ]
+    });
   }
 
+  // SECURE MODE: Validate the key
   if (apiKey !== 'secret-123') {
     return NextResponse.json(
       { 
         status: "error", 
-        message: `Unauthorized: Invalid API Key. You sent "${apiKey}", but the server expects "secret-123".` 
+        message: `Unauthorized: Invalid API Key "${apiKey}". The correct key is "secret-123".` 
       },
       { status: 401 }
     );

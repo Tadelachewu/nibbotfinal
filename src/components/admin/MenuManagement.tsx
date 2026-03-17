@@ -326,12 +326,20 @@ export function MenuManagement() {
                     if (!isSelected) {
                       setEditForm({ ...editForm, attachedMenuIds: [...currentIds, item.id] });
                     } else {
-                      setEditForm({ ...editForm, attachedMenuIds: currentIds.filter(id => id !== item.id) });
+                      setEditForm({ ...editForm, attachedMenuIds: currentIds.filter(id => id !== id) });
                     }
                   }}
                 >
                   <Checkbox 
                     checked={isSelected} 
+                    onCheckedChange={(checked) => {
+                      const currentIds = editForm.attachedMenuIds || [];
+                      if (checked) {
+                        setEditForm({ ...editForm, attachedMenuIds: [...currentIds, item.id] });
+                      } else {
+                        setEditForm({ ...editForm, attachedMenuIds: currentIds.filter(id => id !== item.id) });
+                      }
+                    }}
                     className="h-4 w-4 rounded-sm" 
                   />
                   
@@ -467,7 +475,7 @@ export function MenuManagement() {
                                 <Input 
                                   placeholder="secret-123" 
                                   value={editForm.apiConfig?.authConfig?.apiKey?.value} 
-                                  onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, apiKey: { ...editForm.apiConfig!.authConfig!.apiKey!, value: e.target.value } } } })} 
+                                  onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!.apiKey!, value: e.target.value } } } })} 
                                 />
                               </div>
                             </div>
@@ -500,7 +508,19 @@ export function MenuManagement() {
                                 <Input 
                                   placeholder="Bearer {{user_token}}" 
                                   value={editForm.apiConfig?.authConfig?.bearer?.template} 
-                                  onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, bearer: { ...editForm.apiConfig!.authConfig!.bearer!, template: e.target.value } } } })} 
+                                  onChange={e => setEditForm({ 
+                                    ...editForm, 
+                                    apiConfig: { 
+                                      ...editForm.apiConfig!, 
+                                      authConfig: { 
+                                        ...editForm.apiConfig!.authConfig!, 
+                                        bearer: { 
+                                          ...editForm.apiConfig!.authConfig!.bearer!, 
+                                          template: e.target.value 
+                                        } 
+                                      } 
+                                    } 
+                                  })} 
                                 />
                                 <p className="text-[8px] text-muted-foreground mt-1">Placeholders like {'{{user_token}}'} will be replaced at runtime.</p>
                               </div>
@@ -521,7 +541,7 @@ export function MenuManagement() {
                           {apiPreviewResult && (
                             <div className="bg-slate-950 p-3 rounded-md">
                               <div className="flex justify-between items-center mb-2">
-                                <span className="text-[10px] text-slate-400 font-mono">LATEST API RESPONSE:</span>
+                                <span className="text-[10px] text-slate-400 font-mono uppercase">Latest API Response:</span>
                                 <Button variant="ghost" size="sm" className="h-6 text-[9px] text-slate-400" onClick={() => { setApiPreviewResult(null); setSentHeaders(null); }}><X size={10} className="mr-1"/> Clear</Button>
                               </div>
                               <ScrollArea className="h-48 mt-2"><pre className={cn("text-[10px] font-mono", apiPreviewResult.status === 'error' ? 'text-red-400' : 'text-emerald-400')}>{JSON.stringify(apiPreviewResult, null, 2)}</pre></ScrollArea>

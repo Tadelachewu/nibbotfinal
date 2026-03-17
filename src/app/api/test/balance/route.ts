@@ -3,32 +3,7 @@ import { NextResponse } from 'next/server';
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const authHeader = request.headers.get('Authorization');
-  
-  // STRICT VALIDATION: This endpoint tests Bearer or Basic Auth
-  if (!authHeader) {
-    return NextResponse.json(
-      { 
-        status: "error", 
-        message: "Unauthorized: This endpoint (/api/test/balance) is SECURE and requires an Authorization header. Your request was sent without any credentials (Auth Type: None)."
-      },
-      { status: 401 }
-    );
-  }
-
-  // Support specifically configured test values
-  const isValidBearer = authHeader === 'Bearer jwt_sample_token_456' || authHeader === 'Bearer TEST_VALUE';
-  const isValidBasic = authHeader === 'Basic YWRtaW46cGFzc3dvcmQxMjM=';
-
-  if (!isValidBearer && !isValidBasic) {
-    return NextResponse.json(
-      { 
-        status: "error", 
-        message: `Unauthorized: Invalid credentials. Header received: "${authHeader}". ` +
-                 "To fix this, use Bearer {{user_token}} or Basic Auth (admin:password123)."
-      },
-      { status: 401 }
-    );
-  }
+  const accountId = searchParams.get('account_id');
 
   // Simulated database of accounts
   const mockAccounts: Record<string, any> = {
@@ -52,25 +27,42 @@ export async function GET(request: Request) {
       account_id: "99887766",
       account_type: "Premium Savings",
       last_updated: new Date().toISOString()
-    },
-    '12345678': {
-      balance: "0.00",
-      currency: "ETB",
-      account_id: "12345678",
-      account_type: "Student Account",
-      last_updated: new Date().toISOString()
     }
   };
 
-  const accountId = searchParams.get('account_id');
-
-  // Preview Mode helper
+  // PUBLIC PREVIEW MODE: If no account_id is requested, return sample data to help with mapping
   if (!accountId) {
     return NextResponse.json({
       status: "success",
-      message: "Preview Mode: Showing data structure for mapping.",
+      mode: "public_preview",
+      message: "Public Preview: Showing data structure. (Note: Accessing specific accounts requires an Authorization header).",
       data: mockAccounts['88991122']
     });
+  }
+
+  // SECURE MODE: Specific account requests MUST have valid auth
+  if (!authHeader) {
+    return NextResponse.json(
+      { 
+        status: "error", 
+        message: `Unauthorized: This request for account "${accountId}" requires an Authorization header. (Auth Type: None detected).`
+      },
+      { status: 401 }
+    );
+  }
+
+  const isValidBearer = authHeader === 'Bearer jwt_sample_token_456' || authHeader === 'Bearer TEST_VALUE';
+  const isValidBasic = authHeader === 'Basic YWRtaW46cGFzc3dvcmQxMjM=';
+
+  if (!isValidBearer && !isValidBasic) {
+    return NextResponse.json(
+      { 
+        status: "error", 
+        message: `Unauthorized: Invalid credentials. Header received: "${authHeader}". ` +
+                 "To fix this, use Bearer {{user_token}} or Basic Auth (admin:password123)."
+      },
+      { status: 401 }
+    );
   }
 
   if (mockAccounts[accountId]) {
