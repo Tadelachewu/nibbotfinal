@@ -27,6 +27,7 @@ import {
   Languages,
   ShieldCheck,
   Eye,
+  FileCode,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -71,6 +72,7 @@ export function MenuManagement() {
   const [apiPreviewResult, setApiPreviewResult] = useState<any>(null);
   const [isTestingApi, setIsTestingApi] = useState(false);
   const [sentHeaders, setSentHeaders] = useState<Record<string, string> | null>(null);
+  const [sentBody, setSentBody] = useState<any>(null);
 
   useEffect(() => {
     setMenus(getStoredMenus());
@@ -96,6 +98,7 @@ export function MenuManagement() {
     setEditingId(menu.id);
     setApiPreviewResult(null);
     setSentHeaders(null);
+    setSentBody(null);
     setEditForm(JSON.parse(JSON.stringify(menu))); 
     setIsEditDialogOpen(true);
   };
@@ -149,6 +152,8 @@ export function MenuManagement() {
     setIsTestingApi(true);
     setApiPreviewResult(null);
     setSentHeaders(null);
+    setSentBody(null);
+
     try {
       const endpoint = editForm.apiConfig.endpoint;
       const headers: Record<string, string> = {
@@ -156,40 +161,64 @@ export function MenuManagement() {
         ...editForm.apiConfig.headers
       };
 
+      // Comprehensive Sample KYC for Preview
+      const sampleKyc: Record<string, string> = { 
+        account_id: '88991122', 
+        account_number: '12345',
+        verification_code: '9988',
+        phone: '251911223344', 
+        username: 'TEST_USER', 
+        password: 'TEST_PASS' 
+      };
+
+      const resolve = (str: string) => str.replace(/{{\s*(.*?)\s*}}/g, (match, p1) => {
+        const key = p1.trim();
+        if (key === 'user_token') return 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature';
+        if (key === 'user_id') return 'user_123';
+        return sampleKyc[key] || match;
+      });
+
+      // Authorization Headers
       const auth = editForm.apiConfig.authConfig;
       if (auth && auth.type !== 'none') {
-        const sampleKyc = { 
-          account_id: '88991122', 
-          phone: '251911223344', 
-          username: 'TEST_USER', 
-          password: 'TEST_PASS' 
-        };
-        const resolve = (str: string) => str.replace(/{{\s*(.*?)\s*}}/g, (match, p1) => {
-          const key = p1.trim();
-          if (key === 'user_token') return 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature';
-          return (sampleKyc as any)[key] || match;
-        });
-
         if (auth.type === 'apiKey' && auth.apiKey) {
           headers[auth.apiKey.header || 'X-API-KEY'] = resolve(auth.apiKey.value);
         } else if (auth.type === 'basic' && auth.basicAuth) {
-          const user = auth.basicAuth.mode === 'fixed' ? auth.basicAuth.user || 'admin' : sampleKyc.username;
-          const pass = auth.basicAuth.mode === 'fixed' ? auth.basicAuth.pass || 'password123' : sampleKyc.password;
+          const user = auth.basicAuth.mode === 'fixed' ? auth.basicAuth.user || 'admin' : sampleKyc[auth.basicAuth.userSource || 'username'];
+          const pass = auth.basicAuth.mode === 'fixed' ? auth.basicAuth.pass || 'password123' : sampleKyc[auth.basicAuth.passSource || 'password'];
           headers[auth.basicAuth.header || 'Authorization'] = `Basic ${btoa(`${user}:${pass}`)}`;
         } else if (auth.type === 'bearer' && auth.bearer) {
           headers[auth.bearer.header || 'Authorization'] = resolve(auth.bearer.template);
         }
       }
 
-      setSentHeaders(headers);
+      // Request Body / Parameters
+      const requestPayload: Record<string, any> = {};
+      editForm.apiConfig.requestParameters?.forEach(param => {
+        if (param.sourceType === 'kyc') requestPayload[param.apiKey] = sampleKyc[param.sourceValue] || `{{${param.sourceValue}}}`;
+        else if (param.sourceValue === 'user.id') requestPayload[param.apiKey] = 'user_123';
+        else if (param.sourceValue === 'user.token') requestPayload[param.apiKey] = 'jwt_sample_123';
+      });
 
-      const response = await fetch(endpoint, {
+      setSentHeaders(headers);
+      if (editForm.apiConfig.method === 'POST') setSentBody(requestPayload);
+
+      const fetchUrl = editForm.apiConfig.method === 'GET' && Object.keys(requestPayload).length > 0
+        ? `${endpoint}?${new URLSearchParams(requestPayload).toString()}`
+        : endpoint;
+
+      const response = await fetch(fetchUrl, {
         method: editForm.apiConfig.method,
         headers,
+        body: editForm.apiConfig.method === 'POST' ? JSON.stringify(requestPayload) : undefined,
         cache: 'no-store'
       });
       
-      const data = await response.json().catch(() => ({ status: 'error', message: 'Could not parse JSON response.' }));
+      const data = await response.json().catch(() => ({ 
+        status: 'error', 
+        message: 'The API returned a non-JSON response or an empty body.' 
+      }));
+      
       setApiPreviewResult(data);
 
       if (response.ok) {
@@ -567,22 +596,29 @@ export function MenuManagement() {
                         </div>
                       </div>
 
-                      {(sentHeaders || apiPreviewResult) && (
-                        <div className="space-y-2">
+                      {(sentHeaders || sentBody || apiPreviewResult) && (
+                        <div className="space-y-3 pt-2">
                           {sentHeaders && (
                             <div className="bg-slate-900 p-3 rounded-md border border-slate-700">
                               <span className="text-[9px] text-amber-400 font-bold uppercase flex items-center gap-2"><Eye size={10} /> Client Request Headers:</span>
-                              <pre className="text-[10px] text-slate-300 font-mono mt-1">{JSON.stringify(sentHeaders, null, 2)}</pre>
+                              <pre className="text-[10px] text-slate-300 font-mono mt-1 whitespace-pre-wrap">{JSON.stringify(sentHeaders, null, 2)}</pre>
+                            </div>
+                          )}
+
+                          {sentBody && (
+                            <div className="bg-slate-900 p-3 rounded-md border border-slate-700">
+                              <span className="text-[9px] text-primary font-bold uppercase flex items-center gap-2"><FileCode size={10} /> Client Request Body:</span>
+                              <pre className="text-[10px] text-slate-300 font-mono mt-1 whitespace-pre-wrap">{JSON.stringify(sentBody, null, 2)}</pre>
                             </div>
                           )}
                           
                           {apiPreviewResult && (
-                            <div className="bg-slate-950 p-3 rounded-md">
+                            <div className="bg-slate-950 p-3 rounded-md border border-slate-800 shadow-xl">
                               <div className="flex justify-between items-center mb-2">
                                 <span className="text-[10px] text-slate-400 font-mono uppercase">Latest API Response:</span>
-                                <Button variant="ghost" size="sm" className="h-6 text-[9px] text-slate-400" onClick={() => { setApiPreviewResult(null); setSentHeaders(null); }}><X size={10} className="mr-1"/> Clear</Button>
+                                <Button variant="ghost" size="sm" className="h-6 text-[9px] text-slate-400" onClick={() => { setApiPreviewResult(null); setSentHeaders(null); setSentBody(null); }}><X size={10} className="mr-1"/> Clear</Button>
                               </div>
-                              <ScrollArea className="h-48 mt-2"><pre className={cn("text-[10px] font-mono", apiPreviewResult.status === 'error' ? 'text-red-400' : 'text-emerald-400')}>{JSON.stringify(apiPreviewResult, null, 2)}</pre></ScrollArea>
+                              <ScrollArea className="h-48 mt-2"><pre className={cn("text-[10px] font-mono whitespace-pre-wrap", apiPreviewResult.status === 'error' ? 'text-red-400' : 'text-emerald-400')}>{JSON.stringify(apiPreviewResult, null, 2)}</pre></ScrollArea>
                             </div>
                           )}
                         </div>
