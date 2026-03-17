@@ -26,6 +26,7 @@ import {
   Table as TableIcon,
   Languages,
   ShieldCheck,
+  Eye,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -68,6 +69,7 @@ export function MenuManagement() {
   
   const [apiPreviewResult, setApiPreviewResult] = useState<any>(null);
   const [isTestingApi, setIsTestingApi] = useState(false);
+  const [sentHeaders, setSentHeaders] = useState<Record<string, string> | null>(null);
 
   useEffect(() => {
     setMenus(getStoredMenus());
@@ -92,6 +94,7 @@ export function MenuManagement() {
   const handleStartEdit = (menu: MenuItem) => {
     setEditingId(menu.id);
     setApiPreviewResult(null);
+    setSentHeaders(null);
     setEditForm({ 
       ...menu, 
       responseType: menu.responseType || 'static',
@@ -176,6 +179,7 @@ export function MenuManagement() {
     }
     setIsTestingApi(true);
     setApiPreviewResult(null);
+    setSentHeaders(null);
     try {
       const endpoint = editForm.apiConfig.endpoint.startsWith('/') 
         ? editForm.apiConfig.endpoint 
@@ -198,10 +202,12 @@ export function MenuManagement() {
         }
       }
 
+      setSentHeaders(headers);
+
       const response = await fetch(endpoint, {
         method: editForm.apiConfig.method,
         headers,
-        cache: 'no-store' // CRITICAL: Disable caching for live testing
+        cache: 'no-store'
       });
       
       const data = await response.json();
@@ -210,7 +216,7 @@ export function MenuManagement() {
       if (response.ok) {
         toast({ title: "API Test Successful", description: "Response received." });
       } else {
-        toast({ title: "API Info", description: `Status ${response.status}: ${data.message || 'Error'}`, variant: response.status === 401 ? "destructive" : "default" });
+        toast({ title: "API Warning", description: `Status ${response.status}: ${data.message || 'Error'}`, variant: response.status === 401 ? "destructive" : "default" });
       }
     } catch (e) {
       toast({ title: "API Network Error", description: "Could not reach endpoint.", variant: "destructive" });
@@ -438,7 +444,7 @@ export function MenuManagement() {
                             >
                               <SelectTrigger><SelectValue /></SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="none">None</SelectItem>
+                                <SelectItem value="none">None (Public API)</SelectItem>
                                 <SelectItem value="apiKey">API Key</SelectItem>
                                 <SelectItem value="basic">Basic Auth</SelectItem>
                                 <SelectItem value="bearer">Bearer Token</SelectItem>
@@ -503,13 +509,24 @@ export function MenuManagement() {
                         </div>
                       </div>
 
-                      {apiPreviewResult && (
-                        <div className="bg-slate-950 p-3 rounded-md">
-                          <div className="flex justify-between items-center mb-2">
-                            <span className="text-[10px] text-slate-400 font-mono">LATEST API RESPONSE:</span>
-                            <Button variant="ghost" size="sm" className="h-6 text-[9px] text-slate-400" onClick={() => setApiPreviewResult(null)}><X size={10} className="mr-1"/> Clear</Button>
-                          </div>
-                          <ScrollArea className="h-48 mt-2"><pre className="text-[10px] text-emerald-400 font-mono">{JSON.stringify(apiPreviewResult, null, 2)}</pre></ScrollArea>
+                      {(sentHeaders || apiPreviewResult) && (
+                        <div className="space-y-2">
+                          {sentHeaders && (
+                            <div className="bg-slate-900 p-3 rounded-md border border-slate-700">
+                              <span className="text-[9px] text-amber-400 font-bold uppercase flex items-center gap-2"><Eye size={10} /> Client Request Headers:</span>
+                              <pre className="text-[10px] text-slate-300 font-mono mt-1">{JSON.stringify(sentHeaders, null, 2)}</pre>
+                            </div>
+                          )}
+                          
+                          {apiPreviewResult && (
+                            <div className="bg-slate-950 p-3 rounded-md">
+                              <div className="flex justify-between items-center mb-2">
+                                <span className="text-[10px] text-slate-400 font-mono">LATEST API RESPONSE:</span>
+                                <Button variant="ghost" size="sm" className="h-6 text-[9px] text-slate-400" onClick={() => { setApiPreviewResult(null); setSentHeaders(null); }}><X size={10} className="mr-1"/> Clear</Button>
+                              </div>
+                              <ScrollArea className="h-48 mt-2"><pre className={cn("text-[10px] font-mono", apiPreviewResult.status === 'error' ? 'text-red-400' : 'text-emerald-400')}>{JSON.stringify(apiPreviewResult, null, 2)}</pre></ScrollArea>
+                            </div>
+                          )}
                         </div>
                       )}
                     </CardContent>

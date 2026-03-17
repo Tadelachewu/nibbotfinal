@@ -9,7 +9,7 @@ export async function GET(request: Request) {
     return NextResponse.json(
       { 
         status: "error", 
-        message: "Unauthorized: Missing 'Authorization' header. Use Bearer {{user_token}} or Basic Auth."
+        message: "Unauthorized: This endpoint (/api/test/balance) is SECURE and requires an Authorization header. Your request was sent without any credentials (Auth Type: None)."
       },
       { status: 401 }
     );
@@ -24,7 +24,7 @@ export async function GET(request: Request) {
       { 
         status: "error", 
         message: `Unauthorized: Invalid credentials. Header received: "${authHeader}". ` +
-                 "Try Bearer {{user_token}} (which resolves to 'jwt_sample_token_456' in chat) or admin:password123 for Basic Auth."
+                 "To fix this, use Bearer {{user_token}} or Basic Auth (admin:password123)."
       },
       { status: 401 }
     );
