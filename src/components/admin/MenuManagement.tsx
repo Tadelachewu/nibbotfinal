@@ -196,7 +196,7 @@ export function MenuManagement() {
           const credentials = btoa(`${auth.basicAuth.user}:${auth.basicAuth.pass}`);
           headers['Authorization'] = `Basic ${credentials}`;
         } else if (auth.type === 'bearer' && auth.bearer) {
-          // In test mode, we use literal string
+          // In test mode, we use literal string for placeholders
           headers['Authorization'] = auth.bearer.template.replace(/{{(.*?)}}/g, 'TEST_VALUE');
         }
       }
@@ -440,11 +440,19 @@ export function MenuManagement() {
                             <div className="space-y-3 p-3 border rounded-md bg-muted/5">
                               <div className="space-y-1">
                                 <Label className="text-[9px] uppercase font-bold">Header Name</Label>
-                                <Input placeholder="Authorization" value={editForm.apiConfig?.authConfig?.apiKey?.header} onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, apiKey: { ...editForm.apiConfig!.authConfig!.apiKey!, header: e.target.value } } } })} />
+                                <Input 
+                                  placeholder="Authorization" 
+                                  value={editForm.apiConfig?.authConfig?.apiKey?.header} 
+                                  onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, apiKey: { ...editForm.apiConfig?.authConfig?.apiKey, header: e.target.value } } } })} 
+                                />
                               </div>
                               <div className="space-y-1">
                                 <Label className="text-[9px] uppercase font-bold">Key Value</Label>
-                                <Input placeholder="Secret API Key" value={editForm.apiConfig?.authConfig?.apiKey?.value} onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, apiKey: { ...editForm.apiConfig!.authConfig!.apiKey!, value: e.target.value } } } })} />
+                                <Input 
+                                  placeholder="Secret API Key" 
+                                  value={editForm.apiConfig?.authConfig?.apiKey?.value} 
+                                  onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, apiKey: { ...editForm.apiConfig?.authConfig?.apiKey, value: e.target.value } } } })} 
+                                />
                               </div>
                             </div>
                           )}
@@ -453,11 +461,18 @@ export function MenuManagement() {
                             <div className="space-y-3 p-3 border rounded-md bg-muted/5">
                               <div className="space-y-1">
                                 <Label className="text-[9px] uppercase font-bold">Username</Label>
-                                <Input value={editForm.apiConfig?.authConfig?.basicAuth?.user} onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, basicAuth: { ...editForm.apiConfig!.authConfig!.basicAuth!, user: e.target.value } } } })} />
+                                <Input 
+                                  value={editForm.apiConfig?.authConfig?.basicAuth?.user} 
+                                  onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, basicAuth: { ...editForm.apiConfig?.authConfig?.basicAuth, user: e.target.value } } } })} 
+                                />
                               </div>
                               <div className="space-y-1">
                                 <Label className="text-[9px] uppercase font-bold">Password</Label>
-                                <Input type="password" value={editForm.apiConfig?.authConfig?.basicAuth?.pass} onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, basicAuth: { ...editForm.apiConfig!.authConfig!.basicAuth!, pass: e.target.value } } } })} />
+                                <Input 
+                                  type="password" 
+                                  value={editForm.apiConfig?.authConfig?.basicAuth?.pass} 
+                                  onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, basicAuth: { ...editForm.apiConfig?.authConfig?.basicAuth, pass: e.target.value } } } })} 
+                                />
                               </div>
                             </div>
                           )}
@@ -466,7 +481,11 @@ export function MenuManagement() {
                             <div className="space-y-3 p-3 border rounded-md bg-muted/5">
                               <div className="space-y-1">
                                 <Label className="text-[9px] uppercase font-bold">Token Template</Label>
-                                <Input placeholder="Bearer {{user_token}}" value={editForm.apiConfig?.authConfig?.bearer?.template} onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, bearer: { ...editForm.apiConfig!.authConfig!.bearer!, template: e.target.value } } } })} />
+                                <Input 
+                                  placeholder="Bearer {{user_token}}" 
+                                  value={editForm.apiConfig?.authConfig?.bearer?.template} 
+                                  onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, bearer: { ...editForm.apiConfig?.authConfig?.bearer, template: e.target.value } } } })} 
+                                />
                                 <p className="text-[8px] text-muted-foreground mt-1">Placeholders like {'{{user_token}}'} will be replaced at runtime.</p>
                               </div>
                             </div>
