@@ -24,7 +24,8 @@ import {
   Zap,
   PlayCircle,
   Link2,
-  Table as TableIcon
+  Table as TableIcon,
+  Languages
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -52,6 +53,7 @@ import { adminContentTranslator } from '@/ai/flows/admin-content-translator';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 
 export function MenuManagement() {
   const [menus, setMenus] = useState<MenuItem[]>([]);
@@ -123,17 +125,18 @@ export function MenuManagement() {
       try {
         const updatedForm = { ...editForm };
         
+        // AI Suggestion only for missing fields
         try {
-          if (editForm.name) {
+          if (editForm.name && !editForm.nameAm) {
             const res = await adminContentTranslator({ content: editForm.name, targetLanguage: 'Amharic' });
             updatedForm.nameAm = res.translatedContent;
           }
-          if (editForm.responseType === 'static' && editForm.content) {
+          if (editForm.responseType === 'static' && editForm.content && !editForm.contentAm) {
             const res = await adminContentTranslator({ content: editForm.content, targetLanguage: 'Amharic' });
             updatedForm.contentAm = res.translatedContent;
           }
         } catch (aiError) {
-          console.warn("Localization failed, but saving menu item anyway:", aiError);
+          console.warn("Localization AI suggestion failed, saving manual entries:", aiError);
         }
 
         updateMenu(editingId, updatedForm);
@@ -229,7 +232,10 @@ export function MenuManagement() {
                     <ChevronDown size={14} />
                   </button>
                   {item.responseType === 'api' ? <Zap size={16} className="text-amber-500 shrink-0" /> : <MenuIcon size={16} className="text-primary shrink-0" />}
-                  <span className="truncate text-sm font-medium">{item.name}</span>
+                  <div className="flex flex-col min-w-0">
+                    <span className="truncate text-sm font-medium">{item.name}</span>
+                    {item.nameAm && <span className="truncate text-[10px] text-muted-foreground">{item.nameAm}</span>}
+                  </div>
                 </div>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => handleAdd(item.id)}><FolderPlus size={14} /></Button>
@@ -293,21 +299,40 @@ export function MenuManagement() {
           <ScrollArea className="flex-1 p-6">
             <div className="space-y-8 pb-20">
               <div className="grid gap-6 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Menu Text (English)</Label>
-                  <Input value={editForm.name || ''} onChange={e => setEditForm({ ...editForm, name: e.target.value })} />
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2 text-xs uppercase font-bold text-muted-foreground"><Languages size={14} /> Menu Text (English)</Label>
+                    <Input value={editForm.name || ''} onChange={e => setEditForm({ ...editForm, name: e.target.value })} placeholder="e.g. Services" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2 text-xs uppercase font-bold text-primary"><Languages size={14} /> Amharic Translation</Label>
+                    <Input value={editForm.nameAm || ''} onChange={e => setEditForm({ ...editForm, nameAm: e.target.value })} placeholder="ለምሳሌ፡ አገልግሎቶች" />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Action Type</Label>
-                  <Select value={editForm.responseType} onValueChange={(v: any) => setEditForm({ ...editForm, responseType: v })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="static">Static Response</SelectItem><SelectItem value="api">API Action</SelectItem></SelectContent>
-                  </Select>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs uppercase font-bold text-muted-foreground">Action Type</Label>
+                    <Select value={editForm.responseType} onValueChange={(v: any) => setEditForm({ ...editForm, responseType: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent><SelectItem value="static">Static Response</SelectItem><SelectItem value="api">API Action</SelectItem></SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
 
+              <Separator />
+
               {editForm.responseType === 'static' ? (
-                <WysiwygEditor title={editForm.name || ''} value={editForm.content || ''} onChange={v => setEditForm({ ...editForm, content: v })} />
+                <div className="space-y-8">
+                  <div className="space-y-4">
+                    <Label className="text-xs uppercase font-bold text-muted-foreground">Response Content (English)</Label>
+                    <WysiwygEditor title="English Content" value={editForm.content || ''} onChange={v => setEditForm({ ...editForm, content: v })} />
+                  </div>
+                  <div className="space-y-4">
+                    <Label className="text-xs uppercase font-bold text-primary">Response Content (Amharic)</Label>
+                    <WysiwygEditor title="Amharic Content" value={editForm.contentAm || ''} onChange={v => setEditForm({ ...editForm, contentAm: v })} />
+                  </div>
+                </div>
               ) : (
                 <div className="space-y-8">
                   <Card>
@@ -345,28 +370,42 @@ export function MenuManagement() {
                           <Label className="text-xs font-bold uppercase">1. Collected KYC Fields</Label>
                           <Button variant="ghost" size="sm" onClick={() => {
                             const fields = editForm.apiConfig?.kycFields || [];
-                            setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, kycFields: [...fields, { id: Math.random().toString(36).substr(2, 9), name: '', prompt: '', type: 'text', order: fields.length }] } });
+                            setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, kycFields: [...fields, { id: Math.random().toString(36).substr(2, 9), name: '', prompt: '', promptAm: '', type: 'text', order: fields.length }] } });
                           }}><Plus className="mr-1" /> Add KYC</Button>
                         </div>
                         {editForm.apiConfig?.kycFields?.map((field, idx) => (
-                          <div key={field.id} className="flex gap-2 items-start p-3 border rounded-md bg-muted/5 group">
-                            <div className="grid grid-cols-3 gap-2 flex-1">
-                              <Input placeholder="Field Name (e.g. phone)" value={field.name} onChange={e => {
+                          <div key={field.id} className="flex flex-col gap-3 p-4 border rounded-md bg-muted/5 group relative">
+                            <div className="grid grid-cols-3 gap-3">
+                              <div className="space-y-1">
+                                <Label className="text-[10px] uppercase font-bold">Field Key</Label>
+                                <Input placeholder="e.g. phone" value={field.name} onChange={e => {
+                                  const fields = [...editForm.apiConfig!.kycFields];
+                                  fields[idx].name = e.target.value;
+                                  setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, kycFields: fields } });
+                                }} />
+                              </div>
+                              <div className="col-span-2 space-y-1">
+                                <Label className="text-[10px] uppercase font-bold">English Prompt</Label>
+                                <Input placeholder="e.g. Please enter your phone number" value={field.prompt} onChange={e => {
+                                  const fields = [...editForm.apiConfig!.kycFields];
+                                  fields[idx].prompt = e.target.value;
+                                  setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, kycFields: fields } });
+                                }} />
+                              </div>
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[10px] uppercase font-bold text-primary">Amharic Prompt (Manual Override)</Label>
+                              <Input placeholder="ለምሳሌ፡ እባክዎን ስልክ ቁጥርዎን ያስገቡ" value={field.promptAm} onChange={e => {
                                 const fields = [...editForm.apiConfig!.kycFields];
-                                fields[idx].name = e.target.value;
-                                setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, kycFields: fields } });
-                              }} />
-                              <Input className="col-span-2" placeholder="User Prompt" value={field.prompt} onChange={e => {
-                                const fields = [...editForm.apiConfig!.kycFields];
-                                fields[idx].prompt = e.target.value;
+                                fields[idx].promptAm = e.target.value;
                                 setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, kycFields: fields } });
                               }} />
                             </div>
-                            <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => {
+                            <Button variant="ghost" size="icon" className="absolute -right-2 -top-2 h-7 w-7 rounded-full bg-white border text-destructive shadow-sm opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => {
                                const fields = editForm.apiConfig!.kycFields.filter((_, i) => i !== idx);
                                setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, kycFields: fields } });
                             }}>
-                              <Trash2 size={14} />
+                              <Trash2 size={12} />
                             </Button>
                           </div>
                         ))}
@@ -443,25 +482,12 @@ export function MenuManagement() {
                             }}><Plus className="mr-1" /> Add Column</Button>
                           </div>
                           
-                          {apiPreviewResult && (
-                             <div className="p-3 border rounded-md bg-muted/5 mb-4">
-                               <span className="text-[9px] font-bold uppercase text-muted-foreground">Detected Response Fields (Select to fill Key):</span>
-                               <div className="flex flex-wrap gap-1 mt-2">
-                                 {getDetectedKeys(apiPreviewResult).map(k => (
-                                   <Badge key={k} variant="secondary" className="text-[9px] cursor-pointer hover:bg-primary/20" onClick={() => {
-                                      toast({ title: "Field selected", description: `Field ${k} is ready for column mapping.` });
-                                   }}>{k}</Badge>
-                                 ))}
-                               </div>
-                             </div>
-                          )}
-
-                          <div className="space-y-3">
+                          <div className="space-y-4">
                             {editForm.apiConfig?.responseMapping?.tableColumns?.map((col, idx) => (
-                              <div key={idx} className="flex flex-col gap-3 p-3 border rounded-md bg-white group relative">
-                                <div className="grid grid-cols-2 gap-3">
+                              <div key={idx} className="flex flex-col gap-3 p-4 border rounded-md bg-white group relative shadow-sm">
+                                <div className="grid grid-cols-3 gap-3">
                                   <div className="space-y-1">
-                                    <Label className="text-[9px] text-muted-foreground uppercase font-bold">Header Label</Label>
+                                    <Label className="text-[9px] text-muted-foreground uppercase font-bold">English Header</Label>
                                     <Input className="h-8 text-xs" placeholder="e.g. Price" value={col.header} onChange={e => {
                                       const cols = [...editForm.apiConfig!.responseMapping.tableColumns!];
                                       cols[idx].header = e.target.value;
@@ -469,20 +495,27 @@ export function MenuManagement() {
                                     }} />
                                   </div>
                                   <div className="space-y-1">
+                                    <Label className="text-[9px] text-primary uppercase font-bold">Amharic Header</Label>
+                                    <Input className="h-8 text-xs" placeholder="ለምሳሌ፡ ዋጋ" value={col.headerAm} onChange={e => {
+                                      const cols = [...editForm.apiConfig!.responseMapping.tableColumns!];
+                                      cols[idx].headerAm = e.target.value;
+                                      setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, tableColumns: cols } } });
+                                    }} />
+                                  </div>
+                                  <div className="space-y-1">
                                     <Label className="text-[9px] text-muted-foreground uppercase font-bold">JSON Data Key</Label>
-                                    <div className="flex gap-1">
-                                      <Input className="h-8 text-xs font-mono" placeholder="e.g. price.amount" value={col.key} onChange={e => {
-                                        const cols = [...editForm.apiConfig!.responseMapping.tableColumns!];
-                                        cols[idx].key = e.target.value;
-                                        setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, tableColumns: cols } } });
-                                      }} />
-                                    </div>
+                                    <Input className="h-8 text-xs font-mono" placeholder="e.g. price.amount" value={col.key} onChange={e => {
+                                      const cols = [...editForm.apiConfig!.responseMapping.tableColumns!];
+                                      cols[idx].key = e.target.value;
+                                      setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, tableColumns: cols } } });
+                                    }} />
                                   </div>
                                 </div>
                                 
                                 {apiPreviewResult && (
-                                  <div className="flex flex-wrap gap-1">
-                                    {getDetectedKeys(apiPreviewResult).slice(0, 8).map(k => (
+                                  <div className="flex flex-wrap gap-1 border-t pt-2 mt-1">
+                                    <span className="text-[8px] text-muted-foreground self-center mr-1">DETECTED:</span>
+                                    {getDetectedKeys(apiPreviewResult).slice(0, 12).map(k => (
                                       <Badge key={k} variant="outline" className="text-[8px] cursor-pointer hover:bg-primary/5 py-0 px-1" onClick={() => {
                                         const cols = [...editForm.apiConfig!.responseMapping.tableColumns!];
                                         cols[idx].key = k;
@@ -492,11 +525,11 @@ export function MenuManagement() {
                                   </div>
                                 )}
 
-                                <Button variant="ghost" size="icon" className="absolute -right-2 -top-2 h-6 w-6 rounded-full bg-destructive text-white shadow-sm hover:bg-destructive/90 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => {
+                                <Button variant="ghost" size="icon" className="absolute -right-2 -top-2 h-7 w-7 rounded-full bg-white border text-destructive shadow-sm opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => {
                                    const cols = editForm.apiConfig!.responseMapping.tableColumns!.filter((_, i) => i !== idx);
                                    setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, responseMapping: { ...editForm.apiConfig!.responseMapping, tableColumns: cols } } });
                                 }}>
-                                  <Trash2 size={10} />
+                                  <Trash2 size={12} />
                                 </Button>
                               </div>
                             ))}
@@ -508,15 +541,17 @@ export function MenuManagement() {
                 </div>
               )}
 
-              <div className="pt-8 border-t">
+              <Separator />
+
+              <div className="pt-8">
                 <Label className="text-sm font-bold flex items-center gap-2 mb-4"><ListTree size={16} /> Attach Related Menus</Label>
-                <div className="bg-white rounded-xl border p-4">{renderBrowserTree(null)}</div>
+                <div className="bg-white rounded-xl border p-4 shadow-sm">{renderBrowserTree(null)}</div>
               </div>
             </div>
           </ScrollArea>
           <DialogFooter className="p-4 border-t bg-white sticky bottom-0 z-50">
             <Button variant="ghost" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSaveEdit} disabled={isSaving}>{isSaving ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2" />} Save Changes</Button>
+            <Button onClick={handleSaveEdit} disabled={isSaving}>{isSaving ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2" />} Save & Localize</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
