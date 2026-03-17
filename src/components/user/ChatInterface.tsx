@@ -236,14 +236,35 @@ export function ChatInterface() {
   const navigateTo = (menu: MenuItem) => {
     setHistory(prev => [...prev, { id: `user-${Date.now()}`, sender: 'user', text: getLocalizedName(menu) }]);
     if (menu.responseType === 'api' && menu.apiConfig) {
-      // Determine all required fields including Basic Auth dynamic fields
-      const authFields: string[] = [];
-      if (menu.apiConfig.authConfig?.type === 'basic' && menu.apiConfig.authConfig.basicAuth?.mode === 'dynamic') {
-        if (menu.apiConfig.authConfig.basicAuth.userSource) authFields.push(menu.apiConfig.authConfig.basicAuth.userSource);
-        if (menu.apiConfig.authConfig.basicAuth.passSource) authFields.push(menu.apiConfig.authConfig.basicAuth.passSource);
-      }
+      // Check for missing KYC fields required for parameters or authentication
+      const requiredFieldNames: string[] = [];
       
-      const missingFields = menu.apiConfig.kycFields.filter(f => !userData.kyc[f.name] || authFields.includes(f.name)).sort((a, b) => a.order - b.order);
+      // Fields from Auth Config
+      const auth = menu.apiConfig.authConfig;
+      if (auth?.type === 'basic' && auth.basicAuth?.mode === 'dynamic') {
+        if (auth.basicAuth.userSource) requiredFieldNames.push(auth.basicAuth.userSource);
+        if (auth.basicAuth.passSource) requiredFieldNames.push(auth.basicAuth.passSource);
+      }
+      if (auth?.type === 'bearer' && auth.bearer?.template) {
+        const matches = auth.bearer.template.match(/{{(.*?)}}/g);
+        matches?.forEach(m => {
+          const name = m.replace('{{', '').replace('}}', '');
+          if (name !== 'user_id' && name !== 'user_token') requiredFieldNames.push(name);
+        });
+      }
+
+      // Fields from mapping parameters
+      menu.apiConfig.requestParameters?.forEach(p => {
+        if (p.sourceType === 'kyc') requiredFieldNames.push(p.sourceValue);
+      });
+
+      // Explicitly marked KYC fields
+      menu.apiConfig.kycFields.forEach(f => requiredFieldNames.push(f.name));
+
+      const uniqueRequired = Array.from(new Set(requiredFieldNames));
+      const missingFields = menu.apiConfig.kycFields
+        .filter(f => uniqueRequired.includes(f.name) && !userData.kyc[f.name])
+        .sort((a, b) => a.order - b.order);
       
       if (missingFields.length > 0) {
         setKycFlow({ active: true, menuId: menu.id, fieldIndex: 0, fields: missingFields });
