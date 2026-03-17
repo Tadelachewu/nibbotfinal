@@ -49,54 +49,56 @@ const defaultMenus: MenuItem[] = [
     }
   },
   { 
-    id: 'basic-auth-test', 
+    id: 'multi-kyc-test', 
     parentId: null, 
-    name: 'Secure Action (Basic Auth)', 
-    nameAm: 'ደህንነቱ የተጠበቀ እርምጃ',
+    name: 'Multi-KYC Secure Action', 
+    nameAm: 'ሁለገብ ማረጋገጫ',
     responseType: 'api',
     order: 2,
     apiConfig: {
-      name: 'Basic Auth Validator',
-      endpoint: '/api/test/basic-auth-check',
-      method: 'GET',
+      name: 'Multi-KYC Validator',
+      endpoint: '/api/test/multi-kyc',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       timeout: 5000,
       retry: 0,
       loginRequired: true,
       authConfig: {
-        type: 'basic',
-        basicAuth: {
-          mode: 'dynamic',
-          userSource: 'username',
-          passSource: 'password'
+        type: 'bearer',
+        bearer: {
+          header: 'Authorization',
+          template: 'Bearer {{user_token}}.{{account_number}}.{{verification_code}}'
         }
       },
       kycFields: [
         {
-          id: 'kyc-user',
-          name: 'username',
-          prompt: 'Please enter your username (Test: TEST_USER)',
-          promptAm: 'እባክዎን የተጠቃሚ ስምዎን ያስገቡ (TEST_USER ይሞክሩ)',
+          id: 'kyc-acc',
+          name: 'account_number',
+          prompt: 'Please enter your Account Number (Test: 12345)',
+          promptAm: 'እባክዎን የሂሳብ ቁጥርዎን ያስገቡ (12345 ይሞክሩ)',
           type: 'text',
           order: 0
         },
         {
-          id: 'kyc-pass',
-          name: 'password',
-          prompt: 'Please enter your password (Test: TEST_PASS)',
-          promptAm: 'እባክዎን የይለፍ ቃልዎን ያስገቡ (TEST_PASS ይሞክሩ)',
-          type: 'password',
+          id: 'kyc-code',
+          name: 'verification_code',
+          prompt: 'Please enter your 4-digit verification code (Test: 9988)',
+          promptAm: 'እባክዎን ባለ 4 አሃዝ የማረጋገጫ ኮድዎን ያስገቡ (9988 ይሞክሩ)',
+          type: 'text',
           order: 1
         }
       ],
-      requestParameters: [],
+      requestParameters: [
+        { apiKey: 'account_number', sourceType: 'kyc', sourceValue: 'account_number' },
+        { apiKey: 'verification_code', sourceType: 'kyc', sourceValue: 'verification_code' }
+      ],
       responseMapping: {
         type: 'message',
-        template: 'Authentication Successful! Mode: {{response.mode}}. Message: {{response.message}}',
-        templateAm: 'ማረጋገጫ ተሳክቷል! ሁነታ፡ {{response.mode}}። መልዕክት፡ {{response.message}}',
-        errorFallback: 'Authentication failed. Please check your credentials.',
+        template: 'Verification Success! Account Status: {{response.data.account_status}}. KYC Level: {{response.data.kyc_level}}',
+        templateAm: 'ማረጋገጫ ተሳክቷል! የሂሳብ ሁኔታ፡ {{response.data.account_status}}። የማረጋገጫ ደረጃ፡ {{response.data.kyc_level}}',
+        errorFallback: 'Multi-KYC validation failed. Please ensure you use 12345 and 9988.',
         timeoutMessage: 'Request timed out.',
-        authRequiredMessage: 'Please provide credentials.'
+        authRequiredMessage: 'Credentials required.'
       }
     }
   },
