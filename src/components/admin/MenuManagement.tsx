@@ -27,6 +27,8 @@ import {
   Languages,
   ShieldCheck,
   Eye,
+  UserCircle,
+  Lock,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -47,6 +49,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { WysiwygEditor } from './WysiwygEditor';
 import { toast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -143,20 +146,8 @@ export function MenuManagement() {
             const res = await adminContentTranslator({ content: updatedForm.content, targetLanguage: 'Amharic' });
             updatedForm.contentAm = res.translatedContent;
           }
-          
-          if (updatedForm.responseType === 'api' && updatedForm.apiConfig) {
-            const mapping = updatedForm.apiConfig.responseMapping;
-            if (mapping.template && !mapping.templateAm) {
-              const res = await adminContentTranslator({ content: mapping.template, targetLanguage: 'Amharic' });
-              mapping.templateAm = res.translatedContent;
-            }
-            if (mapping.errorFallback && !mapping.errorFallbackAm) {
-              const res = await adminContentTranslator({ content: mapping.errorFallback, targetLanguage: 'Amharic' });
-              mapping.errorFallbackAm = res.translatedContent;
-            }
-          }
         } catch (aiError) {
-          console.warn("Localization AI suggestion failed, saving manual entries:", aiError);
+          console.warn("Localization AI suggestion failed:", aiError);
         }
 
         updateMenu(editingId, updatedForm);
@@ -181,10 +172,7 @@ export function MenuManagement() {
     setApiPreviewResult(null);
     setSentHeaders(null);
     try {
-      const endpoint = editForm.apiConfig.endpoint.startsWith('/') 
-        ? editForm.apiConfig.endpoint 
-        : `/api/${editForm.apiConfig.endpoint}`;
-
+      const endpoint = editForm.apiConfig.endpoint;
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         ...editForm.apiConfig.headers
@@ -195,10 +183,11 @@ export function MenuManagement() {
         if (auth.type === 'apiKey' && auth.apiKey) {
           headers[auth.apiKey.header || 'Authorization'] = auth.apiKey.value;
         } else if (auth.type === 'basic' && auth.basicAuth) {
-          const credentials = btoa(`${auth.basicAuth.user}:${auth.basicAuth.pass}`);
-          headers['Authorization'] = `Basic ${credentials}`;
+          const user = auth.basicAuth.mode === 'fixed' ? auth.basicAuth.user : 'TEST_USER';
+          const pass = auth.basicAuth.mode === 'fixed' ? auth.basicAuth.pass : 'TEST_PASS';
+          headers['Authorization'] = `Basic ${btoa(`${user}:${pass}`)}`;
         } else if (auth.type === 'bearer' && auth.bearer) {
-          headers['Authorization'] = auth.bearer.template.replace(/{{(.*?)}}/g, 'TEST_VALUE');
+          headers['Authorization'] = auth.bearer.template.replace(/{{(.*?)}}/g, 'TEST_TOKEN');
         }
       }
 
@@ -216,7 +205,7 @@ export function MenuManagement() {
       if (response.ok) {
         toast({ title: "API Test Successful", description: "Response received." });
       } else {
-        toast({ title: "API Warning", description: `Status ${response.status}: ${data.message || 'Error'}`, variant: response.status === 401 ? "destructive" : "default" });
+        toast({ title: "API Warning", description: `Status ${response.status}`, variant: "destructive" });
       }
     } catch (e) {
       toast({ title: "API Network Error", description: "Could not reach endpoint.", variant: "destructive" });
@@ -326,20 +315,12 @@ export function MenuManagement() {
                     if (!isSelected) {
                       setEditForm({ ...editForm, attachedMenuIds: [...currentIds, item.id] });
                     } else {
-                      setEditForm({ ...editForm, attachedMenuIds: currentIds.filter(id => id !== id) });
+                      setEditForm({ ...editForm, attachedMenuIds: currentIds.filter(id => id !== item.id) });
                     }
                   }}
                 >
                   <Checkbox 
                     checked={isSelected} 
-                    onCheckedChange={(checked) => {
-                      const currentIds = editForm.attachedMenuIds || [];
-                      if (checked) {
-                        setEditForm({ ...editForm, attachedMenuIds: [...currentIds, item.id] });
-                      } else {
-                        setEditForm({ ...editForm, attachedMenuIds: currentIds.filter(id => id !== item.id) });
-                      }
-                    }}
                     className="h-4 w-4 rounded-sm" 
                   />
                   
@@ -436,19 +417,22 @@ export function MenuManagement() {
                             <Label className="text-[10px] uppercase font-bold text-muted-foreground">Auth Type</Label>
                             <Select 
                               value={editForm.apiConfig?.authConfig?.type || 'none'} 
-                              onValueChange={v => setEditForm({ 
-                                ...editForm, 
-                                apiConfig: { 
-                                  ...editForm.apiConfig!, 
-                                  authConfig: { 
-                                    ...editForm.apiConfig?.authConfig, 
-                                    type: v as any,
-                                    apiKey: v === 'apiKey' ? { header: 'X-API-KEY', value: '' } : editForm.apiConfig?.authConfig?.apiKey,
-                                    basicAuth: v === 'basic' ? { user: '', pass: '' } : editForm.apiConfig?.authConfig?.basicAuth,
-                                    bearer: v === 'bearer' ? { template: 'Bearer {{user_token}}' } : editForm.apiConfig?.authConfig?.bearer
-                                  } 
-                                } 
-                              })}
+                              onValueChange={v => {
+                                const authType = v as AuthType;
+                                const currentApiConfig = editForm.apiConfig!;
+                                setEditForm({
+                                  ...editForm,
+                                  apiConfig: {
+                                    ...currentApiConfig,
+                                    authConfig: {
+                                      type: authType,
+                                      apiKey: authType === 'apiKey' ? { header: 'X-API-KEY', value: '' } : undefined,
+                                      basicAuth: authType === 'basic' ? { mode: 'fixed', user: '', pass: '' } : undefined,
+                                      bearer: authType === 'bearer' ? { template: 'Bearer {{user_token}}' } : undefined,
+                                    }
+                                  }
+                                });
+                              }}
                             >
                               <SelectTrigger><SelectValue /></SelectTrigger>
                               <SelectContent>
@@ -475,29 +459,76 @@ export function MenuManagement() {
                                 <Input 
                                   placeholder="secret-123" 
                                   value={editForm.apiConfig?.authConfig?.apiKey?.value} 
-                                  onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!.apiKey!, value: e.target.value } } } })} 
+                                  onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, apiKey: { ...editForm.apiConfig!.authConfig!.apiKey!, value: e.target.value } } } })} 
                                 />
                               </div>
                             </div>
                           )}
 
                           {editForm.apiConfig?.authConfig?.type === 'basic' && (
-                            <div className="space-y-3 p-3 border rounded-md bg-muted/5">
-                              <div className="space-y-1">
-                                <Label className="text-[9px] uppercase font-bold">Username</Label>
-                                <Input 
-                                  value={editForm.apiConfig?.authConfig?.basicAuth?.user} 
-                                  onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, basicAuth: { ...editForm.apiConfig!.authConfig!.basicAuth!, user: e.target.value } } } })} 
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-[9px] uppercase font-bold">Password</Label>
-                                <Input 
-                                  type="password" 
-                                  value={editForm.apiConfig?.authConfig?.basicAuth?.pass} 
-                                  onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, basicAuth: { ...editForm.apiConfig!.authConfig!.basicAuth!, pass: e.target.value } } } })} 
-                                />
-                              </div>
+                            <div className="space-y-4 p-4 border rounded-md bg-muted/5">
+                              <RadioGroup 
+                                value={editForm.apiConfig?.authConfig?.basicAuth?.mode || 'fixed'} 
+                                onValueChange={v => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, basicAuth: { ...editForm.apiConfig!.authConfig!.basicAuth!, mode: v as any } } } })}
+                                className="flex gap-4 mb-4"
+                              >
+                                <div className="flex items-center space-x-2">
+                                  <RadioGroupItem value="fixed" id="fixed" />
+                                  <Label htmlFor="fixed" className="text-xs">System-level (Fixed)</Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <RadioGroupItem value="dynamic" id="dynamic" />
+                                  <Label htmlFor="dynamic" className="text-xs">Per-user (Dynamic)</Label>
+                                </div>
+                              </RadioGroup>
+
+                              {editForm.apiConfig?.authConfig?.basicAuth?.mode === 'fixed' ? (
+                                <div className="space-y-3">
+                                  <div className="space-y-1">
+                                    <Label className="text-[9px] uppercase font-bold">Username</Label>
+                                    <Input 
+                                      value={editForm.apiConfig?.authConfig?.basicAuth?.user} 
+                                      onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, basicAuth: { ...editForm.apiConfig!.authConfig!.basicAuth!, user: e.target.value } } } })} 
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-[9px] uppercase font-bold">Password</Label>
+                                    <Input 
+                                      type="password" 
+                                      value={editForm.apiConfig?.authConfig?.basicAuth?.pass} 
+                                      onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, basicAuth: { ...editForm.apiConfig!.authConfig!.basicAuth!, pass: e.target.value } } } })} 
+                                    />
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="space-y-3">
+                                  <div className="space-y-1">
+                                    <Label className="text-[9px] uppercase font-bold">Username Source (KYC Field)</Label>
+                                    <Select 
+                                      value={editForm.apiConfig?.authConfig?.basicAuth?.userSource} 
+                                      onValueChange={v => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, basicAuth: { ...editForm.apiConfig!.authConfig!.basicAuth!, userSource: v } } } })}
+                                    >
+                                      <SelectTrigger><SelectValue placeholder="Select KYC Field" /></SelectTrigger>
+                                      <SelectContent>
+                                        {editForm.apiConfig?.kycFields?.map(f => <SelectItem key={f.id} value={f.name}>{f.name}</SelectItem>)}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-[9px] uppercase font-bold">Password Source (KYC Field)</Label>
+                                    <Select 
+                                      value={editForm.apiConfig?.authConfig?.basicAuth?.passSource} 
+                                      onValueChange={v => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, basicAuth: { ...editForm.apiConfig!.authConfig!.basicAuth!, passSource: v } } } })}
+                                    >
+                                      <SelectTrigger><SelectValue placeholder="Select KYC Field" /></SelectTrigger>
+                                      <SelectContent>
+                                        {editForm.apiConfig?.kycFields?.map(f => <SelectItem key={f.id} value={f.name}>{f.name}</SelectItem>)}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <p className="text-[8px] text-muted-foreground italic">The system will prompt the user for these fields and encode them into Base64 at runtime.</p>
+                                </div>
+                              )}
                             </div>
                           )}
 
@@ -508,19 +539,7 @@ export function MenuManagement() {
                                 <Input 
                                   placeholder="Bearer {{user_token}}" 
                                   value={editForm.apiConfig?.authConfig?.bearer?.template} 
-                                  onChange={e => setEditForm({ 
-                                    ...editForm, 
-                                    apiConfig: { 
-                                      ...editForm.apiConfig!, 
-                                      authConfig: { 
-                                        ...editForm.apiConfig!.authConfig!, 
-                                        bearer: { 
-                                          ...editForm.apiConfig!.authConfig!.bearer!, 
-                                          template: e.target.value 
-                                        } 
-                                      } 
-                                    } 
-                                  })} 
+                                  onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, bearer: { ...editForm.apiConfig!.authConfig!.bearer!, template: e.target.value } } } })} 
                                 />
                                 <p className="text-[8px] text-muted-foreground mt-1">Placeholders like {'{{user_token}}'} will be replaced at runtime.</p>
                               </div>
@@ -565,7 +584,7 @@ export function MenuManagement() {
                         </div>
                         {editForm.apiConfig?.kycFields?.map((field, idx) => (
                           <div key={field.id} className="flex flex-col gap-3 p-4 border rounded-md bg-muted/5 group relative">
-                            <div className="grid grid-cols-3 gap-3">
+                            <div className="grid grid-cols-4 gap-3">
                               <div className="space-y-1">
                                 <Label className="text-[10px] uppercase font-bold">Field Key</Label>
                                 <Input placeholder="e.g. phone" value={field.name} onChange={e => {
@@ -573,6 +592,22 @@ export function MenuManagement() {
                                   fields[idx].name = e.target.value;
                                   setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, kycFields: fields } });
                                 }} />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[10px] uppercase font-bold">Input Type</Label>
+                                <Select value={field.type} onValueChange={v => {
+                                   const fields = [...editForm.apiConfig!.kycFields];
+                                   fields[idx].type = v as any;
+                                   setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, kycFields: fields } });
+                                }}>
+                                  <SelectTrigger><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="text">Text</SelectItem>
+                                    <SelectItem value="tel">Phone</SelectItem>
+                                    <SelectItem value="number">Number</SelectItem>
+                                    <SelectItem value="password">Password</SelectItem>
+                                  </SelectContent>
+                                </Select>
                               </div>
                               <div className="col-span-2 space-y-1">
                                 <Label className="text-[10px] uppercase font-bold">English Prompt</Label>
@@ -584,7 +619,7 @@ export function MenuManagement() {
                               </div>
                             </div>
                             <div className="space-y-1">
-                              <Label className="text-[10px] uppercase font-bold text-primary">Amharic Prompt (Manual Override)</Label>
+                              <Label className="text-[10px] uppercase font-bold text-primary">Amharic Prompt</Label>
                               <Input placeholder="ለምሳሌ፡ እባክዎን ስልክ ቁጥርዎን ያስገቡ" value={field.promptAm} onChange={e => {
                                 const fields = [...editForm.apiConfig!.kycFields];
                                 fields[idx].promptAm = e.target.value;

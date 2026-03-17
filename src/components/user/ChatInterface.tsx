@@ -76,13 +76,13 @@ export function ChatInterface() {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [history]);
 
-  const getLocalizedName = (menu: MenuItem) => language === 'Amharic' && menu.nameAm ? menu.nameAm : menu.name;
-  const getLocalizedContent = (menu: MenuItem) => language === 'Amharic' && menu.contentAm ? menu.contentAm : menu.content;
-  const getLocalizedKYCPrompt = (field: KYCField) => language === 'Amharic' && field.promptAm ? field.promptAm : field.prompt;
-  const getLocalizedTableHeader = (col: TableColumn) => language === 'Amharic' && col.headerAm ? col.headerAm : col.header;
+  const getLocalizedName = (menu: MenuItem) => (language === 'Amharic' && menu.nameAm) ? menu.nameAm : menu.name;
+  const getLocalizedContent = (menu: MenuItem) => (language === 'Amharic' && menu.contentAm) ? menu.contentAm : (menu.content || '');
+  const getLocalizedKYCPrompt = (field: KYCField) => (language === 'Amharic' && field.promptAm) ? field.promptAm : field.prompt;
+  const getLocalizedTableHeader = (col: TableColumn) => (language === 'Amharic' && col.headerAm) ? col.headerAm : col.header;
   
-  const getLocalizedTemplate = (mapping: ApiConfig['responseMapping']) => language === 'Amharic' && mapping.templateAm ? mapping.templateAm : mapping.template;
-  const getLocalizedErrorFallback = (mapping: ApiConfig['responseMapping']) => language === 'Amharic' && mapping.errorFallbackAm ? mapping.errorFallbackAm : mapping.errorFallback;
+  const getLocalizedTemplate = (mapping: ApiConfig['responseMapping']) => (language === 'Amharic' && mapping.templateAm) ? mapping.templateAm : mapping.template;
+  const getLocalizedErrorFallback = (mapping: ApiConfig['responseMapping']) => (language === 'Amharic' && mapping.errorFallbackAm) ? mapping.errorFallbackAm : mapping.errorFallback;
 
   const getVal = (path: string, obj: any) => {
     if (!path || !obj) return obj;
@@ -115,10 +115,8 @@ export function ChatInterface() {
 
   const replacePlaceholders = (template: string, kycData: Record<string, any>) => {
     let res = template;
-    // Replace user profile placeholders
     res = res.replace(/{{user_id}}/g, userData.id);
     res = res.replace(/{{user_token}}/g, userData.token);
-    // Replace KYC placeholders
     Object.entries(kycData).forEach(([k, v]) => {
       res = res.replace(new RegExp(`{{${k}}}`, 'g'), String(v));
     });
@@ -131,7 +129,7 @@ export function ChatInterface() {
     const currentField = kycFlow.fields[kycFlow.fieldIndex];
     const newKYC = { ...userData.kyc, [currentField.name]: kycInput };
     setUserData(prev => ({ ...prev, kyc: newKYC }));
-    setHistory(prev => [...prev, { id: `user-kyc-${Date.now()}`, sender: 'user', text: kycInput }]);
+    setHistory(prev => [...prev, { id: `user-kyc-${Date.now()}`, sender: 'user', text: currentField.type === 'password' ? '********' : kycInput }]);
     setKycInput('');
     if (kycFlow.fieldIndex < kycFlow.fields.length - 1) {
       const nextField = kycFlow.fields[kycFlow.fieldIndex + 1];
@@ -163,7 +161,6 @@ export function ChatInterface() {
         });
       }
 
-      // Handle Authentication Headers
       const headers: Record<string, string> = { 
         'Content-Type': 'application/json', 
         ...menu.apiConfig.headers 
@@ -174,8 +171,15 @@ export function ChatInterface() {
         if (auth.type === 'apiKey' && auth.apiKey) {
           headers[auth.apiKey.header || 'Authorization'] = replacePlaceholders(auth.apiKey.value, kycData);
         } else if (auth.type === 'basic' && auth.basicAuth) {
-          const credentials = btoa(`${auth.basicAuth.user}:${auth.basicAuth.pass}`);
-          headers['Authorization'] = `Basic ${credentials}`;
+          let user = '', pass = '';
+          if (auth.basicAuth.mode === 'fixed') {
+            user = auth.basicAuth.user || '';
+            pass = auth.basicAuth.pass || '';
+          } else {
+            user = kycData[auth.basicAuth.userSource || ''] || '';
+            pass = kycData[auth.basicAuth.passSource || ''] || '';
+          }
+          headers['Authorization'] = `Basic ${btoa(`${user}:${pass}`)}`;
         } else if (auth.type === 'bearer' && auth.bearer) {
           headers['Authorization'] = replacePlaceholders(auth.bearer.template, kycData);
         }
@@ -232,7 +236,15 @@ export function ChatInterface() {
   const navigateTo = (menu: MenuItem) => {
     setHistory(prev => [...prev, { id: `user-${Date.now()}`, sender: 'user', text: getLocalizedName(menu) }]);
     if (menu.responseType === 'api' && menu.apiConfig) {
-      const missingFields = menu.apiConfig.kycFields.filter(f => !userData.kyc[f.name]).sort((a, b) => a.order - b.order);
+      // Determine all required fields including Basic Auth dynamic fields
+      const authFields: string[] = [];
+      if (menu.apiConfig.authConfig?.type === 'basic' && menu.apiConfig.authConfig.basicAuth?.mode === 'dynamic') {
+        if (menu.apiConfig.authConfig.basicAuth.userSource) authFields.push(menu.apiConfig.authConfig.basicAuth.userSource);
+        if (menu.apiConfig.authConfig.basicAuth.passSource) authFields.push(menu.apiConfig.authConfig.basicAuth.passSource);
+      }
+      
+      const missingFields = menu.apiConfig.kycFields.filter(f => !userData.kyc[f.name] || authFields.includes(f.name)).sort((a, b) => a.order - b.order);
+      
       if (missingFields.length > 0) {
         setKycFlow({ active: true, menuId: menu.id, fieldIndex: 0, fields: missingFields });
         setHistory(prev => [...prev, { id: `bot-kyc-start-${Date.now()}`, sender: 'bot', text: getLocalizedKYCPrompt(missingFields[0]), isKYC: true }]);
@@ -313,6 +325,7 @@ export function ChatInterface() {
         <form onSubmit={handleKycSubmit} className="flex gap-2">
           <Input 
             autoFocus 
+            type={kycFlow.fields[kycFlow.fieldIndex].type}
             value={kycInput} 
             onChange={e => setKycInput(e.target.value)} 
             placeholder={language === 'Amharic' ? 'እዚህ ይጻፉ...' : 'Type here...'} 

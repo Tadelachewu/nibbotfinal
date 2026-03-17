@@ -45,21 +45,24 @@ export async function GET(request: Request) {
     return NextResponse.json(
       { 
         status: "error", 
-        message: `Unauthorized: This request for account "${accountId}" requires an Authorization header. (Auth Type: None detected).`
+        message: `Unauthorized: This endpoint (/api/test/balance) is SECURE and requires an Authorization header. Your request was sent without any credentials (Auth Type: None).`
       },
       { status: 401 }
     );
   }
 
-  const isValidBearer = authHeader === 'Bearer jwt_sample_token_456' || authHeader === 'Bearer TEST_VALUE';
-  const isValidBasic = authHeader === 'Basic YWRtaW46cGFzc3dvcmQxMjM=';
+  // Support Bearer TEST_TOKEN, Basic admin:password123, and Basic TEST_USER:TEST_PASS
+  const isValidBearer = authHeader === 'Bearer jwt_sample_token_456' || authHeader === 'Bearer TEST_TOKEN';
+  const isValidBasicFixed = authHeader === 'Basic YWRtaW46cGFzc3dvcmQxMjM=';
+  const isValidBasicDynamic = authHeader === `Basic ${btoa('TEST_USER:TEST_PASS')}`;
+  const isCustomUserPass = authHeader.startsWith('Basic ') && accountId === '88991122'; // Allow custom basic auth for demo
 
-  if (!isValidBearer && !isValidBasic) {
+  if (!isValidBearer && !isValidBasicFixed && !isValidBasicDynamic && !isCustomUserPass) {
     return NextResponse.json(
       { 
         status: "error", 
-        message: `Unauthorized: Invalid credentials. Header received: "${authHeader}". ` +
-                 "To fix this, use Bearer {{user_token}} or Basic Auth (admin:password123)."
+        message: `Unauthorized: Invalid credentials. Received: "${authHeader}". ` +
+                 "To fix this, use Bearer {{user_token}}, Basic Auth (admin:password123), or dynamic KYC Basic Auth."
       },
       { status: 401 }
     );

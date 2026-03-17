@@ -1,4 +1,4 @@
-export type KYCFieldType = 'text' | 'number' | 'tel' | 'select';
+export type KYCFieldType = 'text' | 'number' | 'tel' | 'select' | 'password';
 
 export interface KYCField {
   id: string;
@@ -32,7 +32,13 @@ export interface ApiConfig {
   authConfig?: {
     type: AuthType;
     apiKey?: { header: string; value: string };
-    basicAuth?: { user: string; pass: string };
+    basicAuth?: { 
+      mode: 'fixed' | 'dynamic';
+      user?: string; 
+      pass?: string;
+      userSource?: string; // Name of KYC field
+      passSource?: string; // Name of KYC field
+    };
     bearer?: { template: string };
   };
   timeout: number;
