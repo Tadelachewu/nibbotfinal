@@ -45,7 +45,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "@/Dialog";
+} from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { WysiwygEditor } from './WysiwygEditor';
@@ -466,7 +466,7 @@ export function MenuManagement() {
                             <div className="space-y-3 p-3 border rounded-md bg-muted/5">
                               <div className="space-y-1">
                                 <Label className="text-[9px] uppercase font-bold">Token Template</Label>
-                                <Input placeholder="Bearer {{user_token}}" value={editForm.apiConfig?.authConfig?.bearer?.template} onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, bearer: { ...editForm.apiConfig!.authConfig!.bearer!, template: e.target.value } } } })} />
+                                <Input placeholder="Bearer {{user_token}}" value={editForm.apiConfig?.authConfig?.bearer?.template} onChange={e => setEditForm({ ...editForm, apiConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!, authConfig: { ...editForm.apiConfig!.authConfig!, bearer: { ...editForm.apiConfig!.authConfig!.bearer!, template: e.target.value } } } })} />
                                 <p className="text-[8px] text-muted-foreground mt-1">Placeholders like {'{{user_token}}'} will be replaced at runtime.</p>
                               </div>
                             </div>
