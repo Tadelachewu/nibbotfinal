@@ -100,6 +100,27 @@ export function MenuManagement() {
     setIsEditDialogOpen(true);
   };
 
+  // Helper to safely update nested ApiConfig properties
+  const updateApiConfig = (updates: any) => {
+    setEditForm(prev => {
+      const cloned = JSON.parse(JSON.stringify(prev));
+      cloned.apiConfig = { ...(cloned.apiConfig || {}), ...updates };
+      return cloned;
+    });
+  };
+
+  // Helper to safely update nested AuthConfig properties
+  const updateAuthConfig = (updates: any) => {
+    setEditForm(prev => {
+      const cloned = JSON.parse(JSON.stringify(prev));
+      const config = cloned.apiConfig || {};
+      const auth = config.authConfig || { type: 'none' };
+      config.authConfig = { ...auth, ...updates };
+      cloned.apiConfig = config;
+      return cloned;
+    });
+  };
+
   const handleSaveEdit = async () => {
     if (editingId && editForm) {
       setIsSaving(true);
@@ -126,25 +147,6 @@ export function MenuManagement() {
         setIsSaving(false);
       }
     }
-  };
-
-  const updateApiConfig = (updates: any) => {
-    setEditForm(prev => {
-      const cloned = JSON.parse(JSON.stringify(prev));
-      cloned.apiConfig = { ...(cloned.apiConfig || {}), ...updates };
-      return cloned;
-    });
-  };
-
-  const updateAuthConfig = (updates: any) => {
-    setEditForm(prev => {
-      const cloned = JSON.parse(JSON.stringify(prev));
-      const config = cloned.apiConfig || {};
-      const auth = config.authConfig || { type: 'none' };
-      config.authConfig = { ...auth, ...updates };
-      cloned.apiConfig = config;
-      return cloned;
-    });
   };
 
   const testApi = async () => {

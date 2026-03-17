@@ -48,7 +48,6 @@ export function ChatInterface() {
   const [language, setLanguage] = useState('English');
   const [userData, setUserData] = useState<UserData>({
     id: 'user_123',
-    // Realistic JWT format (Header.Payload.Signature)
     token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c',
     isLoggedIn: true,
     kyc: {}
@@ -119,7 +118,9 @@ export function ChatInterface() {
     res = res.replace(/{{\s*user_id\s*}}/g, userData.id);
     res = res.replace(/{{\s*user_token\s*}}/g, userData.token);
     Object.entries(kycData).forEach(([k, v]) => {
-      res = res.replace(new RegExp(`{{\\s*${k}\\s*}}`, 'g'), String(v));
+      // Robust global replacement for KYC fields
+      const regex = new RegExp(`{{\\s*${k}\\s*}}`, 'g');
+      res = res.replace(regex, String(v));
     });
     return res;
   };

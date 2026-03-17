@@ -30,7 +30,7 @@ export async function GET(request: Request) {
     }
   };
 
-  // PUBLIC PREVIEW MODE
+  // 1. PUBLIC PREVIEW MODE: If no specific account is requested AND no auth is sent
   if (!accountId && !authHeader) {
     return NextResponse.json({
       status: "success",
@@ -40,18 +40,18 @@ export async function GET(request: Request) {
     });
   }
 
-  // SECURE MODE: Validate authentication
+  // 2. SECURE MODE: Validate authentication
   if (!authHeader) {
     return NextResponse.json(
       { 
         status: "error", 
-        message: `Unauthorized: This endpoint is SECURE. Your request was sent without an 'Authorization' header (Auth Type: None).` 
+        message: `Unauthorized: This endpoint (/api/test/balance) is SECURE. Your request was sent without an 'Authorization' header (Auth Type: None).` 
       },
       { status: 401 }
     );
   }
 
-  // 1. Validate Basic Auth
+  // Basic Auth Validation
   if (authHeader.startsWith('Basic ')) {
     try {
       const credentials = atob(authHeader.split(' ')[1]);
@@ -72,26 +72,23 @@ export async function GET(request: Request) {
     }
   }
 
-  // 2. Validate Bearer Token
+  // Bearer Token Validation
   if (authHeader.startsWith('Bearer ')) {
-    const token = authHeader.split(' ')[1];
+    const token = authHeader.split(' ')[1] || "";
     
-    // Standard JWT starts with "eyJ" (Base64 for {"alg"...)
-    // Mock token starts with "jwt_sample"
+    // Check for standard JWT header or session ID
     const isStandardJWT = token.startsWith('eyJ');
     const isMockJWT = token.startsWith('jwt_sample');
-    
-    // Verification logic: Does the token contain our base session identifier?
     const hasValidSession = isStandardJWT || isMockJWT;
     
-    // Check if the token also includes the account ID if it was part of a template
-    const containsAccountId = accountId ? token.includes(accountId) : true;
+    // Check if the token includes the account ID (flexible for different template styles)
+    const accountCheck = accountId ? token.includes(accountId) : true;
 
-    if (!hasValidSession || !containsAccountId) {
+    if (!hasValidSession || !accountCheck) {
       return NextResponse.json(
         { 
           status: "error", 
-          message: `Unauthorized: Bearer token validation failed. The provided token "${token.substring(0, 15)}..." does not match the session or account parameters. Token must start with valid session (JWT) and include account_id if provided.` 
+          message: `Unauthorized: Bearer token validation failed. The provided token "${token.substring(0, 15)}..." does not match the session (starts with eyJ) or account parameters (must contain ${accountId || 'account_id'}).` 
         },
         { status: 401 }
       );
