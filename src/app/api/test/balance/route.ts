@@ -45,60 +45,52 @@ export async function GET(request: Request) {
     return NextResponse.json(
       { 
         status: "error", 
-        message: `Unauthorized: Missing Authorization header. Accessing account "${accountId}" requires credentials.` 
+        message: `Unauthorized: This endpoint is SECURE. Your request was sent without an 'Authorization' header (Auth Type: None).` 
       },
       { status: 401 }
     );
   }
 
   // 1. Validate Basic Auth (Fixed or Dynamic)
-  const isBasicAuth = authHeader.startsWith('Basic ');
-  if (isBasicAuth) {
-    const credentials = atob(authHeader.split(' ')[1]);
-    const isValidFixed = credentials === 'admin:password123';
-    const isValidDynamic = credentials === 'TEST_USER:TEST_PASS';
-    
-    if (!isValidFixed && !isValidDynamic) {
-      return NextResponse.json(
-        { 
-          status: "error", 
-          message: `Unauthorized: Invalid Basic Auth credentials. (Decoded as: "${credentials}"). Expected "admin:password123" or "TEST_USER:TEST_PASS".` 
-        },
-        { status: 401 }
-      );
-    }
-  }
-
-  // 2. Validate Bearer Token (JWT format & Signature simulation)
-  const isBearerAuth = authHeader.startsWith('Bearer ');
-  if (isBearerAuth) {
-    const token = authHeader.split(' ')[1];
-    const tokenParts = token.split('.');
-    
-    // Check for standard JWT format (3 parts)
-    if (tokenParts.length !== 3) {
-      // Allow the simple TEST_TOKEN for basic debug, but reject malformed ones
-      if (token !== 'TEST_TOKEN' && !token.includes('jwt_sample_token_456')) {
+  if (authHeader.startsWith('Basic ')) {
+    try {
+      const credentials = atob(authHeader.split(' ')[1]);
+      const isValidFixed = credentials === 'admin:password123';
+      const isValidDynamic = credentials === 'TEST_USER:TEST_PASS';
+      
+      if (!isValidFixed && !isValidDynamic) {
         return NextResponse.json(
           { 
             status: "error", 
-            message: `Unauthorized: Invalid Token Format. Expected a 3-part JWT (Header.Payload.Signature). Received: "${token.substring(0, 10)}..."` 
+            message: `Unauthorized: Invalid Basic Auth credentials. (Decoded: "${credentials}"). Expected "admin:password123" (Fixed) or "TEST_USER:TEST_PASS" (Dynamic).` 
           },
           { status: 401 }
         );
       }
+    } catch (e) {
+      return NextResponse.json({ status: "error", message: "Invalid Base64 encoding for Basic Auth." }, { status: 401 });
     }
+  }
+
+  // 2. Validate Bearer Token (JWT format & Signature simulation)
+  if (authHeader.startsWith('Bearer ')) {
+    const token = authHeader.split(' ')[1];
     
-    // Verify complex template match (e.g., jwt_sample_token_456-88991122)
+    // Check for realistic JWT format (3 parts: header.payload.signature)
+    const tokenParts = token.split('.');
+    
+    // We allow simple concatenation for testing as well
     const expectedTokenWithAcc = `jwt_sample_token_456-${accountId}`;
     const expectedTokenConcat = `jwt_sample_token_456${accountId}`;
-    const isExactMatch = token === 'jwt_sample_token_456' || token.includes('TEST_VAL') || token.includes(expectedTokenWithAcc) || token.includes(expectedTokenConcat);
     
-    if (!isExactMatch) {
+    const isMockToken = token === 'jwt_sample_token_456' || token.includes(expectedTokenWithAcc) || token.includes(expectedTokenConcat);
+    const isRealisticJWT = tokenParts.length === 3 && token.includes('jwt_sample_token_456');
+
+    if (!isMockToken && !isRealisticJWT) {
       return NextResponse.json(
         { 
           status: "error", 
-          message: `Unauthorized: Bearer token validation failed. The provided token signature does not match the expected user profile or account parameters.` 
+          message: `Unauthorized: Bearer token validation failed. The provided token "${token.substring(0, 15)}..." does not match the session or account parameters.` 
         },
         { status: 401 }
       );

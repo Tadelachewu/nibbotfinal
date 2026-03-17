@@ -133,18 +133,21 @@ export function MenuManagement() {
   };
 
   const updateApiConfig = (updates: any) => {
-    const config = editForm.apiConfig || {} as ApiConfig;
-    setEditForm(prev => ({
-      ...prev,
-      apiConfig: { ...config, ...updates }
-    }));
+    setEditForm(prev => {
+      const cloned = JSON.parse(JSON.stringify(prev));
+      cloned.apiConfig = { ...(cloned.apiConfig || {}), ...updates };
+      return cloned;
+    });
   };
 
   const updateAuthConfig = (updates: any) => {
-    const config = editForm.apiConfig || {} as ApiConfig;
-    const auth = config.authConfig || { type: 'none' };
-    updateApiConfig({
-      authConfig: { ...auth, ...updates }
+    setEditForm(prev => {
+      const cloned = JSON.parse(JSON.stringify(prev));
+      const config = cloned.apiConfig || {};
+      const auth = config.authConfig || { type: 'none' };
+      config.authConfig = { ...auth, ...updates };
+      cloned.apiConfig = config;
+      return cloned;
     });
   };
 
@@ -175,7 +178,6 @@ export function MenuManagement() {
           headers['Authorization'] = auth.bearer.template.replace(/{{\s*(.*?)\s*}}/g, (match, p1) => {
             const key = p1.trim();
             if (key === 'user_token') return 'jwt_sample_token_456';
-            if (key === 'user_id') return 'user_123';
             return '88991122'; 
           });
         }
@@ -729,7 +731,7 @@ export function MenuManagement() {
                                 {getDetectedKeys(apiPreviewResult).map(k => (
                                   <Badge key={k} variant="outline" className="text-[9px] cursor-copy hover:bg-primary/10" onClick={() => {
                                     const mapping = editForm.apiConfig!.responseMapping;
-                                    updateApiConfig({ responseMapping: { ...mapping, template: mapping.template + `{{response.${k}}}` } });
+                                    updateApiConfig({ responseMapping: { ...mapping, template: (mapping.template || '') + `{{response.${k}}}` } });
                                   }}>{k}</Badge>
                                 ))}
                               </div>
