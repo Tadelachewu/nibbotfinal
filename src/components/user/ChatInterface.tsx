@@ -93,13 +93,10 @@ export function ChatInterface() {
     if (!obj || typeof obj !== 'object') return null;
     if (Array.isArray(obj)) return { path: '', data: obj };
     
-    // Look for any array inside
     for (const key in obj) {
       if (Array.isArray(obj[key])) return { path: key, data: obj[key] };
     }
     
-    // If no array is found, but it is a successful object, treat the object itself as a single-item array.
-    // This allows "Table" view mapping even for single-object responses (like auth checks).
     if (obj.status === 'success' || obj.status === 'ok' || !obj.status) {
       return { path: '', data: [obj] };
     }
@@ -173,7 +170,7 @@ export function ChatInterface() {
       const auth = menu.apiConfig.authConfig;
       if (auth) {
         if (auth.type === 'apiKey' && auth.apiKey) {
-          headers[auth.apiKey.header || 'Authorization'] = replacePlaceholders(auth.apiKey.value, kycData);
+          headers[auth.apiKey.header || 'X-API-KEY'] = replacePlaceholders(auth.apiKey.value, kycData);
         } else if (auth.type === 'basic' && auth.basicAuth) {
           let user = '', pass = '';
           if (auth.basicAuth.mode === 'fixed') {
@@ -183,9 +180,9 @@ export function ChatInterface() {
             user = kycData[auth.basicAuth.userSource || ''] || '';
             pass = kycData[auth.basicAuth.passSource || ''] || '';
           }
-          headers['Authorization'] = `Basic ${btoa(`${user}:${pass}`)}`;
+          headers[auth.basicAuth.header || 'Authorization'] = `Basic ${btoa(`${user}:${pass}`)}`;
         } else if (auth.type === 'bearer' && auth.bearer) {
-          headers['Authorization'] = replacePlaceholders(auth.bearer.template, kycData);
+          headers[auth.bearer.header || 'Authorization'] = replacePlaceholders(auth.bearer.template, kycData);
         }
       }
 

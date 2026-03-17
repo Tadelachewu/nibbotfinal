@@ -171,13 +171,13 @@ export function MenuManagement() {
         });
 
         if (auth.type === 'apiKey' && auth.apiKey) {
-          headers[auth.apiKey.header || 'Authorization'] = resolve(auth.apiKey.value);
+          headers[auth.apiKey.header || 'X-API-KEY'] = resolve(auth.apiKey.value);
         } else if (auth.type === 'basic' && auth.basicAuth) {
           const user = auth.basicAuth.mode === 'fixed' ? auth.basicAuth.user || 'admin' : sampleKyc.username;
           const pass = auth.basicAuth.mode === 'fixed' ? auth.basicAuth.pass || 'password123' : sampleKyc.password;
-          headers['Authorization'] = `Basic ${btoa(`${user}:${pass}`)}`;
+          headers[auth.basicAuth.header || 'Authorization'] = `Basic ${btoa(`${user}:${pass}`)}`;
         } else if (auth.type === 'bearer' && auth.bearer) {
-          headers['Authorization'] = resolve(auth.bearer.template);
+          headers[auth.bearer.header || 'Authorization'] = resolve(auth.bearer.template);
         }
       }
 
@@ -414,8 +414,8 @@ export function MenuManagement() {
                                 deepUpdate(['apiConfig', 'authConfig'], {
                                   type: authType,
                                   apiKey: authType === 'apiKey' ? { header: 'X-API-KEY', value: '' } : undefined,
-                                  basicAuth: authType === 'basic' ? { mode: 'fixed', user: '', pass: '' } : undefined,
-                                  bearer: authType === 'bearer' ? { template: 'Bearer {{user_token}}' } : undefined,
+                                  basicAuth: authType === 'basic' ? { header: 'Authorization', mode: 'fixed', user: '', pass: '' } : undefined,
+                                  bearer: authType === 'bearer' ? { header: 'Authorization', template: 'Bearer {{user_token}}' } : undefined,
                                 });
                               }}
                             >
@@ -452,6 +452,14 @@ export function MenuManagement() {
 
                           {editForm.apiConfig?.authConfig?.type === 'basic' && (
                             <div className="space-y-4 p-4 border rounded-md bg-muted/5">
+                              <div className="space-y-1 mb-2">
+                                <Label className="text-[9px] uppercase font-bold">Header Name</Label>
+                                <Input 
+                                  placeholder="Authorization" 
+                                  value={editForm.apiConfig?.authConfig?.basicAuth?.header} 
+                                  onChange={e => deepUpdate(['apiConfig', 'authConfig', 'basicAuth', 'header'], e.target.value)} 
+                                />
+                              </div>
                               <RadioGroup 
                                 value={editForm.apiConfig?.authConfig?.basicAuth?.mode || 'fixed'} 
                                 onValueChange={v => deepUpdate(['apiConfig', 'authConfig', 'basicAuth', 'mode'], v)}
@@ -522,6 +530,14 @@ export function MenuManagement() {
 
                           {editForm.apiConfig?.authConfig?.type === 'bearer' && (
                             <div className="space-y-3 p-3 border rounded-md bg-muted/5">
+                              <div className="space-y-1">
+                                <Label className="text-[9px] uppercase font-bold">Header Name</Label>
+                                <Input 
+                                  placeholder="Authorization" 
+                                  value={editForm.apiConfig?.authConfig?.bearer?.header} 
+                                  onChange={e => deepUpdate(['apiConfig', 'authConfig', 'bearer', 'header'], e.target.value)} 
+                                />
+                              </div>
                               <div className="space-y-1">
                                 <Label className="text-[9px] uppercase font-bold">Token Template</Label>
                                 <Input 
