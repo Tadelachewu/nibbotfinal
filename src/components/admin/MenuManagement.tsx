@@ -96,7 +96,7 @@ export function MenuManagement() {
     setEditingId(menu.id);
     setApiPreviewResult(null);
     setSentHeaders(null);
-    setEditForm(JSON.parse(JSON.stringify(menu))); // Deep clone to avoid mutations
+    setEditForm(JSON.parse(JSON.stringify(menu))); 
     setIsEditDialogOpen(true);
   };
 
@@ -110,10 +110,6 @@ export function MenuManagement() {
           if (updatedForm.name && !updatedForm.nameAm) {
             const res = await adminContentTranslator({ content: updatedForm.name, targetLanguage: 'Amharic' });
             updatedForm.nameAm = res.translatedContent;
-          }
-          if (updatedForm.responseType === 'static' && updatedForm.content && !updatedForm.contentAm) {
-            const res = await adminContentTranslator({ content: updatedForm.content, targetLanguage: 'Amharic' });
-            updatedForm.contentAm = res.translatedContent;
           }
         } catch (aiError) {
           console.warn("Localization AI suggestion failed:", aiError);
@@ -169,7 +165,7 @@ export function MenuManagement() {
       const auth = editForm.apiConfig.authConfig;
       if (auth && auth.type !== 'none') {
         if (auth.type === 'apiKey' && auth.apiKey) {
-          headers[auth.apiKey.header || 'Authorization'] = auth.apiKey.value.replace(/{{\s*(.*?)\s*}}/g, 'TEST_VAL');
+          headers[auth.apiKey.header || 'Authorization'] = auth.apiKey.value.replace(/{{\s*(.*?)\s*}}/g, 'secret-123');
         } else if (auth.type === 'basic' && auth.basicAuth) {
           const user = auth.basicAuth.mode === 'fixed' ? auth.basicAuth.user || 'admin' : 'TEST_USER';
           const pass = auth.basicAuth.mode === 'fixed' ? auth.basicAuth.pass || 'password123' : 'TEST_PASS';
@@ -177,7 +173,7 @@ export function MenuManagement() {
         } else if (auth.type === 'bearer' && auth.bearer) {
           headers['Authorization'] = auth.bearer.template.replace(/{{\s*(.*?)\s*}}/g, (match, p1) => {
             const key = p1.trim();
-            if (key === 'user_token') return 'jwt_sample_token_456';
+            if (key === 'user_token') return 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature';
             return '88991122'; 
           });
         }
@@ -503,7 +499,7 @@ export function MenuManagement() {
                               ) : (
                                 <div className="space-y-3">
                                   <div className="space-y-1">
-                                    <Label className="text-[9px] uppercase font-bold">Username Source (KYC Field)</Label>
+                                    <Label className="text-[9px] uppercase font-bold">Username Source</Label>
                                     <Select 
                                       value={editForm.apiConfig?.authConfig?.basicAuth?.userSource} 
                                       onValueChange={v => {
@@ -518,7 +514,7 @@ export function MenuManagement() {
                                     </Select>
                                   </div>
                                   <div className="space-y-1">
-                                    <Label className="text-[9px] uppercase font-bold">Password Source (KYC Field)</Label>
+                                    <Label className="text-[9px] uppercase font-bold">Password Source</Label>
                                     <Select 
                                       value={editForm.apiConfig?.authConfig?.basicAuth?.passSource} 
                                       onValueChange={v => {

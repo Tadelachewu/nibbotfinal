@@ -30,12 +30,12 @@ export async function GET(request: Request) {
     }
   };
 
-  // PUBLIC PREVIEW MODE: Returns structure if no private data requested
+  // PUBLIC PREVIEW MODE
   if (!accountId && !authHeader) {
     return NextResponse.json({
       status: "success",
       mode: "public_preview",
-      message: "Public Preview: Showing structure. Auth is REQUIRED for specific account lookups.",
+      message: "Public Preview: Showing sample structure. Auth is REQUIRED for specific account lookups.",
       data: mockAccounts['88991122']
     });
   }
@@ -51,7 +51,7 @@ export async function GET(request: Request) {
     );
   }
 
-  // 1. Validate Basic Auth (Fixed or Dynamic)
+  // 1. Validate Basic Auth
   if (authHeader.startsWith('Basic ')) {
     try {
       const credentials = atob(authHeader.split(' ')[1]);
@@ -72,25 +72,26 @@ export async function GET(request: Request) {
     }
   }
 
-  // 2. Validate Bearer Token (JWT format & Signature simulation)
+  // 2. Validate Bearer Token
   if (authHeader.startsWith('Bearer ')) {
     const token = authHeader.split(' ')[1];
     
-    // Check for realistic JWT format (3 parts: header.payload.signature)
-    const tokenParts = token.split('.');
+    // Standard JWT starts with "eyJ" (Base64 for {"alg"...)
+    // Mock token starts with "jwt_sample"
+    const isStandardJWT = token.startsWith('eyJ');
+    const isMockJWT = token.startsWith('jwt_sample');
     
-    // We allow simple concatenation for testing as well
-    const expectedTokenWithAcc = `jwt_sample_token_456-${accountId}`;
-    const expectedTokenConcat = `jwt_sample_token_456${accountId}`;
+    // Verification logic: Does the token contain our base session identifier?
+    const hasValidSession = isStandardJWT || isMockJWT;
     
-    const isMockToken = token === 'jwt_sample_token_456' || token.includes(expectedTokenWithAcc) || token.includes(expectedTokenConcat);
-    const isRealisticJWT = tokenParts.length === 3 && token.includes('jwt_sample_token_456');
+    // Check if the token also includes the account ID if it was part of a template
+    const containsAccountId = accountId ? token.includes(accountId) : true;
 
-    if (!isMockToken && !isRealisticJWT) {
+    if (!hasValidSession || !containsAccountId) {
       return NextResponse.json(
         { 
           status: "error", 
-          message: `Unauthorized: Bearer token validation failed. The provided token "${token.substring(0, 15)}..." does not match the session or account parameters.` 
+          message: `Unauthorized: Bearer token validation failed. The provided token "${token.substring(0, 15)}..." does not match the session or account parameters. Token must start with valid session (JWT) and include account_id if provided.` 
         },
         { status: 401 }
       );
