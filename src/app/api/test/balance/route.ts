@@ -1,9 +1,30 @@
-
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
+  const authHeader = request.headers.get('Authorization');
   
+  // Enforce Authorization for testing purposes
+  // Supports: 
+  // 1. Bearer jwt_sample_token_456 (used by Chat Interface)
+  // 2. Bearer TEST_VALUE (used by Admin Live Preview)
+  // 3. Basic YWRtaW46cGFzc3dvcmQxMjM= (admin:password123)
+  const isValidAuth = 
+    authHeader === 'Bearer jwt_sample_token_456' || 
+    authHeader === 'Bearer TEST_VALUE' ||
+    authHeader === 'Basic YWRtaW46cGFzc3dvcmQxMjM=';
+
+  if (!authHeader || !isValidAuth) {
+    return NextResponse.json(
+      { 
+        status: "error", 
+        message: "Unauthorized: Invalid or missing Authorization header. " + 
+                 "Use Bearer {{user_token}} or Basic Auth (admin:password123) in your config."
+      },
+      { status: 401 }
+    );
+  }
+
   // Simulated database of accounts
   const mockAccounts: Record<string, any> = {
     '88991122': {
@@ -54,7 +75,6 @@ export async function GET(request: Request) {
     });
   }
 
-  // Custom error response if the account ID is not in our mock database
   return NextResponse.json(
     { 
       status: "error", 
