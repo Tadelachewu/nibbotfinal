@@ -100,7 +100,7 @@ export function MenuManagement() {
     setIsEditDialogOpen(true);
   };
 
-  // Safe helper for deep nested updates
+  // Safe helper for deep nested updates without complex spreads
   const deepUpdate = (path: string[], value: any) => {
     setEditForm(prev => {
       const cloned = JSON.parse(JSON.stringify(prev));
@@ -159,7 +159,12 @@ export function MenuManagement() {
 
       const auth = editForm.apiConfig.authConfig;
       if (auth && auth.type !== 'none') {
-        const sampleKyc = { account_id: '88991122', phone: '251911223344', user: 'TEST_USER', pass: 'TEST_PASS' };
+        const sampleKyc = { 
+          account_id: '88991122', 
+          phone: '251911223344', 
+          username: 'TEST_USER', 
+          password: 'TEST_PASS' 
+        };
         const resolve = (str: string) => str.replace(/{{\s*(.*?)\s*}}/g, (match, p1) => {
           const key = p1.trim();
           if (key === 'user_token') return 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature';
@@ -169,8 +174,8 @@ export function MenuManagement() {
         if (auth.type === 'apiKey' && auth.apiKey) {
           headers[auth.apiKey.header || 'Authorization'] = resolve(auth.apiKey.value);
         } else if (auth.type === 'basic' && auth.basicAuth) {
-          const user = auth.basicAuth.mode === 'fixed' ? auth.basicAuth.user || 'admin' : sampleKyc.user;
-          const pass = auth.basicAuth.mode === 'fixed' ? auth.basicAuth.pass || 'password123' : sampleKyc.pass;
+          const user = auth.basicAuth.mode === 'fixed' ? auth.basicAuth.user || 'admin' : sampleKyc.username;
+          const pass = auth.basicAuth.mode === 'fixed' ? auth.basicAuth.pass || 'password123' : sampleKyc.password;
           headers['Authorization'] = `Basic ${btoa(`${user}:${pass}`)}`;
         } else if (auth.type === 'bearer' && auth.bearer) {
           headers['Authorization'] = resolve(auth.bearer.template);

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { MenuItem } from './types';
@@ -34,11 +33,10 @@ const defaultMenus: MenuItem[] = [
       loginRequired: false,
       requiredKYC: [],
       kycFields: [],
-      requestMapping: {},
+      requestParameters: [],
       responseMapping: {
         type: 'table',
         template: 'Here are the current rates:',
-        tableDataKey: 'rates',
         tableColumns: [
           { header: 'Currency', headerAm: 'ምንዛሬ', key: 'currency' },
           { header: 'Rate (vs USD)', headerAm: 'ተመን', key: 'rate' },
@@ -51,40 +49,54 @@ const defaultMenus: MenuItem[] = [
     }
   },
   { 
-    id: 'balance-check', 
+    id: 'basic-auth-test', 
     parentId: null, 
-    name: 'Check Balance', 
-    nameAm: 'ሒሳብ ማረጋገጥ',
+    name: 'Secure Action (Basic Auth)', 
+    nameAm: 'ደህንነቱ የተጠበቀ እርምጃ',
     responseType: 'api',
     order: 2,
     apiConfig: {
-      name: 'Account Balance',
-      endpoint: '/api/test/balance',
+      name: 'Basic Auth Validator',
+      endpoint: '/api/test/basic-auth-check',
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
       timeout: 5000,
       retry: 0,
       loginRequired: true,
-      requiredKYC: [],
+      authConfig: {
+        type: 'basic',
+        basicAuth: {
+          mode: 'dynamic',
+          userSource: 'username',
+          passSource: 'password'
+        }
+      },
       kycFields: [
         {
-          id: 'kyc-acc-id',
-          name: 'account_id',
-          prompt: 'Please enter your account ID (Test IDs: 88991122, 11223344, 99887766)',
-          promptAm: 'እባክዎን የሂሳብ መለያዎን ያስገቡ (88991122, 11223344, 99887766 ይሞክሩ)',
+          id: 'kyc-user',
+          name: 'username',
+          prompt: 'Please enter your username (Test: TEST_USER)',
+          promptAm: 'እባክዎን የተጠቃሚ ስምዎን ያስገቡ (TEST_USER ይሞክሩ)',
           type: 'text',
           order: 0
+        },
+        {
+          id: 'kyc-pass',
+          name: 'password',
+          prompt: 'Please enter your password (Test: TEST_PASS)',
+          promptAm: 'እባክዎን የይለፍ ቃልዎን ያስገቡ (TEST_PASS ይሞክሩ)',
+          type: 'password',
+          order: 1
         }
       ],
-      requestMapping: {
-        'account_id': 'kyc.account_id'
-      },
+      requestParameters: [],
       responseMapping: {
         type: 'message',
-        template: 'Your current balance is {{response.data.balance}} {{response.data.currency}}. Account Type: {{response.data.account_type}}.',
-        errorFallback: 'Failed to retrieve balance. Account not found.',
-        timeoutMessage: 'Server timed out.',
-        authRequiredMessage: 'Please log in to view your balance.'
+        template: 'Authentication Successful! Mode: {{response.mode}}. Message: {{response.message}}',
+        templateAm: 'ማረጋገጫ ተሳክቷል! ሁነታ፡ {{response.mode}}። መልዕክት፡ {{response.message}}',
+        errorFallback: 'Authentication failed. Please check your credentials.',
+        timeoutMessage: 'Request timed out.',
+        authRequiredMessage: 'Please provide credentials.'
       }
     }
   },
