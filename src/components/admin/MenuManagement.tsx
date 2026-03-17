@@ -100,7 +100,6 @@ export function MenuManagement() {
     setIsEditDialogOpen(true);
   };
 
-  // Safe helper for deep nested updates without complex spreads
   const deepUpdate = (path: string[], value: any) => {
     setEditForm(prev => {
       const cloned = JSON.parse(JSON.stringify(prev));
