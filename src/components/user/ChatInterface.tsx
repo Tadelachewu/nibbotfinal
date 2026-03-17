@@ -25,8 +25,6 @@ interface Message {
   content?: string;
   options?: MenuItem[];
   relatedOptions?: MenuItem[];
-  scopeIds?: string[];
-  originatingAttachedIds?: string[];
   isKYC?: boolean;
   tableData?: {
     columns: TableColumn[];
@@ -199,7 +197,7 @@ export function ChatInterface() {
     setIsLoadingApi(false);
   };
 
-  const navigateTo = (menu: MenuItem, scopeIds?: string[]) => {
+  const navigateTo = (menu: MenuItem) => {
     setHistory(prev => [...prev, { id: `user-${Date.now()}`, sender: 'user', text: getLocalizedName(menu) }]);
     if (menu.responseType === 'api' && menu.apiConfig) {
       const missingFields = menu.apiConfig.kycFields.filter(f => !userData.kyc[f.name]).sort((a, b) => a.order - b.order);
@@ -211,15 +209,15 @@ export function ChatInterface() {
       executeApiCall(menu, userData.kyc);
       return;
     }
-    let children = menus.filter(m => m.parentId === menu.id);
-    if (scopeIds && scopeIds.length > 0) children = children.filter(c => scopeIds.includes(c.id));
-    const entryPoints = menus.filter(m => menu.attachedMenuIds?.includes(m.id))
-                             .filter(item => !item.parentId || !menu.attachedMenuIds?.includes(item.parentId));
+    const children = menus.filter(m => m.parentId === menu.id);
+    const relatedItems = menus.filter(m => menu.attachedMenuIds?.includes(m.id));
+    
     setHistory(prev => [...prev, {
-      id: `bot-${Date.now()}`, sender: 'bot', content: getLocalizedContent(menu),
+      id: `bot-${Date.now()}`, 
+      sender: 'bot', 
+      content: getLocalizedContent(menu),
       options: children.length > 0 ? children : undefined,
-      relatedOptions: entryPoints.length > 0 ? entryPoints : undefined,
-      scopeIds, originatingAttachedIds: menu.attachedMenuIds,
+      relatedOptions: relatedItems.length > 0 ? relatedItems : undefined,
     }]);
     setCurrentMenuId(menu.id);
   };
@@ -267,9 +265,9 @@ export function ChatInterface() {
               </div>
             )}
             <div className="flex flex-wrap gap-2 mt-4">
-              {msg.options?.map(opt => <Button key={opt.id} variant="outline" size="sm" className="rounded-full" onClick={() => navigateTo(opt, msg.scopeIds)}>{getLocalizedName(opt)}<ChevronRight size={14} className="ml-1 opacity-50" /></Button>)}
+              {msg.options?.map(opt => <Button key={opt.id} variant="outline" size="sm" className="rounded-full" onClick={() => navigateTo(opt)}>{getLocalizedName(opt)}<ChevronRight size={14} className="ml-1 opacity-50" /></Button>)}
               {msg.relatedOptions?.length ? <div className="w-full flex items-center gap-2 py-2"><div className="h-px bg-muted flex-1" /><span className="text-[9px] font-bold uppercase text-muted-foreground">{language === 'Amharic' ? 'ተዛማጅ' : 'Related'}</span><div className="h-px bg-muted flex-1" /></div> : null}
-              {msg.relatedOptions?.map(opt => <Button key={opt.id} variant="secondary" size="sm" className="rounded-full" onClick={() => navigateTo(opt, msg.originatingAttachedIds)}><LinkIcon size={12} className="mr-2" />{getLocalizedName(opt)}</Button>)}
+              {msg.relatedOptions?.map(opt => <Button key={opt.id} variant="secondary" size="sm" className="rounded-full" onClick={() => navigateTo(opt)}><LinkIcon size={12} className="mr-2" />{getLocalizedName(opt)}</Button>)}
             </div>
           </ChatBubble>
         ))}

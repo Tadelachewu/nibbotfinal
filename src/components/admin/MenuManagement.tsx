@@ -59,6 +59,7 @@ export function MenuManagement() {
   const [menus, setMenus] = useState<MenuItem[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['root']));
+  const [expandedBrowserFolders, setExpandedBrowserFolders] = useState<Set<string>>(new Set(['root']));
   const [editForm, setEditForm] = useState<Partial<MenuItem>>({});
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -263,25 +264,63 @@ export function MenuManagement() {
     const items = menus.filter(m => m.parentId === parentId && m.id !== editingId)
       .filter(m => searchQuery === '' || m.name.toLowerCase().includes(searchQuery.toLowerCase()))
       .sort((a, b) => a.order - b.order);
-    if (items.length === 0) return null;
+    
+    if (items.length === 0 && parentId !== null) return null;
+
     return (
       <div className={`space-y-1 ${level > 0 ? 'ml-6 border-l pl-3' : ''}`}>
         {items.map(item => {
           const isSelected = editForm.attachedMenuIds?.includes(item.id);
+          const isExpanded = expandedBrowserFolders.has(item.id);
+          const hasChildren = menus.some(m => m.parentId === item.id);
+
           return (
             <div key={item.id} className="space-y-1">
-              <div className={cn("flex items-center gap-2 p-2 rounded-md transition-all cursor-pointer hover:bg-muted/50", isSelected && "bg-primary/5 ring-1 ring-primary/10")} onClick={() => {
-                const currentIds = editForm.attachedMenuIds || [];
-                if (!currentIds.includes(item.id)) {
-                  setEditForm({ ...editForm, attachedMenuIds: [...currentIds, item.id] });
-                } else {
-                  setEditForm({ ...editForm, attachedMenuIds: currentIds.filter(id => id !== item.id) });
-                }
-              }}>
-                <Checkbox checked={isSelected} className="h-4 w-4 rounded-full" onClick={(e) => e.stopPropagation()} />
-                <span className="text-xs font-medium">{item.name}</span>
+              <div className={cn(
+                "flex items-center gap-2 p-1 rounded-md transition-all hover:bg-muted/50 group",
+                isSelected && "bg-primary/5 ring-1 ring-primary/10"
+              )}>
+                <button 
+                  onClick={() => {
+                    const next = new Set(expandedBrowserFolders);
+                    if (next.has(item.id)) next.delete(item.id); else next.add(item.id);
+                    setExpandedBrowserFolders(next);
+                  }}
+                  className={cn(
+                    "text-muted-foreground hover:text-primary transition-transform h-6 w-6 flex items-center justify-center rounded-sm hover:bg-muted",
+                    !hasChildren && "opacity-0 cursor-default pointer-events-none",
+                    isExpanded ? 'rotate-0' : '-rotate-90'
+                  )}
+                  disabled={!hasChildren}
+                >
+                  <ChevronDown size={14} />
+                </button>
+                
+                <Checkbox 
+                  checked={isSelected} 
+                  className="h-4 w-4 rounded-sm" 
+                  onCheckedChange={(checked) => {
+                    const currentIds = editForm.attachedMenuIds || [];
+                    if (checked) {
+                      setEditForm({ ...editForm, attachedMenuIds: [...currentIds, item.id] });
+                    } else {
+                      setEditForm({ ...editForm, attachedMenuIds: currentIds.filter(id => id !== item.id) });
+                    }
+                  }}
+                />
+                
+                <span className="text-xs font-medium cursor-pointer flex-1 py-1" onClick={() => {
+                  const currentIds = editForm.attachedMenuIds || [];
+                  if (!isSelected) {
+                    setEditForm({ ...editForm, attachedMenuIds: [...currentIds, item.id] });
+                  } else {
+                    setEditForm({ ...editForm, attachedMenuIds: currentIds.filter(id => id !== item.id) });
+                  }
+                }}>
+                  {item.name}
+                </span>
               </div>
-              {isSelected && renderBrowserTree(item.id, level + 1)}
+              {isExpanded && renderBrowserTree(item.id, level + 1)}
             </div>
           );
         })}
@@ -573,7 +612,15 @@ export function MenuManagement() {
 
               <div className="pt-8">
                 <Label className="text-sm font-bold flex items-center gap-2 mb-4"><ListTree size={16} /> Attach Related Menus</Label>
-                <div className="bg-white rounded-xl border p-4 shadow-sm">{renderBrowserTree(null)}</div>
+                <div className="bg-white rounded-xl border p-4 shadow-sm">
+                  <Input 
+                    placeholder="Search menus..." 
+                    value={searchQuery} 
+                    onChange={e => setSearchQuery(e.target.value)} 
+                    className="mb-4 h-8 text-xs"
+                  />
+                  {renderBrowserTree(null)}
+                </div>
               </div>
             </div>
           </ScrollArea>
