@@ -493,7 +493,9 @@ export function MenuManagement() {
                                     >
                                       <SelectTrigger><SelectValue placeholder="Select KYC Field" /></SelectTrigger>
                                       <SelectContent>
-                                        {editForm.apiConfig?.kycFields?.map(f => <SelectItem key={f.id} value={f.name}>{f.name}</SelectItem>)}
+                                        {editForm.apiConfig?.kycFields?.filter(f => f.name).map(f => (
+                                          <SelectItem key={f.id} value={f.name}>{f.name}</SelectItem>
+                                        ))}
                                       </SelectContent>
                                     </Select>
                                   </div>
@@ -505,7 +507,9 @@ export function MenuManagement() {
                                     >
                                       <SelectTrigger><SelectValue placeholder="Select KYC Field" /></SelectTrigger>
                                       <SelectContent>
-                                        {editForm.apiConfig?.kycFields?.map(f => <SelectItem key={f.id} value={f.name}>{f.name}</SelectItem>)}
+                                        {editForm.apiConfig?.kycFields?.filter(f => f.name).map(f => (
+                                          <SelectItem key={f.id} value={f.name}>{f.name}</SelectItem>
+                                        ))}
                                       </SelectContent>
                                     </Select>
                                   </div>
@@ -525,7 +529,7 @@ export function MenuManagement() {
                                 />
                                 <div className="flex flex-wrap gap-1 mt-2">
                                   <span className="text-[8px] text-muted-foreground self-center mr-1">ADD KYC:</span>
-                                  {editForm.apiConfig?.kycFields?.map(f => (
+                                  {editForm.apiConfig?.kycFields?.filter(f => f.name).map(f => (
                                     <Badge 
                                       key={f.id} 
                                       variant="outline" 
@@ -655,7 +659,9 @@ export function MenuManagement() {
                             }}>
                               <SelectTrigger><SelectValue placeholder="Source Field" /></SelectTrigger>
                               <SelectContent>
-                                {editForm.apiConfig?.kycFields?.map(f => <SelectItem key={f.id} value={f.name}>KYC: {f.name}</SelectItem>)}
+                                {editForm.apiConfig?.kycFields?.filter(f => f.name).map(f => (
+                                  <SelectItem key={f.id} value={f.name}>KYC: {f.name}</SelectItem>
+                                ))}
                                 <SelectItem value="user.id">User ID</SelectItem>
                                 <SelectItem value="user.token">User Token</SelectItem>
                               </SelectContent>
