@@ -34,6 +34,7 @@ import {
   Wand2,
   Sparkles,
   Type,
+  Search,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -256,38 +257,8 @@ export function MenuManagement() {
     }
   };
 
-  const autoGenerateTableColumns = () => {
-    if (!apiPreviewResult) return;
-    
-    let list: any[] = [];
-    if (Array.isArray(apiPreviewResult)) {
-      list = apiPreviewResult;
-    } else if (apiPreviewResult.data && Array.isArray(apiPreviewResult.data)) {
-      list = apiPreviewResult.data;
-    } else {
-      for (const key in apiPreviewResult) {
-        if (Array.isArray(apiPreviewResult[key])) {
-          list = apiPreviewResult[key];
-          break;
-        }
-      }
-    }
-
-    if (list.length > 0 && typeof list[0] === 'object') {
-      const sample = list[0];
-      const newCols: TableColumn[] = Object.keys(sample).map(key => ({
-        header: key.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
-        key: key
-      }));
-      deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], newCols);
-      toast({ title: "Auto-fill Complete", description: `Generated ${newCols.length} columns.` });
-    } else {
-      toast({ title: "No list found", description: "The API response doesn't contain a list to map.", variant: "destructive" });
-    }
-  };
-
   const getAvailableFields = (obj: any, prefix = ''): string[] => {
-    if (!obj || typeof obj !== 'object') return [];
+    if (!obj || typeof obj !== 'object' || obj === null) return [];
     let fields: string[] = [];
     
     for (const key in obj) {
@@ -295,6 +266,8 @@ export function MenuManagement() {
       if (Array.isArray(obj[key])) {
         if (obj[key].length > 0 && typeof obj[key][0] === 'object') {
           fields.push(...getAvailableFields(obj[key][0], currentPath));
+        } else {
+          fields.push(currentPath);
         }
       } else if (typeof obj[key] === 'object' && obj[key] !== null) {
         fields.push(...getAvailableFields(obj[key], currentPath));
@@ -375,6 +348,42 @@ export function MenuManagement() {
   };
 
   const kycFieldsList = (editForm.apiConfig?.kycFields || []).filter(f => f.name);
+
+  const FieldPicker = ({ onSelect, currentFields }: { onSelect: (field: string) => void, currentFields: string[] }) => (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="icon" className="h-7 w-7 text-primary hover:bg-primary/10 shrink-0">
+          <Wand2 size={12} />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-2" align="end">
+        <div className="flex items-center gap-2 px-1 mb-2">
+          <Sparkles size={10} className="text-primary" />
+          <span className="text-[10px] font-bold uppercase text-muted-foreground">Detected Fields</span>
+        </div>
+        <ScrollArea className="h-56">
+          <div className="space-y-1 pr-2">
+            {currentFields.length > 0 ? (
+              currentFields.map(field => (
+                <Button 
+                  key={field} 
+                  variant="ghost" 
+                  className="w-full justify-start h-8 text-[11px] px-2 font-mono truncate"
+                  onClick={() => onSelect(field)}
+                >
+                  {field}
+                </Button>
+              ))
+            ) : (
+              <div className="py-4 text-center text-[10px] text-muted-foreground italic">
+                Test API first to see fields.
+              </div>
+            )}
+          </div>
+        </ScrollArea>
+      </PopoverContent>
+    </Popover>
+  );
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -508,46 +517,23 @@ export function MenuManagement() {
                           {editForm.apiConfig?.responseMapping?.type === 'message' && (
                             <div className="space-y-4">
                               <div className="space-y-2">
-                                <Label className="text-[10px] uppercase font-bold text-muted-foreground flex items-center justify-between">
-                                  Success Template
-                                  {apiPreviewResult && (
-                                    <Popover>
-                                      <PopoverTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-6 w-6 text-primary hover:bg-primary/10">
-                                          <Wand2 size={12} />
-                                        </Button>
-                                      </PopoverTrigger>
-                                      <PopoverContent className="w-56 p-2">
-                                        <div className="text-[10px] font-bold uppercase text-muted-foreground mb-2 px-1">Insert Field</div>
-                                        <ScrollArea className="h-48">
-                                          <div className="space-y-1">
-                                            {getAvailableFields(apiPreviewResult).map(field => (
-                                              <Button 
-                                                key={field} 
-                                                variant="ghost" 
-                                                className="w-full justify-start h-7 text-[10px] px-2"
-                                                onClick={() => {
-                                                  const currentTemplate = lang.isDefault ? (editForm.apiConfig?.responseMapping?.template || '') : (lang.code === 'am' ? (editForm.apiConfig?.responseMapping?.templateAm || '') : (editForm.translations?.[lang.code]?.responseTemplate || ''));
-                                                  const newTemplate = currentTemplate + `{{response.${field}}}`;
-                                                  
-                                                  if (lang.isDefault) deepUpdate(['apiConfig', 'responseMapping', 'template'], newTemplate);
-                                                  else if (lang.code === 'am') deepUpdate(['apiConfig', 'responseMapping', 'templateAm'], newTemplate);
-                                                  else {
-                                                    const translations = { ...(editForm.translations || {}) };
-                                                    translations[lang.code] = { ...(translations[lang.code] || {}), responseTemplate: newTemplate };
-                                                    setEditForm({ ...editForm, translations });
-                                                  }
-                                                }}
-                                              >
-                                                {field}
-                                              </Button>
-                                            ))}
-                                          </div>
-                                        </ScrollArea>
-                                      </PopoverContent>
-                                    </Popover>
-                                  )}
-                                </Label>
+                                <div className="flex items-center justify-between">
+                                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">Success Template</Label>
+                                  <FieldPicker 
+                                    currentFields={getAvailableFields(apiPreviewResult)}
+                                    onSelect={(field) => {
+                                      const currentTemplate = lang.isDefault ? (editForm.apiConfig?.responseMapping?.template || '') : (lang.code === 'am' ? (editForm.apiConfig?.responseMapping?.templateAm || '') : (editForm.translations?.[lang.code]?.responseTemplate || ''));
+                                      const newTemplate = currentTemplate + `{{response.${field}}}`;
+                                      if (lang.isDefault) deepUpdate(['apiConfig', 'responseMapping', 'template'], newTemplate);
+                                      else if (lang.code === 'am') deepUpdate(['apiConfig', 'responseMapping', 'templateAm'], newTemplate);
+                                      else {
+                                        const translations = { ...(editForm.translations || {}) };
+                                        translations[lang.code] = { ...(translations[lang.code] || {}), responseTemplate: newTemplate };
+                                        setEditForm({ ...editForm, translations });
+                                      }
+                                    }}
+                                  />
+                                </div>
                                 <Input 
                                   value={lang.isDefault ? (editForm.apiConfig?.responseMapping?.template || '') : (lang.code === 'am' ? (editForm.apiConfig?.responseMapping?.templateAm || '') : (editForm.translations?.[lang.code]?.responseTemplate || ''))}
                                   onChange={e => {
@@ -825,21 +811,14 @@ export function MenuManagement() {
                           </div>
                           <div className="text-center py-6 border rounded-lg bg-muted/5">
                             <Type size={24} className="mx-auto text-muted-foreground/30 mb-2" />
-                            <p className="text-xs text-muted-foreground">Mapping active. Templates are managed in Language tabs.</p>
+                            <p className="text-xs text-muted-foreground">Mapping active. Templates are managed in Language tabs using the magic wand.</p>
                           </div>
                         </TabsContent>
 
                         <TabsContent value="table" className="p-4 space-y-4 mt-0">
                           <div className="flex items-center justify-between">
                             <Label className="text-xs font-bold flex items-center gap-2 text-muted-foreground uppercase"><TableIcon size={14} /> Structure Mapping</Label>
-                            <div className="flex gap-2">
-                              {apiPreviewResult && (
-                                <Button variant="outline" size="sm" className="h-8 text-[10px] bg-primary/5 text-primary border-primary/20 hover:bg-primary/10" onClick={autoGenerateTableColumns}>
-                                  <Sparkles size={12} className="mr-1" /> Auto-fill from Preview
-                                </Button>
-                              )}
-                              <Button variant="ghost" size="sm" className="h-8 text-[10px]" onClick={() => { const cols = editForm.apiConfig?.responseMapping?.tableColumns || []; deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], [...cols, { header: 'New Column', key: '' }]); }}><Plus className="mr-1 h-3 w-3" /> Add Column</Button>
-                            </div>
+                            <Button variant="ghost" size="sm" className="h-8 text-[10px]" onClick={() => { const cols = editForm.apiConfig?.responseMapping?.tableColumns || []; deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], [...cols, { header: 'New Column', key: '' }]); }}><Plus className="mr-1 h-3 w-3" /> Add Column</Button>
                           </div>
                           <div className="space-y-2">
                             {editForm.apiConfig?.responseMapping?.tableColumns?.map((col, idx) => (
@@ -849,7 +828,17 @@ export function MenuManagement() {
                                   <Input className="h-8 text-xs" value={col.header} onChange={e => { const cols = [...editForm.apiConfig!.responseMapping.tableColumns!]; cols[idx].header = e.target.value; deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], cols); }} />
                                 </div>
                                 <div className="flex-1 space-y-1">
-                                  <Label className="text-[9px] uppercase font-bold text-muted-foreground">Data Key (JSON Path)</Label>
+                                  <div className="flex items-center justify-between">
+                                    <Label className="text-[9px] uppercase font-bold text-muted-foreground">Data Key</Label>
+                                    <FieldPicker 
+                                      currentFields={getAvailableFields(apiPreviewResult)}
+                                      onSelect={(field) => {
+                                        const cols = [...editForm.apiConfig!.responseMapping.tableColumns!];
+                                        cols[idx].key = field;
+                                        deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], cols);
+                                      }}
+                                    />
+                                  </div>
                                   <Input className="h-8 text-xs font-mono" value={col.key} onChange={e => { const cols = [...editForm.apiConfig!.responseMapping.tableColumns!]; cols[idx].key = e.target.value; deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], cols); }} />
                                 </div>
                                 <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100" onClick={() => { const cols = editForm.apiConfig!.responseMapping.tableColumns!.filter((_, i) => i !== idx); deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], cols); }}><Trash2 size={14} /></Button>
@@ -858,7 +847,7 @@ export function MenuManagement() {
                             {(!editForm.apiConfig?.responseMapping?.tableColumns || editForm.apiConfig.responseMapping.tableColumns.length === 0) && (
                               <div className="text-center py-8 border border-dashed rounded-lg bg-muted/5">
                                 <TableIcon size={24} className="mx-auto text-muted-foreground/30 mb-2" />
-                                <p className="text-xs text-muted-foreground">No columns defined. Define structure here, translate in language tabs.</p>
+                                <p className="text-xs text-muted-foreground">No columns defined. Add columns and use the magic wand to pick data keys.</p>
                               </div>
                             )}
                           </div>
@@ -874,7 +863,10 @@ export function MenuManagement() {
               <div className="pt-8">
                 <Label className="text-sm font-bold flex items-center gap-2 mb-4"><ListTree size={16} /> Attach Related Menus</Label>
                 <div className="bg-white rounded-xl border p-4 shadow-sm">
-                  <Input placeholder="Search menus..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="mb-4 h-8 text-xs" />
+                  <div className="relative mb-4">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input placeholder="Search menus..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-8 h-9 text-sm" />
+                  </div>
                   {renderBrowserTree(null)}
                 </div>
               </div>
