@@ -57,13 +57,13 @@ const defaultMenus: MenuItem[] = [
   {
     id: 'path-param-test',
     parentId: null,
-    name: 'My Profile (Path Param)',
-    nameAm: 'የእኔ መገለጫ',
+    name: 'Account Balance (Path Param)',
+    nameAm: 'የሂሳብ ቀሪ ሂሳብ',
     responseType: 'api',
     order: 3,
     apiConfig: {
-      name: 'Secure Path Parameter Lookup',
-      endpoint: '/api/test/profile/{{user_id}}',
+      name: 'KYC-Sourced Path Parameter',
+      endpoint: '/api/test/balance?account_id={{account_id}}',
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
       timeout: 5000,
@@ -73,13 +73,22 @@ const defaultMenus: MenuItem[] = [
         type: 'bearer',
         bearer: { header: 'Authorization', template: 'Bearer {{user_token}}' }
       },
-      kycFields: [],
+      kycFields: [
+        {
+          id: 'kyc-balance-id',
+          name: 'account_id',
+          prompt: 'Please enter your Account ID (e.g. 88991122)',
+          promptAm: 'እባክዎ የሂሳብ ቁጥርዎን ያስገቡ',
+          type: 'text',
+          order: 0
+        }
+      ],
       requestParameters: [],
       responseMapping: {
         type: 'message',
-        template: 'Profile Found: {{response.data.full_name}} ({{response.data.email}}). Status: {{response.data.kyc_status}}',
-        templateAm: 'መገለጫ ተገኝቷል፡ {{response.data.full_name}} ({{response.data.email}})። ሁኔታ፡ {{response.data.kyc_status}}',
-        errorFallback: 'Could not load profile details.',
+        template: 'Balance for {{response.data.account_id}}: {{response.data.balance}} {{response.data.currency}} ({{response.data.account_type}})',
+        templateAm: 'ለሂሳብ ቁጥር {{response.data.account_id}} ያለው ቀሪ ሂሳብ: {{response.data.balance}} {{response.data.currency}}',
+        errorFallback: 'Could not retrieve balance details.',
         timeoutMessage: 'Timeout.',
         authRequiredMessage: 'Auth Required.'
       }

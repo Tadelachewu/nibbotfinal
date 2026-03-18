@@ -47,7 +47,8 @@ export function ChatInterface() {
   const [history, setHistory] = useState<Message[]>([]);
   const [currentMenuId, setCurrentMenuId] = useState<string | null>(null);
   const [currentLang, setCurrentLang] = useState<Language | null>(null);
-  // SYSTEM USER DATA SOURCE
+  
+  // SYSTEM USER DATA
   const [userData, setUserData] = useState<UserData>({
     id: 'user_123',
     token: 'talktree_static_token_778899',
@@ -158,13 +159,13 @@ export function ChatInterface() {
     return getVal(key, root);
   };
 
-  // SYSTEM PLACEHOLDER RESOLVER
+  // PLACEHOLDER RESOLVER (Prioritizes KYC -> System)
   const replacePlaceholders = (template: string, kycData: Record<string, any>) => {
     let res = template;
-    // Map system variables from userData
+    // Map system variables
     res = res.replace(/{{\s*user_id\s*}}/g, userData.id);
     res = res.replace(/{{\s*user_token\s*}}/g, userData.token);
-    // Map KYC variables
+    // Map KYC variables (including those intended for path segments)
     Object.entries(kycData).forEach(([k, v]) => {
       const regex = new RegExp(`{{\\s*${k}\\s*}}`, 'g');
       res = res.replace(regex, String(v));
@@ -199,7 +200,7 @@ export function ChatInterface() {
     const mapping = menu.apiConfig.responseMapping;
 
     try {
-      // Resolve URL (handles path params)
+      // 1. Resolve Path Parameters & URL
       let url = replacePlaceholders(menu.apiConfig.endpoint, kycData);
       
       const requestPayload: Record<string, any> = {};
@@ -210,7 +211,7 @@ export function ChatInterface() {
         else if (kycData[param.sourceValue]) requestPayload[param.apiKey] = kycData[param.sourceValue];
       });
 
-      // Resolve Headers
+      // 2. Resolve Auth & Headers
       const headers: Record<string, string> = { 'Content-Type': 'application/json', ...menu.apiConfig.headers };
       const auth = menu.apiConfig.authConfig;
       if (auth && auth.type !== 'none') {
@@ -223,6 +224,7 @@ export function ChatInterface() {
         } else if (auth.type === 'bearer' && auth.bearer) { headers[headerName] = replacePlaceholders(auth.bearer.template, kycData); }
       }
 
+      // 3. Perform Fetch
       const options: RequestInit = { method: menu.apiConfig.method, headers };
       if (menu.apiConfig.method === 'GET') {
         const params = new URLSearchParams();
@@ -236,6 +238,7 @@ export function ChatInterface() {
       apiResponse = data;
     } catch (e) { success = false; }
 
+    // 4. Handle Response View
     let botMsg: Message = { id: `bot-api-${Date.now()}`, sender: 'bot' };
     if (!success) { botMsg.text = apiResponse?.message || getLocalizedErrorFallback(menu); }
     else {
@@ -250,10 +253,9 @@ export function ChatInterface() {
       } else if (mapping.type === 'table') {
         const foundArray = findArrayData(apiResponse);
         if (foundArray) {
-          const rows = Array.isArray(foundArray.data) ? foundArray.data : [foundArray.data];
           botMsg.tableData = { 
             columns: (mapping.tableColumns || []).map(c => ({ ...c, localizedHeader: getLocalizedTableHeader(menu, c) })), 
-            rows: rows, 
+            rows: Array.isArray(foundArray.data) ? foundArray.data : [foundArray.data], 
             rootData: apiResponse, 
             arrayPath: foundArray.path 
           };
@@ -269,13 +271,15 @@ export function ChatInterface() {
   const navigateTo = (menu: MenuItem) => {
     setHistory(prev => [...prev, { id: `user-${Date.now()}`, sender: 'user', text: getLocalizedName(menu) }]);
     if (menu.responseType === 'api' && menu.apiConfig) {
+      // IDENTIFY ALL REQUIRED SOURCES (URL, Params, Headers)
       const requiredFieldNames: string[] = [];
-      const urlMatches = menu.apiConfig.endpoint.match(/{{\s*(.*?)\s*}}/g);
-      urlMatches?.forEach(m => {
+      const placeholders = (menu.apiConfig.endpoint + (menu.apiConfig.authConfig?.bearer?.template || '')).match(/{{\s*(.*?)\s*}}/g);
+      placeholders?.forEach(m => {
         const name = m.replace('{{', '').replace('}}', '').trim();
         if (name !== 'user_id' && name !== 'user_token') requiredFieldNames.push(name);
       });
       menu.apiConfig.requestParameters?.forEach(p => { if (p.sourceType === 'kyc') requiredFieldNames.push(p.sourceValue); });
+      
       const uniqueRequired = Array.from(new Set(requiredFieldNames));
       const kycFields = menu.apiConfig.kycFields || [];
       const missingFields = kycFields
@@ -324,13 +328,13 @@ export function ChatInterface() {
             {msg.text && <p>{msg.text}</p>}
             {msg.content && <div dangerouslySetInnerHTML={{ __html: msg.content }} />}
             {msg.tableData && (
-              <div className="mt-4 border rounded-lg overflow-hidden bg-muted/20">
+              <div className="mt-4 border rounded-lg overflow-hidden bg-muted/20 shadow-sm">
                 <ScrollArea className="max-h-60">
                   <Table>
                     <TableHeader className="bg-muted/30">
                       <TableRow>
                         {msg.tableData.columns.map((col, i) => (
-                          <TableHead key={i} className="text-[10px] font-bold">
+                          <TableHead key={i} className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">
                             {col.localizedHeader}
                           </TableHead>
                         ))}
@@ -338,9 +342,9 @@ export function ChatInterface() {
                     </TableHeader>
                     <TableBody>
                       {msg.tableData.rows.map((row, i) => (
-                        <TableRow key={i}>
+                        <TableRow key={i} className="hover:bg-primary/5 transition-colors">
                           {msg.tableData!.columns.map((col, j) => (
-                            <TableCell key={j} className="text-xs">
+                            <TableCell key={j} className="text-xs py-3 font-medium">
                               {String(resolveTableCell(col.key, row, msg.tableData!.rootData, msg.tableData!.arrayPath) ?? '')}
                             </TableCell>
                           ))}
@@ -352,23 +356,23 @@ export function ChatInterface() {
               </div>
             )}
             <div className="flex flex-wrap gap-2 mt-4">
-              {msg.options?.map(opt => <Button key={opt.id} variant="outline" size="sm" className="rounded-full" onClick={() => navigateTo(opt)}>{getLocalizedName(opt)}<ChevronRight size={14} className="ml-1 opacity-50" /></Button>)}
+              {msg.options?.map(opt => <Button key={opt.id} variant="outline" size="sm" className="rounded-full bg-white hover:bg-primary/5 border-primary/20 text-primary-dark" onClick={() => navigateTo(opt)}>{getLocalizedName(opt)}<ChevronRight size={14} className="ml-1 opacity-50" /></Button>)}
               {msg.relatedOptions?.length ? <div className="w-full flex items-center gap-2 py-2"><div className="h-px bg-muted flex-1" /><span className="text-[9px] font-bold uppercase text-muted-foreground">{currentLang?.code === 'am' ? 'ተዛማጅ' : 'Related'}</span><div className="h-px bg-muted flex-1" /></div> : null}
-              {msg.relatedOptions?.map(opt => <Button key={opt.id} variant="secondary" size="sm" className="rounded-full" onClick={() => navigateTo(opt)}><LinkIcon size={12} className="mr-2" />{getLocalizedName(opt)}</Button>)}
+              {msg.relatedOptions?.map(opt => <Button key={opt.id} variant="secondary" size="sm" className="rounded-full shadow-sm" onClick={() => navigateTo(opt)}><LinkIcon size={12} className="mr-2" />{getLocalizedName(opt)}</Button>)}
             </div>
           </ChatBubble>
         ))}
-        {isLoadingApi && <div className="flex justify-start"><div className="bg-white border rounded-2xl p-4 shadow-sm flex items-center gap-2"><Loader2 size={16} className="animate-spin text-primary" /><span className="text-xs italic">Fetching data...</span></div></div>}
+        {isLoadingApi && <div className="flex justify-start"><div className="bg-white border rounded-2xl p-4 shadow-sm flex items-center gap-2 animate-pulse"><Loader2 size={16} className="animate-spin text-primary" /><span className="text-xs italic font-medium">Communicating with Secure Gateway...</span></div></div>}
       </div>
-      {kycFlow && <div className="p-4 bg-white border-t flex flex-col gap-2 animate-in slide-in-from-bottom-2">
+      {kycFlow && <div className="p-4 bg-white border-t flex flex-col gap-2 animate-in slide-in-from-bottom-2 duration-300">
         <form onSubmit={handleKycSubmit} className="flex gap-2">
-          <Input autoFocus type={kycFlow.fields[kycFlow.fieldIndex].type === 'password' ? 'password' : 'text'} value={kycInput} onChange={e => setKycInput(e.target.value)} placeholder={currentLang?.code === 'am' ? 'እዚህ ይጻፉ...' : 'Type here...'} className="rounded-full" />
-          <Button type="submit" size="icon" className="rounded-full"><Send size={18} /></Button>
+          <Input autoFocus type={kycFlow.fields[kycFlow.fieldIndex].type === 'password' ? 'password' : 'text'} value={kycInput} onChange={e => setKycInput(e.target.value)} placeholder={currentLang?.code === 'am' ? 'እዚህ ይጻፉ...' : 'Enter requested information...'} className="rounded-full shadow-inner" />
+          <Button type="submit" size="icon" className="rounded-full h-10 w-10 shrink-0"><Send size={18} /></Button>
         </form>
       </div>}
       <footer className="bg-white border-t p-4 flex justify-center gap-4 shrink-0">
-        <Button variant="ghost" size="sm" onClick={() => { setHistory(prev => [...prev, { id: `home-${Date.now()}`, sender: 'bot', text: currentLang?.code === 'am' ? 'እንዴት ልረዳዎ እችላለሁ?' : 'How can I help you?', options: menus.filter(m => m.parentId === null) }]); setCurrentMenuId(null); setKycFlow(null); }}><Home className="mr-2" size={18} /> {currentLang?.code === 'am' ? 'ቤት' : 'Home'}</Button>
-        {currentMenuId && !kycFlow && <Button variant="ghost" size="sm" onClick={() => { const current = menus.find(m => m.id === currentMenuId); const parent = menus.find(m => m.id === current?.parentId); if (parent) navigateTo(parent); else setHistory(p => [...p, { id: 'reset', sender: 'bot', text: 'Reset', options: menus.filter(m => !m.parentId) }]); }}><ArrowLeft className="mr-2" size={18} /> {currentLang?.code === 'am' ? 'ተመለስ' : 'Back'}</Button>}
+        <Button variant="ghost" size="sm" className="hover:bg-primary/5 rounded-full px-6" onClick={() => { setHistory(prev => [...prev, { id: `home-${Date.now()}`, sender: 'bot', text: currentLang?.code === 'am' ? 'እንዴት ልረዳዎ እችላለሁ?' : 'How can I help you?', options: menus.filter(m => m.parentId === null) }]); setCurrentMenuId(null); setKycFlow(null); }}><Home className="mr-2 text-primary" size={18} /> {currentLang?.code === 'am' ? 'ቤት' : 'Home'}</Button>
+        {currentMenuId && !kycFlow && <Button variant="ghost" size="sm" className="hover:bg-primary/5 rounded-full px-6" onClick={() => { const current = menus.find(m => m.id === currentMenuId); const parent = menus.find(m => m.id === current?.parentId); if (parent) navigateTo(parent); else setHistory(p => [...p, { id: 'reset', sender: 'bot', text: 'Navigation Reset', options: menus.filter(m => !m.parentId) }]); }}><ArrowLeft className="mr-2 text-primary" size={18} /> {currentLang?.code === 'am' ? 'ተመለስ' : 'Back'}</Button>}
       </footer>
     </div>
   );
