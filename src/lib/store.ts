@@ -38,20 +38,22 @@ const defaultMenus: MenuItem[] = [
       retry: 1,
       loginRequired: false,
       kycFields: [],
-      requestParameters: [],
+      requestParameters: [
+        { apiKey: 'base', sourceType: 'static', sourceValue: 'USD' }
+      ],
       authConfig: {
         type: 'apiKey',
         apiKey: { header: 'X-API-KEY', value: 'secret-123' }
       },
       responseMapping: {
         type: 'table',
-        template: 'Here are the current rates:',
+        template: 'Here are the current rates for {{response.base}}:',
         tableColumns: [
           { header: 'Currency', headerAm: 'ምንዛሬ', key: 'currency' },
-          { header: 'Rate (vs USD)', headerAm: 'ተመን', key: 'rate' },
+          { header: 'Rate', headerAm: 'ተመን', key: 'rate' },
           { header: 'Last Update', headerAm: 'መጨረሻ የዘመነው', key: 'updated' }
         ],
-        errorFallback: 'Could not retrieve exchange rates.',
+        errorFallback: 'Could not retrieve exchange rates. Ensure "base" parameter is mapped.',
         timeoutMessage: 'Request timed out.',
         authRequiredMessage: 'Login required.'
       }

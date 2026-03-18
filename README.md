@@ -13,10 +13,13 @@ TalkTree is a dynamic, chatbot-driven menu management system built with Next.js,
 
 The system includes several mock APIs to test different integration patterns. Follow these steps to verify each one:
 
-### 1. Exchange Rates (Header-based API Key)
-*   **Goal**: Test simple API Key validation in headers.
-*   **In Admin**: Set Endpoint to `/api/test/exchange-rate`. Auth Type: `API Key`. Header: `X-API-KEY`. Value: `secret-123`.
-*   **In Chat**: Click "Exchange Rates". It will return a table of currencies.
+### 1. Exchange Rates (Header-based API Key + Query Param)
+*   **Goal**: Test combining API Key validation and Request Parameter mapping.
+*   **In Admin**: 
+    *   Endpoint: `/api/test/exchange-rate`
+    *   Auth Type: `API Key`. Header: `X-API-KEY`. Value: `secret-123`.
+    *   **Request Mapping**: Param: `base` -> Source: `Static: USD`.
+*   **In Chat**: Click "Exchange Rates". If configured correctly, it returns a table. If `base` is missing, it returns a 400 error.
 
 ### 2. Profile Lookup (Dynamic Path Parameter)
 *   **Goal**: Test injecting a user-provided value directly into the URL path.

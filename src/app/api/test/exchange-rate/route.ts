@@ -1,22 +1,35 @@
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
   const apiKey = request.headers.get('X-API-KEY');
+  const baseCurrency = searchParams.get('base');
   
-  // PUBLIC PREVIEW MODE: If no API Key is provided, return limited data
+  // 1. Validate Query Parameter
+  if (!baseCurrency) {
+    return NextResponse.json(
+      { 
+        status: "error", 
+        message: "Bad Request: Missing required query parameter 'base'. Please configure your 'Request Mapping' in Admin to send 'base=USD'." 
+      },
+      { status: 400 }
+    );
+  }
+
+  // 2. PUBLIC PREVIEW MODE (Auth Check)
   if (!apiKey) {
     return NextResponse.json({
       status: "success",
       mode: "public_preview",
-      message: "Public Preview: Limited rates shown. Provide 'X-API-KEY: secret-123' for full list.",
-      base: "USD",
+      message: `Showing ${baseCurrency} rates. Provide 'X-API-KEY: secret-123' for full list.`,
+      base: baseCurrency,
       rates: [
         { currency: "ETB", rate: "57.50", updated: "2024-05-20" }
       ]
     });
   }
 
-  // SECURE MODE: Validate the key
+  // 3. SECURE MODE: Validate the key
   if (apiKey !== 'secret-123') {
     return NextResponse.json(
       { 
@@ -29,7 +42,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     status: "success",
-    base: "USD",
+    base: baseCurrency,
     rates: [
       { currency: "ETB", rate: "57.50", updated: "2024-05-20" },
       { currency: "EUR", rate: "0.92", updated: "2024-05-20" },
