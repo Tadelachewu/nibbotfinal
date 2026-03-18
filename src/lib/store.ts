@@ -20,7 +20,7 @@ const defaultMenus: MenuItem[] = [
     order: 0, 
     content: '<p>Explore what we can do for you.</p>',
     contentAm: '<p>ለእርስዎ ምን ማድረግ እንደምንችል ይመርምሩ።</p>',
-    attachedMenuIds: ['ex-rate', 'path-param-test']
+    attachedMenuIds: ['ex-rate', 'path-param-test', 'basic-auth-query-test']
   },
   { 
     id: 'ex-rate', 
@@ -56,6 +56,39 @@ const defaultMenus: MenuItem[] = [
         errorFallback: 'Could not retrieve exchange rates. Ensure "base" parameter is mapped.',
         timeoutMessage: 'Request timed out.',
         authRequiredMessage: 'Login required.'
+      }
+    }
+  },
+  {
+    id: 'basic-auth-query-test',
+    parentId: null,
+    name: 'Secure Query (Basic Auth)',
+    nameAm: 'ደህንነቱ የተጠበቀ ጥያቄ',
+    responseType: 'api',
+    order: 2,
+    apiConfig: {
+      name: 'Basic Auth with Query Param',
+      endpoint: '/api/test/basic-auth-query',
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 5000,
+      retry: 0,
+      loginRequired: true,
+      authConfig: {
+        type: 'basic',
+        basicAuth: { header: 'Authorization', user: 'admin', pass: 'password123' }
+      },
+      kycFields: [],
+      requestParameters: [
+        { apiKey: 'status', sourceType: 'static', sourceValue: 'active' }
+      ],
+      responseMapping: {
+        type: 'message',
+        template: '{{response.message}}',
+        templateAm: 'በተሳካ ሁኔታ ተፈቅዷል!',
+        errorFallback: 'Auth failed or missing "status" parameter.',
+        timeoutMessage: 'Timeout.',
+        authRequiredMessage: 'Basic Auth Required.'
       }
     }
   },
@@ -144,54 +177,6 @@ const defaultMenus: MenuItem[] = [
         errorFallback: 'Could not fetch history.',
         timeoutMessage: 'Timeout.',
         authRequiredMessage: 'Auth Required.'
-      }
-    }
-  },
-  {
-    id: 'secure-multi-kyc',
-    parentId: null,
-    name: 'Secure Account Access',
-    nameAm: 'ደህንነቱ የተጠበቀ መዳረሻ',
-    responseType: 'api',
-    order: 5,
-    apiConfig: {
-      name: 'Multi-KYC Header Construction',
-      endpoint: '/api/test/multi-kyc',
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      timeout: 10000,
-      retry: 0,
-      loginRequired: true,
-      authConfig: {
-        type: 'bearer',
-        bearer: { header: 'Authorization', template: 'Bearer {{user_token}}.{{account}}.{{code}}' }
-      },
-      kycFields: [
-        {
-          id: 'kyc-secure-acc',
-          name: 'account',
-          prompt: 'Enter Account Number (try: 12345)',
-          promptAm: 'የሂሳብ ቁጥርዎን ያስገቡ (ለምሳሌ: 12345)',
-          type: 'text',
-          order: 0
-        },
-        {
-          id: 'kyc-secure-code',
-          name: 'code',
-          prompt: 'Enter Verification Code (try: 9988)',
-          promptAm: 'የማረጋገጫ ኮድዎን ያስገቡ (ለምሳሌ: 9988)',
-          type: 'password',
-          order: 1
-        }
-      ],
-      requestParameters: [],
-      responseMapping: {
-        type: 'message',
-        template: 'Access Granted! Balance: {{response.data.current_balance}}. Status: {{response.data.account_status}}.',
-        templateAm: 'መዳረሻ ተፈቅዷል! ቀሪ ሂሳብ: {{response.data.current_balance}}',
-        errorFallback: 'Security check failed. Please verify your account and code.',
-        timeoutMessage: 'Security Gateway timeout.',
-        authRequiredMessage: 'Secure Auth Required.'
       }
     }
   }

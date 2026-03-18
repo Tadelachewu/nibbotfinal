@@ -19,9 +19,17 @@ The system includes several mock APIs to test different integration patterns. Fo
     *   **Endpoint**: `/api/test/exchange-rate`
     *   **Auth Type**: `API Key`. Header: `X-API-KEY`. Value: `secret-123`.
     *   **Request Mapping**: Param Key: `base` -> Source: `Static` -> Value: `USD`.
-*   **Chat Interaction**: Click "Exchange Rates". If configured correctly, it returns a table of rates. If the `base` parameter is missing, the API returns a 400 error.
+*   **Chat Interaction**: Returns a table of rates. If the `base` parameter is missing, the API returns a 400 error.
 
-### 2. Profile Lookup (Dynamic Path Parameter)
+### 2. Basic Auth + Query Param (Secure Action)
+*   **Goal**: Test standard Basic Authentication with mandatory query parameters.
+*   **Configuration**:
+    *   **Endpoint**: `/api/test/basic-auth-query`
+    *   **Auth Type**: `Basic Auth`. User: `admin`, Pass: `password123`.
+    *   **Request Mapping**: Param Key: `status` -> Source: `Static` -> Value: `active`.
+*   **Chat Interaction**: Returns a confirmation message. If credentials or the `status` parameter are incorrect, it fails.
+
+### 3. Profile Lookup (Dynamic Path Parameter)
 *   **Goal**: Test injecting user-provided values directly into the URL path.
 *   **Configuration**:
     *   **Endpoint**: `/api/test/profile/{{account_id}}`
@@ -29,7 +37,7 @@ The system includes several mock APIs to test different integration patterns. Fo
     *   **Auth**: `Bearer Token`. Template: `Bearer {{user_token}}`.
 *   **Chat Interaction**: The bot will ask for your ID. Enter `user_123` to see the profile result.
 
-### 3. Transactions (Multi-Parameter Query)
+### 4. Transactions (Multi-Parameter Query)
 *   **Goal**: Test sending multiple variables (KYC + Static) as query parameters.
 *   **Configuration**:
     *   **Endpoint**: `/api/test/transactions`
@@ -39,21 +47,13 @@ The system includes several mock APIs to test different integration patterns. Fo
     *   **Response View**: Set to **Table**.
 *   **Chat Interaction**: The bot asks for your account ID (try `88991122`). It returns exactly 3 transactions.
 
-### 4. Multi-KYC Secure Action (Custom Header Logic)
+### 5. Multi-KYC Secure Action (Custom Header Logic)
 *   **Goal**: Test complex header construction using multiple KYC segments.
 *   **Configuration**:
     *   **Endpoint**: `/api/test/multi-kyc`
     *   **KYC Fields**: `account` and `code`.
     *   **Auth**: `Bearer Token`. Template: `Bearer {{user_token}}.{{account}}.{{code}}`.
-*   **Chat Interaction**:
-    1.  Enter Account: `12345`.
-    2.  Enter Code: `9988`.
-    3.  **Result**: Returns the balance. Try `67890` / `1122` to see a "Suspended" account error.
-
-### 5. Basic Auth (Fixed vs. Dynamic)
-*   **Goal**: Test standard username/password authentication.
-*   **Fixed Mode**: Uses `admin` : `password123`.
-*   **Dynamic Mode**: Uses KYC fields to source credentials from the chat input (try `TEST_USER` : `TEST_PASS`).
+*   **Chat Interaction**: Returns balance after collecting both KYC segments.
 
 ---
 
@@ -64,13 +64,12 @@ The system supports English and Amharic by default.
 *   **Table Headers**: Use the "Table" tab in Response View Mapping to provide localized column titles.
 
 ## 🔑 System Variables
-The following system-level placeholders are always available for use in URLs, Headers, and Parameters:
+The following system-level placeholders are always available:
 *   `{{user_id}}`: Resolves to `user_123`.
 *   `{{user_token}}`: Resolves to `talktree_static_token_778899`.
 
 ---
 
 ## 🪄 Pro-Tips for Admin
-*   **Live Preview**: Always click the "Live Preview" button after configuring an API to see the raw JSON response.
 *   **Magic Wand**: Use the Magic Wand icon next to "Data Keys" or "Templates" to automatically pick fields from your Live Preview data.
-*   **Attach Related**: Use the "Attach Related Menus" section at the bottom to suggest "Quick Actions" after a bot response.
+*   **Attach Related**: Use "Attach Related Menus" at the bottom to suggest "Quick Actions" after a bot response.
