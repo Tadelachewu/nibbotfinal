@@ -7,7 +7,7 @@ import { getStoredMenus, getAppSettings } from '@/lib/store';
 import { ChatBubble } from './ChatBubble';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ChevronRight, Home, ArrowLeft, Languages, Send, Loader2, ClipboardCheck, CornerDownRight } from 'lucide-react';
+import { ChevronRight, Home, ArrowLeft, Languages, Send, Loader2, ClipboardCheck, CornerDownRight, CheckCircle2 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import {
   Table,
@@ -87,8 +87,13 @@ export function ChatInterface() {
   }, []);
 
   useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [history]);
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
+  }, [history, isLoading, kycFlow]);
 
   const getLocalizedName = (menu: MenuItem) => {
     if (!currentLang) return menu.name;
@@ -226,18 +231,23 @@ export function ChatInterface() {
       return;
     }
 
-    addDoc(collection(db, 'reports'), {
+    const reportData = {
       userId: userData.id,
       menuName: menu.name,
       data: kycData,
       status: 'pending',
       timestamp: serverTimestamp()
-    })
+    };
+
+    addDoc(collection(db, 'reports'), reportData)
     .then(() => {
+      const successContent = getLocalizedContent(menu);
+      const defaultSuccess = currentLang?.code === 'am' ? 'ሪፖርትዎ በተሳካ ሁኔታ ቀርቧል። እናመሰግናለን።' : 'Your report has been submitted successfully. Thank you.';
+      
       setHistory(prev => [...prev, {
         id: `bot-report-${Date.now()}`,
         sender: 'bot',
-        content: getLocalizedContent(menu),
+        content: successContent || `<p>${defaultSuccess}</p>`,
         options: menus.filter(m => m.parentId === menu.id)
       }]);
     })
@@ -341,12 +351,11 @@ export function ChatInterface() {
     
     setHistory(prev => [...prev, { id: `user-${Date.now()}`, sender: 'user', text: getLocalizedName(menu) }]);
 
-    // Smart Folder/Action Detection: 
-    // If it's an action type (api/report) BUT has sub-menus and NO kyc fields to collect,
-    // treat it as a navigation folder instead of an action.
     const isAction = (menu.responseType === 'api' || menu.responseType === 'report') && menu.apiConfig;
     const hasFields = menu.apiConfig?.kycFields?.length || 0;
 
+    // A category menu might be marked as a report but its children are the real reports.
+    // We only trigger action/KYC if it's a leaf OR it explicitly has fields to collect.
     if (isAction && (hasFields > 0 || childMenus.length === 0)) {
       const kycFields = menu.apiConfig?.kycFields || [];
       const missingFields = kycFields
@@ -371,7 +380,7 @@ export function ChatInterface() {
     setHistory(prev => [...prev, {
       id: `bot-${Date.now()}`, 
       sender: 'bot', 
-      content: getLocalizedContent(menu),
+      content: getLocalizedContent(menu) || (childMenus.length > 0 ? (currentLang?.code === 'am' ? 'እባክዎ አማራጭ ይምረጡ፡' : 'Please select an option:') : ''),
       options: childMenus.length > 0 ? childMenus : undefined,
       relatedOptions: relatedItems.length > 0 ? relatedItems : undefined,
     }]);

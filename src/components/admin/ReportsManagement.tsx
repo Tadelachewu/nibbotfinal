@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Search, User, FileText, ChevronRight, ClipboardList, Loader2, Calendar } from 'lucide-react';
+import { Search, User, FileText, ChevronRight, ClipboardList, Loader2, Calendar, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { 
@@ -22,9 +22,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useFirestore, useCollection } from '@/firebase';
-import { collection, query, orderBy } from 'firebase/firestore';
+import { collection, query, orderBy, doc, updateDoc } from 'firebase/firestore';
 import { format } from 'date-fns';
+import { toast } from '@/hooks/use-toast';
 
 export function ReportsManagement() {
   const db = useFirestore();
@@ -47,6 +55,26 @@ export function ReportsManagement() {
       Object.values(r.data || {}).some(val => String(val).toLowerCase().includes(search.toLowerCase()))
     );
   }, [reports, search]);
+
+  const handleUpdateStatus = (reportId: string, newStatus: string) => {
+    if (!db) return;
+    const reportRef = doc(db, 'reports', reportId);
+    updateDoc(reportRef, { status: newStatus })
+      .then(() => {
+        toast({ title: "Status Updated", description: `Report marked as ${newStatus}.` });
+      })
+      .catch(() => {
+        toast({ variant: "destructive", title: "Update Failed", description: "Check permissions." });
+      });
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'resolved': return <CheckCircle2 className="text-emerald-500" size={14} />;
+      case 'reviewed': return <Clock className="text-blue-500" size={14} />;
+      default: return <AlertCircle className="text-amber-500" size={14} />;
+    }
+  };
 
   if (loading) {
     return (
@@ -96,12 +124,15 @@ export function ReportsManagement() {
                 {filteredReports.map((report: any) => (
                   <TableRow key={report.id} className="group hover:bg-muted/20 transition-colors">
                     <TableCell>
-                      <Badge 
-                        variant={report.status === 'pending' ? 'destructive' : 'secondary'} 
-                        className="capitalize text-[10px] px-2 py-0.5"
-                      >
-                        {report.status || 'Received'}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        {getStatusIcon(report.status)}
+                        <Badge 
+                          variant={report.status === 'pending' ? 'destructive' : report.status === 'resolved' ? 'default' : 'secondary'} 
+                          className="capitalize text-[10px] px-2 py-0.5"
+                        >
+                          {report.status || 'pending'}
+                        </Badge>
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="font-semibold text-sm">{report.menuName}</div>
@@ -141,13 +172,25 @@ export function ReportsManagement() {
                           
                           <div className="py-6 space-y-6">
                             <div className="grid grid-cols-2 gap-6 bg-muted/20 p-4 rounded-xl border border-dashed">
-                              <div className="space-y-1">
+                              <div className="space-y-2">
                                 <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Submitter</span>
                                 <div className="flex items-center gap-2 text-sm font-medium"><User size={14} className="text-primary" /> {report.userId}</div>
                               </div>
-                              <div className="space-y-1">
-                                <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Submission Date</span>
-                                <div className="flex items-center gap-2 text-sm font-medium"><Calendar size={14} className="text-primary" /> {report.timestamp ? format(report.timestamp.toDate ? report.timestamp.toDate() : new Date(report.timestamp), 'PPPP p') : 'N/A'}</div>
+                              <div className="space-y-2">
+                                <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Status Action</span>
+                                <Select 
+                                  defaultValue={report.status || 'pending'} 
+                                  onValueChange={(val) => handleUpdateStatus(report.id, val)}
+                                >
+                                  <SelectTrigger className="h-8 text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="pending">Pending</SelectItem>
+                                    <SelectItem value="reviewed">Reviewed</SelectItem>
+                                    <SelectItem value="resolved">Resolved</SelectItem>
+                                  </SelectContent>
+                                </Select>
                               </div>
                             </div>
 
