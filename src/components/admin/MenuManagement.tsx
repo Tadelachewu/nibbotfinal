@@ -123,19 +123,7 @@ export function MenuManagement() {
     if (editingId && editForm) {
       setIsSaving(true);
       try {
-        const updatedForm = JSON.parse(JSON.stringify(editForm));
-        
-        // Auto-translate Amharic if missing (Legacy support)
-        try {
-          if (updatedForm.name && !updatedForm.nameAm) {
-            const res = await adminContentTranslator({ content: updatedForm.name, targetLanguage: 'Amharic' });
-            updatedForm.nameAm = res.translatedContent;
-          }
-        } catch (aiError) {
-          console.warn("Localization AI suggestion failed:", aiError);
-        }
-
-        updateMenu(editingId, updatedForm);
+        updateMenu(editingId, editForm);
         setIsEditDialogOpen(false);
         setEditingId(null);
         refresh();
@@ -154,7 +142,7 @@ export function MenuManagement() {
   };
 
   const addLanguage = () => {
-    const newLang: Language = { code: 'new', name: 'New Language' };
+    const newLang: Language = { code: 'new' + Math.random().toString(36).substr(2, 4), name: 'New Language' };
     setSettings({ ...settings, supportedLanguages: [...settings.supportedLanguages, newLang] });
   };
 
@@ -253,25 +241,6 @@ export function MenuManagement() {
     } finally {
       setIsTestingApi(false);
     }
-  };
-
-  const getDetectedKeys = (obj: any): string[] => {
-    if (!obj) return [];
-    const keys: Set<string> = new Set();
-    const extractKeys = (data: any, prefix = '') => {
-      if (!data || typeof data !== 'object') return;
-      if (Array.isArray(data)) {
-        if (data.length > 0) extractKeys(data[0], prefix);
-        return;
-      }
-      Object.keys(data).forEach(k => {
-        const fullKey = prefix ? `${prefix}.${k}` : k;
-        keys.add(fullKey);
-        if (data[k] && typeof data[k] === 'object') extractKeys(data[k], fullKey);
-      });
-    };
-    extractKeys(obj);
-    return Array.from(keys);
   };
 
   const renderTree = (parentId: string | null = null, level = 0) => {
@@ -374,7 +343,7 @@ export function MenuManagement() {
                 </div>
                 <div className="grid gap-3">
                   {settings.supportedLanguages.map((lang, idx) => (
-                    <div key={idx} className="flex gap-3 items-center p-3 border rounded-lg bg-muted/5 group">
+                    <div key={lang.code} className="flex gap-3 items-center p-3 border rounded-lg bg-muted/5 group">
                       <div className="grid grid-cols-2 gap-3 flex-1">
                         <div className="space-y-1">
                           <Label className="text-[10px] uppercase font-bold">Language Name</Label>
@@ -405,73 +374,112 @@ export function MenuManagement() {
           <DialogHeader className="p-6 border-b bg-white">
             <DialogTitle className="flex items-center gap-2"><Settings2 size={18} /> Configure {editForm.name}</DialogTitle>
           </DialogHeader>
-          <ScrollArea className="flex-1 p-6">
-            <div className="space-y-8 pb-20">
-              <div className="grid gap-6 sm:grid-cols-2">
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2 text-xs uppercase font-bold text-muted-foreground"><Languages size={14} /> Menu Text (English/Base)</Label>
-                    <Input value={editForm.name || ''} onChange={e => setEditForm({ ...editForm, name: e.target.value })} placeholder="e.g. Services" />
-                  </div>
-                  
-                  {settings.supportedLanguages.filter(l => !l.isDefault).map(lang => (
-                    <div key={lang.code} className="space-y-2">
-                      <Label className="flex items-center gap-2 text-xs uppercase font-bold text-primary"><Languages size={14} /> {lang.name} Translation</Label>
-                      <Input 
-                        value={lang.code === 'am' ? (editForm.nameAm || '') : (editForm.translations?.[lang.code]?.name || '')} 
-                        onChange={e => {
-                          if (lang.code === 'am') setEditForm({ ...editForm, nameAm: e.target.value });
-                          else {
-                            const translations = { ...(editForm.translations || {}) };
-                            translations[lang.code] = { ...(translations[lang.code] || {}), name: e.target.value };
-                            setEditForm({ ...editForm, translations });
-                          }
-                        }} 
-                        placeholder={`${lang.name} translation`} 
-                      />
-                    </div>
-                  ))}
+          <ScrollArea className="flex-1">
+            <div className="p-6 space-y-8 pb-20">
+              <div className="grid gap-6 sm:grid-cols-2 bg-muted/10 p-4 rounded-xl border">
+                <div className="space-y-2">
+                  <Label className="text-xs uppercase font-bold text-muted-foreground">Action Type</Label>
+                  <Select value={editForm.responseType} onValueChange={(v: any) => setEditForm({ ...editForm, responseType: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="static">Static Response</SelectItem><SelectItem value="api">API Action</SelectItem></SelectContent>
+                  </Select>
                 </div>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label className="text-xs uppercase font-bold text-muted-foreground">Action Type</Label>
-                    <Select value={editForm.responseType} onValueChange={(v: any) => setEditForm({ ...editForm, responseType: v })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent><SelectItem value="static">Static Response</SelectItem><SelectItem value="api">API Action</SelectItem></SelectContent>
-                    </Select>
-                  </div>
+                <div className="space-y-2">
+                  <Label className="text-xs uppercase font-bold text-muted-foreground">Display Order</Label>
+                  <Input type="number" value={editForm.order || 0} onChange={e => setEditForm({ ...editForm, order: parseInt(e.target.value) || 0 })} />
                 </div>
               </div>
 
-              <Separator />
+              <div className="space-y-4">
+                <Label className="text-sm font-bold flex items-center gap-2"><Languages size={16} className="text-primary" /> Localization & Content</Label>
+                <Tabs defaultValue={settings.supportedLanguages.find(l => l.isDefault)?.code || 'en'} className="w-full border rounded-xl overflow-hidden bg-white shadow-sm">
+                  <TabsList className="w-full justify-start rounded-none border-b h-12 bg-muted/20 px-4 gap-2">
+                    {settings.supportedLanguages.map(lang => (
+                      <TabsTrigger key={lang.code} value={lang.code} className="data-[state=active]:bg-white data-[state=active]:shadow-none border-b-2 border-transparent data-[state=active]:border-primary rounded-none h-full px-4">
+                        {lang.name} {lang.isDefault && <span className="ml-2 text-[10px] opacity-50 font-normal">(Default)</span>}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
 
-              {editForm.responseType === 'static' ? (
-                <div className="space-y-8">
-                  <div className="space-y-4">
-                    <Label className="text-xs uppercase font-bold text-muted-foreground">Response Content (English/Base)</Label>
-                    <WysiwygEditor title="Base Content" value={editForm.content || ''} onChange={v => setEditForm({ ...editForm, content: v })} />
-                  </div>
-                  
-                  {settings.supportedLanguages.filter(l => !l.isDefault).map(lang => (
-                    <div key={lang.code} className="space-y-4">
-                      <Label className="text-xs uppercase font-bold text-primary">Response Content ({lang.name})</Label>
-                      <WysiwygEditor 
-                        title={`${lang.name} Content`} 
-                        value={lang.code === 'am' ? (editForm.contentAm || '') : (editForm.translations?.[lang.code]?.content || '')} 
-                        onChange={v => {
-                          if (lang.code === 'am') setEditForm({ ...editForm, contentAm: v });
-                          else {
-                            const translations = { ...(editForm.translations || {}) };
-                            translations[lang.code] = { ...(translations[lang.code] || {}), content: v };
-                            setEditForm({ ...editForm, translations });
-                          }
-                        }} 
-                      />
-                    </div>
+                  {settings.supportedLanguages.map(lang => (
+                    <TabsContent key={lang.code} value={lang.code} className="p-6 space-y-6 mt-0">
+                      <div className="space-y-2">
+                        <Label className="text-xs uppercase font-bold text-muted-foreground">Menu Label ({lang.name})</Label>
+                        <Input 
+                          value={lang.isDefault ? (editForm.name || '') : (lang.code === 'am' ? (editForm.nameAm || '') : (editForm.translations?.[lang.code]?.name || ''))} 
+                          onChange={e => {
+                            if (lang.isDefault) setEditForm({ ...editForm, name: e.target.value });
+                            else if (lang.code === 'am') setEditForm({ ...editForm, nameAm: e.target.value });
+                            else {
+                              const translations = { ...(editForm.translations || {}) };
+                              translations[lang.code] = { ...(translations[lang.code] || {}), name: e.target.value };
+                              setEditForm({ ...editForm, translations });
+                            }
+                          }} 
+                          placeholder={`${lang.name} translation`} 
+                        />
+                      </div>
+
+                      {editForm.responseType === 'static' && (
+                        <div className="space-y-2">
+                          <Label className="text-xs uppercase font-bold text-muted-foreground">Response Content ({lang.name})</Label>
+                          <WysiwygEditor 
+                            title={`${lang.name} Content`} 
+                            value={lang.isDefault ? (editForm.content || '') : (lang.code === 'am' ? (editForm.contentAm || '') : (editForm.translations?.[lang.code]?.content || ''))} 
+                            onChange={v => {
+                              if (lang.isDefault) setEditForm({ ...editForm, content: v });
+                              else if (lang.code === 'am') setEditForm({ ...editForm, contentAm: v });
+                              else {
+                                const translations = { ...(editForm.translations || {}) };
+                                translations[lang.code] = { ...(translations[lang.code] || {}), content: v };
+                                setEditForm({ ...editForm, translations });
+                              }
+                            }} 
+                          />
+                        </div>
+                      )}
+
+                      {editForm.responseType === 'api' && (
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label className="text-xs uppercase font-bold text-muted-foreground">Success Message Template ({lang.name})</Label>
+                            <Input 
+                              value={lang.isDefault ? (editForm.apiConfig?.responseMapping?.template || '') : (lang.code === 'am' ? (editForm.apiConfig?.responseMapping?.templateAm || '') : (editForm.translations?.[lang.code]?.responseTemplate || ''))} 
+                              onChange={e => {
+                                if (lang.isDefault) deepUpdate(['apiConfig', 'responseMapping', 'template'], e.target.value);
+                                else if (lang.code === 'am') deepUpdate(['apiConfig', 'responseMapping', 'templateAm'], e.target.value);
+                                else {
+                                  const translations = { ...(editForm.translations || {}) };
+                                  translations[lang.code] = { ...(translations[lang.code] || {}), responseTemplate: e.target.value };
+                                  setEditForm({ ...editForm, translations });
+                                }
+                              }} 
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs uppercase font-bold text-muted-foreground">Error Message ({lang.name})</Label>
+                            <Input 
+                              value={lang.isDefault ? (editForm.apiConfig?.responseMapping?.errorFallback || '') : (lang.code === 'am' ? (editForm.apiConfig?.responseMapping?.errorFallbackAm || '') : (editForm.translations?.[lang.code]?.errorFallback || ''))} 
+                              onChange={e => {
+                                if (lang.isDefault) deepUpdate(['apiConfig', 'responseMapping', 'errorFallback'], e.target.value);
+                                else if (lang.code === 'am') deepUpdate(['apiConfig', 'responseMapping', 'errorFallbackAm'], e.target.value);
+                                else {
+                                  const translations = { ...(editForm.translations || {}) };
+                                  translations[lang.code] = { ...(translations[lang.code] || {}), errorFallback: e.target.value };
+                                  setEditForm({ ...editForm, translations });
+                                }
+                              }} 
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </TabsContent>
                   ))}
-                </div>
-              ) : (
-                <div className="space-y-8">
+                </Tabs>
+              </div>
+
+              {editForm.responseType === 'api' && (
+                <div className="space-y-8 pt-4">
                   <Card>
                     <CardHeader className="bg-muted/10 flex flex-row items-center justify-between">
                       <CardTitle className="text-sm">API Connectivity</CardTitle>
@@ -649,10 +657,7 @@ export function MenuManagement() {
                       <Tabs value={editForm.apiConfig?.responseMapping?.type} onValueChange={v => deepUpdate(['apiConfig', 'responseMapping', 'type'], v)}>
                         <TabsList className="grid w-full grid-cols-2"><TabsTrigger value="message">Message</TabsTrigger><TabsTrigger value="table">Table</TabsTrigger></TabsList>
                         <TabsContent value="message" className="pt-4 space-y-6">
-                          <div className="space-y-4">
-                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Success Template (Base/English)</Label>
-                            <Input value={editForm.apiConfig?.responseMapping?.template} onChange={e => deepUpdate(['apiConfig', 'responseMapping', 'template'], e.target.value)} />
-                          </div>
+                          <p className="text-[10px] text-muted-foreground italic">Template syntax: Use &#123;&#123;response.key&#125;&#125; to inject data.</p>
                         </TabsContent>
                         <TabsContent value="table" className="space-y-4 pt-4">
                           <div className="flex items-center justify-between"><Label className="text-xs font-bold flex items-center gap-2"><TableIcon size={14} /> Table Columns Mapping</Label><Button variant="ghost" size="sm" onClick={() => { const cols = editForm.apiConfig?.responseMapping?.tableColumns || []; deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], [...cols, { header: 'New Column', key: '' }]); }}><Plus className="mr-1" /> Add Column</Button></div>
