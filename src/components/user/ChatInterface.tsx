@@ -8,7 +8,7 @@ import { getStoredMenus, getAppSettings } from '@/lib/store';
 import { ChatBubble } from './ChatBubble';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ChevronRight, Home, ArrowLeft, Languages, Send, Loader2, ClipboardCheck, CornerDownRight, CheckCircle2 } from 'lucide-react';
+import { ChevronRight, Home, ArrowLeft, Languages, Send, Loader2, ClipboardCheck, CornerDownRight, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import {
   Table,
@@ -172,6 +172,7 @@ export function ChatInterface() {
   };
 
   const replacePlaceholders = (template: string, dataObj: Record<string, any>) => {
+    if (!template) return '';
     let res = template;
     res = res.replace(/{{\s*user_id\s*}}/g, userData.id);
     res = res.replace(/{{\s*user_token\s*}}/g, userData.token);
@@ -240,10 +241,18 @@ export function ChatInterface() {
       return;
     }
 
+    // Filter kycData to only include fields relevant to this report for a clean JSON payload
+    const reportPayload: Record<string, any> = {};
+    menu.apiConfig?.kycFields?.forEach(field => {
+      if (kycData[field.name] !== undefined) {
+        reportPayload[field.name] = kycData[field.name];
+      }
+    });
+
     const reportData = {
       userId: userData.id,
       menuName: menu.name,
-      data: kycData,
+      data: reportPayload,
       status: 'pending',
       timestamp: serverTimestamp()
     };
@@ -253,9 +262,8 @@ export function ChatInterface() {
       const mapping = menu.apiConfig?.responseMapping;
       let finalMsg = '';
       
-      if (mapping?.template) {
-        finalMsg = replacePlaceholders(getLocalizedTemplate(menu), { id: docRef.id, ...kycData });
-      }
+      const responseContext = { id: docRef.id, ...reportPayload };
+      finalMsg = replacePlaceholders(getLocalizedTemplate(menu), { response: responseContext });
 
       const successContent = getLocalizedContent(menu);
       const defaultSuccess = currentLang?.code === 'am' ? 'ሪፖርትዎ በተሳካ ሁኔታ ቀርቧል። እናመሰግናለን።' : 'Your report has been submitted successfully. Thank you.';
@@ -272,7 +280,7 @@ export function ChatInterface() {
       const permissionError = new FirestorePermissionError({
         path: 'reports',
         operation: 'create',
-        requestResourceData: kycData
+        requestResourceData: reportData
       });
       errorEmitter.emit('permission-error', permissionError);
       
@@ -365,6 +373,8 @@ export function ChatInterface() {
     const isAction = (menu.responseType === 'api' || menu.responseType === 'report') && menu.apiConfig;
     const hasFields = menu.apiConfig?.kycFields?.length || 0;
 
+    // Special case: If it's a folder (has children) but also marked as action, prioritize folder navigation
+    // unless it's a leaf node with fields.
     if (isAction && (hasFields > 0 || childMenus.length === 0)) {
       const kycFields = menu.apiConfig?.kycFields || [];
       const missingFields = kycFields

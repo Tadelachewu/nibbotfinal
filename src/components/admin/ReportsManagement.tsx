@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Search, User, FileText, ChevronRight, ClipboardList, Loader2, Calendar, CheckCircle2, Clock, AlertCircle, Trash2 } from 'lucide-react';
+import { Search, User, FileText, ChevronRight, ClipboardList, Loader2, Calendar, CheckCircle2, Clock, AlertCircle, Trash2, Database, LayoutPanelLeft } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { 
@@ -82,6 +82,14 @@ export function ReportsManagement() {
     }
   };
 
+  const prettifyKey = (key: string) => {
+    return key
+      .replace(/_/g, ' ')
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/^./, str => str.toUpperCase())
+      .trim();
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-64 space-y-4">
@@ -121,7 +129,7 @@ export function ReportsManagement() {
                 <TableRow>
                   <TableHead className="w-[120px] font-bold uppercase text-[10px] tracking-wider">Status</TableHead>
                   <TableHead className="font-bold uppercase text-[10px] tracking-wider">Report Type</TableHead>
-                  <TableHead className="font-bold uppercase text-[10px] tracking-wider">Preview Data</TableHead>
+                  <TableHead className="font-bold uppercase text-[10px] tracking-wider">JSON Data Preview</TableHead>
                   <TableHead className="font-bold uppercase text-[10px] tracking-wider">Submitted By</TableHead>
                   <TableHead className="font-bold uppercase text-[10px] tracking-wider">Date</TableHead>
                   <TableHead className="text-right font-bold uppercase text-[10px] tracking-wider">Action</TableHead>
@@ -143,12 +151,14 @@ export function ReportsManagement() {
                     </TableCell>
                     <TableCell>
                       <div className="font-semibold text-sm">{report.menuName}</div>
-                      <div className="text-[9px] text-muted-foreground font-mono truncate max-w-[120px]">ID: {report.id}</div>
+                      <div className="text-[9px] text-muted-foreground font-mono truncate max-w-[120px]">REF: {report.id}</div>
                     </TableCell>
                     <TableCell>
-                      <div className="text-xs text-muted-foreground truncate max-w-[200px] italic">
-                        {Object.entries(report.data || {}).slice(0, 2).map(([k, v]) => `${k}: ${v}`).join(', ')}
-                        {(Object.keys(report.data || {}).length > 2) && '...'}
+                      <div className="flex items-center gap-2 bg-slate-50 border rounded p-1.5 max-w-[250px] overflow-hidden">
+                        <Database size={10} className="text-primary shrink-0" />
+                        <div className="text-[10px] text-muted-foreground truncate italic font-mono">
+                          {Object.entries(report.data || {}).map(([k, v]) => `${k}:${v}`).join(', ') || 'Empty Payload'}
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -170,7 +180,7 @@ export function ReportsManagement() {
                         <Dialog>
                           <DialogTrigger asChild>
                             <Button variant="outline" size="sm" className="h-8 text-xs hover:bg-primary hover:text-white transition-all">
-                              Review <ChevronRight size={14} className="ml-1" />
+                              Inspect <ChevronRight size={14} className="ml-1" />
                             </Button>
                           </DialogTrigger>
                           <DialogContent className="sm:max-w-xl">
@@ -179,18 +189,18 @@ export function ReportsManagement() {
                                 <FileText size={22} className="text-primary" />
                                 {report.menuName}
                               </DialogTitle>
-                              <p className="text-xs text-muted-foreground font-mono">Reference ID: {report.id}</p>
+                              <p className="text-xs text-muted-foreground font-mono">Submission Reference: {report.id}</p>
                             </DialogHeader>
                             
                             <div className="py-6 space-y-6">
                               <div className="grid grid-cols-2 gap-6 bg-muted/20 p-4 rounded-xl border border-dashed">
                                 <div className="space-y-2">
-                                  <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Submitter Context</span>
+                                  <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Submitter Details</span>
                                   <div className="flex items-center gap-2 text-sm font-medium"><User size={14} className="text-primary" /> {report.userId}</div>
                                   <div className="text-[10px] text-muted-foreground flex items-center gap-1"><Clock size={10} /> {report.timestamp ? format(report.timestamp.toDate ? report.timestamp.toDate() : new Date(report.timestamp), 'MMMM dd, yyyy HH:mm:ss') : 'N/A'}</div>
                                 </div>
                                 <div className="space-y-2">
-                                  <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Action Status</span>
+                                  <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Management Status</span>
                                   <Select 
                                     defaultValue={report.status || 'pending'} 
                                     onValueChange={(val) => handleUpdateStatus(report.id, val)}
@@ -199,9 +209,9 @@ export function ReportsManagement() {
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                      <SelectItem value="pending">Pending</SelectItem>
-                                      <SelectItem value="reviewed">Reviewed</SelectItem>
-                                      <SelectItem value="resolved">Resolved</SelectItem>
+                                      <SelectItem value="pending">Pending Review</SelectItem>
+                                      <SelectItem value="reviewed">Under Investigation</SelectItem>
+                                      <SelectItem value="resolved">Action Completed</SelectItem>
                                     </SelectContent>
                                   </Select>
                                 </div>
@@ -209,19 +219,22 @@ export function ReportsManagement() {
 
                               <div className="space-y-4">
                                 <div className="flex items-center justify-between">
-                                  <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Collected Data Payload</span>
-                                  <Badge variant="outline" className="text-[9px]">{Object.keys(report.data || {}).length} Fields</Badge>
+                                  <div className="flex items-center gap-2">
+                                    <LayoutPanelLeft size={16} className="text-primary" />
+                                    <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Collected JSON Payload</span>
+                                  </div>
+                                  <Badge variant="outline" className="text-[9px]">{Object.keys(report.data || {}).length} Active Fields</Badge>
                                 </div>
-                                <div className="grid gap-3">
+                                <div className="grid grid-cols-1 gap-3">
                                   {Object.entries(report.data || {}).map(([key, value]) => (
-                                    <div key={key} className="flex flex-col p-3 rounded-lg border bg-white shadow-sm group hover:border-primary/30 transition-all">
-                                      <span className="text-[10px] font-bold text-primary uppercase mb-1">{key.replace(/_/g, ' ')}</span>
-                                      <span className="text-sm font-medium break-all">{String(value || 'N/A')}</span>
+                                    <div key={key} className="flex items-center justify-between p-4 rounded-lg border bg-slate-50/50 shadow-sm group hover:border-primary/30 hover:bg-white transition-all">
+                                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">{prettifyKey(key)}</span>
+                                      <span className="text-sm font-semibold text-slate-900 font-mono">{String(value || 'N/A')}</span>
                                     </div>
                                   ))}
                                   {(!report.data || Object.keys(report.data).length === 0) && (
-                                    <div className="py-8 text-center text-muted-foreground italic text-xs bg-muted/10 rounded-lg border">
-                                      No data fields collected for this submission.
+                                    <div className="py-12 text-center text-muted-foreground italic text-xs bg-muted/10 rounded-lg border border-dashed">
+                                      No data fields were captured for this specific report configuration.
                                     </div>
                                   )}
                                 </div>
