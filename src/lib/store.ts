@@ -20,7 +20,50 @@ const defaultMenus: MenuItem[] = [
     order: 0, 
     content: '<p>Explore what we can do for you.</p>',
     contentAm: '<p>ለእርስዎ ምን ማድረግ እንደምንችል ይመርምሩ።</p>',
-    attachedMenuIds: ['ex-rate', 'path-param-test', 'basic-auth-query-test']
+    attachedMenuIds: ['ex-rate', 'path-param-test', 'fraud-report-test']
+  },
+  {
+    id: 'fraud-report-test',
+    parentId: null,
+    name: 'Report Fraud',
+    nameAm: 'ማጭበርበር ሪፖርት ያድርጉ',
+    responseType: 'report',
+    order: 1,
+    content: '<p>Thank you for your report. Our security team has been notified and will review it shortly.</p>',
+    contentAm: '<p>ለሪፖርትዎ እናመሰግናለን። የደህንነት ቡድናችን መረጃ ደርሶታል እና በቅርቡ ይመረምረዋል።</p>',
+    apiConfig: {
+      name: 'Fraud Report Collection',
+      endpoint: '', // Not used for report
+      method: 'POST',
+      headers: {},
+      timeout: 0,
+      retry: 0,
+      loginRequired: true,
+      kycFields: [
+        {
+          id: 'fraud-acc',
+          name: 'account_number',
+          prompt: 'Please enter the affected account number:',
+          promptAm: 'እባክዎ የተጎዳውን የሂሳብ ቁጥር ያስገቡ፡',
+          type: 'text',
+          order: 0
+        },
+        {
+          id: 'fraud-desc',
+          name: 'description',
+          prompt: 'Briefly describe the suspicious activity:',
+          promptAm: 'እባክዎ አጠራጣሪ እንቅስቃሴውን በአጭሩ ይግለጹ፡',
+          type: 'text',
+          order: 1
+        }
+      ],
+      requestParameters: [],
+      responseMapping: {
+        type: 'message',
+        template: '',
+        errorFallback: 'Report submission failed.'
+      }
+    }
   },
   { 
     id: 'ex-rate', 
@@ -28,7 +71,7 @@ const defaultMenus: MenuItem[] = [
     name: 'Exchange Rates', 
     nameAm: 'የምንዛሬ ተመኖች',
     responseType: 'api',
-    order: 1,
+    order: 2,
     apiConfig: {
       name: 'Daily Exchange Rates',
       endpoint: '/api/test/exchange-rate',
@@ -53,49 +96,16 @@ const defaultMenus: MenuItem[] = [
           { header: 'Rate', headerAm: 'ተመን', key: 'rate' },
           { header: 'Last Update', headerAm: 'መጨረሻ የዘመነው', key: 'updated' }
         ],
-        errorFallback: 'Could not retrieve exchange rates. Ensure "base" parameter is mapped.',
+        errorFallback: 'Could not retrieve exchange rates.',
         timeoutMessage: 'Request timed out.',
         authRequiredMessage: 'Login required.'
       }
     }
   },
   {
-    id: 'basic-auth-query-test',
-    parentId: null,
-    name: 'Secure Query (Basic Auth)',
-    nameAm: 'ደህንነቱ የተጠበቀ ጥያቄ',
-    responseType: 'api',
-    order: 2,
-    apiConfig: {
-      name: 'Basic Auth with Query Param',
-      endpoint: '/api/test/basic-auth-query',
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-      timeout: 5000,
-      retry: 0,
-      loginRequired: true,
-      authConfig: {
-        type: 'basic',
-        basicAuth: { header: 'Authorization', user: 'admin', pass: 'password123' }
-      },
-      kycFields: [],
-      requestParameters: [
-        { apiKey: 'status', sourceType: 'static', sourceValue: 'active' }
-      ],
-      responseMapping: {
-        type: 'message',
-        template: '{{response.message}}',
-        templateAm: 'በተሳካ ሁኔታ ተፈቅዷል!',
-        errorFallback: 'Auth failed or missing "status" parameter.',
-        timeoutMessage: 'Timeout.',
-        authRequiredMessage: 'Basic Auth Required.'
-      }
-    }
-  },
-  {
     id: 'path-param-test',
     parentId: null,
-    name: 'Profile Lookup (Path Param)',
+    name: 'Profile Lookup',
     nameAm: 'የመገለጫ ፍለጋ',
     responseType: 'api',
     order: 3,
@@ -126,55 +136,7 @@ const defaultMenus: MenuItem[] = [
         type: 'message',
         template: 'Found Profile: {{response.data.full_name}} (Email: {{response.data.email}}). Status: {{response.data.kyc_status}}.',
         templateAm: 'መገለጫ ተገኝቷል: {{response.data.full_name}} (ኢሜል: {{response.data.email}})',
-        errorFallback: 'Profile not found. Please check the ID and try again.',
-        timeoutMessage: 'Timeout.',
-        authRequiredMessage: 'Auth Required.'
-      }
-    }
-  },
-  {
-    id: 'multi-param-test',
-    parentId: null,
-    name: 'Transactions (Multi-Param)',
-    nameAm: 'ግብይቶች',
-    responseType: 'api',
-    order: 4,
-    apiConfig: {
-      name: 'Multi-Parameter API',
-      endpoint: '/api/test/transactions',
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-      timeout: 5000,
-      retry: 0,
-      loginRequired: true,
-      authConfig: {
-        type: 'bearer',
-        bearer: { header: 'Authorization', template: 'Bearer {{user_token}}' }
-      },
-      kycFields: [
-        {
-          id: 'kyc-hist-acc',
-          name: 'account_id',
-          prompt: 'Enter Account ID for history lookup (try: 88991122)',
-          promptAm: 'ለግብይት ታሪክ የሂሳብ ቁጥርዎን ያስገቡ',
-          type: 'text',
-          order: 0
-        }
-      ],
-      requestParameters: [
-        { apiKey: 'account_id', sourceType: 'kyc', sourceValue: 'account_id' },
-        { apiKey: 'limit', sourceType: 'static', sourceValue: '3' }
-      ],
-      responseMapping: {
-        type: 'table',
-        template: 'Recent transactions for {{response.meta.account_id}}:',
-        tableColumns: [
-          { header: 'Date', headerAm: 'ቀን', key: 'date' },
-          { header: 'Type', headerAm: 'ዓይነት', key: 'type' },
-          { header: 'Amount', headerAm: 'መጠን', key: 'amount' },
-          { header: 'Status', headerAm: 'ሁኔታ', key: 'status' }
-        ],
-        errorFallback: 'Could not fetch history.',
+        errorFallback: 'Profile not found.',
         timeoutMessage: 'Timeout.',
         authRequiredMessage: 'Auth Required.'
       }

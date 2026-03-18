@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -20,6 +19,8 @@ import {
 } from "@/components/ui/table";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { useFirestore } from '@/firebase';
 
 interface Message {
   id: string;
@@ -51,6 +52,7 @@ export function ChatInterface() {
   const [currentMenuId, setCurrentMenuId] = useState<string | null>(null);
   const [currentLang, setCurrentLang] = useState<Language | null>(null);
   const logo = PlaceHolderImages.find(img => img.id === 'app-logo');
+  const db = useFirestore();
   
   // SYSTEM USER DATA
   const [userData, setUserData] = useState<UserData>({
@@ -190,16 +192,42 @@ export function ChatInterface() {
       setKycFlow(null);
       const menu = menus.find(m => m.id === kycFlow.menuId);
       if (menu) {
-        // INTERNAL SUBMISSION SIMULATION
-        // In a real app, this would use Firestore setDoc()
-        console.log('INTERNAL SUBMISSION:', {
+        if (menu.responseType === 'report') {
+          handleInternalReport(menu, newKYC);
+        } else {
+          executeApiCall(menu, newKYC);
+        }
+      }
+    }
+  };
+
+  const handleInternalReport = async (menu: MenuItem, kycData: Record<string, any>) => {
+    setIsLoadingApi(true);
+    try {
+      if (db) {
+        await addDoc(collection(db, 'reports'), {
           userId: userData.id,
           menuName: menu.name,
-          data: newKYC,
-          timestamp: new Date().toISOString()
+          data: kycData,
+          status: 'pending',
+          timestamp: serverTimestamp()
         });
-        executeApiCall(menu, newKYC);
       }
+      
+      setHistory(prev => [...prev, {
+        id: `bot-report-${Date.now()}`,
+        sender: 'bot',
+        content: getLocalizedContent(menu),
+        options: menus.filter(m => m.parentId === menu.id)
+      }]);
+    } catch (e) {
+      setHistory(prev => [...prev, {
+        id: `bot-error-${Date.now()}`,
+        sender: 'bot',
+        text: 'Sorry, there was an error submitting your report. Please try again later.'
+      }]);
+    } finally {
+      setIsLoadingApi(false);
     }
   };
 
@@ -277,19 +305,10 @@ export function ChatInterface() {
 
   const navigateTo = (menu: MenuItem) => {
     setHistory(prev => [...prev, { id: `user-${Date.now()}`, sender: 'user', text: getLocalizedName(menu) }]);
-    if (menu.responseType === 'api' && menu.apiConfig) {
-      const requiredFieldNames: string[] = [];
-      const placeholders = (menu.apiConfig.endpoint + (menu.apiConfig.authConfig?.bearer?.template || '')).match(/{{\s*(.*?)\s*}}/g);
-      placeholders?.forEach(m => {
-        const name = m.replace('{{', '').replace('}}', '').trim();
-        if (name !== 'user_id' && name !== 'user_token') requiredFieldNames.push(name);
-      });
-      menu.apiConfig.requestParameters?.forEach(p => { if (p.sourceType === 'kyc') requiredFieldNames.push(p.sourceValue); });
-      
-      const uniqueRequired = Array.from(new Set(requiredFieldNames));
+    if ((menu.responseType === 'api' || menu.responseType === 'report') && menu.apiConfig) {
       const kycFields = menu.apiConfig.kycFields || [];
       const missingFields = kycFields
-        .filter(f => uniqueRequired.includes(f.name) && !userData.kyc[f.name])
+        .filter(f => !userData.kyc[f.name])
         .sort((a, b) => a.order - b.order);
       
       if (missingFields.length > 0) {
@@ -297,7 +316,12 @@ export function ChatInterface() {
         setHistory(prev => [...prev, { id: `bot-kyc-start-${Date.now()}`, sender: 'bot', text: getLocalizedKYCPrompt(missingFields[0]), isKYC: true }]);
         return;
       }
-      executeApiCall(menu, userData.kyc);
+      
+      if (menu.responseType === 'report') {
+        handleInternalReport(menu, userData.kyc);
+      } else {
+        executeApiCall(menu, userData.kyc);
+      }
       return;
     }
     const children = menus.filter(m => m.parentId === menu.id);

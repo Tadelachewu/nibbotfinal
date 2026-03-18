@@ -78,10 +78,10 @@ export interface MenuItem {
   parentId: string | null;
   name: string;
   nameAm?: string;
-  responseType: 'static' | 'api';
-  content?: string; // For static
-  contentAm?: string; // For static
-  apiConfig?: ApiConfig; // For API
+  responseType: 'static' | 'api' | 'report';
+  content?: string; // For static or report success
+  contentAm?: string; // For static or report success
+  apiConfig?: ApiConfig; // For API or Report fields
   order: number;
   attachedMenuIds?: string[];
   translations?: Record<string, {
