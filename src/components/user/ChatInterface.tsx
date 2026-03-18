@@ -216,40 +216,48 @@ export function ChatInterface() {
     setLoadingText(currentLang?.code === 'am' ? 'ሪፖርት እየላክን ነው...' : 'Submitting your report...');
     setIsLoading(true);
     
-    if (db) {
-      addDoc(collection(db, 'reports'), {
-        userId: userData.id,
-        menuName: menu.name,
-        data: kycData,
-        status: 'pending',
-        timestamp: serverTimestamp()
-      })
-      .then(() => {
-        setHistory(prev => [...prev, {
-          id: `bot-report-${Date.now()}`,
-          sender: 'bot',
-          content: getLocalizedContent(menu),
-          options: menus.filter(m => m.parentId === menu.id)
-        }]);
-      })
-      .catch(async (error) => {
-        const permissionError = new FirestorePermissionError({
-          path: 'reports',
-          operation: 'create',
-          requestResourceData: kycData
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        
-        setHistory(prev => [...prev, {
-          id: `bot-error-${Date.now()}`,
-          sender: 'bot',
-          text: 'Sorry, there was an error submitting your report. Please try again later.'
-        }]);
-      })
-      .finally(() => {
-        setIsLoading(false);
-      });
+    if (!db) {
+      setIsLoading(false);
+      setHistory(prev => [...prev, {
+        id: `bot-error-${Date.now()}`,
+        sender: 'bot',
+        text: 'System connection is initializing. Please try again in a moment.'
+      }]);
+      return;
     }
+
+    addDoc(collection(db, 'reports'), {
+      userId: userData.id,
+      menuName: menu.name,
+      data: kycData,
+      status: 'pending',
+      timestamp: serverTimestamp()
+    })
+    .then(() => {
+      setHistory(prev => [...prev, {
+        id: `bot-report-${Date.now()}`,
+        sender: 'bot',
+        content: getLocalizedContent(menu),
+        options: menus.filter(m => m.parentId === menu.id)
+      }]);
+    })
+    .catch(async (error) => {
+      const permissionError = new FirestorePermissionError({
+        path: 'reports',
+        operation: 'create',
+        requestResourceData: kycData
+      });
+      errorEmitter.emit('permission-error', permissionError);
+      
+      setHistory(prev => [...prev, {
+        id: `bot-error-${Date.now()}`,
+        sender: 'bot',
+        text: 'Sorry, there was an error submitting your report. Please try again later.'
+      }]);
+    })
+    .finally(() => {
+      setIsLoading(false);
+    });
   };
 
   const executeApiCall = async (menu: MenuItem, kycData: Record<string, any>) => {
@@ -328,9 +336,19 @@ export function ChatInterface() {
   };
 
   const navigateTo = (menu: MenuItem) => {
+    const childMenus = menus.filter(m => m.parentId === menu.id);
+    const relatedItems = menus.filter(m => menu.attachedMenuIds?.includes(m.id));
+    
     setHistory(prev => [...prev, { id: `user-${Date.now()}`, sender: 'user', text: getLocalizedName(menu) }]);
-    if ((menu.responseType === 'api' || menu.responseType === 'report') && menu.apiConfig) {
-      const kycFields = menu.apiConfig.kycFields || [];
+
+    // Smart Folder/Action Detection: 
+    // If it's an action type (api/report) BUT has sub-menus and NO kyc fields to collect,
+    // treat it as a navigation folder instead of an action.
+    const isAction = (menu.responseType === 'api' || menu.responseType === 'report') && menu.apiConfig;
+    const hasFields = menu.apiConfig?.kycFields?.length || 0;
+
+    if (isAction && (hasFields > 0 || childMenus.length === 0)) {
+      const kycFields = menu.apiConfig?.kycFields || [];
       const missingFields = kycFields
         .filter(f => userData.kyc[f.name] === undefined)
         .sort((a, b) => a.order - b.order);
@@ -348,13 +366,13 @@ export function ChatInterface() {
       }
       return;
     }
-    const children = menus.filter(m => m.parentId === menu.id);
-    const relatedItems = menus.filter(m => menu.attachedMenuIds?.includes(m.id));
+
+    // Default Navigation Behavior
     setHistory(prev => [...prev, {
       id: `bot-${Date.now()}`, 
       sender: 'bot', 
       content: getLocalizedContent(menu),
-      options: children.length > 0 ? children : undefined,
+      options: childMenus.length > 0 ? childMenus : undefined,
       relatedOptions: relatedItems.length > 0 ? relatedItems : undefined,
     }]);
     setCurrentMenuId(menu.id);
