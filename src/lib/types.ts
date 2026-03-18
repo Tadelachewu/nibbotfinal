@@ -90,9 +90,9 @@ export interface MenuItem {
   translations?: Record<string, {
     name?: string;
     content?: string;
-    contentAm?: string; // Internal mapping helper
     responseTemplate?: string;
     errorFallback?: string;
+    tableHeaders?: Record<string, string>; // Map of column key -> translated header
   }>;
 }
 

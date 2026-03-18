@@ -30,6 +30,7 @@ import {
   FileCode,
   Check,
   Info,
+  ChevronRight,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -422,7 +423,7 @@ export function MenuManagement() {
                         />
                       </div>
 
-                      {editForm.responseType === 'static' && (
+                      {editForm.responseType === 'static' ? (
                         <div className="space-y-2">
                           <Label className="text-xs uppercase font-bold text-muted-foreground">Response Content ({lang.name})</Label>
                           <WysiwygEditor 
@@ -438,6 +439,79 @@ export function MenuManagement() {
                               }
                             }} 
                           />
+                        </div>
+                      ) : (
+                        <div className="space-y-6 pt-2">
+                          {editForm.apiConfig?.responseMapping?.type === 'message' && (
+                            <div className="grid gap-4 sm:grid-cols-2">
+                              <div className="space-y-2">
+                                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Success Template ({lang.name})</Label>
+                                <Input 
+                                  value={lang.isDefault ? (editForm.apiConfig?.responseMapping?.template || '') : (lang.code === 'am' ? (editForm.apiConfig?.responseMapping?.templateAm || '') : (editForm.translations?.[lang.code]?.responseTemplate || ''))}
+                                  onChange={e => {
+                                    if (lang.isDefault) deepUpdate(['apiConfig', 'responseMapping', 'template'], e.target.value);
+                                    else if (lang.code === 'am') deepUpdate(['apiConfig', 'responseMapping', 'templateAm'], e.target.value);
+                                    else {
+                                      const translations = { ...(editForm.translations || {}) };
+                                      translations[lang.code] = { ...(translations[lang.code] || {}), responseTemplate: e.target.value };
+                                      setEditForm({ ...editForm, translations });
+                                    }
+                                  }}
+                                  placeholder="e.g. Your balance is {{response.data.balance}}"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Error Message ({lang.name})</Label>
+                                <Input 
+                                  value={lang.isDefault ? (editForm.apiConfig?.responseMapping?.errorFallback || '') : (lang.code === 'am' ? (editForm.apiConfig?.responseMapping?.errorFallbackAm || '') : (editForm.translations?.[lang.code]?.errorFallback || ''))}
+                                  onChange={e => {
+                                    if (lang.isDefault) deepUpdate(['apiConfig', 'responseMapping', 'errorFallback'], e.target.value);
+                                    else if (lang.code === 'am') deepUpdate(['apiConfig', 'responseMapping', 'errorFallbackAm'], e.target.value);
+                                    else {
+                                      const translations = { ...(editForm.translations || {}) };
+                                      translations[lang.code] = { ...(translations[lang.code] || {}), errorFallback: e.target.value };
+                                      setEditForm({ ...editForm, translations });
+                                    }
+                                  }}
+                                  placeholder="e.g. Verification failed."
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          {editForm.apiConfig?.responseMapping?.type === 'table' && (
+                            <div className="space-y-4">
+                              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Table Header Translations ({lang.name})</Label>
+                              <div className="grid gap-3 p-4 border rounded-lg bg-muted/5">
+                                {editForm.apiConfig.responseMapping.tableColumns?.map((col, idx) => (
+                                  <div key={idx} className="flex items-center gap-3">
+                                    <span className="text-xs font-medium w-32 truncate">{col.header} <ChevronRight className="inline h-3 w-3 opacity-30" /></span>
+                                    <Input 
+                                      className="h-8 text-xs" 
+                                      placeholder={`Header for ${lang.name}`}
+                                      value={lang.isDefault ? col.header : (lang.code === 'am' ? (col.headerAm || '') : (editForm.translations?.[lang.code]?.tableHeaders?.[col.key] || ''))}
+                                      onChange={e => {
+                                        if (lang.isDefault) {
+                                          const cols = [...editForm.apiConfig!.responseMapping.tableColumns!];
+                                          cols[idx].header = e.target.value;
+                                          deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], cols);
+                                        } else if (lang.code === 'am') {
+                                          const cols = [...editForm.apiConfig!.responseMapping.tableColumns!];
+                                          cols[idx].headerAm = e.target.value;
+                                          deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], cols);
+                                        } else {
+                                          const translations = { ...(editForm.translations || {}) };
+                                          translations[lang.code] = { ...(translations[lang.code] || {}) };
+                                          translations[lang.code].tableHeaders = { ...(translations[lang.code].tableHeaders || {}), [col.key]: e.target.value };
+                                          setEditForm({ ...editForm, translations });
+                                        }
+                                      }}
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </TabsContent>
@@ -629,43 +703,32 @@ export function MenuManagement() {
                           <div className="bg-primary/5 p-3 rounded-lg flex items-start gap-3 border border-primary/10">
                             <Info size={16} className="text-primary mt-0.5 shrink-0" />
                             <p className="text-[11px] text-muted-foreground leading-relaxed">
-                              Configure how the API result is shown as a text message. Use <code className="bg-white px-1 border rounded text-primary">{"{{response.key}}"}</code> to inject data from the API response.
+                              Configure how the API result is shown as a text message. Use <code className="bg-white px-1 border rounded text-primary">{"{{response.key}}"}</code> to inject data from the API response. <strong>Translations are managed in the language tabs at the top.</strong>
                             </p>
                           </div>
-                          
-                          <div className="grid gap-4 sm:grid-cols-2">
-                            <div className="space-y-2">
-                              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Default Message Template</Label>
-                              <Input 
-                                placeholder="e.g. Your balance is {{response.data.balance}}" 
-                                value={editForm.apiConfig?.responseMapping?.template || ''} 
-                                onChange={e => deepUpdate(['apiConfig', 'responseMapping', 'template'], e.target.value)} 
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Default Error Message</Label>
-                              <Input 
-                                placeholder="e.g. Could not fetch balance." 
-                                value={editForm.apiConfig?.responseMapping?.errorFallback || ''} 
-                                onChange={e => deepUpdate(['apiConfig', 'responseMapping', 'errorFallback'], e.target.value)} 
-                              />
-                            </div>
-                          </div>
-                          
-                          <p className="text-[9px] text-muted-foreground italic mt-2">Note: To add translations (Amharic, etc.), use the "Localization & Content" tabs at the top of this dialog.</p>
                         </TabsContent>
 
                         <TabsContent value="table" className="space-y-4 pt-4">
-                          <div className="flex items-center justify-between"><Label className="text-xs font-bold flex items-center gap-2"><TableIcon size={14} /> Table Columns Mapping</Label><Button variant="ghost" size="sm" onClick={() => { const cols = editForm.apiConfig?.responseMapping?.tableColumns || []; deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], [...cols, { header: 'New Column', key: '' }]); }}><Plus className="mr-1" /> Add Column</Button></div>
-                          <div className="space-y-4">{editForm.apiConfig?.responseMapping?.tableColumns?.map((col, idx) => (
-                            <div key={idx} className="flex flex-col gap-3 p-4 border rounded-md bg-white group relative shadow-sm">
-                              <div className="grid grid-cols-3 gap-3">
-                                <div className="space-y-1"><Label className="text-[9px] uppercase font-bold text-muted-foreground">Base Header</Label><Input value={col.header} onChange={e => { const cols = [...editForm.apiConfig!.responseMapping.tableColumns!]; cols[idx].header = e.target.value; deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], cols); }} /></div>
-                                <div className="space-y-1"><Label className="text-[9px] uppercase font-bold text-primary">Amharic Header</Label><Input value={col.headerAm} onChange={e => { const cols = [...editForm.apiConfig!.responseMapping.tableColumns!]; cols[idx].headerAm = e.target.value; deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], cols); }} /></div>
-                                <div className="space-y-1"><Label className="text-[9px] uppercase font-bold text-muted-foreground">Data Key</Label><Input value={col.key} onChange={e => { const cols = [...editForm.apiConfig!.responseMapping.tableColumns!]; cols[idx].key = e.target.value; deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], cols); }} /></div>
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs font-bold flex items-center gap-2"><TableIcon size={14} /> Table Columns Mapping</Label>
+                            <Button variant="ghost" size="sm" onClick={() => { const cols = editForm.apiConfig?.responseMapping?.tableColumns || []; deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], [...cols, { header: 'New Column', key: '' }]); }}><Plus className="mr-1" /> Add Column</Button>
+                          </div>
+                          <div className="space-y-3">
+                            {editForm.apiConfig?.responseMapping?.tableColumns?.map((col, idx) => (
+                              <div key={idx} className="flex gap-3 p-3 border rounded-md bg-white group relative shadow-sm items-end">
+                                <div className="flex-1 space-y-1">
+                                  <Label className="text-[9px] uppercase font-bold text-muted-foreground">Base Header (English)</Label>
+                                  <Input value={col.header} onChange={e => { const cols = [...editForm.apiConfig!.responseMapping.tableColumns!]; cols[idx].header = e.target.value; deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], cols); }} />
+                                </div>
+                                <div className="flex-1 space-y-1">
+                                  <Label className="text-[9px] uppercase font-bold text-muted-foreground">Data Key (JSON Path)</Label>
+                                  <Input value={col.key} onChange={e => { const cols = [...editForm.apiConfig!.responseMapping.tableColumns!]; cols[idx].key = e.target.value; deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], cols); }} />
+                                </div>
+                                <Button variant="ghost" size="icon" className="h-10 w-10 text-destructive opacity-0 group-hover:opacity-100" onClick={() => { const cols = editForm.apiConfig!.responseMapping.tableColumns!.filter((_, i) => i !== idx); deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], cols); }}><Trash2 size={14} /></Button>
                               </div>
-                            </div>
-                          ))}</div>
+                            ))}
+                          </div>
+                          <p className="text-[9px] text-muted-foreground italic">Note: To add localized headers (Amharic, etc.), use the "Localization & Content" tabs at the top of this dialog.</p>
                         </TabsContent>
                       </Tabs>
                     </CardContent>
