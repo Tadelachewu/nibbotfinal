@@ -35,6 +35,7 @@ import {
   Sparkles,
   Type,
   Search,
+  Link as LinkIcon,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -541,71 +542,122 @@ export function MenuManagement() {
 
                       <Separator />
                       
-                      <div className="space-y-4">
-                        <Label className="text-xs font-bold uppercase flex items-center gap-2"><ShieldCheck size={14} className="text-primary" /> Authorization</Label>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Auth Type</Label>
-                            <Select 
-                              value={editForm.apiConfig?.authConfig?.type || 'none'} 
-                              onValueChange={v => {
-                                const authType = v as AuthType;
-                                deepUpdate(['apiConfig', 'authConfig'], {
-                                  type: authType,
-                                  apiKey: authType === 'apiKey' ? { header: 'X-API-KEY', value: '' } : undefined,
-                                  basicAuth: authType === 'basic' ? { header: 'Authorization', user: '', pass: '' } : undefined,
-                                  bearer: authType === 'bearer' ? { header: 'Authorization', template: 'Bearer {{user_token}}' } : undefined,
-                                });
-                              }}
-                            >
-                              <SelectTrigger><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">None (Public API)</SelectItem>
-                                <SelectItem value="apiKey">API Key</SelectItem>
-                                <SelectItem value="basic">Basic Auth</SelectItem>
-                                <SelectItem value="bearer">Bearer Token</SelectItem>
-                              </SelectContent>
-                            </Select>
+                      <div className="space-y-6">
+                        <div className="space-y-4">
+                          <Label className="text-xs font-bold uppercase flex items-center gap-2"><ShieldCheck size={14} className="text-primary" /> Authorization</Label>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Auth Type</Label>
+                              <Select 
+                                value={editForm.apiConfig?.authConfig?.type || 'none'} 
+                                onValueChange={v => {
+                                  const authType = v as AuthType;
+                                  deepUpdate(['apiConfig', 'authConfig'], {
+                                    type: authType,
+                                    apiKey: authType === 'apiKey' ? { header: 'X-API-KEY', value: '' } : undefined,
+                                    basicAuth: authType === 'basic' ? { header: 'Authorization', user: '', pass: '' } : undefined,
+                                    bearer: authType === 'bearer' ? { header: 'Authorization', template: 'Bearer {{user_token}}' } : undefined,
+                                  });
+                                }}
+                              >
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">None (Public API)</SelectItem>
+                                  <SelectItem value="apiKey">API Key</SelectItem>
+                                  <SelectItem value="basic">Basic Auth</SelectItem>
+                                  <SelectItem value="bearer">Bearer Token</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            {editForm.apiConfig?.authConfig?.type === 'apiKey' && (
+                              <div className="space-y-3 p-3 border rounded-md bg-muted/5">
+                                <div className="space-y-1">
+                                  <Label className="text-[9px] uppercase font-bold">Header Name</Label>
+                                  <Input placeholder="X-API-KEY" value={editForm.apiConfig?.authConfig?.apiKey?.header} onChange={e => deepUpdate(['apiConfig', 'authConfig', 'apiKey', 'header'], e.target.value)} />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-[9px] uppercase font-bold">Key Value</Label>
+                                  <Input placeholder="secret-123" value={editForm.apiConfig?.authConfig?.apiKey?.value} onChange={e => deepUpdate(['apiConfig', 'authConfig', 'apiKey', 'value'], e.target.value)} />
+                                </div>
+                              </div>
+                            )}
+
+                            {editForm.apiConfig?.authConfig?.type === 'basic' && (
+                              <div className="space-y-4 p-4 border rounded-md bg-muted/5">
+                                <div className="space-y-1 mb-2">
+                                  <Label className="text-[9px] uppercase font-bold">Header Name</Label>
+                                  <Input placeholder="Authorization" value={editForm.apiConfig?.authConfig?.basicAuth?.header} onChange={e => deepUpdate(['apiConfig', 'authConfig', 'basicAuth', 'header'], e.target.value)} />
+                                </div>
+                                <div className="space-y-3">
+                                  <div className="space-y-1"><Label className="text-[9px] uppercase font-bold">Username</Label><Input value={editForm.apiConfig?.authConfig?.basicAuth?.user} onChange={e => { deepUpdate(['apiConfig', 'authConfig', 'basicAuth', 'user'], e.target.value); }} /></div>
+                                  <div className="space-y-1"><Label className="text-[9px] uppercase font-bold">Password</Label><Input type="password" value={editForm.apiConfig?.authConfig?.basicAuth?.pass} onChange={e => { deepUpdate(['apiConfig', 'authConfig', 'basicAuth', 'pass'], e.target.value); }} /></div>
+                                </div>
+                              </div>
+                            )}
+
+                            {editForm.apiConfig?.authConfig?.type === 'bearer' && (
+                              <div className="space-y-3 p-3 border rounded-md bg-muted/5">
+                                <div className="space-y-1">
+                                  <Label className="text-[9px] uppercase font-bold">Header Name</Label>
+                                  <Input placeholder="Authorization" value={editForm.apiConfig?.authConfig?.bearer?.header} onChange={e => deepUpdate(['apiConfig', 'authConfig', 'bearer', 'header'], e.target.value)} />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-[9px] uppercase font-bold">Token Template</Label>
+                                  <Input placeholder="Bearer {{user_token}}" value={editForm.apiConfig?.authConfig?.bearer?.template} onChange={e => deepUpdate(['apiConfig', 'authConfig', 'bearer', 'template'], e.target.value)} />
+                                </div>
+                              </div>
+                            )}
                           </div>
+                        </div>
 
-                          {editForm.apiConfig?.authConfig?.type === 'apiKey' && (
-                            <div className="space-y-3 p-3 border rounded-md bg-muted/5">
-                              <div className="space-y-1">
-                                <Label className="text-[9px] uppercase font-bold">Header Name</Label>
-                                <Input placeholder="X-API-KEY" value={editForm.apiConfig?.authConfig?.apiKey?.header} onChange={e => deepUpdate(['apiConfig', 'authConfig', 'apiKey', 'header'], e.target.value)} />
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs font-bold uppercase flex items-center gap-2"><LinkIcon size={14} className="text-primary" /> Custom Headers</Label>
+                            <Button variant="ghost" size="sm" onClick={() => {
+                              const currentHeaders = { ...(editForm.apiConfig?.headers || {}) };
+                              currentHeaders['New-Header-' + Math.random().toString(36).substr(2, 4)] = '';
+                              deepUpdate(['apiConfig', 'headers'], currentHeaders);
+                            }}><Plus className="mr-1 h-3 w-3" /> Add Header</Button>
+                          </div>
+                          <div className="space-y-2">
+                            {Object.entries(editForm.apiConfig?.headers || {}).map(([key, value]) => (
+                              <div key={key} className="flex gap-2 items-center group animate-in fade-in slide-in-from-top-1">
+                                <Input 
+                                  value={key} 
+                                  onChange={e => {
+                                    const h = { ...(editForm.apiConfig?.headers || {}) };
+                                    const val = h[key];
+                                    delete h[key];
+                                    h[e.target.value] = val;
+                                    deepUpdate(['apiConfig', 'headers'], h);
+                                  }} 
+                                  placeholder="e.g. Content-Type"
+                                  className="flex-1 font-mono text-xs"
+                                />
+                                <Input 
+                                  value={value} 
+                                  onChange={e => {
+                                    const h = { ...(editForm.apiConfig?.headers || {}) };
+                                    h[key] = e.target.value;
+                                    deepUpdate(['apiConfig', 'headers'], h);
+                                  }} 
+                                  placeholder="Value"
+                                  className="flex-1 font-mono text-xs"
+                                />
+                                <Button variant="ghost" size="icon" className="text-destructive h-8 w-8 shrink-0" onClick={() => {
+                                  const h = { ...(editForm.apiConfig?.headers || {}) };
+                                  delete h[key];
+                                  deepUpdate(['apiConfig', 'headers'], h);
+                                }}><Trash2 size={14} /></Button>
                               </div>
-                              <div className="space-y-1">
-                                <Label className="text-[9px] uppercase font-bold">Key Value</Label>
-                                <Input placeholder="secret-123" value={editForm.apiConfig?.authConfig?.apiKey?.value} onChange={e => deepUpdate(['apiConfig', 'authConfig', 'apiKey', 'value'], e.target.value)} />
+                            ))}
+                            {Object.keys(editForm.apiConfig?.headers || {}).length === 0 && (
+                              <div className="text-[10px] text-muted-foreground italic py-2 px-1">
+                                No custom headers defined. application/json is sent by default.
                               </div>
-                            </div>
-                          )}
-
-                          {editForm.apiConfig?.authConfig?.type === 'basic' && (
-                            <div className="space-y-4 p-4 border rounded-md bg-muted/5">
-                              <div className="space-y-1 mb-2">
-                                <Label className="text-[9px] uppercase font-bold">Header Name</Label>
-                                <Input placeholder="Authorization" value={editForm.apiConfig?.authConfig?.basicAuth?.header} onChange={e => deepUpdate(['apiConfig', 'authConfig', 'basicAuth', 'header'], e.target.value)} />
-                              </div>
-                              <div className="space-y-3">
-                                <div className="space-y-1"><Label className="text-[9px] uppercase font-bold">Username</Label><Input value={editForm.apiConfig?.authConfig?.basicAuth?.user} onChange={e => { deepUpdate(['apiConfig', 'authConfig', 'basicAuth', 'user'], e.target.value); }} /></div>
-                                <div className="space-y-1"><Label className="text-[9px] uppercase font-bold">Password</Label><Input type="password" value={editForm.apiConfig?.authConfig?.basicAuth?.pass} onChange={e => { deepUpdate(['apiConfig', 'authConfig', 'basicAuth', 'pass'], e.target.value); }} /></div>
-                              </div>
-                            </div>
-                          )}
-
-                          {editForm.apiConfig?.authConfig?.type === 'bearer' && (
-                            <div className="space-y-3 p-3 border rounded-md bg-muted/5">
-                              <div className="space-y-1">
-                                <Label className="text-[9px] uppercase font-bold">Header Name</Label>
-                                <Input placeholder="Authorization" value={editForm.apiConfig?.authConfig?.bearer?.header} onChange={e => deepUpdate(['apiConfig', 'authConfig', 'bearer', 'header'], e.target.value)} />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-[9px] uppercase font-bold">Token Template</Label>
-                                <Input placeholder="Bearer {{user_token}}" value={editForm.apiConfig?.authConfig?.bearer?.template} onChange={e => deepUpdate(['apiConfig', 'authConfig', 'bearer', 'template'], e.target.value)} />
-                              </div>
-                            </div>
-                          )}
+                            )}
+                          </div>
                         </div>
                       </div>
 

@@ -72,4 +72,5 @@ The following system-level placeholders are always available:
 
 ## 🪄 Pro-Tips for Admin
 *   **Magic Wand**: Use the Magic Wand icon next to "Data Keys" or "Templates" to automatically pick fields from your Live Preview data.
+*   **Custom Headers**: Configure custom headers like `Content-Type` or `X-App-ID` in the Connectivity section.
 *   **Attach Related**: Use "Attach Related Menus" at the bottom to suggest "Quick Actions" after a bot response.
