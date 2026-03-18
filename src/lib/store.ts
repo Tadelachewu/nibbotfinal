@@ -37,9 +37,12 @@ const defaultMenus: MenuItem[] = [
       timeout: 5000,
       retry: 1,
       loginRequired: false,
-      requiredKYC: [],
       kycFields: [],
       requestParameters: [],
+      authConfig: {
+        type: 'apiKey',
+        apiKey: { header: 'X-API-KEY', value: 'secret-123' }
+      },
       responseMapping: {
         type: 'table',
         template: 'Here are the current rates:',
@@ -57,13 +60,13 @@ const defaultMenus: MenuItem[] = [
   {
     id: 'path-param-test',
     parentId: null,
-    name: 'Account Balance (Path Param)',
-    nameAm: 'የሂሳብ ቀሪ ሂሳብ',
+    name: 'Profile Lookup (Path Param)',
+    nameAm: 'የመገለጫ ፍለጋ',
     responseType: 'api',
     order: 3,
     apiConfig: {
-      name: 'KYC-Sourced Path Parameter',
-      endpoint: '/api/test/balance?account_id={{account_id}}',
+      name: 'Dynamic Path Parameter Lookup',
+      endpoint: '/api/test/profile/{{account_id}}',
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
       timeout: 5000,
@@ -75,10 +78,10 @@ const defaultMenus: MenuItem[] = [
       },
       kycFields: [
         {
-          id: 'kyc-balance-id',
+          id: 'kyc-profile-id',
           name: 'account_id',
-          prompt: 'Please enter your Account ID (e.g. 88991122)',
-          promptAm: 'እባክዎ የሂሳብ ቁጥርዎን ያስገቡ',
+          prompt: 'Please enter a User ID to lookup (try: user_123)',
+          promptAm: 'እባክዎ መለያዎን ያስገቡ (ለምሳሌ: user_123)',
           type: 'text',
           order: 0
         }
@@ -86,9 +89,9 @@ const defaultMenus: MenuItem[] = [
       requestParameters: [],
       responseMapping: {
         type: 'message',
-        template: 'Balance for {{response.data.account_id}}: {{response.data.balance}} {{response.data.currency}} ({{response.data.account_type}})',
-        templateAm: 'ለሂሳብ ቁጥር {{response.data.account_id}} ያለው ቀሪ ሂሳብ: {{response.data.balance}} {{response.data.currency}}',
-        errorFallback: 'Could not retrieve balance details.',
+        template: 'Found Profile: {{response.data.full_name}} (Email: {{response.data.email}}). Status: {{response.data.kyc_status}}.',
+        templateAm: 'መገለጫ ተገኝቷል: {{response.data.full_name}} (ኢሜል: {{response.data.email}})',
+        errorFallback: 'Profile not found. Please check the ID and try again.',
         timeoutMessage: 'Timeout.',
         authRequiredMessage: 'Auth Required.'
       }
@@ -117,7 +120,7 @@ const defaultMenus: MenuItem[] = [
         {
           id: 'kyc-hist-acc',
           name: 'account_id',
-          prompt: 'Enter Account ID for history lookup (e.g. 88991122)',
+          prompt: 'Enter Account ID for history lookup (try: 88991122)',
           promptAm: 'ለግብይት ታሪክ የሂሳብ ቁጥርዎን ያስገቡ',
           type: 'text',
           order: 0

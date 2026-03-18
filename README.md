@@ -9,44 +9,50 @@ TalkTree is a dynamic, chatbot-driven menu management system built with Next.js,
 
 ---
 
-## 🛠 Available Test APIs
+## 🛠 API Scenario Testing Guide
 
-The following APIs are included in the project for testing various authentication and data mapping scenarios:
+The system includes several mock APIs to test different integration patterns. Follow these steps to verify each one:
 
-### 1. Exchange Rates (`/api/test/exchange-rate`)
-*   **Method**: `GET`
-*   **Auth Type**: API Key
-*   **Default Header**: `X-API-KEY`
-*   **Test Value**: `secret-123`
-*   **Mode**: Returns limited data without key; full list with key.
+### 1. Exchange Rates (Header-based API Key)
+*   **Goal**: Test simple API Key validation in headers.
+*   **In Admin**: Set Endpoint to `/api/test/exchange-rate`. Auth Type: `API Key`. Header: `X-API-KEY`. Value: `secret-123`.
+*   **In Chat**: Click "Exchange Rates". It will return a table of currencies.
 
-### 2. Multi-KYC Secure Action (`/api/test/multi-kyc`) - **Production Simulation**
-*   **Method**: `POST`
-*   **Header**: `Authorization: Bearer {{token}}.{{account}}.{{code}}`
-*   **Verification**: Extracts segments from the header and verifies against a mock database.
-*   **Mock Database**:
-    *   **Account**: `12345` | **Code**: `9988` (Status: Active)
-    *   **Account**: `67890` | **Code**: `1122` (Status: Suspended)
-    *   **Account**: `11223` | **Code**: `3344` (Status: Pending)
+### 2. Profile Lookup (Dynamic Path Parameter)
+*   **Goal**: Test injecting a user-provided value directly into the URL path.
+*   **In Admin**: Set Endpoint to `/api/test/profile/{{account_id}}`.
+*   **KYC Needed**: Add a KYC field with key `account_id`.
+*   **Auth**: Use `Bearer Token` with template `Bearer {{user_token}}`.
+*   **Testing**: When you click this in chat, the bot will ask for your ID. Enter `user_123` to see the profile result.
 
-### 3. Basic Auth Validator (`/api/test/basic-auth-check`)
-*   **Method**: `GET`
-*   **Auth Type**: Basic Auth (Fixed or Per-User)
-*   **Fixed Credentials**: `admin` : `password123`
-*   **Dynamic Credentials**: `TEST_USER` : `TEST_PASS`
+### 3. Transactions (Multi-Parameter Query)
+*   **Goal**: Test sending multiple variables (KYC + Static) as query parameters.
+*   **In Admin**: Set Endpoint to `/api/test/transactions`.
+*   **Request Mapping**: 
+    *   `account_id` -> `KYC: account_id`
+    *   `limit` -> `Static: 3`
+*   **Testing**: The bot asks for your account ID (e.g., `88991122`), and the API returns a list of the last 3 transactions.
 
----
+### 4. Multi-KYC Secure Action (Custom Header Logic)
+*   **Goal**: Test complex, high-security header construction.
+*   **Logic**: Constructs `Authorization: Bearer {{token}}.{{account}}.{{code}}`.
+*   **Testing**:
+    1. Click "Secure Account Access".
+    2. Enter Account: `12345`.
+    3. Enter Code: `9988`.
+    4. Result: Returns the balance. Try `67890` / `1122` to see a "Suspended" error.
 
-## 🧪 How to Test Production Scenarios
-
-### Test: Multi-KYC Secure Access
-1. In Chat: Click **"Secure Account Access (Multi-KYC)"**.
-2. **Bot**: Prompts for Account Number. Enter **`12345`**.
-3. **Bot**: Prompts for Verification Code. Enter **`9988`**.
-4. **Result**: The system constructs a "signed" multi-part Bearer token. The API extracts the segments, verifies them against the internal store, and returns the balance for account `12345`.
-5. **Try Failure**: Restart and enter `67890` with code `1122`. The API will correctly report that the account is **Suspended**.
+### 5. Basic Auth (Fixed vs. Dynamic)
+*   **Goal**: Test standard username/password authentication.
+*   **Fixed Mode**: Uses `admin` : `password123`.
+*   **Dynamic Mode**: Uses KYC fields to source the username and password from the user's chat input.
 
 ---
 
 ## 🌍 Localization
 The system supports English and Amharic. The Admin Panel includes **AI-powered localization** (via Genkit) to automatically suggest Amharic translations for your menu items and responses.
+
+## 🔑 System Variables
+The following system-level placeholders are always available for use in URLs, Headers, and Parameters:
+*   `{{user_id}}`: Default is `user_123`.
+*   `{{user_token}}`: Default is `talktree_static_token_778899`.
