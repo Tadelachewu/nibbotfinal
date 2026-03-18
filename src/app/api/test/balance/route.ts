@@ -51,20 +51,29 @@ export async function GET(request: Request) {
     );
   }
 
-  // Bearer Token Validation (Static)
+  // Static Bearer Token Validation
+  // We expect "Bearer talktree_static_token_778899" or "Bearer static_sample_123"
   if (authHeader.startsWith('Bearer ')) {
     const token = authHeader.split(' ')[1] || "";
-    const isValidToken = token.includes('talktree_static_token') || token.startsWith('static_sample');
+    const isValidToken = token === 'talktree_static_token_778899' || token === 'static_sample_123' || token.startsWith('static_');
 
     if (!isValidToken) {
       return NextResponse.json(
         { 
           status: "error", 
-          message: `Unauthorized: Static Bearer token validation failed.` 
+          message: `Unauthorized: Invalid Static Bearer Token. Received: "${token}". Expected a static token from the registry.` 
         },
         { status: 401 }
       );
     }
+  } else {
+    return NextResponse.json(
+      { 
+        status: "error", 
+        message: `Unauthorized: Malformed header. Expected "Authorization: Bearer <static_token>".` 
+      },
+      { status: 401 }
+    );
   }
 
   // Handle data retrieval
@@ -77,7 +86,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     status: "success",
-    message: "Authenticated successfully.",
+    message: "Authenticated successfully. Returning default account summary.",
     data: mockAccounts['88991122']
   });
 }
