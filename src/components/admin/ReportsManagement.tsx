@@ -1,7 +1,6 @@
-
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { 
   Table, 
@@ -13,7 +12,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Search, Filter, Calendar, User, FileText, ChevronRight, ClipboardList } from 'lucide-react';
+import { Search, User, FileText, ChevronRight, ClipboardList, Loader2, Calendar } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { 
@@ -23,55 +22,58 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-
-// Mock data for initial view - real implementation would use useCollection('reports')
-const MOCK_REPORTS = [
-  {
-    id: 'rep_1',
-    userId: 'user_123',
-    menuName: 'Fraud Report',
-    timestamp: new Date(Date.now() - 3600000).toISOString(),
-    status: 'pending',
-    data: {
-      account_number: '11223344',
-      transaction_date: '2024-05-20',
-      description: 'Unauthorized withdrawal of 500 ETB'
-    }
-  },
-  {
-    id: 'rep_2',
-    userId: 'user_456',
-    menuName: 'Lost Card Report',
-    timestamp: new Date(Date.now() - 86400000).toISOString(),
-    status: 'reviewed',
-    data: {
-      account_id: '88991122',
-      card_type: 'ATM Debit',
-      location: 'Bole, Addis Ababa'
-    }
-  }
-];
+import { useFirestore, useCollection } from '@/firebase';
+import { collection, query, orderBy } from 'firebase/firestore';
+import { format } from 'date-fns';
 
 export function ReportsManagement() {
-  const [reports, setReports] = useState(MOCK_REPORTS);
+  const db = useFirestore();
   const [search, setSearch] = useState('');
 
-  const filteredReports = reports.filter(r => 
-    r.menuName.toLowerCase().includes(search.toLowerCase()) ||
-    r.userId.toLowerCase().includes(search.toLowerCase())
-  );
+  // 1. Fetch live reports from Firestore
+  const reportsQuery = useMemo(() => {
+    if (!db) return null;
+    return query(collection(db, 'reports'), orderBy('timestamp', 'desc'));
+  }, [db]);
+
+  const { data: reports, loading } = useCollection(reportsQuery);
+
+  // 2. Filter logic
+  const filteredReports = useMemo(() => {
+    if (!reports) return [];
+    return reports.filter(r => 
+      r.menuName?.toLowerCase().includes(search.toLowerCase()) ||
+      r.userId?.toLowerCase().includes(search.toLowerCase()) ||
+      Object.values(r.data || {}).some(val => String(val).toLowerCase().includes(search.toLowerCase()))
+    );
+  }, [reports, search]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 space-y-4">
+        <Loader2 className="animate-spin text-primary" size={32} />
+        <p className="text-sm text-muted-foreground animate-pulse">Synchronizing submissions...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader className="border-b bg-muted/10">
+      <Card className="border-none shadow-md overflow-hidden">
+        <CardHeader className="border-b bg-muted/5 p-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <CardTitle className="text-lg">Recent Submissions</CardTitle>
-            <div className="relative w-full md:w-72">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <div>
+              <CardTitle className="text-xl font-bold flex items-center gap-2">
+                <ClipboardList className="text-primary" size={20} />
+                User Submissions
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">Live feed of all conversational reports and forms.</p>
+            </div>
+            <div className="relative w-full md:w-80">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input 
-                placeholder="Search reports or users..." 
-                className="pl-8" 
+                placeholder="Search by user, type, or content..." 
+                className="pl-10 bg-white" 
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -79,64 +81,90 @@ export function ReportsManagement() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <ScrollArea className="h-[600px]">
+          <ScrollArea className="h-[650px]">
             <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/50">
-                  <TableHead className="w-[150px]">Status</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>User ID</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+              <TableHeader className="bg-muted/30 sticky top-0 z-10">
+                <TableRow>
+                  <TableHead className="w-[120px] font-bold uppercase text-[10px] tracking-wider">Status</TableHead>
+                  <TableHead className="font-bold uppercase text-[10px] tracking-wider">Report Type</TableHead>
+                  <TableHead className="font-bold uppercase text-[10px] tracking-wider">Submitted By</TableHead>
+                  <TableHead className="font-bold uppercase text-[10px] tracking-wider">Date & Time</TableHead>
+                  <TableHead className="text-right font-bold uppercase text-[10px] tracking-wider">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredReports.map((report) => (
-                  <TableRow key={report.id} className="group cursor-pointer hover:bg-muted/30">
+                {filteredReports.map((report: any) => (
+                  <TableRow key={report.id} className="group hover:bg-muted/20 transition-colors">
                     <TableCell>
-                      <Badge variant={report.status === 'pending' ? 'destructive' : 'secondary'} className="capitalize">
-                        {report.status}
+                      <Badge 
+                        variant={report.status === 'pending' ? 'destructive' : 'secondary'} 
+                        className="capitalize text-[10px] px-2 py-0.5"
+                      >
+                        {report.status || 'Received'}
                       </Badge>
                     </TableCell>
-                    <TableCell className="font-medium">{report.menuName}</TableCell>
-                    <TableCell className="text-muted-foreground text-xs font-mono">{report.userId}</TableCell>
+                    <TableCell>
+                      <div className="font-semibold text-sm">{report.menuName}</div>
+                      <div className="text-[10px] text-muted-foreground italic flex items-center gap-1">
+                         <FileText size={10} /> {Object.keys(report.data || {}).length} fields collected
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                          <User size={14} />
+                        </div>
+                        <span className="text-xs font-mono font-medium">{report.userId}</span>
+                      </div>
+                    </TableCell>
                     <TableCell className="text-muted-foreground text-xs">
-                      {new Date(report.timestamp).toLocaleString()}
+                      <div className="flex items-center gap-1.5">
+                        <Calendar size={12} />
+                        {report.timestamp ? format(report.timestamp.toDate ? report.timestamp.toDate() : new Date(report.timestamp), 'MMM dd, yyyy HH:mm') : 'N/A'}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <Dialog>
                         <DialogTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8">
-                            View Details <ChevronRight size={14} className="ml-1" />
+                          <Button variant="outline" size="sm" className="h-8 text-xs hover:bg-primary hover:text-white transition-all">
+                            Review <ChevronRight size={14} className="ml-1" />
                           </Button>
                         </DialogTrigger>
-                        <DialogContent className="sm:max-w-md">
-                          <DialogHeader>
-                            <DialogTitle className="flex items-center gap-2">
-                              <FileText size={18} className="text-primary" />
-                              Submission Details
+                        <DialogContent className="sm:max-w-xl">
+                          <DialogHeader className="border-b pb-4">
+                            <DialogTitle className="flex items-center gap-2 text-xl">
+                              <FileText size={22} className="text-primary" />
+                              {report.menuName}
                             </DialogTitle>
+                            <p className="text-xs text-muted-foreground font-mono">ID: {report.id}</p>
                           </DialogHeader>
-                          <div className="space-y-4 py-4">
-                            <div className="grid grid-cols-2 gap-4">
+                          
+                          <div className="py-6 space-y-6">
+                            <div className="grid grid-cols-2 gap-6 bg-muted/20 p-4 rounded-xl border border-dashed">
                               <div className="space-y-1">
-                                <span className="text-[10px] uppercase font-bold text-muted-foreground">User</span>
-                                <div className="flex items-center gap-2 text-sm"><User size={14} /> {report.userId}</div>
+                                <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Submitter</span>
+                                <div className="flex items-center gap-2 text-sm font-medium"><User size={14} className="text-primary" /> {report.userId}</div>
                               </div>
                               <div className="space-y-1">
-                                <span className="text-[10px] uppercase font-bold text-muted-foreground">Type</span>
-                                <div className="flex items-center gap-2 text-sm"><ClipboardList size={14} /> {report.menuName}</div>
+                                <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Submission Date</span>
+                                <div className="flex items-center gap-2 text-sm font-medium"><Calendar size={14} className="text-primary" /> {report.timestamp ? format(report.timestamp.toDate ? report.timestamp.toDate() : new Date(report.timestamp), 'PPPP p') : 'N/A'}</div>
                               </div>
                             </div>
-                            <div className="space-y-2 border-t pt-4">
-                              <span className="text-[10px] uppercase font-bold text-muted-foreground">Collected Data</span>
-                              <div className="bg-muted/30 p-3 rounded-lg space-y-2">
-                                {Object.entries(report.data).map(([key, value]) => (
-                                  <div key={key} className="flex justify-between text-xs">
-                                    <span className="font-medium text-muted-foreground">{key}:</span>
-                                    <span className="font-mono">{String(value)}</span>
+
+                            <div className="space-y-3">
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest block mb-1">Dynamically Collected Data</span>
+                              <div className="grid gap-2">
+                                {Object.entries(report.data || {}).map(([key, value]) => (
+                                  <div key={key} className="flex flex-col p-3 rounded-lg border bg-white shadow-sm group hover:border-primary/30 transition-colors">
+                                    <span className="text-[10px] font-bold text-primary uppercase mb-1">{key.replace(/_/g, ' ')}</span>
+                                    <span className="text-sm font-medium break-all">{String(value || 'N/A')}</span>
                                   </div>
                                 ))}
+                                {(!report.data || Object.keys(report.data).length === 0) && (
+                                  <div className="py-8 text-center text-muted-foreground italic text-xs bg-muted/10 rounded-lg border">
+                                    No dynamic fields were defined for this report.
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -145,10 +173,13 @@ export function ReportsManagement() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {filteredReports.length === 0 && (
+                {filteredReports.length === 0 && !loading && (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-32 text-center text-muted-foreground italic">
-                      No submissions found matching your search.
+                    <TableCell colSpan={5} className="h-64 text-center">
+                      <div className="flex flex-col items-center justify-center space-y-2 opacity-40">
+                        <ClipboardList size={48} />
+                        <p className="italic text-sm">No submissions found matching your criteria.</p>
+                      </div>
                     </TableCell>
                   </TableRow>
                 )}

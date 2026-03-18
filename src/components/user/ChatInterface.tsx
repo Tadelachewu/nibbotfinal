@@ -20,7 +20,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { useFirestore } from '@/firebase';
+import { useFirestore, errorEmitter, FirestorePermissionError } from '@/firebase';
 
 interface Message {
   id: string;
@@ -212,34 +212,43 @@ export function ChatInterface() {
     }
   };
 
-  const handleInternalReport = async (menu: MenuItem, kycData: Record<string, any>) => {
+  const handleInternalReport = (menu: MenuItem, kycData: Record<string, any>) => {
     setLoadingText(currentLang?.code === 'am' ? 'ሪፖርት እየላክን ነው...' : 'Submitting your report...');
     setIsLoading(true);
-    try {
-      if (db) {
-        await addDoc(collection(db, 'reports'), {
-          userId: userData.id,
-          menuName: menu.name,
-          data: kycData,
-          status: 'pending',
-          timestamp: serverTimestamp()
+    
+    if (db) {
+      addDoc(collection(db, 'reports'), {
+        userId: userData.id,
+        menuName: menu.name,
+        data: kycData,
+        status: 'pending',
+        timestamp: serverTimestamp()
+      })
+      .then(() => {
+        setHistory(prev => [...prev, {
+          id: `bot-report-${Date.now()}`,
+          sender: 'bot',
+          content: getLocalizedContent(menu),
+          options: menus.filter(m => m.parentId === menu.id)
+        }]);
+      })
+      .catch(async (error) => {
+        const permissionError = new FirestorePermissionError({
+          path: 'reports',
+          operation: 'create',
+          requestResourceData: kycData
         });
-      }
-      
-      setHistory(prev => [...prev, {
-        id: `bot-report-${Date.now()}`,
-        sender: 'bot',
-        content: getLocalizedContent(menu),
-        options: menus.filter(m => m.parentId === menu.id)
-      }]);
-    } catch (e) {
-      setHistory(prev => [...prev, {
-        id: `bot-error-${Date.now()}`,
-        sender: 'bot',
-        text: 'Sorry, there was an error submitting your report. Please try again later.'
-      }]);
-    } finally {
-      setIsLoading(false);
+        errorEmitter.emit('permission-error', permissionError);
+        
+        setHistory(prev => [...prev, {
+          id: `bot-error-${Date.now()}`,
+          sender: 'bot',
+          text: 'Sorry, there was an error submitting your report. Please try again later.'
+        }]);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
     }
   };
 
