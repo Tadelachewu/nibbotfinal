@@ -52,16 +52,16 @@ export async function GET(request: Request) {
   }
 
   // Static Bearer Token Validation
-  // We expect "Bearer talktree_static_token_778899" or "Bearer static_sample_123"
   if (authHeader.startsWith('Bearer ')) {
     const token = authHeader.split(' ')[1] || "";
+    // Accept the system's static token or a standard sample token
     const isValidToken = token === 'talktree_static_token_778899' || token === 'static_sample_123' || token.startsWith('static_');
 
     if (!isValidToken) {
       return NextResponse.json(
         { 
           status: "error", 
-          message: `Unauthorized: Invalid Static Bearer Token. Received: "${token}". Expected a static token from the registry.` 
+          message: `Unauthorized: Invalid Static Bearer Token. Received: "${token}". Expected a static token like "talktree_static_token_778899".` 
         },
         { status: 401 }
       );
