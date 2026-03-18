@@ -385,7 +385,14 @@ export function MenuManagement() {
               ))
             ) : (
               <div className="py-4 text-center text-[10px] text-muted-foreground italic">
-                {editForm.responseType === 'report' ? 'Use {{response.id}} for Submission ID.' : 'Test API first to see fields.'}
+                {editForm.responseType === 'report' ? (
+                   <div className="space-y-1">
+                      <Button variant="ghost" className="w-full justify-start h-8 text-[11px] px-2 font-mono truncate" onClick={() => onSelect('{{response.id}}')}>id (Submission ID)</Button>
+                      {kycFieldsList.map(f => (
+                        <Button key={f.id} variant="ghost" className="w-full justify-start h-8 text-[11px] px-2 font-mono truncate" onClick={() => onSelect(`{{response.${f.name}}}`)}>{f.name}</Button>
+                      ))}
+                   </div>
+                ) : 'Test API first to see fields.'}
               </div>
             )}
           </div>

@@ -176,14 +176,12 @@ export function ChatInterface() {
     res = res.replace(/{{\s*user_id\s*}}/g, userData.id);
     res = res.replace(/{{\s*user_token\s*}}/g, userData.token);
     
-    // Support {{response.xxx}} for API results or Report metadata
     const responseMatches = res.match(/{{\s*response\.(.*?)\s*}}/g);
     responseMatches?.forEach(match => {
       const path = match.replace('{{', '').replace('}}', '').trim().replace('response.', '');
       res = res.replace(match, String(getVal(path, dataObj) ?? ''));
     });
 
-    // Support direct KYC placeholders {{field_name}}
     Object.entries(userData.kyc).forEach(([k, v]) => {
       const regex = new RegExp(`{{\\s*${k}\\s*}}`, 'g');
       res = res.replace(regex, String(v ?? ''));
@@ -255,7 +253,6 @@ export function ChatInterface() {
       const mapping = menu.apiConfig?.responseMapping;
       let finalMsg = '';
       
-      // If admin defined a dynamic success template, use it. Pass the doc ID as well.
       if (mapping?.template) {
         finalMsg = replacePlaceholders(getLocalizedTemplate(menu), { id: docRef.id, ...kycData });
       }

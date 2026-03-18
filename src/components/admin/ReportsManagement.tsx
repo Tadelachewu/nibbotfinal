@@ -147,8 +147,8 @@ export function ReportsManagement() {
                     </TableCell>
                     <TableCell>
                       <div className="text-xs text-muted-foreground truncate max-w-[200px] italic">
-                        {Object.entries(report.data || {}).slice(0, 1).map(([k, v]) => `${k}: ${v}`).join(', ')}
-                        {(Object.keys(report.data || {}).length > 1) && '...'}
+                        {Object.entries(report.data || {}).slice(0, 2).map(([k, v]) => `${k}: ${v}`).join(', ')}
+                        {(Object.keys(report.data || {}).length > 2) && '...'}
                       </div>
                     </TableCell>
                     <TableCell>
