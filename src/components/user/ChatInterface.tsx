@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -170,14 +171,24 @@ export function ChatInterface() {
     return getVal(key, root);
   };
 
-  const replacePlaceholders = (template: string, kycData: Record<string, any>) => {
+  const replacePlaceholders = (template: string, dataObj: Record<string, any>) => {
     let res = template;
     res = res.replace(/{{\s*user_id\s*}}/g, userData.id);
     res = res.replace(/{{\s*user_token\s*}}/g, userData.token);
-    Object.entries(kycData).forEach(([k, v]) => {
+    
+    // Support {{response.xxx}} for API results or Report metadata
+    const responseMatches = res.match(/{{\s*response\.(.*?)\s*}}/g);
+    responseMatches?.forEach(match => {
+      const path = match.replace('{{', '').replace('}}', '').trim().replace('response.', '');
+      res = res.replace(match, String(getVal(path, dataObj) ?? ''));
+    });
+
+    // Support direct KYC placeholders {{field_name}}
+    Object.entries(userData.kyc).forEach(([k, v]) => {
       const regex = new RegExp(`{{\\s*${k}\\s*}}`, 'g');
       res = res.replace(regex, String(v ?? ''));
     });
+    
     return res;
   };
 
@@ -240,14 +251,23 @@ export function ChatInterface() {
     };
 
     addDoc(collection(db, 'reports'), reportData)
-    .then(() => {
+    .then((docRef) => {
+      const mapping = menu.apiConfig?.responseMapping;
+      let finalMsg = '';
+      
+      // If admin defined a dynamic success template, use it. Pass the doc ID as well.
+      if (mapping?.template) {
+        finalMsg = replacePlaceholders(getLocalizedTemplate(menu), { id: docRef.id, ...kycData });
+      }
+
       const successContent = getLocalizedContent(menu);
       const defaultSuccess = currentLang?.code === 'am' ? 'ሪፖርትዎ በተሳካ ሁኔታ ቀርቧል። እናመሰግናለን።' : 'Your report has been submitted successfully. Thank you.';
       
       setHistory(prev => [...prev, {
         id: `bot-report-${Date.now()}`,
         sender: 'bot',
-        content: successContent || `<p>${defaultSuccess}</p>`,
+        text: finalMsg || (successContent ? undefined : defaultSuccess),
+        content: finalMsg ? undefined : successContent,
         options: menus.filter(m => m.parentId === menu.id)
       }]);
     })
@@ -320,13 +340,7 @@ export function ChatInterface() {
     if (!success) { botMsg.text = apiResponse?.message || getLocalizedErrorFallback(menu); }
     else {
       if (mapping.type === 'message') {
-        let resultText = getLocalizedTemplate(menu);
-        const matches = resultText.match(/{{response\.(.*?)}}/g);
-        matches?.forEach(match => {
-          const path = match.replace('{{response.', '').replace('}}', '');
-          resultText = resultText.replace(match, String(getVal(path, apiResponse) ?? ''));
-        });
-        botMsg.text = resultText;
+        botMsg.text = replacePlaceholders(getLocalizedTemplate(menu), { response: apiResponse });
       } else if (mapping.type === 'table') {
         const foundArray = findArrayData(apiResponse);
         if (foundArray) {
@@ -354,8 +368,6 @@ export function ChatInterface() {
     const isAction = (menu.responseType === 'api' || menu.responseType === 'report') && menu.apiConfig;
     const hasFields = menu.apiConfig?.kycFields?.length || 0;
 
-    // A category menu might be marked as a report but its children are the real reports.
-    // We only trigger action/KYC if it's a leaf OR it explicitly has fields to collect.
     if (isAction && (hasFields > 0 || childMenus.length === 0)) {
       const kycFields = menu.apiConfig?.kycFields || [];
       const missingFields = kycFields
@@ -376,7 +388,6 @@ export function ChatInterface() {
       return;
     }
 
-    // Default Navigation Behavior
     setHistory(prev => [...prev, {
       id: `bot-${Date.now()}`, 
       sender: 'bot', 
