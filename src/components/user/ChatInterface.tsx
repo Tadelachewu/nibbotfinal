@@ -1,12 +1,14 @@
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
 import { MenuItem, KYCField, TableColumn, ApiConfig, Language } from '@/lib/types';
 import { getStoredMenus, getAppSettings } from '@/lib/store';
 import { ChatBubble } from './ChatBubble';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ChevronRight, Home, ArrowLeft, Languages, Globe, Link as LinkIcon, Send, Loader2 } from 'lucide-react';
+import { ChevronRight, Home, ArrowLeft, Languages, Send, Loader2, ClipboardCheck } from 'lucide-react';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import {
   Table,
@@ -17,6 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 interface Message {
   id: string;
@@ -47,6 +50,7 @@ export function ChatInterface() {
   const [history, setHistory] = useState<Message[]>([]);
   const [currentMenuId, setCurrentMenuId] = useState<string | null>(null);
   const [currentLang, setCurrentLang] = useState<Language | null>(null);
+  const logo = PlaceHolderImages.find(img => img.id === 'app-logo');
   
   // SYSTEM USER DATA
   const [userData, setUserData] = useState<UserData>({
@@ -185,7 +189,17 @@ export function ChatInterface() {
     } else {
       setKycFlow(null);
       const menu = menus.find(m => m.id === kycFlow.menuId);
-      if (menu) executeApiCall(menu, newKYC);
+      if (menu) {
+        // INTERNAL SUBMISSION SIMULATION
+        // In a real app, this would use Firestore setDoc()
+        console.log('INTERNAL SUBMISSION:', {
+          userId: userData.id,
+          menuName: menu.name,
+          data: newKYC,
+          timestamp: new Date().toISOString()
+        });
+        executeApiCall(menu, newKYC);
+      }
     }
   };
 
@@ -302,8 +316,22 @@ export function ChatInterface() {
     <div className="flex flex-col h-full bg-background max-w-2xl mx-auto border-x shadow-2xl relative">
       <header className="bg-white border-b p-4 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white shadow-md"><Globe size={20} /></div>
-          <div><h1 className="font-bold text-lg">Support Assistant</h1><div className="flex items-center gap-1.5"><span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" /><span className="text-[10px] uppercase tracking-wider font-bold">Online</span></div></div>
+          <div className="relative w-10 h-10 overflow-hidden rounded-full shadow-md border-2 border-primary/10">
+            <Image 
+              src={logo?.imageUrl || 'https://picsum.photos/seed/logo/100/100'} 
+              alt="TalkTree Logo"
+              fill
+              className="object-cover"
+              data-ai-hint={logo?.imageHint || 'logo'}
+            />
+          </div>
+          <div>
+            <h1 className="font-bold text-lg">Support Assistant</h1>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              <span className="text-[10px] uppercase tracking-wider font-bold">Online</span>
+            </div>
+          </div>
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild><Button variant="ghost" size="sm" className="text-xs"><Languages className="mr-2" size={14} /> {currentLang?.name || 'Language'}</Button></DropdownMenuTrigger>
@@ -350,7 +378,7 @@ export function ChatInterface() {
             <div className="flex flex-wrap gap-2 mt-4">
               {msg.options?.map(opt => <Button key={opt.id} variant="outline" size="sm" className="rounded-full bg-white hover:bg-primary/5 border-primary/20 text-primary-dark" onClick={() => navigateTo(opt)}>{getLocalizedName(opt)}<ChevronRight size={14} className="ml-1 opacity-50" /></Button>)}
               {msg.relatedOptions?.length ? <div className="w-full flex items-center gap-2 py-2"><div className="h-px bg-muted flex-1" /><span className="text-[9px] font-bold uppercase text-muted-foreground">{currentLang?.code === 'am' ? 'ተዛማጅ' : 'Related'}</span><div className="h-px bg-muted flex-1" /></div> : null}
-              {msg.relatedOptions?.map(opt => <Button key={opt.id} variant="secondary" size="sm" className="rounded-full shadow-sm" onClick={() => navigateTo(opt)}><LinkIcon size={12} className="mr-2" />{getLocalizedName(opt)}</Button>)}
+              {msg.relatedOptions?.map(opt => <Button key={opt.id} variant="secondary" size="sm" className="rounded-full shadow-sm" onClick={() => navigateTo(opt)}><ClipboardCheck size={12} className="mr-2" />{getLocalizedName(opt)}</Button>)}
             </div>
           </ChatBubble>
         ))}

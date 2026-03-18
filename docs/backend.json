@@ -1,0 +1,28 @@
+
+{
+  "entities": {
+    "UserReport": {
+      "title": "User Report",
+      "description": "Data collected from users via conversational forms (e.g., Fraud, Lost Card).",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "menuName": { "type": "string" },
+        "data": { "type": "object" },
+        "status": { "type": "string", "enum": ["pending", "reviewed", "resolved"] },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "menuName", "data", "timestamp"]
+    }
+  },
+  "auth": {
+    "providers": ["google.com"]
+  },
+  "firestore": {
+    "/reports/{reportId}": {
+      "schema": "#/entities/UserReport",
+      "description": "Collection of all user-submitted reports and forms."
+    }
+  }
+}
