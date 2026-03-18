@@ -684,8 +684,8 @@ export function MenuManagement() {
                               </RadioGroup>
                               {editForm.apiConfig?.authConfig?.basicAuth?.mode === 'fixed' ? (
                                 <div className="space-y-3">
-                                  <div className="space-y-1"><Label className="text-[9px] uppercase font-bold">Username</Label><Input value={editForm.apiConfig?.authConfig?.basicAuth?.user} onChange={e => deepUpdate(['apiConfig', 'authConfig', 'basicAuth', 'user'], e.target.value)} /></div>
-                                  <div className="space-y-1"><Label className="text-[9px] uppercase font-bold">Password</Label><Input type="password" value={editForm.apiConfig?.authConfig?.basicAuth?.pass} onChange={e => deepUpdate(['apiConfig', 'authConfig', 'basicAuth', 'pass'], e.target.value)} /></div>
+                                  <div className="space-y-1"><Label className="text-[9px] uppercase font-bold">Username</Label><Input value={editForm.apiConfig?.authConfig?.basicAuth?.user} onChange={e => { deepUpdate(['apiConfig', 'authConfig', 'basicAuth', 'user'], e.target.value); }} /></div>
+                                  <div className="space-y-1"><Label className="text-[9px] uppercase font-bold">Password</Label><Input type="password" value={editForm.apiConfig?.authConfig?.basicAuth?.pass} onChange={e => { deepUpdate(['apiConfig', 'authConfig', 'basicAuth', 'pass'], e.target.value); }} /></div>
                                 </div>
                               ) : (
                                 <div className="space-y-3">
@@ -803,15 +803,32 @@ export function MenuManagement() {
                         </TabsList>
                         
                         <TabsContent value="message" className="p-4 space-y-4 mt-0">
-                          <div className="bg-primary/5 p-3 rounded-lg flex items-start gap-3 border border-primary/10">
-                            <Info size={16} className="text-primary mt-0.5 shrink-0" />
-                            <p className="text-[11px] text-muted-foreground leading-relaxed">
-                              Configure the data keys below. Go to the <strong>Localization tabs above</strong> to write the actual message templates for each language.
-                            </p>
-                          </div>
-                          <div className="text-center py-6 border rounded-lg bg-muted/5">
-                            <Type size={24} className="mx-auto text-muted-foreground/30 mb-2" />
-                            <p className="text-xs text-muted-foreground">Mapping active. Templates are managed in Language tabs using the magic wand.</p>
+                          <div className="space-y-4">
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Base Success Template (English)</Label>
+                                <FieldPicker 
+                                  currentFields={getAvailableFields(apiPreviewResult)}
+                                  onSelect={(field) => {
+                                    const current = editForm.apiConfig?.responseMapping?.template || '';
+                                    deepUpdate(['apiConfig', 'responseMapping', 'template'], current + `{{response.${field}}}`);
+                                  }}
+                                />
+                              </div>
+                              <Input 
+                                value={editForm.apiConfig?.responseMapping?.template || ''} 
+                                onChange={e => deepUpdate(['apiConfig', 'responseMapping', 'template'], e.target.value)}
+                                placeholder="e.g. Your balance is {{response.balance}}"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Base Error Message (English)</Label>
+                              <Input 
+                                value={editForm.apiConfig?.responseMapping?.errorFallback || ''} 
+                                onChange={e => deepUpdate(['apiConfig', 'responseMapping', 'errorFallback'], e.target.value)}
+                                placeholder="Service unavailable."
+                              />
+                            </div>
                           </div>
                         </TabsContent>
 
@@ -847,7 +864,7 @@ export function MenuManagement() {
                             {(!editForm.apiConfig?.responseMapping?.tableColumns || editForm.apiConfig.responseMapping.tableColumns.length === 0) && (
                               <div className="text-center py-8 border border-dashed rounded-lg bg-muted/5">
                                 <TableIcon size={24} className="mx-auto text-muted-foreground/30 mb-2" />
-                                <p className="text-xs text-muted-foreground">No columns defined. Add columns and use the magic wand to pick data keys.</p>
+                                <p className="text-xs text-muted-foreground">No columns defined. Use the magic wand to pick fields after testing.</p>
                               </div>
                             )}
                           </div>
