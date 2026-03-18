@@ -159,13 +159,10 @@ export function ChatInterface() {
     return getVal(key, root);
   };
 
-  // PLACEHOLDER RESOLVER (Prioritizes KYC -> System)
   const replacePlaceholders = (template: string, kycData: Record<string, any>) => {
     let res = template;
-    // Map system variables
     res = res.replace(/{{\s*user_id\s*}}/g, userData.id);
     res = res.replace(/{{\s*user_token\s*}}/g, userData.token);
-    // Map KYC variables (including those intended for path segments)
     Object.entries(kycData).forEach(([k, v]) => {
       const regex = new RegExp(`{{\\s*${k}\\s*}}`, 'g');
       res = res.replace(regex, String(v));
@@ -200,7 +197,6 @@ export function ChatInterface() {
     const mapping = menu.apiConfig.responseMapping;
 
     try {
-      // 1. Resolve Path Parameters & URL
       let url = replacePlaceholders(menu.apiConfig.endpoint, kycData);
       
       const requestPayload: Record<string, any> = {};
@@ -211,20 +207,18 @@ export function ChatInterface() {
         else if (kycData[param.sourceValue]) requestPayload[param.apiKey] = kycData[param.sourceValue];
       });
 
-      // 2. Resolve Auth & Headers
       const headers: Record<string, string> = { 'Content-Type': 'application/json', ...menu.apiConfig.headers };
       const auth = menu.apiConfig.authConfig;
       if (auth && auth.type !== 'none') {
         const headerName = auth.apiKey?.header || auth.basicAuth?.header || auth.bearer?.header || 'Authorization';
         if (auth.type === 'apiKey' && auth.apiKey) { headers[headerName] = replacePlaceholders(auth.apiKey.value, kycData); }
         else if (auth.type === 'basic' && auth.basicAuth) {
-          const user = auth.basicAuth.mode === 'fixed' ? auth.basicAuth.user || '' : kycData[auth.basicAuth.userSource || ''] || '';
-          const pass = auth.basicAuth.mode === 'fixed' ? auth.basicAuth.pass || '' : kycData[auth.basicAuth.passSource || ''] || '';
+          const user = auth.basicAuth.user || '';
+          const pass = auth.basicAuth.pass || '';
           headers[headerName] = `Basic ${btoa(`${user}:${pass}`)}`;
         } else if (auth.type === 'bearer' && auth.bearer) { headers[headerName] = replacePlaceholders(auth.bearer.template, kycData); }
       }
 
-      // 3. Perform Fetch
       const options: RequestInit = { method: menu.apiConfig.method, headers };
       if (menu.apiConfig.method === 'GET') {
         const params = new URLSearchParams();
@@ -238,7 +232,6 @@ export function ChatInterface() {
       apiResponse = data;
     } catch (e) { success = false; }
 
-    // 4. Handle Response View
     let botMsg: Message = { id: `bot-api-${Date.now()}`, sender: 'bot' };
     if (!success) { botMsg.text = apiResponse?.message || getLocalizedErrorFallback(menu); }
     else {
@@ -271,7 +264,6 @@ export function ChatInterface() {
   const navigateTo = (menu: MenuItem) => {
     setHistory(prev => [...prev, { id: `user-${Date.now()}`, sender: 'user', text: getLocalizedName(menu) }]);
     if (menu.responseType === 'api' && menu.apiConfig) {
-      // IDENTIFY ALL REQUIRED SOURCES (URL, Params, Headers)
       const requiredFieldNames: string[] = [];
       const placeholders = (menu.apiConfig.endpoint + (menu.apiConfig.authConfig?.bearer?.template || '')).match(/{{\s*(.*?)\s*}}/g);
       placeholders?.forEach(m => {

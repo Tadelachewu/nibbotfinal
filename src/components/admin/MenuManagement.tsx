@@ -55,7 +55,6 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { WysiwygEditor } from './WysiwygEditor';
 import { toast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -198,16 +197,12 @@ export function MenuManagement() {
         account_number: '12345',
         verification_code: '9988',
         phone: '251911223344', 
-        username: 'TEST_USER', 
-        password: 'TEST_PASS' 
       };
 
       const resolve = (str: string) => str.replace(/{{\s*(.*?)\s*}}/g, (match, p1) => {
         const key = p1.trim();
-        // SYSTEM SOURCES
         if (key === 'user_token') return 'talktree_static_token_778899';
         if (key === 'user_id') return 'user_123';
-        // KYC SOURCES (Simulated for preview)
         return sampleKyc[key] || match;
       });
 
@@ -220,8 +215,8 @@ export function MenuManagement() {
         if (auth.type === 'apiKey' && auth.apiKey) {
           headers[headerName] = resolve(auth.apiKey.value);
         } else if (auth.type === 'basic' && auth.basicAuth) {
-          const user = auth.basicAuth.mode === 'fixed' ? auth.basicAuth.user || 'admin' : sampleKyc[auth.basicAuth.userSource || 'username'] || 'TEST_USER';
-          const pass = auth.basicAuth.mode === 'fixed' ? auth.basicAuth.pass || 'password123' : sampleKyc[auth.basicAuth.passSource || 'password'] || 'TEST_PASS';
+          const user = auth.basicAuth.user || 'admin';
+          const pass = auth.basicAuth.pass || 'password123';
           headers[headerName] = `Basic ${btoa(`${user}:${pass}`)}`;
         } else if (auth.type === 'bearer' && auth.bearer) {
           headers[headerName] = resolve(auth.bearer.template);
@@ -541,14 +536,6 @@ export function MenuManagement() {
                         </Select>
                         <div className="flex-1 space-y-2">
                           <Input value={editForm.apiConfig?.endpoint} onChange={e => deepUpdate(['apiConfig', 'endpoint'], e.target.value)} placeholder="e.g. /api/test/profile/{{account_id}}" />
-                          <div className="bg-primary/5 p-2 rounded border border-primary/10">
-                            <p className="text-[10px] text-muted-foreground flex flex-wrap gap-x-2 gap-y-1 items-center">
-                              <Sparkles size={10} className="text-primary" /> 
-                              <strong>Variable Mapping:</strong> 
-                              <span>System: <code className="bg-muted px-1 rounded text-primary">{"{{user_id}}"}</code></span>
-                              <span>KYC: Use any KYC field key like <code className="bg-muted px-1 rounded text-primary">{"{{account_id}}"}</code></span>
-                            </p>
-                          </div>
                         </div>
                       </div>
 
@@ -566,7 +553,7 @@ export function MenuManagement() {
                                 deepUpdate(['apiConfig', 'authConfig'], {
                                   type: authType,
                                   apiKey: authType === 'apiKey' ? { header: 'X-API-KEY', value: '' } : undefined,
-                                  basicAuth: authType === 'basic' ? { header: 'Authorization', mode: 'fixed', user: '', pass: '' } : undefined,
+                                  basicAuth: authType === 'basic' ? { header: 'Authorization', user: '', pass: '' } : undefined,
                                   bearer: authType === 'bearer' ? { header: 'Authorization', template: 'Bearer {{user_token}}' } : undefined,
                                 });
                               }}
@@ -600,33 +587,10 @@ export function MenuManagement() {
                                 <Label className="text-[9px] uppercase font-bold">Header Name</Label>
                                 <Input placeholder="Authorization" value={editForm.apiConfig?.authConfig?.basicAuth?.header} onChange={e => deepUpdate(['apiConfig', 'authConfig', 'basicAuth', 'header'], e.target.value)} />
                               </div>
-                              <RadioGroup value={editForm.apiConfig?.authConfig?.basicAuth?.mode || 'fixed'} onValueChange={v => deepUpdate(['apiConfig', 'authConfig', 'basicAuth', 'mode'], v)} className="flex gap-4 mb-4">
-                                <div className="flex items-center space-x-2"><RadioGroupItem value="fixed" id="fixed" /><Label htmlFor="fixed" className="text-xs">System (Fixed)</Label></div>
-                                <div className="flex items-center space-x-2"><RadioGroupItem value="dynamic" id="dynamic" /><Label htmlFor="dynamic" className="text-xs">User (KYC)</Label></div>
-                              </RadioGroup>
-                              {editForm.apiConfig?.authConfig?.basicAuth?.mode === 'fixed' ? (
-                                <div className="space-y-3">
-                                  <div className="space-y-1"><Label className="text-[9px] uppercase font-bold">Username</Label><Input value={editForm.apiConfig?.authConfig?.basicAuth?.user} onChange={e => { deepUpdate(['apiConfig', 'authConfig', 'basicAuth', 'user'], e.target.value); }} /></div>
-                                  <div className="space-y-1"><Label className="text-[9px] uppercase font-bold">Password</Label><Input type="password" value={editForm.apiConfig?.authConfig?.basicAuth?.pass} onChange={e => { deepUpdate(['apiConfig', 'authConfig', 'basicAuth', 'pass'], e.target.value); }} /></div>
-                                </div>
-                              ) : (
-                                <div className="space-y-3">
-                                  <div className="space-y-1">
-                                    <Label className="text-[9px] uppercase font-bold">Username Source</Label>
-                                    <Select value={editForm.apiConfig?.authConfig?.basicAuth?.userSource} onValueChange={v => deepUpdate(['apiConfig', 'authConfig', 'basicAuth', 'userSource'], v)}>
-                                      <SelectTrigger><SelectValue placeholder="Select KYC Field" /></SelectTrigger>
-                                      <SelectContent>{kycFieldsList.map(f => <SelectItem key={f.id} value={f.name}>KYC: {f.name}</SelectItem>)}</SelectContent>
-                                    </Select>
-                                  </div>
-                                  <div className="space-y-1">
-                                    <Label className="text-[9px] uppercase font-bold">Password Source</Label>
-                                    <Select value={editForm.apiConfig?.authConfig?.basicAuth?.passSource} onValueChange={v => deepUpdate(['apiConfig', 'authConfig', 'basicAuth', 'passSource'], v)}>
-                                      <SelectTrigger><SelectValue placeholder="Select KYC Field" /></SelectTrigger>
-                                      <SelectContent>{kycFieldsList.map(f => <SelectItem key={f.id} value={f.name}>KYC: {f.name}</SelectItem>)}</SelectContent>
-                                    </Select>
-                                  </div>
-                                </div>
-                              )}
+                              <div className="space-y-3">
+                                <div className="space-y-1"><Label className="text-[9px] uppercase font-bold">Username</Label><Input value={editForm.apiConfig?.authConfig?.basicAuth?.user} onChange={e => { deepUpdate(['apiConfig', 'authConfig', 'basicAuth', 'user'], e.target.value); }} /></div>
+                                <div className="space-y-1"><Label className="text-[9px] uppercase font-bold">Password</Label><Input type="password" value={editForm.apiConfig?.authConfig?.basicAuth?.pass} onChange={e => { deepUpdate(['apiConfig', 'authConfig', 'basicAuth', 'pass'], e.target.value); }} /></div>
+                              </div>
                             </div>
                           )}
 

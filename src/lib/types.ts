@@ -34,11 +34,8 @@ export interface ApiConfig {
     apiKey?: { header: string; value: string };
     basicAuth?: { 
       header?: string;
-      mode: 'fixed' | 'dynamic';
       user?: string; 
       pass?: string;
-      userSource?: string; // Name of KYC field
-      passSource?: string; // Name of KYC field
     };
     bearer?: { 
       header?: string;
