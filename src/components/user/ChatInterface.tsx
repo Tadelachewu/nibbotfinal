@@ -27,7 +27,7 @@ interface Message {
   relatedOptions?: MenuItem[];
   isKYC?: boolean;
   tableData?: {
-    columns: TableColumn[];
+    columns: (TableColumn & { localizedHeader: string })[];
     rows: any[];
     rootData: any;
     arrayPath: string;
@@ -102,21 +102,49 @@ export function ChatInterface() {
     return field.prompt;
   };
 
-  const getLocalizedTableHeader = (col: TableColumn) => {
+  const getLocalizedTableHeader = (menu: MenuItem, col: TableColumn) => {
     if (!currentLang) return col.header;
+    if (currentLang.isDefault) return col.header;
+    
+    // Check dynamic translations map
+    const translation = menu.translations?.[currentLang.code]?.tableHeaders?.[col.key];
+    if (translation) return translation;
+
+    // Fallback to Amharic legacy field
     if (currentLang.code === 'am' && col.headerAm) return col.headerAm;
+
     return col.header;
   };
   
-  const getLocalizedTemplate = (mapping: ApiConfig['responseMapping']) => {
+  const getLocalizedTemplate = (menu: MenuItem) => {
+    if (!menu.apiConfig) return "";
+    const mapping = menu.apiConfig.responseMapping;
     if (!currentLang) return mapping.template;
+    if (currentLang.isDefault) return mapping.template;
+
+    // Check dynamic translations map
+    const translation = menu.translations?.[currentLang.code]?.responseTemplate;
+    if (translation) return translation;
+
+    // Fallback to Amharic legacy field
     if (currentLang.code === 'am' && mapping.templateAm) return mapping.templateAm;
+
     return mapping.template;
   };
 
-  const getLocalizedErrorFallback = (mapping: ApiConfig['responseMapping']) => {
+  const getLocalizedErrorFallback = (menu: MenuItem) => {
+    if (!menu.apiConfig) return "";
+    const mapping = menu.apiConfig.responseMapping;
     if (!currentLang) return mapping.errorFallback;
+    if (currentLang.isDefault) return mapping.errorFallback;
+
+    // Check dynamic translations map
+    const translation = menu.translations?.[currentLang.code]?.errorFallback;
+    if (translation) return translation;
+
+    // Fallback to Amharic legacy field
     if (currentLang.code === 'am' && mapping.errorFallbackAm) return mapping.errorFallbackAm;
+
     return mapping.errorFallback;
   };
 
@@ -182,9 +210,7 @@ export function ChatInterface() {
     const mapping = menu.apiConfig.responseMapping;
 
     try {
-      // Resolve Path Parameters in Endpoint
       let url = replacePlaceholders(menu.apiConfig.endpoint, kycData);
-      
       const requestPayload: Record<string, any> = {};
       menu.apiConfig.requestParameters?.forEach(param => {
         if (param.sourceValue === 'user.id') requestPayload[param.apiKey] = userData.id;
@@ -196,16 +222,12 @@ export function ChatInterface() {
       const auth = menu.apiConfig.authConfig;
       if (auth) {
         const headerName = auth.apiKey?.header || auth.basicAuth?.header || auth.bearer?.header || 'Authorization';
-        
-        if (auth.type === 'apiKey' && auth.apiKey) {
-          headers[headerName] = replacePlaceholders(auth.apiKey.value, kycData);
-        } else if (auth.type === 'basic' && auth.basicAuth) {
+        if (auth.type === 'apiKey' && auth.apiKey) { headers[headerName] = replacePlaceholders(auth.apiKey.value, kycData); }
+        else if (auth.type === 'basic' && auth.basicAuth) {
           const user = auth.basicAuth.mode === 'fixed' ? auth.basicAuth.user || '' : kycData[auth.basicAuth.userSource || ''] || '';
           const pass = auth.basicAuth.mode === 'fixed' ? auth.basicAuth.pass || '' : kycData[auth.basicAuth.passSource || ''] || '';
           headers[headerName] = `Basic ${btoa(`${user}:${pass}`)}`;
-        } else if (auth.type === 'bearer' && auth.bearer) {
-          headers[headerName] = replacePlaceholders(auth.bearer.template, kycData);
-        }
+        } else if (auth.type === 'bearer' && auth.bearer) { headers[headerName] = replacePlaceholders(auth.bearer.template, kycData); }
       }
 
       const options: RequestInit = { method: menu.apiConfig.method, headers };
@@ -222,10 +244,10 @@ export function ChatInterface() {
     } catch (e) { success = false; }
 
     let botMsg: Message = { id: `bot-api-${Date.now()}`, sender: 'bot' };
-    if (!success) { botMsg.text = apiResponse?.message || getLocalizedErrorFallback(mapping); }
+    if (!success) { botMsg.text = apiResponse?.message || getLocalizedErrorFallback(menu); }
     else {
       if (mapping.type === 'message') {
-        let resultText = getLocalizedTemplate(mapping);
+        let resultText = getLocalizedTemplate(menu);
         const matches = resultText.match(/{{response\.(.*?)}}/g);
         matches?.forEach(match => {
           const path = match.replace('{{response.', '').replace('}}', '');
@@ -234,11 +256,16 @@ export function ChatInterface() {
         botMsg.text = resultText;
       } else if (mapping.type === 'table') {
         const foundArray = findArrayData(apiResponse);
-        if (foundArray && (Array.isArray(foundArray.data) || typeof foundArray.data === 'object')) {
+        if (foundArray) {
           const rows = Array.isArray(foundArray.data) ? foundArray.data : [foundArray.data];
-          botMsg.tableData = { columns: mapping.tableColumns || [], rows: rows, rootData: apiResponse, arrayPath: foundArray.path };
+          botMsg.tableData = { 
+            columns: (mapping.tableColumns || []).map(c => ({ ...c, localizedHeader: getLocalizedTableHeader(menu, c) })), 
+            rows: rows, 
+            rootData: apiResponse, 
+            arrayPath: foundArray.path 
+          };
           botMsg.text = currentLang?.code === 'am' ? 'የተገኙ ውጤቶች የሚከተሉት ናቸው' : 'Here are the results:';
-        } else { botMsg.text = getLocalizedErrorFallback(mapping); }
+        } else { botMsg.text = getLocalizedErrorFallback(menu); }
       }
     }
     botMsg.options = menus.filter(m => m.parentId === menu.id);
@@ -250,25 +277,12 @@ export function ChatInterface() {
     setHistory(prev => [...prev, { id: `user-${Date.now()}`, sender: 'user', text: getLocalizedName(menu) }]);
     if (menu.responseType === 'api' && menu.apiConfig) {
       const requiredFieldNames: string[] = [];
-      const auth = menu.apiConfig.authConfig;
-      
-      // Collect placeholders from the Endpoint URL
       const urlMatches = menu.apiConfig.endpoint.match(/{{\s*(.*?)\s*}}/g);
       urlMatches?.forEach(m => {
         const name = m.replace('{{', '').replace('}}', '').trim();
         if (name !== 'user_id' && name !== 'user_token') requiredFieldNames.push(name);
       });
-
-      if (auth?.type === 'basic' && auth.basicAuth?.mode === 'dynamic') {
-        if (auth.basicAuth.userSource) requiredFieldNames.push(auth.basicAuth.userSource);
-        if (auth.basicAuth.passSource) requiredFieldNames.push(auth.basicAuth.passSource);
-      }
-      if (auth?.type === 'bearer' && auth.bearer?.template) {
-        const matches = auth.bearer.template.match(/{{\s*(.*?)\s*}}/g);
-        matches?.forEach(m => { const name = m.replace('{{', '').replace('}}', '').trim(); if (name !== 'user_id' && name !== 'user_token') requiredFieldNames.push(name); });
-      }
       menu.apiConfig.requestParameters?.forEach(p => { if (p.sourceType === 'kyc') requiredFieldNames.push(p.sourceValue); });
-
       const uniqueRequired = Array.from(new Set(requiredFieldNames));
       const kycFields = menu.apiConfig.kycFields || [];
       const missingFields = kycFields
@@ -324,7 +338,7 @@ export function ChatInterface() {
                       <TableRow>
                         {msg.tableData.columns.map((col, i) => (
                           <TableHead key={i} className="text-[10px] font-bold">
-                            {getLocalizedTableHeader(col)}
+                            {col.localizedHeader}
                           </TableHead>
                         ))}
                       </TableRow>
