@@ -46,15 +46,17 @@ const defaultMenus: MenuItem[] = [
           prompt: 'Please enter the affected account number:',
           promptAm: 'እባክዎ የተጎዳውን የሂሳብ ቁጥር ያስገቡ፡',
           type: 'text',
-          order: 0
+          order: 0,
+          required: true
         },
         {
           id: 'fraud-desc',
           name: 'description',
-          prompt: 'Briefly describe the suspicious activity:',
-          promptAm: 'እባክዎ አጠራጣሪ እንቅስቃሴውን በአጭሩ ይግለጹ፡',
+          prompt: 'Briefly describe the suspicious activity (Optional):',
+          promptAm: 'እባክዎ አጠራጣሪ እንቅስቃሴውን በአጭሩ ይግለጹ (አማራጭ)፡',
           type: 'text',
-          order: 1
+          order: 1,
+          required: false
         }
       ],
       requestParameters: [],
@@ -128,7 +130,8 @@ const defaultMenus: MenuItem[] = [
           prompt: 'Please enter a User ID to lookup (try: user_123)',
           promptAm: 'እባክዎ መለያዎን ያስገቡ (ለምሳሌ: user_123)',
           type: 'text',
-          order: 0
+          order: 0,
+          required: true
         }
       ],
       requestParameters: [],

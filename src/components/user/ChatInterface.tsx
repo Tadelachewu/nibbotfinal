@@ -7,7 +7,7 @@ import { getStoredMenus, getAppSettings } from '@/lib/store';
 import { ChatBubble } from './ChatBubble';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ChevronRight, Home, ArrowLeft, Languages, Send, Loader2, ClipboardCheck } from 'lucide-react';
+import { ChevronRight, Home, ArrowLeft, Languages, Send, Loader2, ClipboardCheck, CornerDownRight } from 'lucide-react';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import {
   Table,
@@ -171,19 +171,30 @@ export function ChatInterface() {
     res = res.replace(/{{\s*user_token\s*}}/g, userData.token);
     Object.entries(kycData).forEach(([k, v]) => {
       const regex = new RegExp(`{{\\s*${k}\\s*}}`, 'g');
-      res = res.replace(regex, String(v));
+      res = res.replace(regex, String(v ?? ''));
     });
     return res;
   };
 
-  const handleKycSubmit = (e?: React.FormEvent) => {
+  const handleKycSubmit = (e?: React.FormEvent, skip: boolean = false) => {
     e?.preventDefault();
-    if (!kycFlow || !kycInput.trim()) return;
+    if (!kycFlow) return;
+    
     const currentField = kycFlow.fields[kycFlow.fieldIndex];
-    const newKYC = { ...userData.kyc, [currentField.name]: kycInput };
+    if (currentField.required && !skip && !kycInput.trim()) return;
+
+    const valueToSave = skip ? null : kycInput;
+    const newKYC = { ...userData.kyc, [currentField.name]: valueToSave };
+    
     setUserData(prev => ({ ...prev, kyc: newKYC }));
-    setHistory(prev => [...prev, { id: `user-kyc-${Date.now()}`, sender: 'user', text: currentField.type === 'password' ? '********' : kycInput }]);
+    
+    const displayValue = skip 
+      ? (currentLang?.code === 'am' ? '[ዘለል]' : '[Skipped]') 
+      : (currentField.type === 'password' ? '********' : kycInput);
+      
+    setHistory(prev => [...prev, { id: `user-kyc-${Date.now()}`, sender: 'user', text: displayValue }]);
     setKycInput('');
+
     if (kycFlow.fieldIndex < kycFlow.fields.length - 1) {
       const nextField = kycFlow.fields[kycFlow.fieldIndex + 1];
       setHistory(prev => [...prev, { id: `bot-kyc-${Date.now()}`, sender: 'bot', text: getLocalizedKYCPrompt(nextField), isKYC: true }]);
@@ -246,7 +257,7 @@ export function ChatInterface() {
         if (param.sourceValue === 'user.id') requestPayload[param.apiKey] = userData.id;
         else if (param.sourceValue === 'user.token') requestPayload[param.apiKey] = userData.token;
         else if (param.sourceType === 'static') requestPayload[param.apiKey] = param.sourceValue;
-        else if (kycData[param.sourceValue]) requestPayload[param.apiKey] = kycData[param.sourceValue];
+        else if (kycData[param.sourceValue] !== undefined) requestPayload[param.apiKey] = kycData[param.sourceValue];
       });
 
       const headers: Record<string, string> = { 'Content-Type': 'application/json', ...menu.apiConfig.headers };
@@ -264,7 +275,9 @@ export function ChatInterface() {
       const options: RequestInit = { method: menu.apiConfig.method, headers };
       if (menu.apiConfig.method === 'GET') {
         const params = new URLSearchParams();
-        Object.entries(requestPayload).forEach(([k, v]) => params.append(k, String(v)));
+        Object.entries(requestPayload).forEach(([k, v]) => {
+          if (v !== null) params.append(k, String(v));
+        });
         if (params.toString()) url += (url.includes('?') ? '&' : '?') + params.toString();
       } else { options.body = JSON.stringify(requestPayload); }
 
@@ -282,7 +295,7 @@ export function ChatInterface() {
         const matches = resultText.match(/{{response\.(.*?)}}/g);
         matches?.forEach(match => {
           const path = match.replace('{{response.', '').replace('}}', '');
-          resultText = resultText.replace(match, String(getVal(path, apiResponse) || ''));
+          resultText = resultText.replace(match, String(getVal(path, apiResponse) ?? ''));
         });
         botMsg.text = resultText;
       } else if (mapping.type === 'table') {
@@ -308,7 +321,7 @@ export function ChatInterface() {
     if ((menu.responseType === 'api' || menu.responseType === 'report') && menu.apiConfig) {
       const kycFields = menu.apiConfig.kycFields || [];
       const missingFields = kycFields
-        .filter(f => !userData.kyc[f.name])
+        .filter(f => userData.kyc[f.name] === undefined)
         .sort((a, b) => a.order - b.order);
       
       if (missingFields.length > 0) {
@@ -412,6 +425,11 @@ export function ChatInterface() {
         <form onSubmit={handleKycSubmit} className="flex gap-2">
           <Input autoFocus type={kycFlow.fields[kycFlow.fieldIndex].type === 'password' ? 'password' : 'text'} value={kycInput} onChange={e => setKycInput(e.target.value)} placeholder={currentLang?.code === 'am' ? 'እዚህ ይጻፉ...' : 'Enter requested information...'} className="rounded-full shadow-inner" />
           <Button type="submit" size="icon" className="rounded-full h-10 w-10 shrink-0"><Send size={18} /></Button>
+          {!kycFlow.fields[kycFlow.fieldIndex].required && (
+            <Button type="button" variant="ghost" size="sm" onClick={() => handleKycSubmit(undefined, true)} className="text-[10px] font-bold uppercase text-muted-foreground hover:text-primary h-10 px-3">
+              <CornerDownRight size={14} className="mr-1" /> {currentLang?.code === 'am' ? 'ዘልለው' : 'Skip'}
+            </Button>
+          )}
         </form>
       </div>}
       <footer className="bg-white border-t p-4 flex justify-center gap-4 shrink-0">

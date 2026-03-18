@@ -8,6 +8,7 @@ export interface KYCField {
   type: KYCFieldType;
   validation?: string;
   order: number;
+  required: boolean;
 }
 
 export interface TableColumn {

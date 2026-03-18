@@ -37,6 +37,8 @@ import {
   Search,
   Link as LinkIcon,
   ClipboardList,
+  Lock,
+  Unlock,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -69,6 +71,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Switch } from '@/components/ui/switch';
 
 export function MenuManagement() {
   const [menus, setMenus] = useState<MenuItem[]>([]);
@@ -704,7 +707,7 @@ export function MenuManagement() {
                           <Label className="text-xs font-bold uppercase">1. Collected Fields</Label>
                           <Button variant="ghost" size="sm" onClick={() => {
                             const fields = editForm.apiConfig?.kycFields || [];
-                            deepUpdate(['apiConfig', 'kycFields'], [...fields, { id: Math.random().toString(36).substr(2, 9), name: '', prompt: '', promptAm: '', type: 'text', order: fields.length }]);
+                            deepUpdate(['apiConfig', 'kycFields'], [...fields, { id: Math.random().toString(36).substr(2, 9), name: '', prompt: '', promptAm: '', type: 'text', order: fields.length, required: true }]);
                           }}><Plus className="mr-1" /> Add Field</Button>
                         </div>
                         {editForm.apiConfig?.kycFields?.map((field, idx) => (
@@ -712,7 +715,20 @@ export function MenuManagement() {
                             <div className="grid grid-cols-4 gap-3">
                               <div className="space-y-1"><Label className="text-[10px] uppercase font-bold">Field Key</Label><Input value={field.name} onChange={e => { const fields = [...editForm.apiConfig!.kycFields]; fields[idx].name = e.target.value; deepUpdate(['apiConfig', 'kycFields'], fields); }} /></div>
                               <div className="space-y-1"><Label className="text-[10px] uppercase font-bold">Type</Label><Select value={field.type} onValueChange={v => { const fields = [...editForm.apiConfig!.kycFields]; fields[idx].type = v as any; deepUpdate(['apiConfig', 'kycFields'], fields); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="text">Text</SelectItem><SelectItem value="tel">Phone</SelectItem><SelectItem value="number">Number</SelectItem><SelectItem value="password">Password</SelectItem></SelectContent></Select></div>
-                              <div className="col-span-2 space-y-1"><Label className="text-[10px] uppercase font-bold">English Prompt</Label><Input value={field.prompt} onChange={e => { const fields = [...editForm.apiConfig!.kycFields]; fields[idx].prompt = e.target.value; deepUpdate(['apiConfig', 'kycFields'], fields); }} /></div>
+                              <div className="col-span-2 space-y-1">
+                                <div className="flex items-center justify-between">
+                                  <Label className="text-[10px] uppercase font-bold">English Prompt</Label>
+                                  <div className="flex items-center gap-2">
+                                    <Label className="text-[9px] uppercase font-bold text-muted-foreground">{field.required ? 'Mandatory' : 'Optional'}</Label>
+                                    <Switch checked={field.required} onCheckedChange={checked => {
+                                      const fields = [...editForm.apiConfig!.kycFields];
+                                      fields[idx].required = checked;
+                                      deepUpdate(['apiConfig', 'kycFields'], fields);
+                                    }} />
+                                  </div>
+                                </div>
+                                <Input value={field.prompt} onChange={e => { const fields = [...editForm.apiConfig!.kycFields]; fields[idx].prompt = e.target.value; deepUpdate(['apiConfig', 'kycFields'], fields); }} />
+                              </div>
                             </div>
                             <Button variant="ghost" size="icon" className="absolute -right-2 -top-2 h-7 w-7 rounded-full bg-white border text-destructive opacity-0 group-hover:opacity-100" onClick={() => { const fields = editForm.apiConfig!.kycFields.filter((_, i) => i !== idx); deepUpdate(['apiConfig', 'kycFields'], fields); }}><Trash2 size={12} /></Button>
                           </div>
