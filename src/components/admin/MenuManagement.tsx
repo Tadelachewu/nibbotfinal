@@ -14,7 +14,6 @@ import {
   Edit2, 
   ChevronDown, 
   Save, 
-  X, 
   Menu as MenuIcon,
   FolderPlus,
   Loader2,
@@ -30,7 +29,6 @@ import {
   Eye,
   FileCode,
   Check,
-  Info,
   ChevronRight,
   Wand2,
   Sparkles,
@@ -38,8 +36,6 @@ import {
   Search,
   Link as LinkIcon,
   ClipboardList,
-  Lock,
-  Unlock,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -217,7 +213,6 @@ export function MenuManagement() {
       const auth = editForm.apiConfig.authConfig;
       if (auth && auth.type !== 'none') {
         const headerName = auth.apiKey?.header || auth.basicAuth?.header || auth.bearer?.header || 'Authorization';
-        
         if (auth.type === 'apiKey' && auth.apiKey) {
           headers[headerName] = resolve(auth.apiKey.value);
         } else if (auth.type === 'basic' && auth.basicAuth) {
@@ -269,7 +264,6 @@ export function MenuManagement() {
   const getAvailableFields = (obj: any, prefix = ''): string[] => {
     if (!obj || typeof obj !== 'object' || obj === null) return [];
     let fields: string[] = [];
-    
     for (const key in obj) {
       const currentPath = prefix ? `${prefix}.${key}` : key;
       if (Array.isArray(obj[key])) {

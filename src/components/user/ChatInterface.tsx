@@ -3,12 +3,12 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
-import { MenuItem, KYCField, TableColumn, ApiConfig, Language } from '@/lib/types';
+import { MenuItem, KYCField, TableColumn, Language } from '@/lib/types';
 import { getStoredMenus, getAppSettings } from '@/lib/store';
 import { ChatBubble } from './ChatBubble';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ChevronRight, Home, ArrowLeft, Languages, Send, Loader2, ClipboardCheck, CornerDownRight, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { ChevronRight, Home, ArrowLeft, Languages, Send, Loader2, ClipboardCheck, CornerDownRight } from 'lucide-react';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import {
   Table,
@@ -241,7 +241,6 @@ export function ChatInterface() {
       return;
     }
 
-    // Filter kycData to only include fields relevant to this report for a clean JSON payload
     const reportPayload: Record<string, any> = {};
     menu.apiConfig?.kycFields?.forEach(field => {
       if (kycData[field.name] !== undefined) {
@@ -259,11 +258,8 @@ export function ChatInterface() {
 
     addDoc(collection(db, 'reports'), reportData)
     .then((docRef) => {
-      const mapping = menu.apiConfig?.responseMapping;
-      let finalMsg = '';
-      
       const responseContext = { id: docRef.id, ...reportPayload };
-      finalMsg = replacePlaceholders(getLocalizedTemplate(menu), { response: responseContext });
+      const finalMsg = replacePlaceholders(getLocalizedTemplate(menu), { response: responseContext });
 
       const successContent = getLocalizedContent(menu);
       const defaultSuccess = currentLang?.code === 'am' ? 'ሪፖርትዎ በተሳካ ሁኔታ ቀርቧል። እናመሰግናለን።' : 'Your report has been submitted successfully. Thank you.';
@@ -305,7 +301,6 @@ export function ChatInterface() {
 
     try {
       let url = replacePlaceholders(menu.apiConfig.endpoint, kycData);
-      
       const requestPayload: Record<string, any> = {};
       menu.apiConfig.requestParameters?.forEach(param => {
         if (param.sourceValue === 'user.id') requestPayload[param.apiKey] = userData.id;
@@ -373,8 +368,6 @@ export function ChatInterface() {
     const isAction = (menu.responseType === 'api' || menu.responseType === 'report') && menu.apiConfig;
     const hasFields = menu.apiConfig?.kycFields?.length || 0;
 
-    // Special case: If it's a folder (has children) but also marked as action, prioritize folder navigation
-    // unless it's a leaf node with fields.
     if (isAction && (hasFields > 0 || childMenus.length === 0)) {
       const kycFields = menu.apiConfig?.kycFields || [];
       const missingFields = kycFields
