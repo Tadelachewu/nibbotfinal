@@ -204,8 +204,10 @@ export function MenuManagement() {
 
       const resolve = (str: string) => str.replace(/{{\s*(.*?)\s*}}/g, (match, p1) => {
         const key = p1.trim();
+        // SYSTEM SOURCES
         if (key === 'user_token') return 'talktree_static_token_778899';
         if (key === 'user_id') return 'user_123';
+        // KYC SOURCES
         return sampleKyc[key] || match;
       });
 
@@ -231,6 +233,7 @@ export function MenuManagement() {
         if (param.sourceType === 'kyc') requestPayload[param.apiKey] = sampleKyc[param.sourceValue] || `{{${param.sourceValue}}}`;
         else if (param.sourceValue === 'user.id') requestPayload[param.apiKey] = 'user_123';
         else if (param.sourceValue === 'user.token') requestPayload[param.apiKey] = 'talktree_static_token_778899';
+        else if (param.sourceType === 'static') requestPayload[param.apiKey] = param.sourceValue;
       });
 
       setSentHeaders(headers);
@@ -537,8 +540,8 @@ export function MenuManagement() {
                           <SelectContent><SelectItem value="GET">GET</SelectItem><SelectItem value="POST">POST</SelectItem></SelectContent>
                         </Select>
                         <div className="flex-1 space-y-2">
-                          <Input value={editForm.apiConfig?.endpoint} onChange={e => deepUpdate(['apiConfig', 'endpoint'], e.target.value)} placeholder="e.g. /api/test/balance or https://..." />
-                          <p className="text-[10px] text-muted-foreground flex items-center gap-1"><Info size={10} /> Tip: Use <code className="bg-muted px-1 rounded text-primary">{"{{field_name}}"}</code> for path parameters.</p>
+                          <Input value={editForm.apiConfig?.endpoint} onChange={e => deepUpdate(['apiConfig', 'endpoint'], e.target.value)} placeholder="e.g. /api/test/profile/{{user_id}}" />
+                          <p className="text-[10px] text-muted-foreground flex flex-wrap gap-x-2 gap-y-1"><Info size={10} className="inline mr-1" /> Available System Variables: <code className="bg-muted px-1 rounded text-primary">{"{{user_id}}"}</code> <code className="bg-muted px-1 rounded text-primary">{"{{user_token}}"}</code></p>
                         </div>
                       </div>
 
@@ -628,8 +631,8 @@ export function MenuManagement() {
                               </div>
                               <div className="space-y-1">
                                 <Label className="text-[9px] uppercase font-bold">Token Template</Label>
-                                <p className="text-[10px] text-muted-foreground mb-1 leading-tight">Sends a static token in the Authorization: Bearer &lt;token&gt; header. Never use JWT bearer.</p>
-                                <Input placeholder="Bearer static_token_123" value={editForm.apiConfig?.authConfig?.bearer?.template} onChange={e => deepUpdate(['apiConfig', 'authConfig', 'bearer', 'template'], e.target.value)} />
+                                <p className="text-[10px] text-muted-foreground mb-1 leading-tight">Sends a static token. Use <code className="bg-muted px-1 rounded">{"{{user_token}}"}</code> to inject the system token.</p>
+                                <Input placeholder="Bearer {{user_token}}" value={editForm.apiConfig?.authConfig?.bearer?.template} onChange={e => deepUpdate(['apiConfig', 'authConfig', 'bearer', 'template'], e.target.value)} />
                               </div>
                             </div>
                           )}
@@ -693,9 +696,15 @@ export function MenuManagement() {
                           {editForm.apiConfig?.requestParameters?.map((param, idx) => (
                             <div key={idx} className="flex gap-2 items-center group">
                               <Input placeholder="API Param Key" value={param.apiKey} onChange={e => { const params = [...editForm.apiConfig!.requestParameters]; params[idx].apiKey = e.target.value; deepUpdate(['apiConfig', 'requestParameters'], params); }} className="flex-1" />
-                              <Select value={param.sourceValue} onValueChange={v => { const params = [...editForm.apiConfig!.requestParameters]; params[idx].sourceValue = v; deepUpdate(['apiConfig', 'requestParameters'], params); }}>
+                              <Select value={param.sourceValue} onValueChange={v => { 
+                                const params = [...editForm.apiConfig!.requestParameters]; 
+                                params[idx].sourceValue = v; 
+                                if (v === 'user.id' || v === 'user.token') params[idx].sourceType = 'user_profile';
+                                else params[idx].sourceType = 'kyc';
+                                deepUpdate(['apiConfig', 'requestParameters'], params); 
+                              }}>
                                 <SelectTrigger className="flex-1"><SelectValue placeholder="Source Field" /></SelectTrigger>
-                                <SelectContent>{kycFieldsList.map(f => <SelectItem key={f.id} value={f.name}>KYC: {f.name}</SelectItem>)}<SelectItem value="user.id">User ID</SelectItem><SelectItem value="user.token">User Token</SelectItem></SelectContent>
+                                <SelectContent>{kycFieldsList.map(f => <SelectItem key={f.id} value={f.name}>KYC: {f.name}</SelectItem>)}<SelectItem value="user.id">User ID (System)</SelectItem><SelectItem value="user.token">User Token (System)</SelectItem></SelectContent>
                               </Select>
                               <Button variant="ghost" size="icon" className="text-destructive h-8 w-8 shrink-0" onClick={() => { const params = editForm.apiConfig!.requestParameters.filter((_, i) => i !== idx); deepUpdate(['apiConfig', 'requestParameters'], params); }}><Trash2 size={14} /></Button>
                             </div>

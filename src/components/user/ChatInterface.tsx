@@ -47,6 +47,7 @@ export function ChatInterface() {
   const [history, setHistory] = useState<Message[]>([]);
   const [currentMenuId, setCurrentMenuId] = useState<string | null>(null);
   const [currentLang, setCurrentLang] = useState<Language | null>(null);
+  // SYSTEM USER DATA SOURCE
   const [userData, setUserData] = useState<UserData>({
     id: 'user_123',
     token: 'talktree_static_token_778899',
@@ -105,14 +106,9 @@ export function ChatInterface() {
   const getLocalizedTableHeader = (menu: MenuItem, col: TableColumn) => {
     if (!currentLang) return col.header;
     if (currentLang.isDefault) return col.header;
-    
-    // Check dynamic translations map
     const translation = menu.translations?.[currentLang.code]?.tableHeaders?.[col.key];
     if (translation) return translation;
-
-    // Fallback to Amharic legacy field
     if (currentLang.code === 'am' && col.headerAm) return col.headerAm;
-
     return col.header;
   };
   
@@ -121,14 +117,9 @@ export function ChatInterface() {
     const mapping = menu.apiConfig.responseMapping;
     if (!currentLang) return mapping.template;
     if (currentLang.isDefault) return mapping.template;
-
-    // Check dynamic translations map
     const translation = menu.translations?.[currentLang.code]?.responseTemplate;
     if (translation) return translation;
-
-    // Fallback to Amharic legacy field
     if (currentLang.code === 'am' && mapping.templateAm) return mapping.templateAm;
-
     return mapping.template;
   };
 
@@ -137,14 +128,9 @@ export function ChatInterface() {
     const mapping = menu.apiConfig.responseMapping;
     if (!currentLang) return mapping.errorFallback;
     if (currentLang.isDefault) return mapping.errorFallback;
-
-    // Check dynamic translations map
     const translation = menu.translations?.[currentLang.code]?.errorFallback;
     if (translation) return translation;
-
-    // Fallback to Amharic legacy field
     if (currentLang.code === 'am' && mapping.errorFallbackAm) return mapping.errorFallbackAm;
-
     return mapping.errorFallback;
   };
 
@@ -172,10 +158,13 @@ export function ChatInterface() {
     return getVal(key, root);
   };
 
+  // SYSTEM PLACEHOLDER RESOLVER
   const replacePlaceholders = (template: string, kycData: Record<string, any>) => {
     let res = template;
+    // Map system variables from userData
     res = res.replace(/{{\s*user_id\s*}}/g, userData.id);
     res = res.replace(/{{\s*user_token\s*}}/g, userData.token);
+    // Map KYC variables
     Object.entries(kycData).forEach(([k, v]) => {
       const regex = new RegExp(`{{\\s*${k}\\s*}}`, 'g');
       res = res.replace(regex, String(v));
@@ -210,17 +199,21 @@ export function ChatInterface() {
     const mapping = menu.apiConfig.responseMapping;
 
     try {
+      // Resolve URL (handles path params)
       let url = replacePlaceholders(menu.apiConfig.endpoint, kycData);
+      
       const requestPayload: Record<string, any> = {};
       menu.apiConfig.requestParameters?.forEach(param => {
         if (param.sourceValue === 'user.id') requestPayload[param.apiKey] = userData.id;
         else if (param.sourceValue === 'user.token') requestPayload[param.apiKey] = userData.token;
+        else if (param.sourceType === 'static') requestPayload[param.apiKey] = param.sourceValue;
         else if (kycData[param.sourceValue]) requestPayload[param.apiKey] = kycData[param.sourceValue];
       });
 
+      // Resolve Headers
       const headers: Record<string, string> = { 'Content-Type': 'application/json', ...menu.apiConfig.headers };
       const auth = menu.apiConfig.authConfig;
-      if (auth) {
+      if (auth && auth.type !== 'none') {
         const headerName = auth.apiKey?.header || auth.basicAuth?.header || auth.bearer?.header || 'Authorization';
         if (auth.type === 'apiKey' && auth.apiKey) { headers[headerName] = replacePlaceholders(auth.apiKey.value, kycData); }
         else if (auth.type === 'basic' && auth.basicAuth) {
@@ -369,7 +362,7 @@ export function ChatInterface() {
       </div>
       {kycFlow && <div className="p-4 bg-white border-t flex flex-col gap-2 animate-in slide-in-from-bottom-2">
         <form onSubmit={handleKycSubmit} className="flex gap-2">
-          <Input autoFocus type={kycFlow.fields[kycFlow.fieldIndex].type} value={kycInput} onChange={e => setKycInput(e.target.value)} placeholder={currentLang?.code === 'am' ? 'እዚህ ይጻፉ...' : 'Type here...'} className="rounded-full" />
+          <Input autoFocus type={kycFlow.fields[kycFlow.fieldIndex].type === 'password' ? 'password' : 'text'} value={kycInput} onChange={e => setKycInput(e.target.value)} placeholder={currentLang?.code === 'am' ? 'እዚህ ይጻፉ...' : 'Type here...'} className="rounded-full" />
           <Button type="submit" size="icon" className="rounded-full"><Send size={18} /></Button>
         </form>
       </div>}
