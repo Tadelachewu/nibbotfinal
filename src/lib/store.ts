@@ -1,8 +1,14 @@
 'use client';
 
-import { MenuItem } from './types';
+import { MenuItem, AppSettings, Language } from './types';
 
 const STORAGE_KEY = 'talktree_menus';
+const SETTINGS_KEY = 'talktree_settings';
+
+const defaultLanguages: Language[] = [
+  { code: 'en', name: 'English', isDefault: true },
+  { code: 'am', name: 'Amharic' }
+];
 
 const defaultMenus: MenuItem[] = [
   { 
@@ -133,6 +139,17 @@ export function getStoredMenus(): MenuItem[] {
 export function saveMenus(menus: MenuItem[]) {
   if (typeof window === 'undefined') return;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(menus));
+}
+
+export function getAppSettings(): AppSettings {
+  if (typeof window === 'undefined') return { supportedLanguages: defaultLanguages };
+  const stored = localStorage.getItem(SETTINGS_KEY);
+  return stored ? JSON.parse(stored) : { supportedLanguages: defaultLanguages };
+}
+
+export function saveAppSettings(settings: AppSettings) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
 }
 
 export function addMenu(menu: Omit<MenuItem, 'id'>): MenuItem {

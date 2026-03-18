@@ -66,6 +66,16 @@ export interface ApiConfig {
   };
 }
 
+export interface Language {
+  code: string;
+  name: string;
+  isDefault?: boolean;
+}
+
+export interface AppSettings {
+  supportedLanguages: Language[];
+}
+
 export interface MenuItem {
   id: string;
   parentId: string | null;
@@ -77,6 +87,13 @@ export interface MenuItem {
   apiConfig?: ApiConfig; // For API
   order: number;
   attachedMenuIds?: string[];
+  translations?: Record<string, {
+    name?: string;
+    content?: string;
+    contentAm?: string; // Internal mapping helper
+    responseTemplate?: string;
+    errorFallback?: string;
+  }>;
 }
 
 export interface AppState {
