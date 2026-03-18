@@ -49,7 +49,7 @@ export function ChatInterface() {
   const [currentLang, setCurrentLang] = useState<Language | null>(null);
   const [userData, setUserData] = useState<UserData>({
     id: 'user_123',
-    token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature',
+    token: 'talktree_static_token_778899',
     isLoggedIn: true,
     kyc: {}
   });
@@ -193,12 +193,17 @@ export function ChatInterface() {
       const headers: Record<string, string> = { 'Content-Type': 'application/json', ...menu.apiConfig.headers };
       const auth = menu.apiConfig.authConfig;
       if (auth) {
-        if (auth.type === 'apiKey' && auth.apiKey) headers[auth.apiKey.header || 'X-API-KEY'] = replacePlaceholders(auth.apiKey.value, kycData);
-        else if (auth.type === 'basic' && auth.basicAuth) {
+        const headerName = auth.apiKey?.header || auth.basicAuth?.header || auth.bearer?.header || 'Authorization';
+        
+        if (auth.type === 'apiKey' && auth.apiKey) {
+          headers[headerName] = replacePlaceholders(auth.apiKey.value, kycData);
+        } else if (auth.type === 'basic' && auth.basicAuth) {
           const user = auth.basicAuth.mode === 'fixed' ? auth.basicAuth.user || '' : kycData[auth.basicAuth.userSource || ''] || '';
           const pass = auth.basicAuth.mode === 'fixed' ? auth.basicAuth.pass || '' : kycData[auth.basicAuth.passSource || ''] || '';
-          headers[auth.basicAuth.header || 'Authorization'] = `Basic ${btoa(`${user}:${pass}`)}`;
-        } else if (auth.type === 'bearer' && auth.bearer) headers[auth.bearer.header || 'Authorization'] = replacePlaceholders(auth.bearer.template, kycData);
+          headers[headerName] = `Basic ${btoa(`${user}:${pass}`)}`;
+        } else if (auth.type === 'bearer' && auth.bearer) {
+          headers[headerName] = replacePlaceholders(auth.bearer.template, kycData);
+        }
       }
 
       const options: RequestInit = { method: menu.apiConfig.method, headers };
@@ -227,8 +232,9 @@ export function ChatInterface() {
         botMsg.text = resultText;
       } else if (mapping.type === 'table') {
         const foundArray = findArrayData(apiResponse);
-        if (foundArray && Array.isArray(foundArray.data)) {
-          botMsg.tableData = { columns: mapping.tableColumns || [], rows: foundArray.data, rootData: apiResponse, arrayPath: foundArray.path };
+        if (foundArray && (Array.isArray(foundArray.data) || typeof foundArray.data === 'object')) {
+          const rows = Array.isArray(foundArray.data) ? foundArray.data : [foundArray.data];
+          botMsg.tableData = { columns: mapping.tableColumns || [], rows: rows, rootData: apiResponse, arrayPath: foundArray.path };
           botMsg.text = currentLang?.code === 'am' ? 'የተገኙ ውጤቶች የሚከተሉት ናቸው' : 'Here are the results:';
         } else { botMsg.text = getLocalizedErrorFallback(mapping); }
       }

@@ -30,7 +30,7 @@ export async function GET(request: Request) {
     }
   };
 
-  // 1. PUBLIC PREVIEW MODE: If no specific account is requested AND no auth is sent
+  // 1. PUBLIC PREVIEW MODE
   if (!accountId && !authHeader) {
     return NextResponse.json({
       status: "success",
@@ -40,55 +40,27 @@ export async function GET(request: Request) {
     });
   }
 
-  // 2. SECURE MODE: Validate authentication
+  // 2. SECURE MODE
   if (!authHeader) {
     return NextResponse.json(
       { 
         status: "error", 
-        message: `Unauthorized: This endpoint (/api/test/balance) is SECURE. Your request was sent without an 'Authorization' header (Auth Type: None).` 
+        message: `Unauthorized: This endpoint (/api/test/balance) is SECURE. Your request was sent without an 'Authorization' header.` 
       },
       { status: 401 }
     );
   }
 
-  // Basic Auth Validation
-  if (authHeader.startsWith('Basic ')) {
-    try {
-      const credentials = atob(authHeader.split(' ')[1]);
-      const isValidFixed = credentials === 'admin:password123';
-      const isValidDynamic = credentials === 'TEST_USER:TEST_PASS';
-      
-      if (!isValidFixed && !isValidDynamic) {
-        return NextResponse.json(
-          { 
-            status: "error", 
-            message: `Unauthorized: Invalid Basic Auth credentials. (Decoded: "${credentials}"). Expected "admin:password123" (Fixed) or "TEST_USER:TEST_PASS" (Dynamic).` 
-          },
-          { status: 401 }
-        );
-      }
-    } catch (e) {
-      return NextResponse.json({ status: "error", message: "Invalid Base64 encoding for Basic Auth." }, { status: 401 });
-    }
-  }
-
-  // Bearer Token Validation
+  // Bearer Token Validation (Static)
   if (authHeader.startsWith('Bearer ')) {
     const token = authHeader.split(' ')[1] || "";
-    
-    // Check for standard JWT header or session ID
-    const isStandardJWT = token.startsWith('eyJ');
-    const isMockJWT = token.startsWith('jwt_sample');
-    const hasValidSession = isStandardJWT || isMockJWT;
-    
-    // Check if the token includes the account ID (flexible for different template styles)
-    const accountCheck = accountId ? token.includes(accountId) : true;
+    const isValidToken = token.includes('talktree_static_token') || token.startsWith('static_sample');
 
-    if (!hasValidSession || !accountCheck) {
+    if (!isValidToken) {
       return NextResponse.json(
         { 
           status: "error", 
-          message: `Unauthorized: Bearer token validation failed. The provided token "${token.substring(0, 15)}..." does not match the session (starts with eyJ) or account parameters (must contain ${accountId || 'account_id'}).` 
+          message: `Unauthorized: Static Bearer token validation failed.` 
         },
         { status: 401 }
       );
@@ -103,16 +75,9 @@ export async function GET(request: Request) {
     });
   }
 
-  if (!accountId) {
-    return NextResponse.json({
-      status: "success",
-      message: "Authenticated successfully. Please provide an account_id parameter.",
-      data: mockAccounts['88991122']
-    });
-  }
-
-  return NextResponse.json(
-    { status: "error", message: `Account ID "${accountId}" not found.` },
-    { status: 404 }
-  );
+  return NextResponse.json({
+    status: "success",
+    message: "Authenticated successfully.",
+    data: mockAccounts['88991122']
+  });
 }

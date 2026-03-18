@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
  * PRODUCTION-READY SIMULATION: Multi-KYC Secure Action API
  * This API demonstrates:
  * 1. Extraction of identity from multi-part headers.
- * 2. Verification of "signed" parameters (JWT + KYC segments).
+ * 2. Verification of static tokens and KYC segments.
  * 3. Retrieval from a mock data source.
  */
 
@@ -56,27 +56,25 @@ export async function POST(request: Request) {
     }, { status: 401 });
   }
 
-  // 2. Verify "Signature" Format (Bearer <jwt>.<account>.<code>)
-  // Note: We use '.' as the separator for our production simulation.
+  // 2. Verify "Static Token" Format (Bearer <token>.<account>.<code>)
   const parts = authHeader.split('.');
   if (parts.length < 3) {
     return NextResponse.json({ 
       status: "error", 
-      message: `Security Error: Malformed Multi-KYC Header. Expected: "Bearer <jwt>.<account>.<verify_code>". Received: "${authHeader}"` 
+      message: `Security Error: Malformed Secure Header. Expected: "Bearer <static_token>.<account>.<verify_code>". Received: "${authHeader}"` 
     }, { status: 400 });
   }
 
-  // Extract segments from the signed header
-  // parts[0] is typically "Bearer eyJ..."
+  // Extract segments from the header
   const accountNumber = parts[1].trim();
   const verificationCode = parts[2].trim();
 
-  // 3. Verify JWT Segment (Simulated)
-  const jwt = parts[0].replace('Bearer ', '').trim();
-  if (!jwt.startsWith('eyJ') && jwt !== 'jwt_sample_123') {
+  // 3. Verify Static Token Segment
+  const token = parts[0].replace('Bearer ', '').trim();
+  if (token !== 'talktree_static_token_778899' && token !== 'static_sample_123') {
     return NextResponse.json({ 
       status: "error", 
-      message: "Security Error: Invalid or expired Security Token (JWT) segment." 
+      message: "Security Error: Invalid or expired Static Security Token." 
     }, { status: 401 });
   }
 
@@ -110,7 +108,7 @@ export async function POST(request: Request) {
       authorized_actions: account.authorized_actions
     },
     meta: {
-      auth_method: "Multi-Part Header Verification",
+      auth_method: "Static Token Header Verification",
       timestamp: new Date().getTime()
     }
   });

@@ -53,7 +53,6 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { WysiwygEditor } from './WysiwygEditor';
 import { toast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { adminContentTranslator } from '@/ai/flows/admin-content-translator';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
@@ -189,21 +188,23 @@ export function MenuManagement() {
 
       const resolve = (str: string) => str.replace(/{{\s*(.*?)\s*}}/g, (match, p1) => {
         const key = p1.trim();
-        if (key === 'user_token') return 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature';
+        if (key === 'user_token') return 'talktree_static_token_778899';
         if (key === 'user_id') return 'user_123';
         return sampleKyc[key] || match;
       });
 
       const auth = editForm.apiConfig.authConfig;
       if (auth && auth.type !== 'none') {
+        const headerName = auth.apiKey?.header || auth.basicAuth?.header || auth.bearer?.header || 'Authorization';
+        
         if (auth.type === 'apiKey' && auth.apiKey) {
-          headers[auth.apiKey.header || 'X-API-KEY'] = resolve(auth.apiKey.value);
+          headers[headerName] = resolve(auth.apiKey.value);
         } else if (auth.type === 'basic' && auth.basicAuth) {
           const user = auth.basicAuth.mode === 'fixed' ? auth.basicAuth.user || 'admin' : sampleKyc[auth.basicAuth.userSource || 'username'];
           const pass = auth.basicAuth.mode === 'fixed' ? auth.basicAuth.pass || 'password123' : sampleKyc[auth.basicAuth.passSource || 'password'];
-          headers[auth.basicAuth.header || 'Authorization'] = `Basic ${btoa(`${user}:${pass}`)}`;
+          headers[headerName] = `Basic ${btoa(`${user}:${pass}`)}`;
         } else if (auth.type === 'bearer' && auth.bearer) {
-          headers[auth.bearer.header || 'Authorization'] = resolve(auth.bearer.template);
+          headers[headerName] = resolve(auth.bearer.template);
         }
       }
 
@@ -211,7 +212,7 @@ export function MenuManagement() {
       editForm.apiConfig.requestParameters?.forEach(param => {
         if (param.sourceType === 'kyc') requestPayload[param.apiKey] = sampleKyc[param.sourceValue] || `{{${param.sourceValue}}}`;
         else if (param.sourceValue === 'user.id') requestPayload[param.apiKey] = 'user_123';
-        else if (param.sourceValue === 'user.token') requestPayload[param.apiKey] = 'jwt_sample_123';
+        else if (param.sourceValue === 'user.token') requestPayload[param.apiKey] = 'talktree_static_token_778899';
       });
 
       setSentHeaders(headers);
@@ -582,7 +583,8 @@ export function MenuManagement() {
                               </div>
                               <div className="space-y-1">
                                 <Label className="text-[9px] uppercase font-bold">Token Template</Label>
-                                <Input placeholder="Bearer {{user_token}}" value={editForm.apiConfig?.authConfig?.bearer?.template} onChange={e => deepUpdate(['apiConfig', 'authConfig', 'bearer', 'template'], e.target.value)} />
+                                <p className="text-[10px] text-muted-foreground mb-1 leading-tight">Sends a static token in the Authorization: Bearer &lt;token&gt; header. Never use JWT bearer.</p>
+                                <Input placeholder="Bearer static_token_123" value={editForm.apiConfig?.authConfig?.bearer?.template} onChange={e => deepUpdate(['apiConfig', 'authConfig', 'bearer', 'template'], e.target.value)} />
                               </div>
                             </div>
                           )}
