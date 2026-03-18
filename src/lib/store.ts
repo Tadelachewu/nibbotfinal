@@ -54,57 +54,82 @@ const defaultMenus: MenuItem[] = [
       }
     }
   },
-  { 
-    id: 'multi-kyc-test', 
-    parentId: null, 
-    name: 'Secure Account Access (Multi-KYC)', 
-    nameAm: 'ሁለገብ ማረጋገጫ',
+  {
+    id: 'path-param-test',
+    parentId: null,
+    name: 'My Profile (Path Param)',
+    nameAm: 'የእኔ መገለጫ',
     responseType: 'api',
-    order: 2,
+    order: 3,
     apiConfig: {
-      name: 'Multi-KYC Secure Action',
-      endpoint: '/api/test/multi-kyc',
-      method: 'POST',
+      name: 'Secure Path Parameter Lookup',
+      endpoint: '/api/test/profile/{{user_id}}',
+      method: 'GET',
       headers: { 'Content-Type': 'application/json' },
       timeout: 5000,
       retry: 0,
       loginRequired: true,
       authConfig: {
         type: 'bearer',
-        bearer: {
-          header: 'Authorization',
-          template: 'Bearer {{user_token}}.{{account_number}}.{{verification_code}}'
-        }
+        bearer: { header: 'Authorization', template: 'Bearer {{user_token}}' }
+      },
+      kycFields: [],
+      requestParameters: [],
+      responseMapping: {
+        type: 'message',
+        template: 'Profile Found: {{response.data.full_name}} ({{response.data.email}}). Status: {{response.data.kyc_status}}',
+        templateAm: 'መገለጫ ተገኝቷል፡ {{response.data.full_name}} ({{response.data.email}})። ሁኔታ፡ {{response.data.kyc_status}}',
+        errorFallback: 'Could not load profile details.',
+        timeoutMessage: 'Timeout.',
+        authRequiredMessage: 'Auth Required.'
+      }
+    }
+  },
+  {
+    id: 'multi-param-test',
+    parentId: null,
+    name: 'Transactions (Multi-Param)',
+    nameAm: 'ግብይቶች',
+    responseType: 'api',
+    order: 4,
+    apiConfig: {
+      name: 'Multi-Parameter API',
+      endpoint: '/api/test/transactions',
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 5000,
+      retry: 0,
+      loginRequired: true,
+      authConfig: {
+        type: 'bearer',
+        bearer: { header: 'Authorization', template: 'Bearer {{user_token}}' }
       },
       kycFields: [
         {
-          id: 'kyc-acc',
-          name: 'account_number',
-          prompt: 'Please enter your Account Number (Try: 12345, 67890, or 11223)',
-          promptAm: 'እባክዎን የሂሳብ ቁጥርዎን ያስገቡ (12345, 67890, ወይም 11223 ይሞክሩ)',
+          id: 'kyc-hist-acc',
+          name: 'account_id',
+          prompt: 'Enter Account ID for history lookup (e.g. 88991122)',
+          promptAm: 'ለግብይት ታሪክ የሂሳብ ቁጥርዎን ያስገቡ',
           type: 'text',
           order: 0
-        },
-        {
-          id: 'kyc-code',
-          name: 'verification_code',
-          prompt: 'Please enter your verification code (12345 use 9988, 67890 use 1122)',
-          promptAm: 'እባክዎን የማረጋገጫ ኮድዎን ያስገቡ',
-          type: 'text',
-          order: 1
         }
       ],
       requestParameters: [
-        { apiKey: 'account_number', sourceType: 'kyc', sourceValue: 'account_number' },
-        { apiKey: 'verification_code', sourceType: 'kyc', sourceValue: 'verification_code' }
+        { apiKey: 'account_id', sourceType: 'kyc', sourceValue: 'account_id' },
+        { apiKey: 'limit', sourceType: 'static', sourceValue: '3' }
       ],
       responseMapping: {
-        type: 'message',
-        template: 'Access Granted! Account: {{response.data.account_number}}. Status: {{response.data.account_status}}. Balance: {{response.data.current_balance}}',
-        templateAm: 'መግቢያ ተፈቅዷል! የሂሳብ ቁጥር፡ {{response.data.account_number}}። ሁኔታ፡ {{response.data.account_status}}። ቀሪ ሂሳብ፡ {{response.data.current_balance}}',
-        errorFallback: 'Verification failed. Please check your account number and code.',
-        timeoutMessage: 'Request timed out.',
-        authRequiredMessage: 'Secure credentials required.'
+        type: 'table',
+        template: 'Recent transactions for {{response.meta.account_id}}:',
+        tableColumns: [
+          { header: 'Date', headerAm: 'ቀን', key: 'date' },
+          { header: 'Type', headerAm: 'ዓይነት', key: 'type' },
+          { header: 'Amount', headerAm: 'መጠን', key: 'amount' },
+          { header: 'Status', headerAm: 'ሁኔታ', key: 'status' }
+        ],
+        errorFallback: 'Could not fetch history.',
+        timeoutMessage: 'Timeout.',
+        authRequiredMessage: 'Auth Required.'
       }
     }
   },
