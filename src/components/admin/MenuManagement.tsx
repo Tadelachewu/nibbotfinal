@@ -173,7 +173,7 @@ export function MenuManagement() {
     setSentBody(null);
 
     try {
-      const endpoint = editForm.apiConfig.endpoint;
+      const rawEndpoint = editForm.apiConfig.endpoint;
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         ...editForm.apiConfig.headers
@@ -194,6 +194,9 @@ export function MenuManagement() {
         if (key === 'user_id') return 'user_123';
         return sampleKyc[key] || match;
       });
+
+      // Resolve Path Parameters in URL
+      const endpoint = resolve(rawEndpoint);
 
       const auth = editForm.apiConfig.authConfig;
       if (auth && auth.type !== 'none') {
@@ -221,7 +224,7 @@ export function MenuManagement() {
       if (editForm.apiConfig.method === 'POST') setSentBody(requestPayload);
 
       const fetchUrl = editForm.apiConfig.method === 'GET' && Object.keys(requestPayload).length > 0
-        ? `${endpoint}?${new URLSearchParams(requestPayload).toString()}`
+        ? `${endpoint}${endpoint.includes('?') ? '&' : '?'}${new URLSearchParams(requestPayload).toString()}`
         : endpoint;
 
       const response = await fetch(fetchUrl, {
@@ -534,7 +537,10 @@ export function MenuManagement() {
                           <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
                           <SelectContent><SelectItem value="GET">GET</SelectItem><SelectItem value="POST">POST</SelectItem></SelectContent>
                         </Select>
-                        <Input value={editForm.apiConfig?.endpoint} onChange={e => deepUpdate(['apiConfig', 'endpoint'], e.target.value)} placeholder="e.g. /api/test/balance" />
+                        <div className="flex-1 space-y-2">
+                          <Input value={editForm.apiConfig?.endpoint} onChange={e => deepUpdate(['apiConfig', 'endpoint'], e.target.value)} placeholder="e.g. /api/test/balance or https://..." />
+                          <p className="text-[10px] text-muted-foreground flex items-center gap-1"><Info size={10} /> Tip: Use <code className="bg-muted px-1 rounded text-primary">{"{{field_name}}"}</code> for path parameters in the URL.</p>
+                        </div>
                       </div>
 
                       <Separator />
@@ -680,15 +686,18 @@ export function MenuManagement() {
 
                       <div className="space-y-4">
                         <div className="flex items-center justify-between"><Label className="text-xs font-bold uppercase">2. API Request Mapping</Label><Button variant="ghost" size="sm" onClick={() => { const params = editForm.apiConfig?.requestParameters || []; deepUpdate(['apiConfig', 'requestParameters'], [...params, { apiKey: '', sourceType: 'kyc', sourceValue: '' }]); }}><Link2 className="mr-1" /> Map Parameter</Button></div>
-                        {editForm.apiConfig?.requestParameters?.map((param, idx) => (
-                          <div key={idx} className="flex gap-2 items-center group">
-                            <Input placeholder="API Param Key" value={param.apiKey} onChange={e => { const params = [...editForm.apiConfig!.requestParameters]; params[idx].apiKey = e.target.value; deepUpdate(['apiConfig', 'requestParameters'], params); }} />
-                            <Select value={param.sourceValue} onValueChange={v => { const params = [...editForm.apiConfig!.requestParameters]; params[idx].sourceValue = v; deepUpdate(['apiConfig', 'requestParameters'], params); }}>
-                              <SelectTrigger><SelectValue placeholder="Source Field" /></SelectTrigger>
-                              <SelectContent>{kycFieldsList.map(f => <SelectItem key={f.id} value={f.name}>KYC: {f.name}</SelectItem>)}<SelectItem value="user.id">User ID</SelectItem><SelectItem value="user.token">User Token</SelectItem></SelectContent>
-                            </Select>
-                          </div>
-                        ))}
+                        <div className="space-y-2">
+                          {editForm.apiConfig?.requestParameters?.map((param, idx) => (
+                            <div key={idx} className="flex gap-2 items-center group">
+                              <Input placeholder="API Param Key" value={param.apiKey} onChange={e => { const params = [...editForm.apiConfig!.requestParameters]; params[idx].apiKey = e.target.value; deepUpdate(['apiConfig', 'requestParameters'], params); }} className="flex-1" />
+                              <Select value={param.sourceValue} onValueChange={v => { const params = [...editForm.apiConfig!.requestParameters]; params[idx].sourceValue = v; deepUpdate(['apiConfig', 'requestParameters'], params); }}>
+                                <SelectTrigger className="flex-1"><SelectValue placeholder="Source Field" /></SelectTrigger>
+                                <SelectContent>{kycFieldsList.map(f => <SelectItem key={f.id} value={f.name}>KYC: {f.name}</SelectItem>)}<SelectItem value="user.id">User ID</SelectItem><SelectItem value="user.token">User Token</SelectItem></SelectContent>
+                              </Select>
+                              <Button variant="ghost" size="icon" className="text-destructive h-8 w-8 shrink-0" onClick={() => { const params = editForm.apiConfig!.requestParameters.filter((_, i) => i !== idx); deepUpdate(['apiConfig', 'requestParameters'], params); }}><Trash2 size={14} /></Button>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </CardContent>
                   </Card>

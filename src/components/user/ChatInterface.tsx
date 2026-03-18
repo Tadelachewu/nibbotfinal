@@ -182,7 +182,9 @@ export function ChatInterface() {
     const mapping = menu.apiConfig.responseMapping;
 
     try {
-      let url = menu.apiConfig.endpoint;
+      // Resolve Path Parameters in Endpoint
+      let url = replacePlaceholders(menu.apiConfig.endpoint, kycData);
+      
       const requestPayload: Record<string, any> = {};
       menu.apiConfig.requestParameters?.forEach(param => {
         if (param.sourceValue === 'user.id') requestPayload[param.apiKey] = userData.id;
@@ -249,6 +251,14 @@ export function ChatInterface() {
     if (menu.responseType === 'api' && menu.apiConfig) {
       const requiredFieldNames: string[] = [];
       const auth = menu.apiConfig.authConfig;
+      
+      // Collect placeholders from the Endpoint URL
+      const urlMatches = menu.apiConfig.endpoint.match(/{{\s*(.*?)\s*}}/g);
+      urlMatches?.forEach(m => {
+        const name = m.replace('{{', '').replace('}}', '').trim();
+        if (name !== 'user_id' && name !== 'user_token') requiredFieldNames.push(name);
+      });
+
       if (auth?.type === 'basic' && auth.basicAuth?.mode === 'dynamic') {
         if (auth.basicAuth.userSource) requiredFieldNames.push(auth.basicAuth.userSource);
         if (auth.basicAuth.passSource) requiredFieldNames.push(auth.basicAuth.passSource);
