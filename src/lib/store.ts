@@ -20,7 +20,7 @@ const defaultMenus: MenuItem[] = [
     order: 0, 
     content: '<p>Explore what we can do for you.</p>',
     contentAm: '<p>ለእርስዎ ምን ማድረግ እንደምንችል ይመርምሩ።</p>',
-    attachedMenuIds: ['3', '4']
+    attachedMenuIds: ['ex-rate', 'path-param-test']
   },
   { 
     id: 'ex-rate', 
@@ -147,26 +147,54 @@ const defaultMenus: MenuItem[] = [
       }
     }
   },
-  { 
-    id: '3', 
-    parentId: '1', 
-    name: 'Web Development', 
-    nameAm: 'የዌብ ልማት',
-    responseType: 'static',
-    content: '<h2>Web Development</h2><p>We build responsive and high-performance websites.</p>', 
-    contentAm: '<h2>የዌብ ልማት</h2><p>ምላሽ ሰጪ እና ከፍተኛ አፈጻጸም ያላቸውን ድረ-ገጾች እንገነባለን።</p>',
-    order: 0 
-  },
-  { 
-    id: '4', 
-    parentId: '1', 
-    name: 'Mobile Apps', 
-    nameAm: 'የሞባይል መተግበሪያዎች',
-    responseType: 'static',
-    content: '<h2>Mobile Apps</h2><p>Native and cross-platform mobile experiences.</p>', 
-    contentAm: '<h2>የሞባይል መተግበሪያዎች</h2><p>ተወላጅ እና የመስቀል-ፕላትፎርም የሞባይል ተሞክሮዎች።</p>',
-    order: 1 
-  },
+  {
+    id: 'secure-multi-kyc',
+    parentId: null,
+    name: 'Secure Account Access',
+    nameAm: 'ደህንነቱ የተጠበቀ መዳረሻ',
+    responseType: 'api',
+    order: 5,
+    apiConfig: {
+      name: 'Multi-KYC Header Construction',
+      endpoint: '/api/test/multi-kyc',
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 10000,
+      retry: 0,
+      loginRequired: true,
+      authConfig: {
+        type: 'bearer',
+        bearer: { header: 'Authorization', template: 'Bearer {{user_token}}.{{account}}.{{code}}' }
+      },
+      kycFields: [
+        {
+          id: 'kyc-secure-acc',
+          name: 'account',
+          prompt: 'Enter Account Number (try: 12345)',
+          promptAm: 'የሂሳብ ቁጥርዎን ያስገቡ (ለምሳሌ: 12345)',
+          type: 'text',
+          order: 0
+        },
+        {
+          id: 'kyc-secure-code',
+          name: 'code',
+          prompt: 'Enter Verification Code (try: 9988)',
+          promptAm: 'የማረጋገጫ ኮድዎን ያስገቡ (ለምሳሌ: 9988)',
+          type: 'password',
+          order: 1
+        }
+      ],
+      requestParameters: [],
+      responseMapping: {
+        type: 'message',
+        template: 'Access Granted! Balance: {{response.data.current_balance}}. Status: {{response.data.account_status}}.',
+        templateAm: 'መዳረሻ ተፈቅዷል! ቀሪ ሂሳብ: {{response.data.current_balance}}',
+        errorFallback: 'Security check failed. Please verify your account and code.',
+        timeoutMessage: 'Security Gateway timeout.',
+        authRequiredMessage: 'Secure Auth Required.'
+      }
+    }
+  }
 ];
 
 export function getStoredMenus(): MenuItem[] {
