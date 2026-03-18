@@ -33,6 +33,7 @@ import {
   ChevronRight,
   Wand2,
   Sparkles,
+  Type,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -264,7 +265,6 @@ export function MenuManagement() {
     } else if (apiPreviewResult.data && Array.isArray(apiPreviewResult.data)) {
       list = apiPreviewResult.data;
     } else {
-      // Try to find first array in object
       for (const key in apiPreviewResult) {
         if (Array.isArray(apiPreviewResult[key])) {
           list = apiPreviewResult[key];
@@ -809,22 +809,40 @@ export function MenuManagement() {
 
                   <Card>
                     <CardHeader className="bg-muted/10"><CardTitle className="text-sm">Response View Mapping</CardTitle></CardHeader>
-                    <CardContent className="p-4 space-y-4">
+                    <CardContent className="p-0">
                       <Tabs value={editForm.apiConfig?.responseMapping?.type} onValueChange={v => deepUpdate(['apiConfig', 'responseMapping', 'type'], v)}>
-                        <TabsList className="grid w-full grid-cols-2"><TabsTrigger value="message">Message</TabsTrigger><TabsTrigger value="table">Table</TabsTrigger></TabsList>
+                        <TabsList className="grid w-full grid-cols-2 rounded-none border-b bg-muted/50 h-10">
+                          <TabsTrigger value="message" className="data-[state=active]:bg-white rounded-none border-r"><Type size={14} className="mr-2" /> Message</TabsTrigger>
+                          <TabsTrigger value="table" className="data-[state=active]:bg-white rounded-none"><TableIcon size={14} className="mr-2" /> Table</TabsTrigger>
+                        </TabsList>
                         
-                        <TabsContent value="message" className="pt-4 space-y-4">
+                        <TabsContent value="message" className="p-4 space-y-4 mt-0">
                           <div className="bg-primary/5 p-3 rounded-lg flex items-start gap-3 border border-primary/10">
                             <Info size={16} className="text-primary mt-0.5 shrink-0" />
                             <p className="text-[11px] text-muted-foreground leading-relaxed">
-                              Configure how the API result is shown as a text message. Use <code className="bg-white px-1 border rounded text-primary">{"{{response.key}}"}</code> to inject data from the API response. <strong>Use the "Magic Wand" icon in the language tabs above to auto-fill placeholders from your last test.</strong>
+                              Display API data as a formatted text message. Use <code className="bg-white px-1 border rounded text-primary">{"{{response.key}}"}</code> to inject variables. <strong>Configure localized templates in the "Localization & Content" tabs at the top of this dialog.</strong>
                             </p>
                           </div>
+                          {apiPreviewResult && (
+                            <div className="p-3 border rounded-lg bg-muted/5">
+                              <Label className="text-[10px] font-bold uppercase text-muted-foreground mb-2 block">Quick-copy Placeholders</Label>
+                              <div className="flex flex-wrap gap-1">
+                                {getAvailableFields(apiPreviewResult).map(field => (
+                                  <Badge key={field} variant="outline" className="text-[9px] cursor-pointer hover:bg-primary/5 hover:text-primary transition-colors font-mono" onClick={() => {
+                                    toast({ title: "Copied!", description: `{{response.${field}}}`, duration: 2000 });
+                                    navigator.clipboard.writeText(`{{response.${field}}}`);
+                                  }}>
+                                    {field}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </TabsContent>
 
-                        <TabsContent value="table" className="space-y-4 pt-4">
+                        <TabsContent value="table" className="p-4 space-y-4 mt-0">
                           <div className="flex items-center justify-between">
-                            <Label className="text-xs font-bold flex items-center gap-2"><TableIcon size={14} /> Table Columns Mapping</Label>
+                            <Label className="text-xs font-bold flex items-center gap-2 text-muted-foreground uppercase"><TableIcon size={14} /> Structure Mapping</Label>
                             <div className="flex gap-2">
                               {apiPreviewResult && (
                                 <Button variant="outline" size="sm" className="h-8 text-[10px] bg-primary/5 text-primary border-primary/20 hover:bg-primary/10" onClick={autoGenerateTableColumns}>
@@ -834,22 +852,33 @@ export function MenuManagement() {
                               <Button variant="ghost" size="sm" className="h-8 text-[10px]" onClick={() => { const cols = editForm.apiConfig?.responseMapping?.tableColumns || []; deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], [...cols, { header: 'New Column', key: '' }]); }}><Plus className="mr-1 h-3 w-3" /> Add Column</Button>
                             </div>
                           </div>
-                          <div className="space-y-3">
+                          <div className="space-y-2">
                             {editForm.apiConfig?.responseMapping?.tableColumns?.map((col, idx) => (
-                              <div key={idx} className="flex gap-3 p-3 border rounded-md bg-white group relative shadow-sm items-end">
+                              <div key={idx} className="flex gap-3 p-3 border rounded-md bg-white group relative shadow-sm items-end animate-in fade-in slide-in-from-top-1">
                                 <div className="flex-1 space-y-1">
-                                  <Label className="text-[9px] uppercase font-bold text-muted-foreground">Base Header (English)</Label>
-                                  <Input value={col.header} onChange={e => { const cols = [...editForm.apiConfig!.responseMapping.tableColumns!]; cols[idx].header = e.target.value; deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], cols); }} />
+                                  <Label className="text-[9px] uppercase font-bold text-muted-foreground">Column Header (English)</Label>
+                                  <Input className="h-8 text-xs" value={col.header} onChange={e => { const cols = [...editForm.apiConfig!.responseMapping.tableColumns!]; cols[idx].header = e.target.value; deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], cols); }} />
                                 </div>
                                 <div className="flex-1 space-y-1">
-                                  <Label className="text-[9px] uppercase font-bold text-muted-foreground">Data Key (JSON Path)</Label>
-                                  <Input value={col.key} onChange={e => { const cols = [...editForm.apiConfig!.responseMapping.tableColumns!]; cols[idx].key = e.target.value; deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], cols); }} />
+                                  <Label className="text-[9px] uppercase font-bold text-muted-foreground">JSON Key Path</Label>
+                                  <Input className="h-8 text-xs font-mono" value={col.key} onChange={e => { const cols = [...editForm.apiConfig!.responseMapping.tableColumns!]; cols[idx].key = e.target.value; deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], cols); }} />
                                 </div>
-                                <Button variant="ghost" size="icon" className="h-10 w-10 text-destructive opacity-0 group-hover:opacity-100" onClick={() => { const cols = editForm.apiConfig!.responseMapping.tableColumns!.filter((_, i) => i !== idx); deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], cols); }}><Trash2 size={14} /></Button>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100" onClick={() => { const cols = editForm.apiConfig!.responseMapping.tableColumns!.filter((_, i) => i !== idx); deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], cols); }}><Trash2 size={14} /></Button>
                               </div>
                             ))}
+                            {(!editForm.apiConfig?.responseMapping?.tableColumns || editForm.apiConfig.responseMapping.tableColumns.length === 0) && (
+                              <div className="text-center py-8 border border-dashed rounded-lg bg-muted/5">
+                                <TableIcon size={24} className="mx-auto text-muted-foreground/30 mb-2" />
+                                <p className="text-xs text-muted-foreground">No columns defined. Add manually or use auto-fill.</p>
+                              </div>
+                            )}
                           </div>
-                          <p className="text-[9px] text-muted-foreground italic">Note: To add localized headers (Amharic, etc.), use the "Localization & Content" tabs at the top of this dialog.</p>
+                          <div className="bg-amber-50 p-3 rounded-lg flex items-start gap-3 border border-amber-100">
+                            <Info size={16} className="text-amber-500 mt-0.5 shrink-0" />
+                            <p className="text-[10px] text-amber-800 leading-relaxed italic">
+                              <strong>Note:</strong> To provide localized headers (Amharic, etc.), use the "Localization & Content" tabs at the top of this dialog after defining your structure here.
+                            </p>
+                          </div>
                         </TabsContent>
                       </Tabs>
                     </CardContent>
