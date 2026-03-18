@@ -54,7 +54,6 @@ export function ChatInterface() {
   const logo = PlaceHolderImages.find(img => img.id === 'app-logo');
   const db = useFirestore();
   
-  // SYSTEM USER DATA
   const [userData, setUserData] = useState<UserData>({
     id: 'user_123',
     token: 'talktree_static_token_778899',
@@ -70,7 +69,8 @@ export function ChatInterface() {
   } | null>(null);
   
   const [kycInput, setKycInput] = useState('');
-  const [isLoadingApi, setIsLoadingApi] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadingText, setLoadingText] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -200,8 +200,8 @@ export function ChatInterface() {
       setHistory(prev => [...prev, { id: `bot-kyc-${Date.now()}`, sender: 'bot', text: getLocalizedKYCPrompt(nextField), isKYC: true }]);
       setKycFlow({ ...kycFlow, fieldIndex: kycFlow.fieldIndex + 1 });
     } else {
-      setKycFlow(null);
       const menu = menus.find(m => m.id === kycFlow.menuId);
+      setKycFlow(null);
       if (menu) {
         if (menu.responseType === 'report') {
           handleInternalReport(menu, newKYC);
@@ -213,7 +213,8 @@ export function ChatInterface() {
   };
 
   const handleInternalReport = async (menu: MenuItem, kycData: Record<string, any>) => {
-    setIsLoadingApi(true);
+    setLoadingText(currentLang?.code === 'am' ? 'ሪፖርት እየላክን ነው...' : 'Submitting your report...');
+    setIsLoading(true);
     try {
       if (db) {
         await addDoc(collection(db, 'reports'), {
@@ -238,13 +239,14 @@ export function ChatInterface() {
         text: 'Sorry, there was an error submitting your report. Please try again later.'
       }]);
     } finally {
-      setIsLoadingApi(false);
+      setIsLoading(false);
     }
   };
 
   const executeApiCall = async (menu: MenuItem, kycData: Record<string, any>) => {
     if (!menu.apiConfig) return;
-    setIsLoadingApi(true);
+    setLoadingText(currentLang?.code === 'am' ? 'ከአስተማማኝ መግቢያ ጋር በመገናኘት ላይ...' : 'Communicating with Secure Gateway...');
+    setIsLoading(true);
     let apiResponse: any;
     let success = false;
     const mapping = menu.apiConfig.responseMapping;
@@ -313,7 +315,7 @@ export function ChatInterface() {
     }
     botMsg.options = menus.filter(m => m.parentId === menu.id);
     setHistory(prev => [...prev, botMsg]);
-    setIsLoadingApi(false);
+    setIsLoading(false);
   };
 
   const navigateTo = (menu: MenuItem) => {
@@ -419,7 +421,14 @@ export function ChatInterface() {
             </div>
           </ChatBubble>
         ))}
-        {isLoadingApi && <div className="flex justify-start"><div className="bg-white border rounded-2xl p-4 shadow-sm flex items-center gap-2 animate-pulse"><Loader2 size={16} className="animate-spin text-primary" /><span className="text-xs italic font-medium">Communicating with Secure Gateway...</span></div></div>}
+        {isLoading && (
+          <div className="flex justify-start">
+            <div className="bg-white border rounded-2xl p-4 shadow-sm flex items-center gap-2 animate-pulse">
+              <Loader2 size={16} className="animate-spin text-primary" />
+              <span className="text-xs italic font-medium">{loadingText}</span>
+            </div>
+          </div>
+        )}
       </div>
       {kycFlow && <div className="p-4 bg-white border-t flex flex-col gap-2 animate-in slide-in-from-bottom-2 duration-300">
         <form onSubmit={handleKycSubmit} className="flex gap-2">
