@@ -19,6 +19,7 @@ import {
   getStoredMenus, 
   getStoredReports 
 } from '@/lib/store';
+import { MenuItem, UserReport } from '@/lib/types';
 import { 
   Users, 
   Zap, 
@@ -32,15 +33,18 @@ import {
 } from 'lucide-react';
 
 export function Dashboard() {
+  // Initialize with empty data to avoid hydration mismatch
   const [data, setData] = useState({
-    menus: getStoredMenus(),
-    reports: getStoredReports()
+    menus: [] as MenuItem[],
+    reports: [] as UserReport[]
   });
 
   const [onlineNow, setOnlineNow] = useState(0);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    // Initial data load
+    setMounted(true);
+    // Initial data load on the client only
     setData({
       menus: getStoredMenus(),
       reports: getStoredReports()
@@ -123,6 +127,9 @@ export function Dashboard() {
   }, [data]);
 
   const COLORS = ['#eab308', '#2563eb', '#059669', '#dc2626'];
+
+  // Prevent rendering content that depends on dynamic client data until mounted
+  if (!mounted) return null;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
