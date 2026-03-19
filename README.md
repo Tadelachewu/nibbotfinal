@@ -79,6 +79,15 @@ The system includes several mock APIs to test different integration patterns. Fo
     *   **Table Data Key**: `rates`
     *   **Columns**: `currency`, `rate`, `updated`
 
+### 7. Account Balance (Bearer Auth + Query Parameter)
+*   **Endpoint**: `/api/test/balance`
+*   **Method**: `GET`
+*   **Auth Type**: `Bearer Token`. Template: `Bearer {{user_token}}`.
+*   **KYC Needed**: Add a KYC field with key `account_id` (e.g., 88991122).
+*   **Request Mapping**: Param Key: `account_id` -> Source: `KYC: account_id`.
+*   **Response View (Message)**:
+    *   **Template**: `Your {{response.data.account_type}} balance for account {{account_id}} is {{response.data.balance}} {{response.data.currency}}.`
+
 ---
 
 ## 🌍 Localization
