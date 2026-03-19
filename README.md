@@ -1,3 +1,4 @@
+
 # TalkTree - Conversational Menu System
 
 TalkTree is a dynamic, chatbot-driven menu management system built with Next.js, ShadCN, and Genkit. It allows administrators to build conversational trees that integrate with external APIs using flexible authentication and KYC collection.
@@ -28,11 +29,11 @@ The system includes several mock APIs to test different integration patterns. Fo
     *   **Columns**: `id`, `total`
 
 ### 2. User Secure Transactions (Bearer Auth + Path Parameter)
-*   **Endpoint**: `/api/test/user-transactions/{{user_id}}`
+*   **Endpoint**: `/api/test/user-transactions/{{userId}}`
 *   **Method**: `GET`
 *   **Auth Type**: `Bearer Token`. Template: `Bearer mysecrettoken123`.
-*   **KYC Needed**: Add a KYC field with key `status` (e.g., success, pending).
-*   **Request Mapping**: Param Key: `status` -> Source: `KYC: status`.
+*   **KYC Needed**: Add a KYC field with key `userId` (e.g., user_123).
+*   **Request Mapping**: Path Template uses `{{userId}}`. 
 *   **Response View (Table)**:
     *   **Table Data Key**: `data.transactions`
     *   **Columns**: `id`, `amount`, `status`, `response.data.userId`

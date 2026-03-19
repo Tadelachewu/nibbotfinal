@@ -98,6 +98,15 @@ export function ChatInterface() {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingText, setLoadingText] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [history, isLoading, kycFlow, statusFlow]);
 
   useEffect(() => {
     const STORAGE_KEY = 'talktree_user_session';
@@ -129,15 +138,6 @@ export function ChatInterface() {
     const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     setTheme(isDark ? 'dark' : 'light');
   }, []);
-
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTo({
-        top: scrollRef.current.scrollHeight,
-        behavior: 'smooth'
-      });
-    }
-  }, [history, isLoading, kycFlow, statusFlow]);
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -609,78 +609,81 @@ export function ChatInterface() {
         </div>
       </header>
       <ScrollArea ref={scrollRef} className="flex-1 overflow-x-hidden p-4 md:p-6 space-y-4">
-        {history.map(msg => (
-          <ChatBubble key={msg.id} isBot={msg.sender === 'bot'}>
-            {msg.text && <p>{msg.text}</p>}
-            {msg.content && <div dangerouslySetInnerHTML={{ __html: msg.content }} />}
-            {msg.reportStatus && (
-              <div className="mt-4 border rounded-xl p-4 bg-primary/5 shadow-sm space-y-4">
-                <div className="flex items-center justify-between border-b pb-3">
-                  <div className="flex items-center gap-2">
-                    {getStatusDisplay(msg.reportStatus.status).icon}
-                    <span className="text-xs font-bold uppercase tracking-tight">Report Status</span>
-                  </div>
-                  <Badge className={cn("text-[10px] rounded-full", getStatusDisplay(msg.reportStatus.status).color)}>
-                    {getStatusDisplay(msg.reportStatus.status).label}
-                  </Badge>
-                </div>
-                <div className="space-y-2">
-                  <div className="text-[10px] uppercase font-bold text-muted-foreground">Original Request</div>
-                  <div className="text-sm font-semibold">{msg.reportStatus.menuName}</div>
-                </div>
-                {msg.reportStatus.adminResponse && (
-                  <div className="mt-2 p-3 bg-white rounded-lg border border-primary/20">
-                    <div className="text-[10px] uppercase font-bold text-primary flex items-center gap-1">
-                      <CornerDownRight size={10} /> Admin Feedback
+        <div className="flex flex-col min-h-full">
+          {history.map(msg => (
+            <ChatBubble key={msg.id} isBot={msg.sender === 'bot'}>
+              {msg.text && <p>{msg.text}</p>}
+              {msg.content && <div dangerouslySetInnerHTML={{ __html: msg.content }} />}
+              {msg.reportStatus && (
+                <div className="mt-4 border rounded-xl p-4 bg-primary/5 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between border-b pb-3">
+                    <div className="flex items-center gap-2">
+                      {getStatusDisplay(msg.reportStatus.status).icon}
+                      <span className="text-xs font-bold uppercase tracking-tight">Report Status</span>
                     </div>
-                    <div className="text-sm italic text-muted-foreground">{msg.reportStatus.adminResponse}</div>
+                    <Badge className={cn("text-[10px] rounded-full", getStatusDisplay(msg.reportStatus.status).color)}>
+                      {getStatusDisplay(msg.reportStatus.status).label}
+                    </Badge>
                   </div>
-                )}
-              </div>
-            )}
-            {msg.tableData && (
-              <div className="mt-4 border rounded-xl overflow-hidden bg-white shadow-md">
-                <ScrollArea className="w-full">
-                  <Table>
-                    <TableHeader className="bg-muted/30">
-                      <TableRow>
-                        {msg.tableData.columns.map((col, i) => (
-                          <TableHead key={i} className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">
-                            {col.localizedHeader}
-                          </TableHead>
-                        ))}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {msg.tableData.rows.map((row, i) => (
-                        <TableRow key={i} className="hover:bg-muted/5 transition-colors">
-                          {msg.tableData!.columns.map((col, j) => (
-                            <TableCell key={j} className="text-xs py-3 font-medium">
-                              {String(resolveTableCell(col.key, row, msg.tableData!.rootData, msg.tableData!.arrayPath) ?? '')}
-                            </TableCell>
+                  <div className="space-y-2">
+                    <div className="text-[10px] uppercase font-bold text-muted-foreground">Original Request</div>
+                    <div className="text-sm font-semibold">{msg.reportStatus.menuName}</div>
+                  </div>
+                  {msg.reportStatus.adminResponse && (
+                    <div className="mt-2 p-3 bg-white rounded-lg border border-primary/20">
+                      <div className="text-[10px] uppercase font-bold text-primary flex items-center gap-1">
+                        <CornerDownRight size={10} /> Admin Feedback
+                      </div>
+                      <div className="text-sm italic text-muted-foreground">{msg.reportStatus.adminResponse}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+              {msg.tableData && (
+                <div className="mt-4 border rounded-xl overflow-hidden bg-white shadow-md">
+                  <ScrollArea className="w-full">
+                    <Table>
+                      <TableHeader className="bg-muted/30">
+                        <TableRow>
+                          {msg.tableData.columns.map((col, i) => (
+                            <TableHead key={i} className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">
+                              {col.localizedHeader}
+                            </TableHead>
                           ))}
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </ScrollArea>
+                      </TableHeader>
+                      <TableBody>
+                        {msg.tableData.rows.map((row, i) => (
+                          <TableRow key={i} className="hover:bg-muted/5 transition-colors">
+                            {msg.tableData!.columns.map((col, j) => (
+                              <TableCell key={j} className="text-xs py-3 font-medium">
+                                {String(resolveTableCell(col.key, row, msg.tableData!.rootData, msg.tableData!.arrayPath) ?? '')}
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </ScrollArea>
+                </div>
+              )}
+              <div className="flex flex-wrap gap-2 mt-4">
+                {msg.options?.map(opt => <Button key={opt.id} variant="outline" size="sm" className="rounded-full bg-white hover:bg-primary/5 border-primary/20 text-primary" onClick={() => navigateTo(opt)}>{getLocalizedName(opt)}<ChevronRight size={14} className="ml-1 opacity-50" /></Button>)}
+                {msg.relatedOptions && msg.relatedOptions.length > 0 && <div className="w-full flex items-center gap-2 py-2"><div className="h-px bg-muted flex-1" /><span className="text-[9px] font-bold uppercase text-muted-foreground">{currentLang?.code === 'am' ? 'ተዛማጅ' : 'Related'}</span><div className="h-px bg-muted flex-1" /></div>}
+                {msg.relatedOptions?.map(opt => <Button key={opt.id} variant="secondary" size="sm" className="rounded-full shadow-sm" onClick={() => navigateTo(opt)}><ClipboardCheck size={12} className="mr-2" />{getLocalizedName(opt)}</Button>)}
               </div>
-            )}
-            <div className="flex flex-wrap gap-2 mt-4">
-              {msg.options?.map(opt => <Button key={opt.id} variant="outline" size="sm" className="rounded-full bg-white hover:bg-primary/5 border-primary/20 text-primary" onClick={() => navigateTo(opt)}>{getLocalizedName(opt)}<ChevronRight size={14} className="ml-1 opacity-50" /></Button>)}
-              {msg.relatedOptions && msg.relatedOptions.length > 0 && <div className="w-full flex items-center gap-2 py-2"><div className="h-px bg-muted flex-1" /><span className="text-[9px] font-bold uppercase text-muted-foreground">{currentLang?.code === 'am' ? 'ተዛማጅ' : 'Related'}</span><div className="h-px bg-muted flex-1" /></div>}
-              {msg.relatedOptions?.map(opt => <Button key={opt.id} variant="secondary" size="sm" className="rounded-full shadow-sm" onClick={() => navigateTo(opt)}><ClipboardCheck size={12} className="mr-2" />{getLocalizedName(opt)}</Button>)}
+            </ChatBubble>
+          ))}
+          {isLoading && (
+            <div className="flex justify-start">
+              <div className="bg-white border rounded-2xl p-4 shadow-sm flex items-center gap-2 animate-in fade-in">
+                <Loader2 size={16} className="animate-spin text-primary" />
+                <span className="text-sm italic font-medium">{loadingText}</span>
+              </div>
             </div>
-          </ChatBubble>
-        ))}
-        {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-white border rounded-2xl p-4 shadow-sm flex items-center gap-2 animate-in fade-in">
-              <Loader2 size={16} className="animate-spin text-primary" />
-              <span className="text-sm italic font-medium">{loadingText}</span>
-            </div>
-          </div>
-        )}
+          )}
+          <div ref={messagesEndRef} className="h-4" />
+        </div>
       </ScrollArea>
       {(kycFlow || statusFlow) && <div className="p-4 bg-white border-t flex flex-col gap-2 sticky bottom-0 z-50 animate-in slide-in-from-bottom-2 duration-300">
         <form onSubmit={handleUserInput} className="flex gap-2">
