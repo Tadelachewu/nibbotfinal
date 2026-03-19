@@ -203,7 +203,6 @@ export function ChatInterface() {
 
   const getVal = (path: string, obj: any) => {
     if (!path || !obj) return undefined;
-    // Strip optional "response." prefix
     const cleanPath = path.startsWith('response.') ? path.substring(9) : path;
     const value = cleanPath.split('.').reduce((acc, part) => {
       if (acc === undefined || acc === null) return undefined;
@@ -217,41 +216,30 @@ export function ChatInterface() {
     
     return template.replace(/{{\s*(.*?)\s*}}/g, (match, p1) => {
       const path = p1.trim();
-      
-      // 1. System Vars
       if (path === 'user_id') return userData.id;
       if (path === 'user_token') return userData.token;
-      
-      // 2. Response Vars (Explicit)
       if (path.startsWith('response.')) {
         const val = getVal(path, context.response);
         return val !== undefined ? String(val) : match;
       }
-      
-      // 3. KYC Vars
       const kycToUse = context.kyc || userData.kyc;
       if (kycToUse[path] !== undefined) {
         return String(kycToUse[path] ?? '');
       }
-      
-      // 4. Try root-level response resolution if not prefixed (fallback)
       if (context.response) {
         const val = getVal(path, context.response);
         if (val !== undefined) return String(val);
       }
-      
-      return match; // Keep the placeholder if nothing found for better debugging
+      return match;
     });
   };
 
   const findArrayData = (obj: any, explicitPath?: string): { path: string; data: any[] } | null => {
     if (!obj || typeof obj !== 'object' || obj === null) return null;
-    
     if (explicitPath) {
       const data = getVal(explicitPath, obj);
       if (Array.isArray(data)) return { path: explicitPath, data };
     }
-
     if (Array.isArray(obj)) return { path: '', data: obj };
     for (const key in obj) { if (Array.isArray(obj[key])) return { path: key, data: obj[key] }; }
     if (obj.status === 'success' || obj.status === 'ok' || !obj.status) return { path: '', data: [obj] };
@@ -259,26 +247,19 @@ export function ChatInterface() {
   };
 
   const resolveTableCell = (key: string, row: any, root: any, arrayPath: string) => {
-    // 1. Try absolute response path
     if (key.startsWith('response.')) {
       const val = getVal(key, root);
       if (val !== undefined) return val;
     }
-
-    // 2. Try relative to row
     const rowVal = getVal(key, row);
     if (rowVal !== undefined) return rowVal;
-
-    // 3. Try relative to root directly (without prefix)
     const rootVal = getVal(key, root);
     if (rootVal !== undefined) return rootVal;
-
     return undefined;
   };
 
   const validateInput = (value: string, type: KYCFieldType): { isValid: boolean, error?: string } => {
     if (!value.trim()) return { isValid: true };
-    
     switch (type) {
       case 'number':
         return { 
@@ -306,12 +287,10 @@ export function ChatInterface() {
   const handleUserInput = (e: React.FormEvent) => {
     e.preventDefault();
     if (!kycInput.trim()) return;
-
     if (statusFlow) {
       handleStatusLookup(kycInput);
       return;
     }
-
     if (kycFlow) {
       handleKycSubmit();
       return;
@@ -322,7 +301,6 @@ export function ChatInterface() {
     setHistory(prev => [...prev, { id: `user-lookup-${Date.now()}`, sender: 'user', text: id }]);
     const reports = getStoredReports();
     const found = reports.find(r => r.id === id);
-
     if (found) {
       setHistory(prev => [...prev, { 
         id: `bot-status-${Date.now()}`, 
@@ -337,16 +315,13 @@ export function ChatInterface() {
         text: currentLang?.code === 'am' ? `ይቅርታ፣ ሪፖርት ቁጥር ${id} ማግኘት አልቻልንም።` : `Sorry, we couldn't find a report with reference ${id}.`
       }]);
     }
-    
     setKycInput('');
     setStatusFlow(false);
   };
 
   const handleKycSubmit = (skip: boolean = false) => {
     if (!kycFlow) return;
-    
     const currentField = kycFlow.fields[kycFlow.fieldIndex];
-    
     if (currentField.required && !skip && !kycInput.trim()) {
       toast({
         variant: "destructive",
@@ -355,7 +330,6 @@ export function ChatInterface() {
       });
       return;
     }
-
     if (!skip && kycInput.trim()) {
       const validation = validateInput(kycInput, currentField.type);
       if (!validation.isValid) {
@@ -367,19 +341,14 @@ export function ChatInterface() {
         return;
       }
     }
-
     const valueToSave = skip ? null : kycInput;
     const newKYC = { ...userData.kyc, [currentField.name]: valueToSave };
-    
     setUserData(prev => ({ ...prev, kyc: newKYC }));
-    
     const displayValue = skip 
       ? (currentLang?.code === 'am' ? '[ዘለል]' : '[Skipped]') 
       : (currentField.type === 'password' ? '********' : kycInput);
-      
     setHistory(prev => [...prev, { id: `user-kyc-${Date.now()}`, sender: 'user', text: displayValue }]);
     setKycInput('');
-
     if (kycFlow.fieldIndex < kycFlow.fields.length - 1) {
       const nextField = kycFlow.fields[kycFlow.fieldIndex + 1];
       setHistory(prev => [...prev, { id: `bot-kyc-${Date.now()}`, sender: 'bot', text: getLocalizedKYCPrompt(nextField), isKYC: true }]);
@@ -400,7 +369,6 @@ export function ChatInterface() {
   const handleInternalReport = (menu: MenuItem, kycData: Record<string, any>) => {
     setLoadingText(currentLang?.code === 'am' ? 'ሪፖርት እየላክን ነው...' : 'Submitting your report...');
     setIsLoading(true);
-    
     setTimeout(() => {
       const reportPayload: Record<string, any> = {};
       menu.apiConfig?.kycFields?.forEach(field => {
@@ -408,26 +376,20 @@ export function ChatInterface() {
           reportPayload[field.name] = kycData[field.name];
         }
       });
-
       const savedReport = addReport({
         userId: userData.id,
         menuName: menu.name,
         data: reportPayload,
         priority: menu.apiConfig?.defaultPriority || 'medium'
       });
-
       const responseContext = { response: { id: savedReport.id, ...reportPayload }, kyc: kycData };
       const template = getLocalizedTemplate(menu);
       const finalMsg = template ? replacePlaceholders(template, responseContext) : "";
-
-      const successContent = getLocalizedContent(menu);
       const defaultSuccess = currentLang?.code === 'am' ? 'ሪፖርትዎ በተሳካ ሁኔታ ቀርቧል። እናመሰግናለን።' : 'Your report has been submitted successfully. Thank you.';
-      
       setHistory(prev => [...prev, {
         id: `bot-report-${Date.now()}`,
         sender: 'bot',
-        text: finalMsg || (successContent ? undefined : defaultSuccess),
-        content: finalMsg ? undefined : replacePlaceholders(successContent, responseContext),
+        text: finalMsg || defaultSuccess,
         options: menus.filter(m => m.parentId === menu.id)
       }]);
       setIsLoading(false);
@@ -441,7 +403,6 @@ export function ChatInterface() {
     let apiResponse: any;
     let success = false;
     const mapping = menu.apiConfig.responseMapping;
-
     try {
       let url = replacePlaceholders(menu.apiConfig.endpoint, { kyc: kycData });
       const requestPayload: Record<string, any> = {};
@@ -451,7 +412,6 @@ export function ChatInterface() {
         else if (param.sourceType === 'static') requestPayload[param.apiKey] = param.sourceValue;
         else if (kycData[param.sourceValue] !== undefined) requestPayload[param.apiKey] = kycData[param.sourceValue];
       });
-
       const headers: Record<string, string> = { 'Content-Type': 'application/json', ...menu.apiConfig.headers };
       const auth = menu.apiConfig.authConfig;
       if (auth && auth.type !== 'none') {
@@ -463,7 +423,6 @@ export function ChatInterface() {
           headers[headerName] = `Basic ${btoa(`${user}:${pass}`)}`;
         } else if (auth.type === 'bearer' && auth.bearer) { headers[headerName] = replacePlaceholders(auth.bearer.template, { kyc: kycData }); }
       }
-
       const options: RequestInit = { method: menu.apiConfig.method, headers };
       if (menu.apiConfig.method === 'GET') {
         const params = new URLSearchParams();
@@ -472,21 +431,17 @@ export function ChatInterface() {
         });
         if (params.toString()) url += (url.includes('?') ? '&' : '?') + params.toString();
       } else { options.body = JSON.stringify(requestPayload); }
-
       const res = await fetch(url, options);
       const data = await res.json().catch(() => null);
       success = res.ok;
       apiResponse = data;
     } catch (e) { success = false; }
-
     const context = { response: apiResponse, kyc: kycData };
     let botMsg: Message = { id: `bot-api-${Date.now()}`, sender: 'bot' };
-    
     if (!success) { 
       const errorMsg = apiResponse?.message || getLocalizedErrorFallback(menu);
       botMsg.text = errorMsg ? replacePlaceholders(errorMsg, context) : (currentLang?.code === 'am' ? 'ይቅርታ፣ ጥያቄዎን ለማካሄድ ስህተት ተከስቷል።' : 'Sorry, an error occurred while processing your request.');
-    }
-    else {
+    } else {
       const template = getLocalizedTemplate(menu);
       if (mapping.type === 'message') {
         botMsg.text = template ? replacePlaceholders(template, context) : (currentLang?.code === 'am' ? 'ጥያቄዎ በተሳካ ሁኔታ ተከናውኗል።' : 'Your request was processed successfully.');
@@ -515,27 +470,43 @@ export function ChatInterface() {
     if (menu.trackClicks) {
       incrementMenuClick(menu.id, userData.id);
     }
-
     const childMenus = menus.filter(m => m.parentId === menu.id);
     const relatedItems = menus.filter(m => menu.attachedMenuIds?.includes(m.id));
-    
     setHistory(prev => [...prev, { id: `user-${Date.now()}`, sender: 'user', text: getLocalizedName(menu) }]);
-
     const isAction = (menu.responseType === 'api' || menu.responseType === 'report') && menu.apiConfig;
     const hasFields = menu.apiConfig?.kycFields?.length || 0;
-
     if (isAction && (hasFields > 0 || childMenus.length === 0)) {
       const kycFields = menu.apiConfig?.kycFields || [];
       const missingFields = kycFields
         .filter(f => userData.kyc[f.name] === undefined)
         .sort((a, b) => a.order - b.order);
       
+      const historyUpdates: Message[] = [];
+      const introContent = getLocalizedContent(menu);
+      if (introContent) {
+        historyUpdates.push({ 
+          id: `bot-intro-${Date.now()}`, 
+          sender: 'bot', 
+          content: replacePlaceholders(introContent, {}) 
+        });
+      }
+
       if (missingFields.length > 0) {
+        historyUpdates.push({ 
+          id: `bot-kyc-start-${Date.now()}`, 
+          sender: 'bot', 
+          text: getLocalizedKYCPrompt(missingFields[0]), 
+          isKYC: true 
+        });
         setKycFlow({ active: true, menuId: menu.id, fieldIndex: 0, fields: missingFields });
-        setHistory(prev => [...prev, { id: `bot-kyc-start-${Date.now()}`, sender: 'bot', text: getLocalizedKYCPrompt(missingFields[0]), isKYC: true }]);
+        setHistory(prev => [...prev, ...historyUpdates]);
         return;
       }
       
+      if (historyUpdates.length > 0) {
+        setHistory(prev => [...prev, ...historyUpdates]);
+      }
+
       if (menu.responseType === 'report') {
         handleInternalReport(menu, userData.kyc);
       } else {
@@ -543,7 +514,6 @@ export function ChatInterface() {
       }
       return;
     }
-
     setHistory(prev => [...prev, {
       id: `bot-${Date.now()}`, 
       sender: 'bot', 
@@ -595,7 +565,6 @@ export function ChatInterface() {
             </div>
           </div>
         </div>
-        
         <div className="flex items-center gap-1">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -616,7 +585,6 @@ export function ChatInterface() {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 p-0 border shadow-sm">
@@ -640,7 +608,6 @@ export function ChatInterface() {
           </DropdownMenu>
         </div>
       </header>
-      
       <ScrollArea ref={scrollRef} className="flex-1 overflow-x-hidden p-4 md:p-6 space-y-4">
         {history.map(msg => (
           <ChatBubble key={msg.id} isBot={msg.sender === 'bot'}>
@@ -715,7 +682,6 @@ export function ChatInterface() {
           </div>
         )}
       </ScrollArea>
-      
       {(kycFlow || statusFlow) && <div className="p-4 bg-white border-t flex flex-col gap-2 sticky bottom-0 z-50 animate-in slide-in-from-bottom-2 duration-300">
         <form onSubmit={handleUserInput} className="flex gap-2">
           <Input 
@@ -739,7 +705,6 @@ export function ChatInterface() {
           )}
         </form>
       </div>}
-      
       <footer className="bg-white border-t p-4 flex justify-between gap-4 sticky bottom-0 z-40 shadow-[0_-1px_3px_rgba(0,0,0,0.05)]">
         <Button variant="ghost" size="sm" className="hover:bg-primary/5 rounded-full px-4" onClick={() => { setHistory(prev => [...prev, { id: `home-${Date.now()}`, sender: 'user', text: currentLang?.code === 'am' ? 'እንዴት ልረዳዎ እችላለሁ?' : 'How can I help you?', options: menus.filter(m => m.parentId === null) }]); setCurrentMenuId(null); setKycFlow(null); setStatusFlow(false); }}><Home className="mr-2 text-primary" size={16} /> {currentLang?.code === 'am' ? 'ቤት' : 'Home'}</Button>
         {currentMenuId && !kycFlow && !statusFlow && <Button variant="ghost" size="sm" className="hover:bg-primary/5 rounded-full px-4" onClick={() => { const current = menus.find(m => m.id === currentMenuId); const parent = menus.find(m => m.id === current?.parentId); if (parent) navigateTo(parent); else setHistory(p => [...p, { id: 'reset', sender: 'bot', text: 'Navigation Reset', options: menus.filter(m => !m.parentId) }]); }}><ArrowLeft className="mr-2 text-primary" size={16} /> {currentLang?.code === 'am' ? 'ተመለስ' : 'Back'}</Button>}

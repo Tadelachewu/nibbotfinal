@@ -527,9 +527,11 @@ export function MenuManagement() {
                         />
                       </div>
 
-                      {editForm.responseType === 'static' && (
+                      {(editForm.responseType === 'static' || editForm.responseType === 'report') && (
                         <div className="space-y-2">
-                          <Label className="text-xs uppercase font-bold text-muted-foreground">Response Content ({lang.name})</Label>
+                          <Label className="text-xs uppercase font-bold text-muted-foreground">
+                            {editForm.responseType === 'report' ? 'Introductory Content' : 'Response Content'} ({lang.name})
+                          </Label>
                           <WysiwygEditor 
                             title={`${lang.name} Content`} 
                             value={lang.isDefault ? (editForm.content || '') : (lang.code === 'am' ? (editForm.contentAm || '') : (editForm.translations?.[lang.code]?.content || ''))} 
