@@ -88,6 +88,7 @@ export interface MenuItem {
   attachedMenuIds?: string[];
   trackClicks?: boolean;
   clickCount?: number;
+  sessionClickCount?: number; // Unique sessions that clicked this
   translations?: Record<string, {
     name?: string;
     content?: string;

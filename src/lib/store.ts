@@ -5,6 +5,7 @@ import { MenuItem, AppSettings, Language, UserReport, ReportPriority } from './t
 const MENUS_KEY = 'talktree_menus';
 const SETTINGS_KEY = 'talktree_settings';
 const REPORTS_KEY = 'talktree_reports';
+const CLICK_LOG_KEY = 'talktree_click_history';
 
 const defaultLanguages: Language[] = [
   { code: 'en', name: 'English', isDefault: true },
@@ -23,7 +24,8 @@ const defaultMenus: MenuItem[] = [
     contentAm: '<p>ለእርስዎ ምን ማድረግ እንደምንችል ይመርምሩ።</p>',
     attachedMenuIds: ['ex-rate', 'path-param-test', 'fraud-report-test'],
     trackClicks: true,
-    clickCount: 15
+    clickCount: 15,
+    sessionClickCount: 10
   },
   {
     id: 'fraud-report-test',
@@ -36,6 +38,7 @@ const defaultMenus: MenuItem[] = [
     contentAm: '<p>ለሪፖርትዎ እናመሰግናለን። የደህንነት ቡድናችን መረጃ ደርሶታል እና በቅርቡ ይመረምረዋል።</p>',
     trackClicks: true,
     clickCount: 8,
+    sessionClickCount: 5,
     apiConfig: {
       name: 'Fraud Report Collection',
       endpoint: '', 
@@ -82,6 +85,7 @@ const defaultMenus: MenuItem[] = [
     order: 2,
     trackClicks: true,
     clickCount: 24,
+    sessionClickCount: 18,
     apiConfig: {
       name: 'Daily Exchange Rates',
       endpoint: '/api/test/exchange-rate',
@@ -121,6 +125,7 @@ const defaultMenus: MenuItem[] = [
     order: 3,
     trackClicks: false,
     clickCount: 0,
+    sessionClickCount: 0,
     apiConfig: {
       name: 'Dynamic Path Parameter Lookup',
       endpoint: '/api/test/profile/{{account_id}}',
@@ -169,10 +174,33 @@ export function saveMenus(menus: MenuItem[]) {
   localStorage.setItem(MENUS_KEY, JSON.stringify(menus));
 }
 
-export function incrementMenuClick(id: string) {
+export function incrementMenuClick(id: string, sessionId: string) {
   const menus = getStoredMenus();
-  const updated = menus.map(m => m.id === id ? { ...m, clickCount: (m.clickCount || 0) + 1 } : m);
-  saveMenus(updated);
+  const menuIndex = menus.findIndex(m => m.id === id);
+  if (menuIndex === -1 || !menus[menuIndex].trackClicks) return;
+
+  const updatedMenus = [...menus];
+  const menu = { ...updatedMenus[menuIndex] };
+  
+  // 1. Always increment total click count
+  menu.clickCount = (menu.clickCount || 0) + 1;
+
+  // 2. Increment session click count only if this session hasn't clicked this menu yet
+  const clickHistoryJson = localStorage.getItem(CLICK_LOG_KEY);
+  const clickHistory: Record<string, string[]> = clickHistoryJson ? JSON.parse(clickHistoryJson) : {};
+  
+  if (!clickHistory[id]) {
+    clickHistory[id] = [];
+  }
+
+  if (!clickHistory[id].includes(sessionId)) {
+    clickHistory[id].push(sessionId);
+    menu.sessionClickCount = (menu.sessionClickCount || 0) + 1;
+    localStorage.setItem(CLICK_LOG_KEY, JSON.stringify(clickHistory));
+  }
+
+  updatedMenus[menuIndex] = menu;
+  saveMenus(updatedMenus);
 }
 
 // Settings Store
@@ -250,7 +278,8 @@ export function addMenu(menu: Omit<MenuItem, 'id'>): MenuItem {
     id: Math.random().toString(36).substr(2, 9), 
     attachedMenuIds: [],
     trackClicks: false,
-    clickCount: 0 
+    clickCount: 0,
+    sessionClickCount: 0
   } as MenuItem;
   saveMenus([...menus, newItem]);
   return newItem;

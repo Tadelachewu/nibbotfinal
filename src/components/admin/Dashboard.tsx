@@ -12,7 +12,8 @@ import {
   ResponsiveContainer, 
   PieChart, 
   Pie, 
-  Cell
+  Cell,
+  Legend
 } from 'recharts';
 import { 
   getStoredMenus, 
@@ -97,12 +98,13 @@ export function Dashboard() {
 
     // Chart: Most Clicked Menus (Enabled only)
     const topClickedData = data.menus
-      .filter(m => m.trackClicks && (m.clickCount || 0) > 0)
+      .filter(m => m.trackClicks && ((m.clickCount || 0) > 0 || (m.sessionClickCount || 0) > 0))
       .sort((a, b) => (b.clickCount || 0) - (a.clickCount || 0))
       .slice(0, 5)
       .map(m => ({
         name: m.name.length > 15 ? m.name.substring(0, 12) + '...' : m.name,
-        clicks: m.clickCount || 0
+        total: m.clickCount || 0,
+        sessions: m.sessionClickCount || 0
       }));
 
     return {
@@ -264,34 +266,38 @@ export function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Top Clicked Interactions */}
+        {/* Top Clicked Interactions - Multi Metric */}
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="text-sm font-bold flex items-center gap-2">
               <MousePointerClick size={16} className="text-primary" />
-              Top Interactions
+              Top Interactions (Total vs Unique)
             </CardTitle>
-            <CardDescription className="text-[10px]">Most accessed menus with tracking enabled.</CardDescription>
+            <CardDescription className="text-[10px]">Comparing total clicks vs unique session reach.</CardDescription>
           </CardHeader>
           <CardContent className="h-64">
             {stats.topClickedData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={stats.topClickedData} layout="vertical" margin={{ left: 10, right: 30 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                  <XAxis type="number" hide />
-                  <YAxis 
+                <BarChart data={stats.topClickedData} margin={{ left: 10, right: 30, bottom: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis 
                     dataKey="name" 
-                    type="category" 
                     axisLine={false} 
                     tickLine={false} 
-                    tick={{ fontSize: 10, fill: '#64748b' }}
-                    width={80}
+                    tick={{ fontSize: 9, fill: '#64748b' }}
+                  />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fontSize: 9, fill: '#64748b' }}
                   />
                   <RechartsTooltip 
                     cursor={{ fill: '#f8fafc' }}
                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                   />
-                  <Bar dataKey="clicks" fill="hsl(var(--accent))" radius={[0, 4, 4, 0]} barSize={20} />
+                  <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
+                  <Bar name="Total Clicks" dataKey="total" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} barSize={15} />
+                  <Bar name="Unique Reach" dataKey="sessions" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} barSize={15} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (

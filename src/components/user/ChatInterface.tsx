@@ -484,7 +484,7 @@ export function ChatInterface() {
   const navigateTo = (menu: MenuItem) => {
     // Analytics: Track Click
     if (menu.trackClicks) {
-      incrementMenuClick(menu.id);
+      incrementMenuClick(menu.id, userData.id);
     }
 
     const childMenus = menus.filter(m => m.parentId === menu.id);
