@@ -90,20 +90,19 @@ The system includes several mock APIs to test different integration patterns. Fo
 
 ---
 
+## 🔍 Troubleshooting API Errors
+
+If your bot displays an "Error Template" message or placeholders like `{{response.data.balance}}` don't resolve:
+
+1.  **Auth Token Space**: Ensure your Bearer template is exactly `Bearer {{user_token}}` (including the space after Bearer).
+2.  **Request Mapping**: Ensure you have mapped the correct KYC fields to the API Parameters in the Admin Panel.
+3.  **Live Preview**: Use the "Live Preview" button in the Admin Panel to see the raw JSON response. If the JSON shows `status: "error"`, your mapping will fail.
+4.  **Table Data Key**: If using a table, ensure the **Table Data Key** matches the path in your JSON (e.g., `data.transactions`).
+
+---
+
 ## 🌍 Localization
 The system supports English and Amharic by default. 
 *   **Menu Labels**: Translated labels appear as buttons in chat.
 *   **Response Templates**: Success and error messages can be fully localized.
 *   **Table Headers**: Use the "Table" tab in Response View Mapping to provide localized column titles for each language.
-
-## 🔑 System Variables & Root-to-Key Mapping
-The following placeholders are available in templates and table keys:
-*   `{{user_id}}`: Resolves to the current session user ID.
-*   `{{user_token}}`: Resolves to the static system token.
-*   `{{response.path.to.key}}`: Accesses any value from the JSON response root.
-*   `{{kyc_field_name}}`: Accesses any data collected from the user in the current flow.
-
-## 🪄 Pro-Tips for Admin
-*   **Magic Wand**: Use the Magic Wand icon next to "Table Data Key" or "Columns" to automatically pick fields from your Live Preview data.
-*   **Root Fallback**: If a column key is not found in a table row, the system automatically checks the root `response` object using the `response.` prefix.
-*   **Custom Headers**: Configure custom headers like `Content-Type` or `X-App-ID` in the Connectivity section.

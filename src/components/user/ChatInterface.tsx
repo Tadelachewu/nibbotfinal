@@ -192,13 +192,13 @@ export function ChatInterface() {
 
   const getLocalizedErrorFallback = (menu: MenuItem) => {
     if (!menu.apiConfig) return "";
-    const mapping = menu.apiConfig.responseMapping.errorFallback; 
-    if (!currentLang) return mapping || "";
-    if (currentLang.isDefault) return mapping || "";
+    const mapping = menu.apiConfig.responseMapping; 
+    if (!currentLang) return mapping.errorFallback || "";
+    if (currentLang.isDefault) return mapping.errorFallback || "";
     const translation = menu.translations?.[currentLang.code]?.errorFallback;
     if (translation) return translation;
-    if (currentLang.code === 'am' && menu.apiConfig.responseMapping.errorFallbackAm) return menu.apiConfig.responseMapping.errorFallbackAm;
-    return mapping || "";
+    if (currentLang.code === 'am' && mapping.errorFallbackAm) return mapping.errorFallbackAm;
+    return mapping.errorFallback || "";
   };
 
   const getVal = (path: string, obj: any) => {
@@ -216,21 +216,30 @@ export function ChatInterface() {
     
     return template.replace(/{{\s*(.*?)\s*}}/g, (match, p1) => {
       const path = p1.trim();
+      
+      // 1. System Variables
       if (path === 'user_id') return userData.id;
       if (path === 'user_token') return userData.token;
+      
+      // 2. Response Data
       if (path.startsWith('response.')) {
         const val = getVal(path, context.response);
-        return val !== undefined ? String(val) : match;
+        return val !== undefined ? String(val) : ""; // Default to empty if path exists but value missing
       }
-      const kycToUse = context.kyc || userData.kyc;
-      if (kycToUse[path] !== undefined) {
-        return String(kycToUse[path] ?? '');
+      
+      // 3. KYC Data (Merged flow + global)
+      const mergedKyc = { ...userData.kyc, ...(context.kyc || {}) };
+      if (mergedKyc[path] !== undefined && mergedKyc[path] !== null) {
+        return String(mergedKyc[path]);
       }
+      
+      // 4. Try response root fallback
       if (context.response) {
         const val = getVal(path, context.response);
         if (val !== undefined) return String(val);
       }
-      return match;
+      
+      return ""; // Default to empty string for unresolved placeholders
     });
   };
 
@@ -398,7 +407,7 @@ export function ChatInterface() {
 
   const executeApiCall = async (menu: MenuItem, kycData: Record<string, any>) => {
     if (!menu.apiConfig) return;
-    setLoadingText(currentLang?.code === 'am' ? 'ከአስተማማኝ መግቢያ ጋር በመገናኘት ላይ...' : 'Communicating with Secure Gateway...');
+    setLoadingText(currentLang?.code === 'am' ? 'ደህንነቱ ከተጠበቀ አገልጋይ ጋር በመገናኘት ላይ...' : 'Connecting to secure server...');
     setIsLoading(true);
     let apiResponse: any;
     let success = false;
@@ -433,11 +442,13 @@ export function ChatInterface() {
       } else { options.body = JSON.stringify(requestPayload); }
       const res = await fetch(url, options);
       const data = await res.json().catch(() => null);
-      success = res.ok;
+      success = res.ok && data?.status !== 'error';
       apiResponse = data;
     } catch (e) { success = false; }
+    
     const context = { response: apiResponse, kyc: kycData };
     let botMsg: Message = { id: `bot-api-${Date.now()}`, sender: 'bot' };
+    
     if (!success) { 
       const errorMsg = apiResponse?.message || getLocalizedErrorFallback(menu);
       botMsg.text = errorMsg ? replacePlaceholders(errorMsg, context) : (currentLang?.code === 'am' ? 'ይቅርታ፣ ጥያቄዎን ለማካሄድ ስህተት ተከስቷል።' : 'Sorry, an error occurred while processing your request.');
