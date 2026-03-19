@@ -62,6 +62,7 @@ import { UserReport, ReportPriority } from '@/lib/types';
 import { format } from 'date-fns';
 import { toast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from '@/lib/utils';
 
 export function ReportsManagement() {
   const [reports, setReports] = useState<UserReport[]>([]);
