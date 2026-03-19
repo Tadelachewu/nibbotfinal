@@ -29,6 +29,7 @@ export interface ApiConfig {
   name: string;
   endpoint: string;
   method: 'GET' | 'POST';
+  rootKey?: string; // The explicit root key for mapping (e.g., "data")
   headers: Record<string, string>;
   authConfig?: {
     type: AuthType;

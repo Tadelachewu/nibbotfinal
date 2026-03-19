@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -201,9 +200,18 @@ export function ChatInterface() {
     return mapping.errorFallback || "";
   };
 
-  const getVal = (path: string, obj: any) => {
+  const getVal = (path: string, obj: any, rootKey: string = 'response') => {
     if (!path || !obj) return undefined;
-    const cleanPath = path.startsWith('response.') ? path.substring(9) : path;
+    // Strip root prefix (e.g., "data." or "response.")
+    let cleanPath = path;
+    if (path.startsWith(rootKey + '.')) {
+      cleanPath = path.substring(rootKey.length + 1);
+    } else if (path.startsWith('response.')) {
+      cleanPath = path.substring(9);
+    } else if (path === rootKey || path === 'response') {
+      return obj;
+    }
+    
     const value = cleanPath.split('.').reduce((acc, part) => {
       if (acc === undefined || acc === null) return undefined;
       return acc[part];
@@ -211,8 +219,9 @@ export function ChatInterface() {
     return value;
   };
 
-  const replacePlaceholders = (template: string, context: { response?: any, kyc?: Record<string, any> }) => {
+  const replacePlaceholders = (template: string, context: { response?: any, kyc?: Record<string, any>, rootKey?: string }) => {
     if (!template) return '';
+    const rootKey = context.rootKey || 'response';
     
     return template.replace(/{{\s*(.*?)\s*}}/g, (match, p1) => {
       const path = p1.trim();
@@ -221,32 +230,31 @@ export function ChatInterface() {
       if (path === 'user_id') return userData.id;
       if (path === 'user_token') return userData.token;
       
-      // 2. Response Data
-      if (path.startsWith('response.')) {
-        const val = getVal(path, context.response);
-        return val !== undefined ? String(val) : match; // Keep placeholder if path unresolved
+      // 2. Response Data (Checked with Root Key prefix)
+      if (path.startsWith(rootKey + '.') || path.startsWith('response.')) {
+        const val = getVal(path, context.response, rootKey);
+        return val !== undefined ? String(val) : match;
       }
       
-      // 3. KYC Data (Merged flow + global)
+      // 3. KYC Data (Direct name)
       const mergedKyc = { ...userData.kyc, ...(context.kyc || {}) };
       if (mergedKyc[path] !== undefined && mergedKyc[path] !== null) {
         return String(mergedKyc[path]);
       }
       
-      // 4. Try response root fallback
-      if (context.response) {
-        const val = getVal(path, context.response);
-        if (val !== undefined) return String(val);
+      // 4. Fallback root lookup (only if it matches rootKey)
+      if (path === rootKey || path === 'response') {
+         return JSON.stringify(context.response);
       }
       
-      return match; // Default to returning the placeholder itself for visibility
+      return match;
     });
   };
 
-  const findArrayData = (obj: any, explicitPath?: string): { path: string; data: any[] } | null => {
+  const findArrayData = (obj: any, explicitPath?: string, rootKey: string = 'response'): { path: string; data: any[] } | null => {
     if (!obj || typeof obj !== 'object' || obj === null) return null;
     if (explicitPath) {
-      const data = getVal(explicitPath, obj);
+      const data = getVal(explicitPath, obj, rootKey);
       if (Array.isArray(data)) return { path: explicitPath, data };
     }
     if (Array.isArray(obj)) return { path: '', data: obj };
@@ -255,15 +263,13 @@ export function ChatInterface() {
     return null;
   };
 
-  const resolveTableCell = (key: string, row: any, root: any, arrayPath: string) => {
-    if (key.startsWith('response.')) {
-      const val = getVal(key, root);
+  const resolveTableCell = (key: string, row: any, root: any, arrayPath: string, rootKey: string = 'response') => {
+    if (key.startsWith(rootKey + '.') || key.startsWith('response.')) {
+      const val = getVal(key, root, rootKey);
       if (val !== undefined) return val;
     }
-    const rowVal = getVal(key, row);
+    const rowVal = getVal(key, row, rootKey);
     if (rowVal !== undefined) return rowVal;
-    const rootVal = getVal(key, root);
-    if (rootVal !== undefined) return rootVal;
     return undefined;
   };
 
@@ -391,7 +397,8 @@ export function ChatInterface() {
         data: reportPayload,
         priority: menu.apiConfig?.defaultPriority || 'medium'
       });
-      const responseContext = { response: { id: savedReport.id, ...reportPayload }, kyc: kycData };
+      const rootKey = menu.apiConfig?.rootKey || 'response';
+      const responseContext = { response: { id: savedReport.id, ...reportPayload }, kyc: kycData, rootKey };
       const template = getLocalizedTemplate(menu);
       const finalMsg = template ? replacePlaceholders(template, responseContext) : "";
       const defaultSuccess = currentLang?.code === 'am' ? 'ሪፖርትዎ በተሳካ ሁኔታ ቀርቧል። እናመሰግናለን።' : 'Your report has been submitted successfully. Thank you.';
@@ -407,13 +414,14 @@ export function ChatInterface() {
 
   const executeApiCall = async (menu: MenuItem, kycData: Record<string, any>) => {
     if (!menu.apiConfig) return;
+    const rootKey = menu.apiConfig.rootKey || 'response';
     setLoadingText(currentLang?.code === 'am' ? 'ደህንነቱ ከተጠበቀ አገልጋይ ጋር በመገናኘት ላይ...' : 'Connecting to secure server...');
     setIsLoading(true);
     let apiResponse: any;
     let success = false;
     const mapping = menu.apiConfig.responseMapping;
     try {
-      let url = replacePlaceholders(menu.apiConfig.endpoint, { kyc: kycData });
+      let url = replacePlaceholders(menu.apiConfig.endpoint, { kyc: kycData, rootKey });
       const requestPayload: Record<string, any> = {};
       menu.apiConfig.requestParameters?.forEach(param => {
         if (param.sourceValue === 'user.id') requestPayload[param.apiKey] = userData.id;
@@ -425,12 +433,12 @@ export function ChatInterface() {
       const auth = menu.apiConfig.authConfig;
       if (auth && auth.type !== 'none') {
         const headerName = auth.apiKey?.header || auth.basicAuth?.header || auth.bearer?.header || 'Authorization';
-        if (auth.type === 'apiKey' && auth.apiKey) { headers[headerName] = replacePlaceholders(auth.apiKey.value, { kyc: kycData }); }
+        if (auth.type === 'apiKey' && auth.apiKey) { headers[headerName] = replacePlaceholders(auth.apiKey.value, { kyc: kycData, rootKey }); }
         else if (auth.type === 'basic' && auth.basicAuth) {
           const user = auth.basicAuth.user || '';
           const pass = auth.basicAuth.pass || '';
           headers[headerName] = `Basic ${btoa(`${user}:${pass}`)}`;
-        } else if (auth.type === 'bearer' && auth.bearer) { headers[headerName] = replacePlaceholders(auth.bearer.template, { kyc: kycData }); }
+        } else if (auth.type === 'bearer' && auth.bearer) { headers[headerName] = replacePlaceholders(auth.bearer.template, { kyc: kycData, rootKey }); }
       }
       const options: RequestInit = { method: menu.apiConfig.method, headers };
       if (menu.apiConfig.method === 'GET') {
@@ -446,7 +454,7 @@ export function ChatInterface() {
       apiResponse = data;
     } catch (e) { success = false; }
     
-    const context = { response: apiResponse, kyc: kycData };
+    const context = { response: apiResponse, kyc: kycData, rootKey };
     let botMsg: Message = { id: `bot-api-${Date.now()}`, sender: 'bot' };
     
     if (!success) { 
@@ -457,7 +465,7 @@ export function ChatInterface() {
       if (mapping.type === 'message') {
         botMsg.text = template ? replacePlaceholders(template, context) : (currentLang?.code === 'am' ? 'ጥያቄዎ በተሳካ ሁኔታ ተከናውኗል።' : 'Your request was processed successfully.');
       } else if (mapping.type === 'table') {
-        const foundArray = findArrayData(apiResponse, mapping.tableDataKey);
+        const foundArray = findArrayData(apiResponse, mapping.tableDataKey, rootKey);
         if (foundArray) {
           botMsg.tableData = { 
             columns: (mapping.tableColumns || []).map(col => ({ ...col, localizedHeader: getLocalizedTableHeader(menu, col) })), 
@@ -486,6 +494,8 @@ export function ChatInterface() {
     setHistory(prev => [...prev, { id: `user-${Date.now()}`, sender: 'user', text: getLocalizedName(menu) }]);
     const isAction = (menu.responseType === 'api' || menu.responseType === 'report') && menu.apiConfig;
     const hasFields = menu.apiConfig?.kycFields?.length || 0;
+    const rootKey = menu.apiConfig?.rootKey || 'response';
+
     if (isAction && (hasFields > 0 || childMenus.length === 0)) {
       const kycFields = menu.apiConfig?.kycFields || [];
       const missingFields = kycFields
@@ -498,7 +508,7 @@ export function ChatInterface() {
         historyUpdates.push({ 
           id: `bot-intro-${Date.now()}`, 
           sender: 'bot', 
-          content: replacePlaceholders(introContent, {}) 
+          content: replacePlaceholders(introContent, { rootKey }) 
         });
       }
 
@@ -528,7 +538,7 @@ export function ChatInterface() {
     setHistory(prev => [...prev, {
       id: `bot-${Date.now()}`, 
       sender: 'bot', 
-      content: replacePlaceholders(getLocalizedContent(menu), {}) || (childMenus.length > 0 ? (currentLang?.code === 'am' ? 'እባክዎ አማራጭ ይምረጡ፡' : 'Please select an option:') : ''),
+      content: replacePlaceholders(getLocalizedContent(menu), { rootKey }) || (childMenus.length > 0 ? (currentLang?.code === 'am' ? 'እባክዎ አማራጭ ይምረጡ፡' : 'Please select an option:') : ''),
       options: childMenus.length > 0 ? childMenus : undefined,
       relatedOptions: relatedItems.length > 0 ? relatedItems : undefined,
     }]);
@@ -668,7 +678,7 @@ export function ChatInterface() {
                           <TableRow key={i} className="hover:bg-muted/5 transition-colors">
                             {msg.tableData!.columns.map((col, j) => (
                               <TableCell key={j} className="text-xs py-3 font-medium">
-                                {String(resolveTableCell(col.key, row, msg.tableData!.rootData, msg.tableData!.arrayPath) ?? '')}
+                                {String(resolveTableCell(col.key, row, msg.tableData!.rootData, msg.tableData!.arrayPath, 'data') ?? '')}
                               </TableCell>
                             ))}
                           </TableRow>

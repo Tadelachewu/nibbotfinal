@@ -36,6 +36,7 @@ import {
   ClipboardList,
   ShieldAlert,
   Fingerprint,
+  Info,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -69,6 +70,12 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Switch } from '@/components/ui/switch';
+import { 
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export function MenuManagement() {
   const [menus, setMenus] = useState<MenuItem[]>([]);
@@ -203,6 +210,8 @@ export function MenuManagement() {
         phone: '251911223344', 
         category: 'fruit'
       };
+
+      const rootKey = editForm.apiConfig.rootKey || 'data';
 
       const resolve = (str: string) => str.replace(/{{\s*(.*?)\s*}}/g, (match, p1) => {
         const key = p1.trim();
@@ -385,21 +394,25 @@ export function MenuManagement() {
         <ScrollArea className="h-56">
           <div className="space-y-1 pr-2">
             {currentFields.length > 0 ? (
-              currentFields.map(field => (
-                <Button 
-                  key={field} 
-                  variant="ghost" 
-                  className="w-full justify-start h-8 text-[11px] px-2 font-mono truncate"
-                  onClick={() => onSelect(mode === 'placeholder' ? `{{response.${field}}}` : field)}
-                >
-                  {field}
-                </Button>
-              ))
+              currentFields.map(field => {
+                const rootKey = editForm.apiConfig?.rootKey || 'data';
+                const finalField = mode === 'placeholder' ? `{{${rootKey}.${field}}}` : field;
+                return (
+                  <Button 
+                    key={field} 
+                    variant="ghost" 
+                    className="w-full justify-start h-8 text-[11px] px-2 font-mono truncate"
+                    onClick={() => onSelect(finalField)}
+                  >
+                    {field}
+                  </Button>
+                );
+              })
             ) : (
               <div className="py-4 text-center text-[10px] text-muted-foreground italic">
                 {editForm.responseType === 'report' ? (
                    <div className="space-y-1">
-                      {mode === 'placeholder' && <Button variant="ghost" className="w-full justify-start h-8 text-[11px] px-2 font-mono truncate" onClick={() => onSelect('{{response.id}}')}>id (Reference ID)</Button>}
+                      {mode === 'placeholder' && <Button variant="ghost" className="w-full justify-start h-8 text-[11px] px-2 font-mono truncate" onClick={() => onSelect(`{{${editForm.apiConfig?.rootKey || 'data'}.id}}`)}>id (Reference ID)</Button>}
                       {kycFieldsList.map(f => (
                         <Button key={f.id} variant="ghost" className="w-full justify-start h-8 text-[11px] px-2 font-mono truncate" onClick={() => onSelect(mode === 'placeholder' ? `{{${f.name}}}` : f.name)}>{f.name}</Button>
                       ))}
@@ -574,12 +587,34 @@ export function MenuManagement() {
                         </Button>
                       </CardHeader>
                       <CardContent className="p-4 space-y-6">
-                        <div className="flex gap-4">
-                          <Select value={editForm.apiConfig?.method} onValueChange={v => deepUpdate(['apiConfig', 'method'], v)}>
-                            <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-                            <SelectContent><SelectItem value="GET">GET</SelectItem><SelectItem value="POST">POST</SelectItem></SelectContent>
-                          </Select>
-                          <div className="flex-1 space-y-2">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="space-y-2">
+                             <Label className="text-[10px] uppercase font-bold text-muted-foreground">Method</Label>
+                             <Select value={editForm.apiConfig?.method} onValueChange={v => deepUpdate(['apiConfig', 'method'], v)}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent><SelectItem value="GET">GET</SelectItem><SelectItem value="POST">POST</SelectItem></SelectContent>
+                             </Select>
+                          </div>
+                          <div className="space-y-2 md:col-span-1">
+                             <Label className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1">
+                               Root Mapping Key
+                               <TooltipProvider>
+                                 <Tooltip>
+                                   <TooltipTrigger asChild><Info size={10} className="text-muted-foreground cursor-help" /></TooltipTrigger>
+                                   <TooltipContent className="max-w-xs">
+                                     <p className="text-[10px]">Define the root variable for your templates. E.g., if you set this to <b>data</b>, your placeholders should be <b>{`{{data.status}}`}</b>.</p>
+                                   </TooltipContent>
+                                 </Tooltip>
+                               </TooltipProvider>
+                             </Label>
+                             <Input 
+                               value={editForm.apiConfig?.rootKey || 'data'} 
+                               placeholder="e.g. data" 
+                               onChange={e => deepUpdate(['apiConfig', 'rootKey'], e.target.value)} 
+                             />
+                          </div>
+                          <div className="space-y-2 md:col-span-1">
+                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Endpoint URL</Label>
                             <Input value={editForm.apiConfig?.endpoint} onChange={e => deepUpdate(['apiConfig', 'endpoint'], e.target.value)} placeholder="e.g. /api/test/profile/{{account_id}}" />
                           </div>
                         </div>
