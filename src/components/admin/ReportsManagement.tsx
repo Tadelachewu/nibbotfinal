@@ -193,13 +193,20 @@ export function ReportsManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-2">
         <Card className="p-4 bg-primary/5 border-primary/20">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase text-primary">Pending</span>
             <AlertCircle size={16} className="text-primary" />
           </div>
           <p className="text-2xl font-bold mt-1">{reports.filter(r => r.status === 'pending').length}</p>
+        </Card>
+        <Card className="p-4 bg-blue-50 border-blue-200">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase text-blue-700">Reviewed</span>
+            <Clock size={16} className="text-blue-700" />
+          </div>
+          <p className="text-2xl font-bold mt-1">{reports.filter(r => r.status === 'reviewed').length}</p>
         </Card>
         <Card className="p-4 bg-amber-50 border-amber-200">
           <div className="flex items-center justify-between">
