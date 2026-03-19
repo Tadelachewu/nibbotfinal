@@ -30,8 +30,6 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -205,11 +203,19 @@ export function ChatInterface() {
 
   const getVal = (path: string, obj: any) => {
     if (!path || !obj) return obj;
-    return path.split('.').reduce((acc, part) => acc && acc[part], obj);
+    // Strip optional "response." prefix
+    const cleanPath = path.startsWith('response.') ? path.substring(9) : path;
+    return cleanPath.split('.').reduce((acc, part) => acc && acc[part], obj);
   };
 
-  const findArrayData = (obj: any): { path: string; data: any[] } | null => {
+  const findArrayData = (obj: any, explicitPath?: string): { path: string; data: any[] } | null => {
     if (!obj || typeof obj !== 'object' || obj === null) return null;
+    
+    if (explicitPath) {
+      const data = getVal(explicitPath, obj);
+      if (Array.isArray(data)) return { path: explicitPath, data };
+    }
+
     if (Array.isArray(obj)) return { path: '', data: obj };
     for (const key in obj) { if (Array.isArray(obj[key])) return { path: key, data: obj[key] }; }
     if (obj.status === 'success' || obj.status === 'ok' || !obj.status) return { path: '', data: [obj] };
@@ -217,31 +223,49 @@ export function ChatInterface() {
   };
 
   const resolveTableCell = (key: string, row: any, root: any, arrayPath: string) => {
+    // 1. Try "response." absolute path
+    if (key.startsWith('response.')) {
+      return getVal(key, root);
+    }
+
+    // 2. Try relative to arrayPath (for legacy support)
     if (arrayPath && key.startsWith(arrayPath + '.')) {
       const strippedKey = key.substring(arrayPath.length + 1);
       const val = getVal(strippedKey, row);
       if (val !== undefined) return val;
     }
+
+    // 3. Try relative to row
     const rowVal = getVal(key, row);
     if (rowVal !== undefined) return rowVal;
+
+    // 4. Final fallback to root
     return getVal(key, root);
   };
 
-  const replacePlaceholders = (template: string, dataObj: Record<string, any>) => {
+  const replacePlaceholders = (template: string, context: { response?: any, kyc?: Record<string, any> }) => {
     if (!template) return '';
     let res = template;
-    res = res.replace(/{{\s*user_id\s*}}/g, userData.id);
-    res = res.replace(/{{\s*user_token\s*}}/g, userData.token);
     
-    const responseMatches = res.match(/{{\s*response\.(.*?)\s*}}/g);
-    responseMatches?.forEach(match => {
-      const path = match.replace('{{', '').replace('}}', '').trim();
-      res = res.replace(match, String(getVal(path, dataObj) ?? ''));
-    });
+    // System vars
+    res = res.replaceAll(/{{\s*user_id\s*}}/g, userData.id);
+    res = res.replaceAll(/{{\s*user_token\s*}}/g, userData.token);
+    
+    // Response vars
+    if (context.response) {
+      const responseMatches = res.match(/{{\s*response\.(.*?)\s*}}/g);
+      responseMatches?.forEach(match => {
+        const path = match.replace('{{', '').replace('}}', '').trim();
+        const val = getVal(path, context.response);
+        res = res.replaceAll(match, String(val ?? ''));
+      });
+    }
 
-    Object.entries(userData.kyc).forEach(([k, v]) => {
+    // KYC vars
+    const kycToUse = context.kyc || userData.kyc;
+    Object.entries(kycToUse).forEach(([k, v]) => {
       const regex = new RegExp(`{{\\s*${k}\\s*}}`, 'g');
-      res = res.replace(regex, String(v ?? ''));
+      res = res.replaceAll(regex, String(v ?? ''));
     });
     
     return res;
@@ -387,7 +411,7 @@ export function ChatInterface() {
         priority: menu.apiConfig?.defaultPriority || 'medium'
       });
 
-      const responseContext = { response: { id: savedReport.id, ...reportPayload } };
+      const responseContext = { response: { id: savedReport.id, ...reportPayload }, kyc: kycData };
       const finalMsg = replacePlaceholders(getLocalizedTemplate(menu), responseContext);
 
       const successContent = getLocalizedContent(menu);
@@ -397,7 +421,7 @@ export function ChatInterface() {
         id: `bot-report-${Date.now()}`,
         sender: 'bot',
         text: finalMsg || (successContent ? undefined : defaultSuccess),
-        content: finalMsg ? undefined : successContent,
+        content: finalMsg ? undefined : replacePlaceholders(successContent, responseContext),
         options: menus.filter(m => m.parentId === menu.id)
       }]);
       setIsLoading(false);
@@ -413,7 +437,7 @@ export function ChatInterface() {
     const mapping = menu.apiConfig.responseMapping;
 
     try {
-      let url = replacePlaceholders(menu.apiConfig.endpoint, kycData);
+      let url = replacePlaceholders(menu.apiConfig.endpoint, { kyc: kycData });
       const requestPayload: Record<string, any> = {};
       menu.apiConfig.requestParameters?.forEach(param => {
         if (param.sourceValue === 'user.id') requestPayload[param.apiKey] = userData.id;
@@ -426,12 +450,12 @@ export function ChatInterface() {
       const auth = menu.apiConfig.authConfig;
       if (auth && auth.type !== 'none') {
         const headerName = auth.apiKey?.header || auth.basicAuth?.header || auth.bearer?.header || 'Authorization';
-        if (auth.type === 'apiKey' && auth.apiKey) { headers[headerName] = replacePlaceholders(auth.apiKey.value, kycData); }
+        if (auth.type === 'apiKey' && auth.apiKey) { headers[headerName] = replacePlaceholders(auth.apiKey.value, { kyc: kycData }); }
         else if (auth.type === 'basic' && auth.basicAuth) {
           const user = auth.basicAuth.user || '';
           const pass = auth.basicAuth.pass || '';
           headers[headerName] = `Basic ${btoa(`${user}:${pass}`)}`;
-        } else if (auth.type === 'bearer' && auth.bearer) { headers[headerName] = replacePlaceholders(auth.bearer.template, kycData); }
+        } else if (auth.type === 'bearer' && auth.bearer) { headers[headerName] = replacePlaceholders(auth.bearer.template, { kyc: kycData }); }
       }
 
       const options: RequestInit = { method: menu.apiConfig.method, headers };
@@ -449,22 +473,29 @@ export function ChatInterface() {
       apiResponse = data;
     } catch (e) { success = false; }
 
+    const context = { response: apiResponse, kyc: kycData };
     let botMsg: Message = { id: `bot-api-${Date.now()}`, sender: 'bot' };
-    if (!success) { botMsg.text = apiResponse?.message || getLocalizedErrorFallback(menu); }
+    
+    if (!success) { 
+      const errorMsg = apiResponse?.message || getLocalizedErrorFallback(menu);
+      botMsg.text = replacePlaceholders(errorMsg, context);
+    }
     else {
       if (mapping.type === 'message') {
-        botMsg.text = replacePlaceholders(getLocalizedTemplate(menu), { response: apiResponse });
+        botMsg.text = replacePlaceholders(getLocalizedTemplate(menu), context);
       } else if (mapping.type === 'table') {
-        const foundArray = findArrayData(apiResponse);
+        const foundArray = findArrayData(apiResponse, mapping.tableDataKey);
         if (foundArray) {
           botMsg.tableData = { 
             columns: (mapping.tableColumns || []).map(col => ({ ...col, localizedHeader: getLocalizedTableHeader(menu, col) })), 
-            rows: Array.isArray(foundArray.data) ? foundArray.data : [foundArray.data], 
+            rows: foundArray.data, 
             rootData: apiResponse, 
             arrayPath: foundArray.path 
           };
-          botMsg.text = currentLang?.code === 'am' ? 'የተገኙ ውጤቶች የሚከተሉት ናቸው' : 'Here are the results:';
-        } else { botMsg.text = getLocalizedErrorFallback(menu); }
+          botMsg.text = replacePlaceholders(getLocalizedTemplate(menu) || (currentLang?.code === 'am' ? 'የተገኙ ውጤቶች የሚከተሉት ናቸው' : 'Here are the results:'), context);
+        } else { 
+          botMsg.text = replacePlaceholders(getLocalizedErrorFallback(menu), context); 
+        }
       }
     }
     botMsg.options = menus.filter(m => m.parentId === menu.id);
@@ -508,7 +539,7 @@ export function ChatInterface() {
     setHistory(prev => [...prev, {
       id: `bot-${Date.now()}`, 
       sender: 'bot', 
-      content: getLocalizedContent(menu) || (childMenus.length > 0 ? (currentLang?.code === 'am' ? 'እባክዎ አማራጭ ይምረጡ፡' : 'Please select an option:') : ''),
+      content: replacePlaceholders(getLocalizedContent(menu), {}) || (childMenus.length > 0 ? (currentLang?.code === 'am' ? 'እባክዎ አማራጭ ይምረጡ፡' : 'Please select an option:') : ''),
       options: childMenus.length > 0 ? childMenus : undefined,
       relatedOptions: relatedItems.length > 0 ? relatedItems : undefined,
     }]);
@@ -565,8 +596,6 @@ export function ChatInterface() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-40">
-              <DropdownMenuLabel className="text-[10px] uppercase text-muted-foreground">Select Language</DropdownMenuLabel>
-              <DropdownMenuSeparator />
               {languages.map(lang => (
                 <DropdownMenuItem 
                   key={lang.code} 
@@ -595,8 +624,6 @@ export function ChatInterface() {
                 <span className="text-[10px] text-muted-foreground font-mono">{userData.id}</span>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              
-              <DropdownMenuLabel className="text-[10px] uppercase text-muted-foreground py-2">Account Actions</DropdownMenuLabel>
               <DropdownMenuItem onClick={startStatusFlow} className="flex items-center gap-2 cursor-pointer">
                 <ClipboardCheck size={16} className="text-primary" />
                 {currentLang?.code === 'am' ? 'የሪፖርት ሁኔታ አረጋግጥ' : 'Check Report Status'}
