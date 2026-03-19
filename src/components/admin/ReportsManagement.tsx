@@ -12,7 +12,26 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Search, User, FileText, ChevronRight, ClipboardList, Loader2, Calendar, CheckCircle2, Clock, AlertCircle, Trash2, Database, LayoutPanelLeft, RefreshCw, MessageSquare } from 'lucide-react';
+import { 
+  Search, 
+  User, 
+  FileText, 
+  ChevronRight, 
+  ClipboardList, 
+  Loader2, 
+  Calendar, 
+  CheckCircle2, 
+  Clock, 
+  AlertCircle, 
+  Trash2, 
+  Database, 
+  RefreshCw, 
+  MessageSquare,
+  ShieldAlert,
+  Download,
+  NotebookPen,
+  Filter
+} from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -22,7 +41,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { 
@@ -32,17 +50,30 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getStoredReports, updateReportStatus, updateReportAdminResponse, deleteReport } from '@/lib/store';
-import { UserReport } from '@/lib/types';
+import { 
+  getStoredReports, 
+  updateReportStatus, 
+  updateReportPriority,
+  updateReportAdminResponse, 
+  updateReportInternalNotes,
+  deleteReport 
+} from '@/lib/store';
+import { UserReport, ReportPriority } from '@/lib/types';
 import { format } from 'date-fns';
 import { toast } from '@/hooks/use-toast';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export function ReportsManagement() {
   const [reports, setReports] = useState<UserReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [priorityFilter, setPriorityFilter] = useState<string>('all');
+  
   const [editingResponse, setEditingResponse] = useState<string>('');
+  const [editingNotes, setEditingNotes] = useState<string>('');
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
+  const [isInspectOpen, setIsInspectOpen] = useState(false);
 
   useEffect(() => {
     refreshReports();
@@ -57,13 +88,19 @@ export function ReportsManagement() {
   };
 
   const filteredReports = useMemo(() => {
-    return reports.filter(r => 
-      r.menuName?.toLowerCase().includes(search.toLowerCase()) ||
-      r.userId?.toLowerCase().includes(search.toLowerCase()) ||
-      r.id.toLowerCase().includes(search.toLowerCase()) ||
-      Object.values(r.data || {}).some(val => String(val).toLowerCase().includes(search.toLowerCase()))
-    );
-  }, [reports, search]);
+    return reports.filter(r => {
+      const matchesSearch = 
+        r.menuName?.toLowerCase().includes(search.toLowerCase()) ||
+        r.userId?.toLowerCase().includes(search.toLowerCase()) ||
+        r.id.toLowerCase().includes(search.toLowerCase()) ||
+        Object.values(r.data || {}).some(val => String(val).toLowerCase().includes(search.toLowerCase()));
+      
+      const matchesStatus = statusFilter === 'all' || r.status === statusFilter;
+      const matchesPriority = priorityFilter === 'all' || r.priority === priorityFilter;
+
+      return matchesSearch && matchesStatus && matchesPriority;
+    });
+  }, [reports, search, statusFilter, priorityFilter]);
 
   const handleUpdateStatus = (reportId: string, newStatus: string) => {
     updateReportStatus(reportId, newStatus as UserReport['status']);
@@ -71,11 +108,18 @@ export function ReportsManagement() {
     toast({ title: "Status Updated", description: `Report marked as ${newStatus}.` });
   };
 
-  const handleSaveResponse = () => {
+  const handleUpdatePriority = (reportId: string, newPriority: string) => {
+    updateReportPriority(reportId, newPriority as ReportPriority);
+    setReports(getStoredReports());
+    toast({ title: "Priority Updated", description: `Report set to ${newPriority} priority.` });
+  };
+
+  const handleSaveAdminData = () => {
     if (selectedReportId) {
       updateReportAdminResponse(selectedReportId, editingResponse);
+      updateReportInternalNotes(selectedReportId, editingNotes);
       setReports(getStoredReports());
-      toast({ title: "Response Saved", description: "Admin comment has been updated." });
+      toast({ title: "Updated", description: "Admin feedback and notes saved." });
     }
   };
 
@@ -83,6 +127,16 @@ export function ReportsManagement() {
     deleteReport(reportId);
     setReports(getStoredReports());
     toast({ title: "Report Deleted" });
+  };
+
+  const downloadJson = (report: UserReport) => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(report, null, 2));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href",     dataStr);
+    downloadAnchorNode.setAttribute("download", `report_${report.id}.json`);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
   };
 
   const getStatusIcon = (status: string) => {
@@ -93,6 +147,16 @@ export function ReportsManagement() {
     }
   };
 
+  const getPriorityColor = (priority?: string) => {
+    switch (priority) {
+      case 'urgent': return 'bg-red-100 text-red-700 border-red-200';
+      case 'high': return 'bg-orange-100 text-orange-700 border-orange-200';
+      case 'medium': return 'bg-blue-100 text-blue-700 border-blue-200';
+      case 'low': return 'bg-slate-100 text-slate-700 border-slate-200';
+      default: return 'bg-slate-100 text-slate-700 border-slate-200';
+    }
+  };
+
   const prettifyKey = (key: string) => {
     return key
       .replace(/_/g, ' ')
@@ -100,6 +164,10 @@ export function ReportsManagement() {
       .replace(/^./, str => str.toUpperCase())
       .trim();
   };
+
+  const selectedReport = useMemo(() => 
+    reports.find(r => r.id === selectedReportId), 
+  [reports, selectedReportId]);
 
   if (loading) {
     return (
@@ -112,191 +180,150 @@ export function ReportsManagement() {
 
   return (
     <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
+        <Card className="p-4 bg-primary/5 border-primary/20">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase text-primary">Pending</span>
+            <AlertCircle size={16} className="text-primary" />
+          </div>
+          <p className="text-2xl font-bold mt-1">{reports.filter(r => r.status === 'pending').length}</p>
+        </Card>
+        <Card className="p-4 bg-amber-50 border-amber-200">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase text-amber-700">High/Urgent</span>
+            <ShieldAlert size={16} className="text-amber-700" />
+          </div>
+          <p className="text-2xl font-bold mt-1">{reports.filter(r => r.priority === 'high' || r.priority === 'urgent').length}</p>
+        </Card>
+        <Card className="p-4 bg-emerald-50 border-emerald-200">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase text-emerald-700">Resolved Today</span>
+            <CheckCircle2 size={16} className="text-emerald-700" />
+          </div>
+          <p className="text-2xl font-bold mt-1">{reports.filter(r => r.status === 'resolved').length}</p>
+        </Card>
+      </div>
+
       <Card className="border-none shadow-md overflow-hidden">
         <CardHeader className="border-b bg-muted/5 p-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <CardTitle className="text-xl font-bold flex items-center gap-2">
-                <ClipboardList className="text-primary" size={20} />
-                User Submissions (Local)
-              </CardTitle>
-              <p className="text-xs text-muted-foreground mt-1">Dynamically managed reports stored in your browser.</p>
+          <div className="flex flex-col space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <CardTitle className="text-xl font-bold flex items-center gap-2">
+                  <ClipboardList className="text-primary" size={20} />
+                  Operational Console
+                </CardTitle>
+                <p className="text-xs text-muted-foreground mt-1">Manage, triage, and respond to user-submitted reports.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={refreshReports}>
+                  <RefreshCw size={14} className="mr-2" /> Refresh
+                </Button>
+              </div>
             </div>
-            <div className="flex items-center gap-3 w-full md:w-auto">
-              <div className="relative flex-1 md:w-64">
+
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative flex-1 min-w-[200px]">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input 
-                  placeholder="Search user, ref ID, or data..." 
+                  placeholder="Search submissions..." 
                   className="pl-10 bg-white" 
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
-              <Button variant="outline" size="icon" onClick={refreshReports} title="Refresh List">
-                <RefreshCw size={16} />
-              </Button>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[140px] h-10 bg-white">
+                  <Filter size={14} className="mr-2" />
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="reviewed">Reviewed</SelectItem>
+                  <SelectItem value="resolved">Resolved</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                <SelectTrigger className="w-[140px] h-10 bg-white">
+                  <ShieldAlert size={14} className="mr-2" />
+                  <SelectValue placeholder="Priority" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Priority</SelectItem>
+                  <SelectItem value="urgent">Urgent</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="low">Low</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <ScrollArea className="h-[650px]">
+          <ScrollArea className="h-[550px]">
             <Table>
               <TableHeader className="bg-muted/30 sticky top-0 z-10">
                 <TableRow>
-                  <TableHead className="w-[120px] font-bold uppercase text-[10px] tracking-wider">Status</TableHead>
-                  <TableHead className="font-bold uppercase text-[10px] tracking-wider">Report Type</TableHead>
-                  <TableHead className="font-bold uppercase text-[10px] tracking-wider">JSON Data Preview</TableHead>
-                  <TableHead className="font-bold uppercase text-[10px] tracking-wider">Submitted By</TableHead>
-                  <TableHead className="font-bold uppercase text-[10px] tracking-wider">Date</TableHead>
-                  <TableHead className="text-right font-bold uppercase text-[10px] tracking-wider">Action</TableHead>
+                  <TableHead className="w-[100px] font-bold uppercase text-[10px]">Priority</TableHead>
+                  <TableHead className="w-[100px] font-bold uppercase text-[10px]">Status</TableHead>
+                  <TableHead className="font-bold uppercase text-[10px]">Type</TableHead>
+                  <TableHead className="font-bold uppercase text-[10px]">Submitter</TableHead>
+                  <TableHead className="font-bold uppercase text-[10px]">Data Preview</TableHead>
+                  <TableHead className="font-bold uppercase text-[10px]">Timestamp</TableHead>
+                  <TableHead className="text-right font-bold uppercase text-[10px]">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredReports.map((report) => (
                   <TableRow key={report.id} className="group hover:bg-muted/20 transition-colors">
                     <TableCell>
+                      <Badge variant="outline" className={cn("capitalize text-[9px] px-2", getPriorityColor(report.priority))}>
+                        {report.priority || 'medium'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
                       <div className="flex items-center gap-2">
                         {getStatusIcon(report.status)}
-                        <Badge 
-                          variant={report.status === 'pending' ? 'destructive' : report.status === 'resolved' ? 'default' : 'secondary'} 
-                          className="capitalize text-[10px] px-2 py-0.5"
-                        >
-                          {report.status}
-                        </Badge>
+                        <span className="capitalize text-[10px] font-medium text-muted-foreground">{report.status}</span>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="font-semibold text-sm">{report.menuName}</div>
-                      <div className="text-[9px] text-muted-foreground font-mono truncate max-w-[120px]">REF: {report.id}</div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2 bg-slate-50 border rounded p-1.5 max-w-[250px] overflow-hidden">
-                        <Database size={10} className="text-primary shrink-0" />
-                        <div className="text-[10px] text-muted-foreground truncate italic font-mono">
-                          {Object.entries(report.data || {}).map(([k, v]) => `${k}:${v}`).join(', ') || 'Empty Payload'}
-                        </div>
-                      </div>
+                      <div className="font-semibold text-xs">{report.menuName}</div>
+                      <div className="text-[9px] text-muted-foreground font-mono">#{report.id.split('_')[1]}</div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                          <User size={14} />
-                        </div>
-                        <span className="text-xs font-mono font-medium">{report.userId}</span>
+                        <User size={12} className="text-muted-foreground" />
+                        <span className="text-[11px] font-mono">{report.userId}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-muted-foreground text-xs">
-                      <div className="flex items-center gap-1.5">
-                        <Calendar size={12} />
-                        {format(new Date(report.timestamp), 'MMM dd, HH:mm')}
+                    <TableCell>
+                      <div className="text-[10px] text-muted-foreground truncate max-w-[200px] italic">
+                        {Object.entries(report.data || {}).map(([k, v]) => `${k}:${v}`).join(', ')}
                       </div>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-[10px]">
+                      {format(new Date(report.timestamp), 'MMM dd, HH:mm')}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Dialog onOpenChange={(open) => {
-                          if (open) {
-                            setSelectedReportId(report.id);
-                            setEditingResponse(report.adminResponse || '');
-                          } else {
-                            setSelectedReportId(null);
-                          }
-                        }}>
-                          <DialogTrigger asChild>
-                            <Button variant="outline" size="sm" className="h-8 text-xs hover:bg-primary hover:text-white transition-all">
-                              Inspect <ChevronRight size={14} className="ml-1" />
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="sm:max-w-xl flex flex-col max-h-[90vh]">
-                            <DialogHeader className="border-b pb-4">
-                              <DialogTitle className="flex items-center gap-2 text-xl">
-                                <FileText size={22} className="text-primary" />
-                                {report.menuName}
-                              </DialogTitle>
-                              <p className="text-xs text-muted-foreground font-mono">Submission Reference: {report.id}</p>
-                            </DialogHeader>
-                            
-                            <ScrollArea className="flex-1 py-6 pr-4">
-                              <div className="space-y-6">
-                                <div className="grid grid-cols-2 gap-6 bg-muted/20 p-4 rounded-xl border border-dashed">
-                                  <div className="space-y-2">
-                                    <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Submitter Details</span>
-                                    <div className="flex items-center gap-2 text-sm font-medium"><User size={14} className="text-primary" /> {report.userId}</div>
-                                    <div className="text-[10px] text-muted-foreground flex items-center gap-1"><Clock size={10} /> {format(new Date(report.timestamp), 'MMMM dd, yyyy HH:mm:ss')}</div>
-                                  </div>
-                                  <div className="space-y-2">
-                                    <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Management Status</span>
-                                    <Select 
-                                      defaultValue={report.status} 
-                                      onValueChange={(val) => handleUpdateStatus(report.id, val)}
-                                    >
-                                      <SelectTrigger className="h-9 text-xs">
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="pending">Pending Review</SelectItem>
-                                        <SelectItem value="reviewed">Under Investigation</SelectItem>
-                                        <SelectItem value="resolved">Action Completed</SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                </div>
-
-                                <div className="space-y-4">
-                                  <div className="flex items-center gap-2">
-                                    <MessageSquare size={16} className="text-primary" />
-                                    <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Admin Written Response</span>
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label className="text-[11px] text-muted-foreground">The user will see this message when they check their report status.</Label>
-                                    <Textarea 
-                                      value={editingResponse} 
-                                      onChange={(e) => setEditingResponse(e.target.value)} 
-                                      placeholder="Write a message to the user regarding their submission..."
-                                      className="min-h-[100px] text-sm"
-                                    />
-                                    <Button onClick={handleSaveResponse} size="sm" className="w-full">Save Admin Response</Button>
-                                  </div>
-                                </div>
-
-                                <div className="space-y-4">
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                      <LayoutPanelLeft size={16} className="text-primary" />
-                                      <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Collected JSON Payload</span>
-                                    </div>
-                                    <Badge variant="outline" className="text-[9px]">{Object.keys(report.data || {}).length} Active Fields</Badge>
-                                  </div>
-                                  <div className="grid grid-cols-1 gap-3">
-                                    {Object.entries(report.data || {}).map(([key, value]) => (
-                                      <div key={key} className="flex items-center justify-between p-4 rounded-lg border bg-slate-50/50 shadow-sm group hover:border-primary/30 hover:bg-white transition-all">
-                                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">{prettifyKey(key)}</span>
-                                        <span className="text-sm font-semibold text-slate-900 font-mono">{String(value || 'N/A')}</span>
-                                      </div>
-                                    ))}
-                                    {(!report.data || Object.keys(report.data).length === 0) && (
-                                      <div className="py-12 text-center text-muted-foreground italic text-xs bg-muted/10 rounded-lg border border-dashed">
-                                        No data fields were captured for this specific report configuration.
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            </ScrollArea>
-                          </DialogContent>
-                        </Dialog>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteReport(report.id)}>
-                          <Trash2 size={14} />
-                        </Button>
-                      </div>
+                      <Button variant="ghost" size="sm" className="h-8 text-xs hover:text-primary" onClick={() => {
+                        setSelectedReportId(report.id);
+                        setEditingResponse(report.adminResponse || '');
+                        setEditingNotes(report.internalNotes || '');
+                        setIsInspectOpen(true);
+                      }}>
+                        Inspect <ChevronRight size={14} className="ml-1" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
-                {filteredReports.length === 0 && !loading && (
+                {filteredReports.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-64 text-center">
+                    <TableCell colSpan={7} className="h-64 text-center">
                       <div className="flex flex-col items-center justify-center space-y-2 opacity-40">
                         <ClipboardList size={48} />
-                        <p className="italic text-sm">No submissions matching "{search}"</p>
+                        <p className="italic text-sm">No submissions matching current filters.</p>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -306,6 +333,130 @@ export function ReportsManagement() {
           </ScrollArea>
         </CardContent>
       </Card>
+
+      <Dialog open={isInspectOpen} onOpenChange={setIsInspectOpen}>
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+          {selectedReport && (
+            <>
+              <DialogHeader className="p-6 border-b bg-muted/5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-primary/10 rounded-lg">
+                      <FileText className="text-primary" size={24} />
+                    </div>
+                    <div>
+                      <DialogTitle className="text-xl">{selectedReport.menuName}</DialogTitle>
+                      <p className="text-xs text-muted-foreground font-mono">Reference: {selectedReport.id}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => downloadJson(selectedReport)}>
+                      <Download size={14} className="mr-2" /> Export JSON
+                    </Button>
+                    <Button variant="ghost" size="icon" className="text-destructive" onClick={() => { handleDeleteReport(selectedReport.id); setIsInspectOpen(false); }}>
+                      <Trash2 size={18} />
+                    </Button>
+                  </div>
+                </div>
+              </DialogHeader>
+              
+              <ScrollArea className="flex-1">
+                <div className="p-6 space-y-8">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="space-y-2">
+                      <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Status</Label>
+                      <Select defaultValue={selectedReport.status} onValueChange={(val) => handleUpdateStatus(selectedReport.id, val)}>
+                        <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="reviewed">Reviewed</SelectItem>
+                          <SelectItem value="resolved">Resolved</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Priority</Label>
+                      <Select defaultValue={selectedReport.priority || 'medium'} onValueChange={(val) => handleUpdatePriority(selectedReport.id, val)}>
+                        <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="urgent">Urgent</SelectItem>
+                          <SelectItem value="high">High</SelectItem>
+                          <SelectItem value="medium">Medium</SelectItem>
+                          <SelectItem value="low">Low</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Submitted By</Label>
+                      <div className="flex items-center gap-2 h-9 border rounded-md px-3 bg-muted/20 text-xs font-mono">
+                        <User size={14} className="text-muted-foreground" /> {selectedReport.userId}
+                      </div>
+                    </div>
+                  </div>
+
+                  <Tabs defaultValue="data" className="w-full">
+                    <TabsList className="grid w-full grid-cols-3">
+                      <TabsTrigger value="data" className="text-xs">Collected Data</TabsTrigger>
+                      <TabsTrigger value="response" className="text-xs">User Response</TabsTrigger>
+                      <TabsTrigger value="notes" className="text-xs">Internal Notes</TabsTrigger>
+                    </TabsList>
+                    
+                    <TabsContent value="data" className="pt-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {Object.entries(selectedReport.data || {}).map(([key, value]) => (
+                          <div key={key} className="p-3 border rounded-lg bg-slate-50/50 hover:bg-white transition-all shadow-sm">
+                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-tight block mb-1">{prettifyKey(key)}</span>
+                            <span className="text-sm font-semibold text-slate-900 font-mono break-all">{String(value || 'N/A')}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="response" className="pt-4 space-y-4">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <MessageSquare size={16} className="text-primary" />
+                          <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Response to User</Label>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground italic">This message is visible to the user when they check their report status in the chat bot.</p>
+                        <Textarea 
+                          value={editingResponse} 
+                          onChange={(e) => setEditingResponse(e.target.value)} 
+                          placeholder="Write a message to the user..."
+                          className="min-h-[120px] text-sm"
+                        />
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="notes" className="pt-4 space-y-4">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <NotebookPen size={16} className="text-amber-600" />
+                          <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Private Admin Notes</Label>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground italic">These notes are for internal use only and are NEVER visible to the user.</p>
+                        <Textarea 
+                          value={editingNotes} 
+                          onChange={(e) => setEditingNotes(e.target.value)} 
+                          placeholder="Add internal observations, next steps, or agent notes..."
+                          className="min-h-[120px] text-sm border-amber-200 focus-visible:ring-amber-500"
+                        />
+                      </div>
+                    </TabsContent>
+                  </Tabs>
+                </div>
+              </ScrollArea>
+              
+              <DialogFooter className="p-6 border-t bg-muted/5 sticky bottom-0 z-50">
+                <Button variant="ghost" onClick={() => setIsInspectOpen(false)}>Close</Button>
+                <Button onClick={() => { handleSaveAdminData(); setIsInspectOpen(false); }}>
+                  Save All Changes
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

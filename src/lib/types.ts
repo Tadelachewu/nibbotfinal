@@ -94,13 +94,17 @@ export interface MenuItem {
   }>;
 }
 
+export type ReportPriority = 'low' | 'medium' | 'high' | 'urgent';
+
 export interface UserReport {
   id: string;
   userId: string;
   menuName: string;
   data: Record<string, any>;
   status: 'pending' | 'reviewed' | 'resolved';
+  priority?: ReportPriority;
   adminResponse?: string;
+  internalNotes?: string;
   timestamp: string;
 }
 

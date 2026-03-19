@@ -1,6 +1,6 @@
 'use client';
 
-import { MenuItem, AppSettings, Language, UserReport } from './types';
+import { MenuItem, AppSettings, Language, UserReport, ReportPriority } from './types';
 
 const MENUS_KEY = 'talktree_menus';
 const SETTINGS_KEY = 'talktree_settings';
@@ -190,6 +190,7 @@ export function addReport(reportData: Omit<UserReport, 'id' | 'status' | 'timest
     ...reportData,
     id: 'rep_' + Math.random().toString(36).substr(2, 9),
     status: 'pending',
+    priority: 'medium',
     timestamp: new Date().toISOString()
   };
   saveReports([newReport, ...reports]);
@@ -202,9 +203,21 @@ export function updateReportStatus(id: string, status: UserReport['status']) {
   saveReports(updated);
 }
 
+export function updateReportPriority(id: string, priority: ReportPriority) {
+  const reports = getStoredReports();
+  const updated = reports.map(r => r.id === id ? { ...r, priority } : r);
+  saveReports(updated);
+}
+
 export function updateReportAdminResponse(id: string, adminResponse: string) {
   const reports = getStoredReports();
   const updated = reports.map(r => r.id === id ? { ...r, adminResponse } : r);
+  saveReports(updated);
+}
+
+export function updateReportInternalNotes(id: string, internalNotes: string) {
+  const reports = getStoredReports();
+  const updated = reports.map(r => r.id === id ? { ...r, internalNotes } : r);
   saveReports(updated);
 }
 
