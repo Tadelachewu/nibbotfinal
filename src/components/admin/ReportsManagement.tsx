@@ -31,7 +31,9 @@ import {
   Download,
   NotebookPen,
   Filter,
-  CheckCircle
+  CheckCircle,
+  Eye,
+  Send
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -64,6 +66,7 @@ import { format } from 'date-fns';
 import { toast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from '@/lib/utils';
+import { Separator } from '@/components/ui/separator';
 
 export function ReportsManagement() {
   const [reports, setReports] = useState<UserReport[]>([]);
@@ -106,18 +109,25 @@ export function ReportsManagement() {
     });
   }, [reports, search, statusFilter, priorityFilter]);
 
-  const handleSaveAdminData = () => {
+  const handleSaveAdminData = (overrideStatus?: UserReport['status']) => {
     if (selectedReportId) {
-      updateReportStatus(selectedReportId, editingStatus);
+      const finalStatus = overrideStatus || editingStatus;
+      updateReportStatus(selectedReportId, finalStatus);
       updateReportPriority(selectedReportId, editingPriority);
       updateReportAdminResponse(selectedReportId, editingResponse);
       updateReportInternalNotes(selectedReportId, editingNotes);
+      
       setReports(getStoredReports());
+      setEditingStatus(finalStatus);
+      
       toast({ 
-        title: "Submission Updated", 
-        description: "Status, priority, and feedback have been persisted." 
+        title: overrideStatus ? `Marked as ${overrideStatus}` : "Changes Saved", 
+        description: "Submission has been updated successfully." 
       });
-      setIsInspectOpen(false);
+      
+      if (overrideStatus === 'resolved') {
+        setIsInspectOpen(false);
+      }
     }
   };
 
@@ -335,7 +345,7 @@ export function ReportsManagement() {
       </Card>
 
       <Dialog open={isInspectOpen} onOpenChange={setIsInspectOpen}>
-        <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
           {selectedReport && (
             <>
               <DialogHeader className="p-6 border-b bg-muted/5">
@@ -360,86 +370,116 @@ export function ReportsManagement() {
                 </div>
               </DialogHeader>
               
-              <ScrollArea className="flex-1">
-                <div className="p-6 space-y-8">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="space-y-2">
-                      <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Mark Status</Label>
-                      <Select value={editingStatus} onValueChange={(val: any) => setEditingStatus(val)}>
-                        <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="pending">Pending</SelectItem>
-                          <SelectItem value="reviewed">Reviewed</SelectItem>
-                          <SelectItem value="resolved">Resolved</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Change Priority</Label>
-                      <Select value={editingPriority} onValueChange={(val: any) => setEditingPriority(val)}>
-                        <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="urgent">Urgent</SelectItem>
-                          <SelectItem value="high">High</SelectItem>
-                          <SelectItem value="medium">Medium</SelectItem>
-                          <SelectItem value="low">Low</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Submitted By</Label>
-                      <div className="flex items-center gap-2 h-9 border rounded-md px-3 bg-muted/20 text-xs font-mono">
-                        <User size={14} className="text-muted-foreground" /> {selectedReport.userId}
-                      </div>
-                    </div>
+              <div className="bg-amber-50/50 border-b p-4 flex flex-wrap items-center gap-4 justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase text-muted-foreground">Current Status</span>
+                    <Badge className={cn("text-[10px] capitalize", 
+                      editingStatus === 'resolved' ? 'bg-emerald-100 text-emerald-800' : 
+                      editingStatus === 'reviewed' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
+                    )}>
+                      {editingStatus}
+                    </Badge>
                   </div>
+                  <Separator orientation="vertical" className="h-4" />
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase text-muted-foreground">Priority</span>
+                    <Select value={editingPriority} onValueChange={(val: any) => setEditingPriority(val)}>
+                      <SelectTrigger className="h-7 w-28 text-[10px]"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="urgent">Urgent</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="low">Low</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
 
-                  <Tabs defaultValue="data" className="w-full">
-                    <TabsList className="grid w-full grid-cols-3">
-                      <TabsTrigger value="data" className="text-xs">Collected Data</TabsTrigger>
-                      <TabsTrigger value="response" className="text-xs">User Response</TabsTrigger>
-                      <TabsTrigger value="notes" className="text-xs">Internal Notes</TabsTrigger>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className={cn("h-8 text-[11px] font-bold", editingStatus === 'reviewed' && "bg-blue-50 border-blue-200")}
+                    onClick={() => handleSaveAdminData('reviewed')}
+                  >
+                    <Clock size={14} className="mr-2 text-blue-500" /> Mark Reviewed
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    className="h-8 text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
+                    onClick={() => handleSaveAdminData('resolved')}
+                  >
+                    <CheckCircle size={14} className="mr-2" /> Mark Resolved
+                  </Button>
+                </div>
+              </div>
+
+              <ScrollArea className="flex-1">
+                <div className="p-6 space-y-6">
+                  <Tabs defaultValue="response" className="w-full">
+                    <TabsList className="grid w-full grid-cols-3 h-11">
+                      <TabsTrigger value="response" className="text-xs gap-2">
+                        <MessageSquare size={14} /> User Response
+                      </TabsTrigger>
+                      <TabsTrigger value="data" className="text-xs gap-2">
+                        <Database size={14} /> Collected Data
+                      </TabsTrigger>
+                      <TabsTrigger value="notes" className="text-xs gap-2">
+                        <NotebookPen size={14} /> Internal Notes
+                      </TabsTrigger>
                     </TabsList>
                     
-                    <TabsContent value="data" className="pt-4">
+                    <TabsContent value="response" className="pt-6 space-y-4">
+                      <div className="space-y-4 bg-muted/20 p-6 rounded-xl border border-dashed border-primary/20">
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-1">
+                            <Label className="text-sm font-bold flex items-center gap-2">
+                              <Send size={16} className="text-primary" />
+                              Official Response to User
+                            </Label>
+                            <p className="text-[11px] text-muted-foreground">This message will be visible to the user in their chatbot status dashboard.</p>
+                          </div>
+                          {selectedReport.adminResponse && (
+                            <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700">Response Provided</Badge>
+                          )}
+                        </div>
+                        <Textarea 
+                          value={editingResponse} 
+                          onChange={(e) => setEditingResponse(e.target.value)} 
+                          placeholder="Type your official message to the user here... (e.g., 'We have received your report and blocked your card.')"
+                          className="min-h-[150px] text-sm bg-white shadow-inner"
+                        />
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="data" className="pt-6">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {Object.entries(selectedReport.data || {}).map(([key, value]) => (
-                          <div key={key} className="p-3 border rounded-lg bg-slate-50/50 hover:bg-white transition-all shadow-sm">
-                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-tight block mb-1">{prettifyKey(key)}</span>
+                          <div key={key} className="p-4 border rounded-xl bg-slate-50/50 hover:bg-white transition-all shadow-sm group">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-tight">{prettifyKey(key)}</span>
+                            </div>
                             <span className="text-sm font-semibold text-slate-900 font-mono break-all">{String(value || 'N/A')}</span>
                           </div>
                         ))}
                       </div>
                     </TabsContent>
 
-                    <TabsContent value="response" className="pt-4 space-y-4">
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <MessageSquare size={16} className="text-primary" />
-                          <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Response to User</Label>
+                    <TabsContent value="notes" className="pt-6 space-y-4">
+                      <div className="space-y-3 p-6 border rounded-xl bg-amber-50/30 border-amber-200">
+                        <div className="space-y-1">
+                          <Label className="text-sm font-bold flex items-center gap-2 text-amber-900">
+                            <NotebookPen size={16} />
+                            Private Internal Observations
+                          </Label>
+                          <p className="text-[11px] text-amber-700 italic">Strictly internal. Never shared with the end-user.</p>
                         </div>
-                        <p className="text-[11px] text-muted-foreground italic">This message is visible to the user when they check their report status in the chat bot.</p>
-                        <Textarea 
-                          value={editingResponse} 
-                          onChange={(e) => setEditingResponse(e.target.value)} 
-                          placeholder="Write a message to the user..."
-                          className="min-h-[120px] text-sm"
-                        />
-                      </div>
-                    </TabsContent>
-
-                    <TabsContent value="notes" className="pt-4 space-y-4">
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <NotebookPen size={16} className="text-amber-600" />
-                          <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Private Admin Notes</Label>
-                        </div>
-                        <p className="text-[11px] text-muted-foreground italic">These notes are for internal use only and are NEVER visible to the user.</p>
                         <Textarea 
                           value={editingNotes} 
                           onChange={(e) => setEditingNotes(e.target.value)} 
-                          placeholder="Add internal observations, next steps, or agent notes..."
-                          className="min-h-[120px] text-sm border-amber-200 focus-visible:ring-amber-500"
+                          placeholder="Add internal investigation notes, next steps, or agent observations..."
+                          className="min-h-[150px] text-sm border-amber-200 focus-visible:ring-amber-500 bg-white"
                         />
                       </div>
                     </TabsContent>
@@ -447,11 +487,17 @@ export function ReportsManagement() {
                 </div>
               </ScrollArea>
               
-              <DialogFooter className="p-6 border-t bg-muted/5 sticky bottom-0 z-50">
-                <Button variant="ghost" onClick={() => setIsInspectOpen(false)}>Close</Button>
-                <Button onClick={handleSaveAdminData}>
-                  Save All Changes
-                </Button>
+              <DialogFooter className="p-6 border-t bg-muted/5 sticky bottom-0 z-50 flex items-center justify-between sm:justify-between w-full">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <User size={14} />
+                  <span className="text-[11px] font-mono">Submitter: {selectedReport.userId}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Button variant="ghost" className="h-10 px-6" onClick={() => setIsInspectOpen(false)}>Close</Button>
+                  <Button className="h-10 px-8" onClick={() => handleSaveAdminData()}>
+                    Save All Changes
+                  </Button>
+                </div>
               </DialogFooter>
             </>
           )}
