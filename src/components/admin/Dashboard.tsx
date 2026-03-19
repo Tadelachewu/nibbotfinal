@@ -35,7 +35,7 @@ export function Dashboard() {
   });
 
   useEffect(() => {
-    // Refresh interval for dashboard data
+    // Refresh interval for dashboard data to simulate real-time updates
     const interval = setInterval(() => {
       setData({
         menus: getStoredMenus(),
@@ -55,23 +55,24 @@ export function Dashboard() {
     const urgentReports = data.reports.filter(r => r.priority === 'urgent' || r.priority === 'high').length;
     
     // Calculate unique users from report submissions
+    // This identifies unique individuals rather than just total message volume
     const uniqueUsers = new Set(data.reports.map(r => r.userId)).size;
 
-    // Chart: Reports by Status
+    // Chart: Reports by Status (Workflow visualization)
     const statusData = [
       { name: 'Pending', value: pendingReports, color: '#f59e0b' },
       { name: 'Reviewed', value: data.reports.filter(r => r.status === 'reviewed').length, color: '#3b82f6' },
       { name: 'Resolved', value: resolvedReports, color: '#10b981' }
     ];
 
-    // Chart: Menu Distribution
+    // Chart: Menu Distribution (System complexity)
     const menuTypeData = [
       { name: 'Static', value: data.menus.filter(m => m.responseType === 'static').length },
       { name: 'API', value: apiMenus },
       { name: 'Report', value: reportMenus }
     ];
 
-    // Chart: Reports by Priority
+    // Chart: Reports by Priority (Triage visualization)
     const priorityData = [
       { name: 'Urgent', count: data.reports.filter(r => r.priority === 'urgent').length },
       { name: 'High', count: data.reports.filter(r => r.priority === 'high').length },
@@ -98,55 +99,55 @@ export function Dashboard() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      {/* Top Level Summary */}
+      {/* Top Level Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-l-4 border-l-primary">
+        <Card className="border-l-4 border-l-primary shadow-sm hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Active Users</CardTitle>
+            <CardTitle className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Active Users</CardTitle>
             <Users className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.uniqueUsers}</div>
-            <p className="text-[10px] text-muted-foreground mt-1">Unique bot participants</p>
+            <div className="text-3xl font-bold">{stats.uniqueUsers}</div>
+            <p className="text-[10px] text-muted-foreground mt-1">Unique session participants</p>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-amber-500">
+        <Card className="border-l-4 border-l-amber-500 shadow-sm hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Pending Requests</CardTitle>
+            <CardTitle className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Pending Requests</CardTitle>
             <Clock className="h-4 w-4 text-amber-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.pendingReports}</div>
+            <div className="text-3xl font-bold">{stats.pendingReports}</div>
             <p className="text-[10px] text-muted-foreground mt-1">Awaiting administrative action</p>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-red-600">
+        <Card className="border-l-4 border-l-red-600 shadow-sm hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Urgent Triage</CardTitle>
+            <CardTitle className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Urgent Triage</CardTitle>
             <ShieldAlert className="h-4 w-4 text-red-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.urgentReports}</div>
+            <div className="text-3xl font-bold">{stats.urgentReports}</div>
             <p className="text-[10px] text-muted-foreground mt-1">High-priority security events</p>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-emerald-500">
+        <Card className="border-l-4 border-l-emerald-500 shadow-sm hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Resolved Total</CardTitle>
+            <CardTitle className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Resolved Total</CardTitle>
             <CheckCircle2 className="h-4 w-4 text-emerald-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.resolvedReports}</div>
+            <div className="text-3xl font-bold">{stats.resolvedReports}</div>
             <p className="text-[10px] text-muted-foreground mt-1">Successfully handled issues</p>
           </CardContent>
         </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Status Distribution */}
+        {/* Status Distribution (Pie Chart) */}
         <Card className="lg:col-span-1 shadow-sm">
           <CardHeader>
             <CardTitle className="text-sm font-bold flex items-center gap-2">
@@ -188,7 +189,7 @@ export function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Priority Triage */}
+        {/* Priority Triage (Bar Chart) */}
         <Card className="lg:col-span-2 shadow-sm">
           <CardHeader>
             <CardTitle className="text-sm font-bold flex items-center gap-2">
@@ -224,27 +225,32 @@ export function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* System Complexity Indicator */}
+        {/* System Complexity Indicator (Progress Bars) */}
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="text-sm font-bold flex items-center gap-2">
               <Zap size={16} className="text-primary" />
               Menu Complexity
             </CardTitle>
-            <CardDescription className="text-[10px]">Analysis of interaction types across the tree.</CardDescription>
+            <CardDescription className="text-[10px]">Analysis of interaction types across the system tree.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               {stats.menuTypeData.map((item, idx) => (
                 <div key={item.name} className="space-y-1.5">
                   <div className="flex justify-between text-[11px] font-medium">
-                    <span>{item.name} Nodes</span>
-                    <span className="text-muted-foreground">{stats.totalMenus > 0 ? Math.round((item.value / stats.totalMenus) * 100) : 0}%</span>
+                    <span className="text-muted-foreground">{item.name} Nodes</span>
+                    <span className="font-bold text-foreground">
+                      {stats.totalMenus > 0 ? Math.round((item.value / stats.totalMenus) * 100) : 0}%
+                    </span>
                   </div>
                   <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
                     <div 
                       className="h-full bg-primary transition-all duration-1000" 
-                      style={{ width: `${stats.totalMenus > 0 ? (item.value / stats.totalMenus) * 100 : 0}%`, backgroundColor: COLORS[idx] }} 
+                      style={{ 
+                        width: `${stats.totalMenus > 0 ? (item.value / stats.totalMenus) * 100 : 0}%`, 
+                        backgroundColor: COLORS[idx] 
+                      }} 
                     />
                   </div>
                 </div>
