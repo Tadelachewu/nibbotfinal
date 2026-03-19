@@ -1,4 +1,4 @@
-export type KYCFieldType = 'text' | 'number' | 'tel' | 'select' | 'password';
+export type KYCFieldType = 'text' | 'number' | 'tel' | 'email' | 'password';
 
 export interface KYCField {
   id: string;

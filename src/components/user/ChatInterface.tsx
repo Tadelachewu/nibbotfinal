@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
-import { MenuItem, KYCField, TableColumn, Language, UserReport } from '@/lib/types';
+import { MenuItem, KYCField, TableColumn, Language, UserReport, KYCFieldType } from '@/lib/types';
 import { getStoredMenus, getAppSettings, addReport, getStoredReports } from '@/lib/store';
 import { ChatBubble } from './ChatBubble';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ChevronRight, Home, ArrowLeft, Languages, Send, Loader2, ClipboardCheck, CornerDownRight, Search, FileSearch, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
+import { ChevronRight, Home, ArrowLeft, Languages, Send, Loader2, ClipboardCheck, CornerDownRight, Search, FileSearch, CheckCircle2, Clock, AlertCircle, MessageSquare } from 'lucide-react';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import {
   Table,
@@ -21,6 +21,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { toast } from '@/hooks/use-toast';
 
 interface Message {
   id: string;
@@ -178,7 +179,6 @@ export function ChatInterface() {
     res = res.replace(/{{\s*user_id\s*}}/g, userData.id);
     res = res.replace(/{{\s*user_token\s*}}/g, userData.token);
     
-    // Support {{response.id}} and {{response.xxx}}
     const responseMatches = res.match(/{{\s*response\.(.*?)\s*}}/g);
     responseMatches?.forEach(match => {
       const path = match.replace('{{', '').replace('}}', '').trim();
@@ -191,6 +191,33 @@ export function ChatInterface() {
     });
     
     return res;
+  };
+
+  const validateInput = (value: string, type: KYCFieldType): { isValid: boolean, error?: string } => {
+    if (!value.trim()) return { isValid: true };
+    
+    switch (type) {
+      case 'number':
+        return { 
+          isValid: !isNaN(Number(value)), 
+          error: currentLang?.code === 'am' ? 'እባክዎ ቁጥር ብቻ ያስገቡ' : 'Please enter a valid number' 
+        };
+      case 'tel':
+        const phoneRegex = /^\+?[0-9]{7,15}$/;
+        const stripped = value.replace(/[\s\-()]/g, '');
+        return { 
+          isValid: phoneRegex.test(stripped), 
+          error: currentLang?.code === 'am' ? 'እባክዎ ትክክለኛ ስልክ ቁጥር ያስገቡ' : 'Please enter a valid phone number' 
+        };
+      case 'email':
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return { 
+          isValid: emailRegex.test(value), 
+          error: currentLang?.code === 'am' ? 'እባክዎ ትክክለኛ ኢሜል ያስገቡ' : 'Please enter a valid email address' 
+        };
+      default:
+        return { isValid: true };
+    }
   };
 
   const handleUserInput = (e: React.FormEvent) => {
@@ -236,7 +263,27 @@ export function ChatInterface() {
     if (!kycFlow) return;
     
     const currentField = kycFlow.fields[kycFlow.fieldIndex];
-    if (currentField.required && !skip && !kycInput.trim()) return;
+    
+    if (currentField.required && !skip && !kycInput.trim()) {
+      toast({
+        variant: "destructive",
+        title: currentLang?.code === 'am' ? 'የግዴታ መስክ' : 'Required Field',
+        description: currentLang?.code === 'am' ? 'እባክዎ ይህንን መረጃ ያስገቡ' : 'Please provide this information to continue.'
+      });
+      return;
+    }
+
+    if (!skip && kycInput.trim()) {
+      const validation = validateInput(kycInput, currentField.type);
+      if (!validation.isValid) {
+        toast({
+          variant: "destructive",
+          title: currentLang?.code === 'am' ? 'ትክክል ያልሆነ ግብዓት' : 'Invalid Input',
+          description: validation.error
+        });
+        return;
+      }
+    }
 
     const valueToSave = skip ? null : kycInput;
     const newKYC = { ...userData.kyc, [currentField.name]: valueToSave };
@@ -285,7 +332,6 @@ export function ChatInterface() {
         data: reportPayload
       });
 
-      // Data context for replacePlaceholders needs to include the 'response' object
       const responseContext = { response: { id: savedReport.id, ...reportPayload } };
       const finalMsg = replacePlaceholders(getLocalizedTemplate(menu), responseContext);
 
@@ -427,6 +473,17 @@ export function ChatInterface() {
     }
   };
 
+  const getInputType = () => {
+    if (statusFlow) return 'text';
+    if (!kycFlow) return 'text';
+    const fieldType = kycFlow.fields[kycFlow.fieldIndex].type;
+    if (fieldType === 'tel') return 'tel';
+    if (fieldType === 'number') return 'number';
+    if (fieldType === 'email') return 'email';
+    if (fieldType === 'password') return 'password';
+    return 'text';
+  };
+
   return (
     <div className="flex flex-col h-full bg-background max-w-2xl mx-auto border-x shadow-2xl relative">
       <header className="bg-white border-b p-4 flex items-center justify-between sticky top-0 z-10">
@@ -535,7 +592,7 @@ export function ChatInterface() {
         <form onSubmit={handleUserInput} className="flex gap-2">
           <Input 
             autoFocus 
-            type={(kycFlow && kycFlow.fields[kycFlow.fieldIndex].type === 'password') ? 'password' : 'text'} 
+            type={getInputType()} 
             value={kycInput} 
             onChange={e => setKycInput(e.target.value)} 
             placeholder={statusFlow ? (currentLang?.code === 'am' ? 'ሪፖርት ቁጥር እዚህ ያስገቡ...' : 'Enter reference ID...') : (currentLang?.code === 'am' ? 'እዚህ ይጻፉ...' : 'Enter requested information...')} 

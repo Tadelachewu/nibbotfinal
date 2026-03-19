@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -716,7 +715,7 @@ export function MenuManagement() {
                           <div key={field.id} className="flex flex-col gap-3 p-4 border rounded-md bg-muted/5 group relative">
                             <div className="grid grid-cols-4 gap-3">
                               <div className="space-y-1"><Label className="text-[10px] uppercase font-bold">Field Key</Label><Input value={field.name} onChange={e => { const fields = [...editForm.apiConfig!.kycFields]; fields[idx].name = e.target.value; deepUpdate(['apiConfig', 'kycFields'], fields); }} /></div>
-                              <div className="space-y-1"><Label className="text-[10px] uppercase font-bold">Type</Label><Select value={field.type} onValueChange={v => { const fields = [...editForm.apiConfig!.kycFields]; fields[idx].type = v as any; deepUpdate(['apiConfig', 'kycFields'], fields); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="text">Text</SelectItem><SelectItem value="tel">Phone</SelectItem><SelectItem value="number">Number</SelectItem><SelectItem value="password">Password</SelectItem></SelectContent></Select></div>
+                              <div className="space-y-1"><Label className="text-[10px] uppercase font-bold">Type</Label><Select value={field.type} onValueChange={v => { const fields = [...editForm.apiConfig!.kycFields]; fields[idx].type = v as any; deepUpdate(['apiConfig', 'kycFields'], fields); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="text">Text</SelectItem><SelectItem value="tel">Phone</SelectItem><SelectItem value="email">Email</SelectItem><SelectItem value="number">Number</SelectItem><SelectItem value="password">Password</SelectItem></SelectContent></Select></div>
                               <div className="col-span-2 space-y-1">
                                 <div className="flex items-center justify-between">
                                   <Label className="text-[10px] uppercase font-bold">English Prompt</Label>
