@@ -94,6 +94,15 @@ export interface MenuItem {
   }>;
 }
 
+export interface UserReport {
+  id: string;
+  userId: string;
+  menuName: string;
+  data: Record<string, any>;
+  status: 'pending' | 'reviewed' | 'resolved';
+  timestamp: string;
+}
+
 export interface AppState {
   menus: MenuItem[];
 }

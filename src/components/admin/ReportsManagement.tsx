@@ -1,7 +1,6 @@
-
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { 
   Table, 
@@ -13,7 +12,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Search, User, FileText, ChevronRight, ClipboardList, Loader2, Calendar, CheckCircle2, Clock, AlertCircle, Trash2, Database, LayoutPanelLeft } from 'lucide-react';
+import { Search, User, FileText, ChevronRight, ClipboardList, Loader2, Calendar, CheckCircle2, Clock, AlertCircle, Trash2, Database, LayoutPanelLeft, RefreshCw } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { 
@@ -30,24 +29,30 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useFirestore, useCollection } from '@/firebase';
-import { collection, query, orderBy, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { getStoredReports, updateReportStatus, deleteReport } from '@/lib/store';
+import { UserReport } from '@/lib/types';
 import { format } from 'date-fns';
 import { toast } from '@/hooks/use-toast';
 
 export function ReportsManagement() {
-  const db = useFirestore();
+  const [reports, setReports] = useState<UserReport[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
-  const reportsQuery = useMemo(() => {
-    if (!db) return null;
-    return query(collection(db, 'reports'), orderBy('timestamp', 'desc'));
-  }, [db]);
+  useEffect(() => {
+    refreshReports();
+  }, []);
 
-  const { data: reports, loading } = useCollection(reportsQuery);
+  const refreshReports = () => {
+    setLoading(true);
+    // Simulate a brief load for UX consistency
+    setTimeout(() => {
+      setReports(getStoredReports());
+      setLoading(false);
+    }, 300);
+  };
 
   const filteredReports = useMemo(() => {
-    if (!reports) return [];
     return reports.filter(r => 
       r.menuName?.toLowerCase().includes(search.toLowerCase()) ||
       r.userId?.toLowerCase().includes(search.toLowerCase()) ||
@@ -56,22 +61,15 @@ export function ReportsManagement() {
   }, [reports, search]);
 
   const handleUpdateStatus = (reportId: string, newStatus: string) => {
-    if (!db) return;
-    const reportRef = doc(db, 'reports', reportId);
-    updateDoc(reportRef, { status: newStatus })
-      .then(() => {
-        toast({ title: "Status Updated", description: `Report marked as ${newStatus}.` });
-      })
-      .catch(() => {
-        toast({ variant: "destructive", title: "Update Failed", description: "Check permissions." });
-      });
+    updateReportStatus(reportId, newStatus as UserReport['status']);
+    setReports(getStoredReports());
+    toast({ title: "Status Updated", description: `Report marked as ${newStatus}.` });
   };
 
   const handleDeleteReport = (reportId: string) => {
-    if (!db) return;
-    deleteDoc(doc(db, 'reports', reportId))
-      .then(() => toast({ title: "Report Deleted" }))
-      .catch(() => toast({ variant: "destructive", title: "Delete Failed" }));
+    deleteReport(reportId);
+    setReports(getStoredReports());
+    toast({ title: "Report Deleted" });
   };
 
   const getStatusIcon = (status: string) => {
@@ -107,18 +105,23 @@ export function ReportsManagement() {
             <div>
               <CardTitle className="text-xl font-bold flex items-center gap-2">
                 <ClipboardList className="text-primary" size={20} />
-                User Submissions
+                User Submissions (Local)
               </CardTitle>
-              <p className="text-xs text-muted-foreground mt-1">Live dynamic feed of all conversational reports.</p>
+              <p className="text-xs text-muted-foreground mt-1">Dynamically managed reports stored in your browser.</p>
             </div>
-            <div className="relative w-full md:w-80">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input 
-                placeholder="Search user, type, or data..." 
-                className="pl-10 bg-white" 
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
+            <div className="flex items-center gap-3 w-full md:w-auto">
+              <div className="relative flex-1 md:w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input 
+                  placeholder="Search user, type, or data..." 
+                  className="pl-10 bg-white" 
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+              <Button variant="outline" size="icon" onClick={refreshReports} title="Refresh List">
+                <RefreshCw size={16} />
+              </Button>
             </div>
           </div>
         </CardHeader>
@@ -136,7 +139,7 @@ export function ReportsManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredReports.map((report: any) => (
+                {filteredReports.map((report) => (
                   <TableRow key={report.id} className="group hover:bg-muted/20 transition-colors">
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -145,7 +148,7 @@ export function ReportsManagement() {
                           variant={report.status === 'pending' ? 'destructive' : report.status === 'resolved' ? 'default' : 'secondary'} 
                           className="capitalize text-[10px] px-2 py-0.5"
                         >
-                          {report.status || 'pending'}
+                          {report.status}
                         </Badge>
                       </div>
                     </TableCell>
@@ -172,7 +175,7 @@ export function ReportsManagement() {
                     <TableCell className="text-muted-foreground text-xs">
                       <div className="flex items-center gap-1.5">
                         <Calendar size={12} />
-                        {report.timestamp ? format(report.timestamp.toDate ? report.timestamp.toDate() : new Date(report.timestamp), 'MMM dd, HH:mm') : 'N/A'}
+                        {format(new Date(report.timestamp), 'MMM dd, HH:mm')}
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
@@ -197,12 +200,12 @@ export function ReportsManagement() {
                                 <div className="space-y-2">
                                   <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Submitter Details</span>
                                   <div className="flex items-center gap-2 text-sm font-medium"><User size={14} className="text-primary" /> {report.userId}</div>
-                                  <div className="text-[10px] text-muted-foreground flex items-center gap-1"><Clock size={10} /> {report.timestamp ? format(report.timestamp.toDate ? report.timestamp.toDate() : new Date(report.timestamp), 'MMMM dd, yyyy HH:mm:ss') : 'N/A'}</div>
+                                  <div className="text-[10px] text-muted-foreground flex items-center gap-1"><Clock size={10} /> {format(new Date(report.timestamp), 'MMMM dd, yyyy HH:mm:ss')}</div>
                                 </div>
                                 <div className="space-y-2">
                                   <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Management Status</span>
                                   <Select 
-                                    defaultValue={report.status || 'pending'} 
+                                    defaultValue={report.status} 
                                     onValueChange={(val) => handleUpdateStatus(report.id, val)}
                                   >
                                     <SelectTrigger className="h-9 text-xs">

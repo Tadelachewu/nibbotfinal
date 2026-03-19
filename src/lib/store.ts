@@ -1,9 +1,10 @@
 'use client';
 
-import { MenuItem, AppSettings, Language } from './types';
+import { MenuItem, AppSettings, Language, UserReport } from './types';
 
-const STORAGE_KEY = 'talktree_menus';
+const MENUS_KEY = 'talktree_menus';
 const SETTINGS_KEY = 'talktree_settings';
+const REPORTS_KEY = 'talktree_reports';
 
 const defaultLanguages: Language[] = [
   { code: 'en', name: 'English', isDefault: true },
@@ -33,7 +34,7 @@ const defaultMenus: MenuItem[] = [
     contentAm: '<p>ለሪፖርትዎ እናመሰግናለን። የደህንነት ቡድናችን መረጃ ደርሶታል እና በቅርቡ ይመረምረዋል።</p>',
     apiConfig: {
       name: 'Fraud Report Collection',
-      endpoint: '', // Not used for report
+      endpoint: '', 
       method: 'POST',
       headers: {},
       timeout: 0,
@@ -62,7 +63,7 @@ const defaultMenus: MenuItem[] = [
       requestParameters: [],
       responseMapping: {
         type: 'message',
-        template: '',
+        template: 'Report Submitted! Your Reference ID is {{response.id}}',
         errorFallback: 'Report submission failed.'
       }
     }
@@ -147,17 +148,19 @@ const defaultMenus: MenuItem[] = [
   }
 ];
 
+// Menu Store
 export function getStoredMenus(): MenuItem[] {
   if (typeof window === 'undefined') return defaultMenus;
-  const stored = localStorage.getItem(STORAGE_KEY);
+  const stored = localStorage.getItem(MENUS_KEY);
   return stored ? JSON.parse(stored) : defaultMenus;
 }
 
 export function saveMenus(menus: MenuItem[]) {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(menus));
+  localStorage.setItem(MENUS_KEY, JSON.stringify(menus));
 }
 
+// Settings Store
 export function getAppSettings(): AppSettings {
   if (typeof window === 'undefined') return { supportedLanguages: defaultLanguages };
   const stored = localStorage.getItem(SETTINGS_KEY);
@@ -169,6 +172,43 @@ export function saveAppSettings(settings: AppSettings) {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
 }
 
+// Report Store (LocalStorage instead of Firestore)
+export function getStoredReports(): UserReport[] {
+  if (typeof window === 'undefined') return [];
+  const stored = localStorage.getItem(REPORTS_KEY);
+  return stored ? JSON.parse(stored) : [];
+}
+
+export function saveReports(reports: UserReport[]) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(REPORTS_KEY, JSON.stringify(reports));
+}
+
+export function addReport(reportData: Omit<UserReport, 'id' | 'status' | 'timestamp'>): UserReport {
+  const reports = getStoredReports();
+  const newReport: UserReport = {
+    ...reportData,
+    id: 'rep_' + Math.random().toString(36).substr(2, 9),
+    status: 'pending',
+    timestamp: new Date().toISOString()
+  };
+  saveReports([newReport, ...reports]);
+  return newReport;
+}
+
+export function updateReportStatus(id: string, status: UserReport['status']) {
+  const reports = getStoredReports();
+  const updated = reports.map(r => r.id === id ? { ...r, status } : r);
+  saveReports(updated);
+}
+
+export function deleteReport(id: string) {
+  const reports = getStoredReports();
+  const filtered = reports.filter(r => r.id !== id);
+  saveReports(filtered);
+}
+
+// Menu Actions
 export function addMenu(menu: Omit<MenuItem, 'id'>): MenuItem {
   const menus = getStoredMenus();
   const newItem = { ...menu, id: Math.random().toString(36).substr(2, 9), attachedMenuIds: [] } as MenuItem;

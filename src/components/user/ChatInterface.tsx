@@ -1,10 +1,9 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { MenuItem, KYCField, TableColumn, Language } from '@/lib/types';
-import { getStoredMenus, getAppSettings } from '@/lib/store';
+import { getStoredMenus, getAppSettings, addReport } from '@/lib/store';
 import { ChatBubble } from './ChatBubble';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,8 +19,6 @@ import {
 } from "@/components/ui/table";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { useFirestore, errorEmitter, FirestorePermissionError } from '@/firebase';
 
 interface Message {
   id: string;
@@ -53,7 +50,6 @@ export function ChatInterface() {
   const [currentMenuId, setCurrentMenuId] = useState<string | null>(null);
   const [currentLang, setCurrentLang] = useState<Language | null>(null);
   const logo = PlaceHolderImages.find(img => img.id === 'app-logo');
-  const db = useFirestore();
   
   const [userData, setUserData] = useState<UserData>({
     id: 'user_123',
@@ -231,34 +227,22 @@ export function ChatInterface() {
     setLoadingText(currentLang?.code === 'am' ? 'ሪፖርት እየላክን ነው...' : 'Submitting your report...');
     setIsLoading(true);
     
-    if (!db) {
-      setIsLoading(false);
-      setHistory(prev => [...prev, {
-        id: `bot-error-${Date.now()}`,
-        sender: 'bot',
-        text: 'System connection is initializing. Please try again in a moment.'
-      }]);
-      return;
-    }
+    // Simulate slight delay for local storage interaction
+    setTimeout(() => {
+      const reportPayload: Record<string, any> = {};
+      menu.apiConfig?.kycFields?.forEach(field => {
+        if (kycData[field.name] !== undefined) {
+          reportPayload[field.name] = kycData[field.name];
+        }
+      });
 
-    const reportPayload: Record<string, any> = {};
-    menu.apiConfig?.kycFields?.forEach(field => {
-      if (kycData[field.name] !== undefined) {
-        reportPayload[field.name] = kycData[field.name];
-      }
-    });
+      const savedReport = addReport({
+        userId: userData.id,
+        menuName: menu.name,
+        data: reportPayload
+      });
 
-    const reportData = {
-      userId: userData.id,
-      menuName: menu.name,
-      data: reportPayload,
-      status: 'pending',
-      timestamp: serverTimestamp()
-    };
-
-    addDoc(collection(db, 'reports'), reportData)
-    .then((docRef) => {
-      const responseContext = { id: docRef.id, ...reportPayload };
+      const responseContext = { id: savedReport.id, ...reportPayload };
       const finalMsg = replacePlaceholders(getLocalizedTemplate(menu), { response: responseContext });
 
       const successContent = getLocalizedContent(menu);
@@ -271,24 +255,8 @@ export function ChatInterface() {
         content: finalMsg ? undefined : successContent,
         options: menus.filter(m => m.parentId === menu.id)
       }]);
-    })
-    .catch(async (error) => {
-      const permissionError = new FirestorePermissionError({
-        path: 'reports',
-        operation: 'create',
-        requestResourceData: reportData
-      });
-      errorEmitter.emit('permission-error', permissionError);
-      
-      setHistory(prev => [...prev, {
-        id: `bot-error-${Date.now()}`,
-        sender: 'bot',
-        text: 'Sorry, there was an error submitting your report. Please try again later.'
-      }]);
-    })
-    .finally(() => {
       setIsLoading(false);
-    });
+    }, 600);
   };
 
   const executeApiCall = async (menu: MenuItem, kycData: Record<string, any>) => {
