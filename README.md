@@ -20,6 +20,7 @@ The system includes several mock APIs to test different integration patterns. Fo
 
 ### 1. Order History (API Key Auth)
 *   **Endpoint**: `/api/test/orders`
+*   **Method**: `GET`
 *   **Auth Type**: `API Key`. Header: `x-api-key`. Value: `mysecretapikey123`.
 *   **Request Mapping**: Param Key: `limit` -> Source: `Static` -> Value: `2`.
 *   **Response View (Table)**:
@@ -28,6 +29,7 @@ The system includes several mock APIs to test different integration patterns. Fo
 
 ### 2. User Secure Transactions (Bearer Auth + Path Parameter)
 *   **Endpoint**: `/api/test/user-transactions/{{user_id}}`
+*   **Method**: `GET`
 *   **Auth Type**: `Bearer Token`. Template: `Bearer mysecrettoken123`.
 *   **KYC Needed**: Add a KYC field with key `status` (e.g., success, pending).
 *   **Request Mapping**: Param Key: `status` -> Source: `KYC: status`.
@@ -35,8 +37,9 @@ The system includes several mock APIs to test different integration patterns. Fo
     *   **Table Data Key**: `data.transactions`
     *   **Columns**: `id`, `amount`, `status`, `response.data.userId`
 
-### 3. Product Catalog (Basic Auth) - Table & Message Guide
+### 3. Product Catalog (Basic Auth)
 *   **Endpoint**: `/api/test/products`
+*   **Method**: `GET`
 *   **Auth Type**: `Basic Auth`. User: `admin`, Pass: `1234`.
 *   **KYC Needed**: Add a KYC field with key `category`.
 *   **Request Mapping**: Param Key: `category` -> Source: `KYC: category`.
@@ -44,10 +47,11 @@ The system includes several mock APIs to test different integration patterns. Fo
     *   **Template**: `Found {{response.data.length}} products for your query "{{category}}".`
 *   **Response View (Table)**:
     *   **Table Data Key**: `data`
-    *   **Columns**: `name`, `category`, `response.success`
+    *   **Columns**: `name`, `category`
 
 ### 4. General Transactions (Bearer + Multi-Parameter)
 *   **Endpoint**: `/api/test/transactions`
+*   **Method**: `GET`
 *   **Auth Type**: `Bearer Token`. Template: `Bearer talktree_static_token_778899`.
 *   **KYC Needed**: Add field `account_id`.
 *   **Request Mapping**: 
@@ -59,10 +63,20 @@ The system includes several mock APIs to test different integration patterns. Fo
 
 ### 5. Profile Lookup (Path Parameter)
 *   **Endpoint**: `/api/test/profile/{{account_id}}`
+*   **Method**: `GET`
 *   **Auth Type**: `Bearer Token`. Template: `Bearer {{user_token}}`.
 *   **KYC Needed**: Add field `account_id`.
 *   **Response View (Message)**:
     *   **Template**: `Profile: {{response.data.full_name}} ({{response.data.email}})`
+
+### 6. Exchange Rates (API Key + Static Params)
+*   **Endpoint**: `/api/test/exchange-rate`
+*   **Method**: `GET`
+*   **Auth Type**: `API Key`. Header: `X-API-KEY`. Value: `secret-123`.
+*   **Request Mapping**: `base` -> `Static: USD`.
+*   **Response View (Table)**:
+    *   **Table Data Key**: `rates`
+    *   **Columns**: `currency`, `rate`, `updated`
 
 ---
 
@@ -70,7 +84,7 @@ The system includes several mock APIs to test different integration patterns. Fo
 The system supports English and Amharic by default. 
 *   **Menu Labels**: Translated labels appear as buttons in chat.
 *   **Response Templates**: Success and error messages can be fully localized.
-*   **Table Headers**: Use the "Table" tab in Response View Mapping to provide localized column titles.
+*   **Table Headers**: Use the "Table" tab in Response View Mapping to provide localized column titles for each language.
 
 ## 🔑 System Variables & Root-to-Key Mapping
 The following placeholders are available in templates and table keys:
