@@ -182,12 +182,12 @@ export function ChatInterface() {
   const getLocalizedTemplate = (menu: MenuItem) => {
     if (!menu.apiConfig) return "";
     const mapping = menu.apiConfig.responseMapping;
-    if (!currentLang) return mapping.template;
-    if (currentLang.isDefault) return mapping.template;
+    if (!currentLang) return mapping.template || "";
+    if (currentLang.isDefault) return mapping.template || "";
     const translation = menu.translations?.[currentLang.code]?.responseTemplate;
     if (translation) return translation;
     if (currentLang.code === 'am' && mapping.templateAm) return mapping.templateAm;
-    return mapping.template;
+    return mapping.template || "";
   };
 
   const getLocalizedErrorFallback = (menu: MenuItem) => {
@@ -202,10 +202,46 @@ export function ChatInterface() {
   };
 
   const getVal = (path: string, obj: any) => {
-    if (!path || !obj) return obj;
+    if (!path || !obj) return undefined;
     // Strip optional "response." prefix
     const cleanPath = path.startsWith('response.') ? path.substring(9) : path;
-    return cleanPath.split('.').reduce((acc, part) => acc && acc[part], obj);
+    const value = cleanPath.split('.').reduce((acc, part) => {
+      if (acc === undefined || acc === null) return undefined;
+      return acc[part];
+    }, obj);
+    return value;
+  };
+
+  const replacePlaceholders = (template: string, context: { response?: any, kyc?: Record<string, any> }) => {
+    if (!template) return '';
+    
+    return template.replace(/{{\s*(.*?)\s*}}/g, (match, p1) => {
+      const path = p1.trim();
+      
+      // 1. System Vars
+      if (path === 'user_id') return userData.id;
+      if (path === 'user_token') return userData.token;
+      
+      // 2. Response Vars (Explicit)
+      if (path.startsWith('response.')) {
+        const val = getVal(path, context.response);
+        return val !== undefined ? String(val) : match;
+      }
+      
+      // 3. KYC Vars
+      const kycToUse = context.kyc || userData.kyc;
+      if (kycToUse[path] !== undefined) {
+        return String(kycToUse[path] ?? '');
+      }
+      
+      // 4. Try root-level response resolution if not prefixed (fallback)
+      if (context.response) {
+        const val = getVal(path, context.response);
+        if (val !== undefined) return String(val);
+      }
+      
+      return match; // Keep the placeholder if nothing found for better debugging
+    });
   };
 
   const findArrayData = (obj: any, explicitPath?: string): { path: string; data: any[] } | null => {
@@ -223,52 +259,21 @@ export function ChatInterface() {
   };
 
   const resolveTableCell = (key: string, row: any, root: any, arrayPath: string) => {
-    // 1. Try "response." absolute path
+    // 1. Try absolute response path
     if (key.startsWith('response.')) {
-      return getVal(key, root);
-    }
-
-    // 2. Try relative to arrayPath (for legacy support)
-    if (arrayPath && key.startsWith(arrayPath + '.')) {
-      const strippedKey = key.substring(arrayPath.length + 1);
-      const val = getVal(strippedKey, row);
+      const val = getVal(key, root);
       if (val !== undefined) return val;
     }
 
-    // 3. Try relative to row
+    // 2. Try relative to row
     const rowVal = getVal(key, row);
     if (rowVal !== undefined) return rowVal;
 
-    // 4. Final fallback to root
-    return getVal(key, root);
-  };
+    // 3. Try relative to root directly (without prefix)
+    const rootVal = getVal(key, root);
+    if (rootVal !== undefined) return rootVal;
 
-  const replacePlaceholders = (template: string, context: { response?: any, kyc?: Record<string, any> }) => {
-    if (!template) return '';
-    let res = template;
-    
-    // System vars
-    res = res.replaceAll(/{{\s*user_id\s*}}/g, userData.id);
-    res = res.replaceAll(/{{\s*user_token\s*}}/g, userData.token);
-    
-    // Response vars
-    if (context.response) {
-      const responseMatches = res.match(/{{\s*response\.(.*?)\s*}}/g);
-      responseMatches?.forEach(match => {
-        const path = match.replace('{{', '').replace('}}', '').trim();
-        const val = getVal(path, context.response);
-        res = res.replaceAll(match, String(val ?? ''));
-      });
-    }
-
-    // KYC vars
-    const kycToUse = context.kyc || userData.kyc;
-    Object.entries(kycToUse).forEach(([k, v]) => {
-      const regex = new RegExp(`{{\\s*${k}\\s*}}`, 'g');
-      res = res.replaceAll(regex, String(v ?? ''));
-    });
-    
-    return res;
+    return undefined;
   };
 
   const validateInput = (value: string, type: KYCFieldType): { isValid: boolean, error?: string } => {
@@ -412,7 +417,8 @@ export function ChatInterface() {
       });
 
       const responseContext = { response: { id: savedReport.id, ...reportPayload }, kyc: kycData };
-      const finalMsg = replacePlaceholders(getLocalizedTemplate(menu), responseContext);
+      const template = getLocalizedTemplate(menu);
+      const finalMsg = template ? replacePlaceholders(template, responseContext) : "";
 
       const successContent = getLocalizedContent(menu);
       const defaultSuccess = currentLang?.code === 'am' ? 'ሪፖርትዎ በተሳካ ሁኔታ ቀርቧል። እናመሰግናለን።' : 'Your report has been submitted successfully. Thank you.';
@@ -478,11 +484,12 @@ export function ChatInterface() {
     
     if (!success) { 
       const errorMsg = apiResponse?.message || getLocalizedErrorFallback(menu);
-      botMsg.text = replacePlaceholders(errorMsg, context);
+      botMsg.text = errorMsg ? replacePlaceholders(errorMsg, context) : (currentLang?.code === 'am' ? 'ይቅርታ፣ ጥያቄዎን ለማካሄድ ስህተት ተከስቷል።' : 'Sorry, an error occurred while processing your request.');
     }
     else {
+      const template = getLocalizedTemplate(menu);
       if (mapping.type === 'message') {
-        botMsg.text = replacePlaceholders(getLocalizedTemplate(menu), context);
+        botMsg.text = template ? replacePlaceholders(template, context) : (currentLang?.code === 'am' ? 'ጥያቄዎ በተሳካ ሁኔታ ተከናውኗል።' : 'Your request was processed successfully.');
       } else if (mapping.type === 'table') {
         const foundArray = findArrayData(apiResponse, mapping.tableDataKey);
         if (foundArray) {
@@ -492,9 +499,10 @@ export function ChatInterface() {
             rootData: apiResponse, 
             arrayPath: foundArray.path 
           };
-          botMsg.text = replacePlaceholders(getLocalizedTemplate(menu) || (currentLang?.code === 'am' ? 'የተገኙ ውጤቶች የሚከተሉት ናቸው' : 'Here are the results:'), context);
+          botMsg.text = template ? replacePlaceholders(template, context) : (currentLang?.code === 'am' ? 'የተገኙ ውጤቶች የሚከተሉት ናቸው' : 'Here are the results:');
         } else { 
-          botMsg.text = replacePlaceholders(getLocalizedErrorFallback(menu), context); 
+          const errorMsg = getLocalizedErrorFallback(menu);
+          botMsg.text = errorMsg ? replacePlaceholders(errorMsg, context) : (currentLang?.code === 'am' ? 'ምንም መረጃ አልተገኘም።' : 'No data found.'); 
         }
       }
     }
