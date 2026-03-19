@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -68,7 +67,7 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/Popover";
+} from "@/components/ui/popover";
 import { Switch } from '@/components/ui/switch';
 
 export function MenuManagement() {
