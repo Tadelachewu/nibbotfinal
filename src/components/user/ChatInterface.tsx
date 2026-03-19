@@ -7,8 +7,33 @@ import { getStoredMenus, getAppSettings, addReport, getStoredReports } from '@/l
 import { ChatBubble } from './ChatBubble';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ChevronRight, Home, ArrowLeft, Languages, Send, Loader2, ClipboardCheck, CornerDownRight, Search, FileSearch, CheckCircle2, Clock, AlertCircle, MessageSquare } from 'lucide-react';
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import { 
+  ChevronRight, 
+  Home, 
+  ArrowLeft, 
+  Languages, 
+  Send, 
+  Loader2, 
+  ClipboardCheck, 
+  CornerDownRight, 
+  Search, 
+  FileSearch, 
+  CheckCircle2, 
+  Clock, 
+  AlertCircle, 
+  MessageSquare,
+  User as UserIcon,
+  ChevronDown
+} from 'lucide-react';
+import { 
+  DropdownMenu, 
+  DropdownMenuTrigger, 
+  DropdownMenuContent, 
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator
+} from '@/components/ui/dropdown-menu';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   Table,
   TableBody,
@@ -54,6 +79,7 @@ export function ChatInterface() {
   const [currentMenuId, setCurrentMenuId] = useState<string | null>(null);
   const [currentLang, setCurrentLang] = useState<Language | null>(null);
   const logo = PlaceHolderImages.find(img => img.id === 'app-logo');
+  const userAvatar = PlaceHolderImages.find(img => img.id === 'user-avatar');
   
   const [userData, setUserData] = useState<UserData>({
     id: 'user_123',
@@ -140,13 +166,13 @@ export function ChatInterface() {
 
   const getLocalizedErrorFallback = (menu: MenuItem) => {
     if (!menu.apiConfig) return "";
-    const mapping = menu.apiConfig.responseMapping;
-    if (!currentLang) return mapping.errorFallback;
-    if (currentLang.isDefault) return mapping.errorFallback;
+    const mapping = menu.apiConfig.errorFallback; // Fallback to mapping root
+    if (!currentLang) return mapping || "";
+    if (currentLang.isDefault) return mapping || "";
     const translation = menu.translations?.[currentLang.code]?.errorFallback;
     if (translation) return translation;
-    if (currentLang.code === 'am' && mapping.errorFallbackAm) return mapping.errorFallbackAm;
-    return mapping.errorFallback;
+    if (currentLang.code === 'am' && menu.apiConfig.responseMapping.errorFallbackAm) return menu.apiConfig.responseMapping.errorFallbackAm;
+    return mapping || "";
   };
 
   const getVal = (path: string, obj: any) => {
@@ -486,7 +512,7 @@ export function ChatInterface() {
 
   return (
     <div className="flex flex-col h-full bg-background max-w-2xl mx-auto border-x shadow-2xl relative">
-      <header className="bg-white border-b p-4 flex items-center justify-between sticky top-0 z-10">
+      <header className="bg-white border-b p-4 flex items-center justify-between sticky top-0 z-10 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="relative w-10 h-10 overflow-hidden rounded-full shadow-md border-2 border-primary/10">
             <Image 
@@ -505,15 +531,50 @@ export function ChatInterface() {
             </div>
           </div>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild><Button variant="ghost" size="sm" className="text-xs"><Languages className="mr-2" size={14} /> {currentLang?.name || 'Language'}</Button></DropdownMenuTrigger>
-          <DropdownMenuContent>
-            {languages.map(lang => (
-              <DropdownMenuItem key={lang.code} onClick={() => setCurrentLang(lang)}>{lang.name}</DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 p-0 border shadow-sm">
+                <Avatar className="h-full w-full">
+                  <AvatarImage src={userAvatar?.imageUrl || "https://picsum.photos/seed/user/100/100"} />
+                  <AvatarFallback className="bg-accent text-white"><UserIcon size={16} /></AvatarFallback>
+                </Avatar>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel className="flex flex-col">
+                <span className="text-sm font-bold">User Profile</span>
+                <span className="text-[10px] text-muted-foreground font-mono">{userData.id}</span>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-[10px] uppercase text-muted-foreground pb-1">Settings</DropdownMenuLabel>
+              <DropdownMenuSeparator className="mt-0" />
+              <div className="p-1">
+                <span className="text-[10px] font-bold px-2 flex items-center gap-2 text-muted-foreground mb-1">
+                  <Languages size={10} /> Language
+                </span>
+                {languages.map(lang => (
+                  <DropdownMenuItem 
+                    key={lang.code} 
+                    onClick={() => setCurrentLang(lang)}
+                    className={cn("text-xs flex items-center justify-between", currentLang?.code === lang.code && "bg-primary/10 text-primary")}
+                  >
+                    {lang.name}
+                    {currentLang?.code === lang.code && <CheckCircle2 size={12} />}
+                  </DropdownMenuItem>
+                ))}
+              </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={startStatusFlow} className="text-sm gap-2">
+                <FileSearch size={16} className="text-primary" />
+                {currentLang?.code === 'am' ? 'ሁኔታ አረጋግጥ' : 'Check Report Status'}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </header>
+      
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
         {history.map(msg => (
           <ChatBubble key={msg.id} isBot={msg.sender === 'bot'}>
@@ -588,6 +649,7 @@ export function ChatInterface() {
           </div>
         )}
       </div>
+      
       {(kycFlow || statusFlow) && <div className="p-4 bg-white border-t flex flex-col gap-2 animate-in slide-in-from-bottom-2 duration-300">
         <form onSubmit={handleUserInput} className="flex gap-2">
           <Input 
@@ -611,9 +673,9 @@ export function ChatInterface() {
           )}
         </form>
       </div>}
-      <footer className="bg-white border-t p-4 flex justify-center gap-2 shrink-0 overflow-x-auto">
+      
+      <footer className="bg-white border-t p-4 flex justify-center gap-4 shrink-0 overflow-x-auto shadow-[0_-1px_3px_rgba(0,0,0,0.05)]">
         <Button variant="ghost" size="sm" className="hover:bg-primary/5 rounded-full px-4" onClick={() => { setHistory(prev => [...prev, { id: `home-${Date.now()}`, sender: 'bot', text: currentLang?.code === 'am' ? 'እንዴት ልረዳዎ እችላለሁ?' : 'How can I help you?', options: menus.filter(m => m.parentId === null) }]); setCurrentMenuId(null); setKycFlow(null); setStatusFlow(false); }}><Home className="mr-2 text-primary" size={18} /> {currentLang?.code === 'am' ? 'ቤት' : 'Home'}</Button>
-        <Button variant="ghost" size="sm" className="hover:bg-primary/5 rounded-full px-4" onClick={startStatusFlow}><FileSearch className="mr-2 text-primary" size={18} /> {currentLang?.code === 'am' ? 'ሁኔታ አረጋግጥ' : 'Check Status'}</Button>
         {currentMenuId && !kycFlow && !statusFlow && <Button variant="ghost" size="sm" className="hover:bg-primary/5 rounded-full px-4" onClick={() => { const current = menus.find(m => m.id === currentMenuId); const parent = menus.find(m => m.id === current?.parentId); if (parent) navigateTo(parent); else setHistory(p => [...p, { id: 'reset', sender: 'bot', text: 'Navigation Reset', options: menus.filter(m => !m.parentId) }]); }}><ArrowLeft className="mr-2 text-primary" size={18} /> {currentLang?.code === 'am' ? 'ተመለስ' : 'Back'}</Button>}
       </footer>
     </div>
