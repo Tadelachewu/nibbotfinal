@@ -12,26 +12,21 @@ import {
   ResponsiveContainer, 
   PieChart, 
   Pie, 
-  Cell,
-  LineChart,
-  Line
+  Cell
 } from 'recharts';
 import { 
   getStoredMenus, 
   getStoredReports 
 } from '@/lib/store';
 import { 
-  Activity, 
   Users, 
   Zap, 
-  MessageSquare, 
   TrendingUp, 
   AlertTriangle,
   CheckCircle2,
   Clock,
   ShieldAlert
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 export function Dashboard() {
   const [data, setData] = useState({
@@ -254,47 +249,6 @@ export function Dashboard() {
                   </div>
                 </div>
               ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Health Indicators */}
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-sm font-bold flex items-center gap-2">
-              <Activity size={16} className="text-emerald-500" />
-              Operational Health
-            </CardTitle>
-            <CardDescription className="text-[10px]">Real-time status of system components.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-3 border rounded-xl bg-muted/5">
-                <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1">API Engine</div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-sm font-bold">Stable</span>
-                </div>
-              </div>
-              <div className="p-3 border rounded-xl bg-muted/5">
-                <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Local Storage</div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                  <span className="text-sm font-bold">Synchronized</span>
-                </div>
-              </div>
-              <div className="p-3 border rounded-xl bg-muted/5">
-                <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Localization</div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold">{getStoredMenus().some(m => !!m.nameAm) ? 'Multi-Lang' : 'Single-Lang'}</span>
-                </div>
-              </div>
-              <div className="p-3 border rounded-xl bg-muted/5">
-                <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Security</div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold">Anonymous-Auth</span>
-                </div>
-              </div>
             </div>
           </CardContent>
         </Card>
