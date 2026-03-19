@@ -112,9 +112,14 @@ export function ReportsManagement() {
   const handleSaveAdminData = (overrideStatus?: UserReport['status']) => {
     if (selectedReportId) {
       const finalStatus = overrideStatus || editingStatus;
+      
+      // Persist status change
       updateReportStatus(selectedReportId, finalStatus);
+      // Persist priority change
       updateReportPriority(selectedReportId, editingPriority);
+      // Persist official response (text message to user)
       updateReportAdminResponse(selectedReportId, editingResponse);
+      // Persist internal notes
       updateReportInternalNotes(selectedReportId, editingNotes);
       
       setReports(getStoredReports());
@@ -205,7 +210,7 @@ export function ReportsManagement() {
         </Card>
         <Card className="p-4 bg-emerald-50 border-emerald-200">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase text-emerald-700">Resolved Today</span>
+            <span className="text-xs font-bold uppercase text-emerald-700">Resolved Total</span>
             <CheckCircle2 size={16} className="text-emerald-700" />
           </div>
           <p className="text-2xl font-bold mt-1">{reports.filter(r => r.status === 'resolved').length}</p>
@@ -298,7 +303,7 @@ export function ReportsManagement() {
                     </TableCell>
                     <TableCell>
                       <div className="font-semibold text-xs">{report.menuName}</div>
-                      <div className="text-[9px] text-muted-foreground font-mono">#{report.id.split('_')[1]}</div>
+                      <div className="text-[9px] text-muted-foreground font-mono">#{report.id.split('_')[1] || report.id}</div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -370,10 +375,11 @@ export function ReportsManagement() {
                 </div>
               </DialogHeader>
               
+              {/* ADMIN ACTION BAR: Resolve, Review, and Metadata Management */}
               <div className="bg-amber-50/50 border-b p-4 flex flex-wrap items-center gap-4 justify-between">
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold uppercase text-muted-foreground">Current Status</span>
+                    <span className="text-[10px] font-bold uppercase text-muted-foreground">Status</span>
                     <Badge className={cn("text-[10px] capitalize", 
                       editingStatus === 'resolved' ? 'bg-emerald-100 text-emerald-800' : 
                       editingStatus === 'reviewed' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
@@ -383,7 +389,7 @@ export function ReportsManagement() {
                   </div>
                   <Separator orientation="vertical" className="h-4" />
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold uppercase text-muted-foreground">Priority</span>
+                    <span className="text-[10px] font-bold uppercase text-muted-foreground">Set Priority</span>
                     <Select value={editingPriority} onValueChange={(val: any) => setEditingPriority(val)}>
                       <SelectTrigger className="h-7 w-28 text-[10px]"><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -436,12 +442,12 @@ export function ReportsManagement() {
                           <div className="space-y-1">
                             <Label className="text-sm font-bold flex items-center gap-2">
                               <Send size={16} className="text-primary" />
-                              Official Response to User
+                              Official Written Response
                             </Label>
-                            <p className="text-[11px] text-muted-foreground">This message will be visible to the user in their chatbot status dashboard.</p>
+                            <p className="text-[11px] text-muted-foreground">This message will be visible to the user when they check their report status in the chat.</p>
                           </div>
                           {selectedReport.adminResponse && (
-                            <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700">Response Provided</Badge>
+                            <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700">Message Active</Badge>
                           )}
                         </div>
                         <Textarea 
@@ -471,9 +477,9 @@ export function ReportsManagement() {
                         <div className="space-y-1">
                           <Label className="text-sm font-bold flex items-center gap-2 text-amber-900">
                             <NotebookPen size={16} />
-                            Private Internal Observations
+                            Private Internal Notes
                           </Label>
-                          <p className="text-[11px] text-amber-700 italic">Strictly internal. Never shared with the end-user.</p>
+                          <p className="text-[11px] text-amber-700 italic">These notes are strictly for admin review and are NEVER shared with the user.</p>
                         </div>
                         <Textarea 
                           value={editingNotes} 
@@ -493,7 +499,7 @@ export function ReportsManagement() {
                   <span className="text-[11px] font-mono">Submitter: {selectedReport.userId}</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <Button variant="ghost" className="h-10 px-6" onClick={() => setIsInspectOpen(false)}>Close</Button>
+                  <Button variant="ghost" className="h-10 px-6" onClick={() => setIsInspectOpen(false)}>Cancel</Button>
                   <Button className="h-10 px-8" onClick={() => handleSaveAdminData()}>
                     Save All Changes
                   </Button>
