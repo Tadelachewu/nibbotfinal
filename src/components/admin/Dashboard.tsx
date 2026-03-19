@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo, useEffect, useState } from 'react';
@@ -59,6 +58,9 @@ export function Dashboard() {
     const resolvedReports = data.reports.filter(r => r.status === 'resolved').length;
     const pendingReports = data.reports.filter(r => r.status === 'pending').length;
     const urgentReports = data.reports.filter(r => r.priority === 'urgent' || r.priority === 'high').length;
+    
+    // Calculate unique users from report submissions
+    const uniqueUsers = new Set(data.reports.map(r => r.userId)).size;
 
     // Chart: Reports by Status
     const statusData = [
@@ -90,6 +92,7 @@ export function Dashboard() {
       resolvedReports,
       pendingReports,
       urgentReports,
+      uniqueUsers,
       statusData,
       menuTypeData,
       priorityData
@@ -104,12 +107,12 @@ export function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border-l-4 border-l-primary">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Total Tree Size</CardTitle>
-            <Activity className="h-4 w-4 text-primary" />
+            <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Active Users</CardTitle>
+            <Users className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalMenus}</div>
-            <p className="text-[10px] text-muted-foreground mt-1">Configured interactive nodes</p>
+            <div className="text-2xl font-bold">{stats.uniqueUsers}</div>
+            <p className="text-[10px] text-muted-foreground mt-1">Unique bot participants</p>
           </CardContent>
         </Card>
 
@@ -241,12 +244,12 @@ export function Dashboard() {
                 <div key={item.name} className="space-y-1.5">
                   <div className="flex justify-between text-[11px] font-medium">
                     <span>{item.name} Nodes</span>
-                    <span className="text-muted-foreground">{Math.round((item.value / stats.totalMenus) * 100)}%</span>
+                    <span className="text-muted-foreground">{stats.totalMenus > 0 ? Math.round((item.value / stats.totalMenus) * 100) : 0}%</span>
                   </div>
                   <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
                     <div 
                       className="h-full bg-primary transition-all duration-1000" 
-                      style={{ width: `${(item.value / stats.totalMenus) * 100}%`, backgroundColor: COLORS[idx] }} 
+                      style={{ width: `${stats.totalMenus > 0 ? (item.value / stats.totalMenus) * 100 : 0}%`, backgroundColor: COLORS[idx] }} 
                     />
                   </div>
                 </div>
@@ -289,7 +292,7 @@ export function Dashboard() {
               <div className="p-3 border rounded-xl bg-muted/5">
                 <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Security</div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold">Mock-Auth</span>
+                  <span className="text-sm font-bold">Anonymous-Auth</span>
                 </div>
               </div>
             </div>
