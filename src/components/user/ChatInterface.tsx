@@ -23,7 +23,10 @@ import {
   AlertCircle, 
   MessageSquare,
   User as UserIcon,
-  ChevronDown
+  Globe,
+  Moon,
+  Sun,
+  Monitor
 } from 'lucide-react';
 import { 
   DropdownMenu, 
@@ -31,7 +34,9 @@ import {
   DropdownMenuContent, 
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator
+  DropdownMenuSeparator,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -78,6 +83,7 @@ export function ChatInterface() {
   const [history, setHistory] = useState<Message[]>([]);
   const [currentMenuId, setCurrentMenuId] = useState<string | null>(null);
   const [currentLang, setCurrentLang] = useState<Language | null>(null);
+  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('light');
   const logo = PlaceHolderImages.find(img => img.id === 'app-logo');
   const userAvatar = PlaceHolderImages.find(img => img.id === 'user-avatar');
   
@@ -113,6 +119,10 @@ export function ChatInterface() {
     
     const welcomeText = defaultLang.code === 'am' ? 'ሰላም! ዛሬ እንዴት ልረዳዎ እችላለሁ?' : 'Hello! How can I assist you today?';
     setHistory([{ id: 'welcome', sender: 'bot', text: welcomeText, options: data.filter(m => m.parentId === null) }]);
+    
+    // Check initial theme
+    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    setTheme(isDark ? 'dark' : 'light');
   }, []);
 
   useEffect(() => {
@@ -123,6 +133,18 @@ export function ChatInterface() {
       });
     }
   }, [history, isLoading, kycFlow, statusFlow]);
+
+  // Handle theme changes
+  useEffect(() => {
+    const root = window.document.documentElement;
+    root.classList.remove('light', 'dark');
+    if (theme === 'system') {
+      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      root.classList.add(systemTheme);
+    } else {
+      root.classList.add(theme);
+    }
+  }, [theme]);
 
   const getLocalizedName = (menu: MenuItem) => {
     if (!currentLang) return menu.name;
@@ -166,7 +188,7 @@ export function ChatInterface() {
 
   const getLocalizedErrorFallback = (menu: MenuItem) => {
     if (!menu.apiConfig) return "";
-    const mapping = menu.apiConfig.errorFallback; // Fallback to mapping root
+    const mapping = menu.apiConfig.responseMapping.errorFallback; 
     if (!currentLang) return mapping || "";
     if (currentLang.isDefault) return mapping || "";
     const translation = menu.translations?.[currentLang.code]?.errorFallback;
@@ -532,7 +554,29 @@ export function ChatInterface() {
           </div>
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 p-0 hover:bg-muted">
+                <Globe size={18} className="text-muted-foreground" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40">
+              <DropdownMenuLabel className="text-[10px] uppercase text-muted-foreground">Select Language</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {languages.map(lang => (
+                <DropdownMenuItem 
+                  key={lang.code} 
+                  onClick={() => setCurrentLang(lang)}
+                  className={cn("text-xs flex items-center justify-between", currentLang?.code === lang.code && "bg-primary/10 text-primary")}
+                >
+                  {lang.name}
+                  {currentLang?.code === lang.code && <CheckCircle2 size={12} />}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 p-0 border shadow-sm">
@@ -542,34 +586,34 @@ export function ChatInterface() {
                 </Avatar>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuContent align="end" className="w-64">
               <DropdownMenuLabel className="flex flex-col">
                 <span className="text-sm font-bold">User Profile</span>
                 <span className="text-[10px] text-muted-foreground font-mono">{userData.id}</span>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-[10px] uppercase text-muted-foreground pb-1">Settings</DropdownMenuLabel>
-              <DropdownMenuSeparator className="mt-0" />
-              <div className="p-1">
-                <span className="text-[10px] font-bold px-2 flex items-center gap-2 text-muted-foreground mb-1">
-                  <Languages size={10} /> Language
-                </span>
-                {languages.map(lang => (
-                  <DropdownMenuItem 
-                    key={lang.code} 
-                    onClick={() => setCurrentLang(lang)}
-                    className={cn("text-xs flex items-center justify-between", currentLang?.code === lang.code && "bg-primary/10 text-primary")}
-                  >
-                    {lang.name}
-                    {currentLang?.code === lang.code && <CheckCircle2 size={12} />}
-                  </DropdownMenuItem>
-                ))}
-              </div>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={startStatusFlow} className="text-sm gap-2">
+              
+              <DropdownMenuLabel className="text-[10px] uppercase text-muted-foreground py-2">Account Actions</DropdownMenuLabel>
+              <DropdownMenuItem onClick={startStatusFlow} className="text-sm gap-2 cursor-pointer">
                 <FileSearch size={16} className="text-primary" />
-                {currentLang?.code === 'am' ? 'ሁኔታ አረጋግጥ' : 'Check Report Status'}
+                {currentLang?.code === 'am' ? 'የሪፖርት ሁኔታ አረጋግጥ' : 'Check Report Status'}
               </DropdownMenuItem>
+              
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-[10px] uppercase text-muted-foreground py-2">Preferences</DropdownMenuLabel>
+              <div className="px-2 pb-2">
+                <DropdownMenuRadioGroup value={theme} onValueChange={(v: any) => setTheme(v)}>
+                  <DropdownMenuRadioItem value="light" className="text-xs gap-2 cursor-pointer">
+                    <Sun size={14} /> Light Mode
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="dark" className="text-xs gap-2 cursor-pointer">
+                    <Moon size={14} /> Dark Mode
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="system" className="text-xs gap-2 cursor-pointer">
+                    <Monitor size={14} /> System
+                  </DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </div>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -657,7 +701,7 @@ export function ChatInterface() {
             type={getInputType()} 
             value={kycInput} 
             onChange={e => setKycInput(e.target.value)} 
-            placeholder={statusFlow ? (currentLang?.code === 'am' ? 'ሪፖርት ቁጥር እዚህ ያስገቡ...' : 'Enter reference ID...') : (currentLang?.code === 'am' ? 'እዚህ ይጻፉ...' : 'Enter requested information...')} 
+            placeholder={statusFlow ? (currentLang?.code === 'am' ? 'የሪፖርት ቁጥር እዚህ ያስገቡ...' : 'Enter reference ID...') : (currentLang?.code === 'am' ? 'እዚህ ይጻፉ...' : 'Enter requested information...')} 
             className="rounded-full shadow-inner" 
           />
           <Button type="submit" size="icon" className="rounded-full h-10 w-10 shrink-0"><Send size={18} /></Button>
