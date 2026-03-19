@@ -1,3 +1,4 @@
+
 {
   "placeholderImages": [
     {
@@ -14,9 +15,9 @@
     },
     {
       "id": "app-logo",
-      "description": "TalkTree Logo",
+      "description": "Official TalkTree Logo",
       "imageUrl": "https://picsum.photos/seed/talktree-logo/200/200",
-      "imageHint": "abstract circular logo brown yellow"
+      "imageHint": "talktree brand logo circular"
     }
   ]
 }

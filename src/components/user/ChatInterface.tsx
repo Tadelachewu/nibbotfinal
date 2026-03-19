@@ -1,32 +1,27 @@
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import Image from 'next/image';
 import { MenuItem, KYCField, TableColumn, Language, UserReport, KYCFieldType } from '@/lib/types';
 import { getStoredMenus, getAppSettings, addReport, getStoredReports, incrementMenuClick } from '@/lib/store';
 import { ChatBubble } from './ChatBubble';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Logo } from '@/components/Logo';
 import { 
   ChevronRight, 
   Home, 
   ArrowLeft, 
-  Languages, 
+  Globe, 
   Send, 
   Loader2, 
   ClipboardCheck, 
   CornerDownRight, 
-  Search, 
-  FileSearch, 
   CheckCircle2, 
   Clock, 
   AlertCircle, 
-  MessageSquare,
   User as UserIcon,
-  Globe,
-  Moon,
-  Sun,
-  Monitor
+  Check
 } from 'lucide-react';
 import { 
   DropdownMenu, 
@@ -84,10 +79,8 @@ export function ChatInterface() {
   const [currentMenuId, setCurrentMenuId] = useState<string | null>(null);
   const [currentLang, setCurrentLang] = useState<Language | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('light');
-  const logo = PlaceHolderImages.find(img => img.id === 'app-logo');
   const userAvatar = PlaceHolderImages.find(img => img.id === 'user-avatar');
   
-  // Dynamic User Session State
   const [userData, setUserData] = useState<UserData>({
     id: 'anonymous',
     token: 'talktree_static_token_778899',
@@ -103,13 +96,11 @@ export function ChatInterface() {
   } | null>(null);
 
   const [statusFlow, setStatusFlow] = useState<boolean>(false);
-  
   const [kycInput, setKycInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [loadingText, setLoadingText] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Initialize Anonymous Session
   useEffect(() => {
     const STORAGE_KEY = 'talktree_user_session';
     let sessionId = '';
@@ -218,7 +209,7 @@ export function ChatInterface() {
   };
 
   const findArrayData = (obj: any): { path: string; data: any[] } | null => {
-    if (!obj || typeof obj !== 'object') return null;
+    if (!obj || typeof obj !== 'object' || obj === null) return null;
     if (Array.isArray(obj)) return { path: '', data: obj };
     for (const key in obj) { if (Array.isArray(obj[key])) return { path: key, data: obj[key] }; }
     if (obj.status === 'success' || obj.status === 'ok' || !obj.status) return { path: '', data: [obj] };
@@ -467,7 +458,7 @@ export function ChatInterface() {
         const foundArray = findArrayData(apiResponse);
         if (foundArray) {
           botMsg.tableData = { 
-            columns: (mapping.tableColumns || []).map(c => ({ ...c, localizedHeader: getLocalizedTableHeader(menu, c) })), 
+            columns: (mapping.tableColumns || []).map(col => ({ ...col, localizedHeader: getLocalizedTableHeader(menu, col) })), 
             rows: Array.isArray(foundArray.data) ? foundArray.data : [foundArray.data], 
             rootData: apiResponse, 
             arrayPath: foundArray.path 
@@ -482,7 +473,6 @@ export function ChatInterface() {
   };
 
   const navigateTo = (menu: MenuItem) => {
-    // Analytics: Track Click
     if (menu.trackClicks) {
       incrementMenuClick(menu.id, userData.id);
     }
@@ -536,15 +526,10 @@ export function ChatInterface() {
 
   const getStatusDisplay = (status: string) => {
     switch (status) {
-      case 'resolved': return { icon: <CheckCircle2 className="text-green-500" />, label: currentLang?.code === 'am' ? 'ተፈትቷል' : 'Resolved', color: 'bg-green-100 text-green-800' };
+      case 'resolved': return { icon: <CheckCircle2 className="text-emerald-500" />, label: currentLang?.code === 'am' ? 'ተፈትቷል' : 'Resolved', color: 'bg-green-100 text-emerald-800' };
       case 'reviewed': return { icon: <Clock className="text-blue-500" />, label: currentLang?.code === 'am' ? 'በመመርመር ላይ' : 'Reviewed', color: 'bg-blue-100 text-blue-800' };
       default: return { icon: <AlertCircle className="text-amber-500" />, label: currentLang?.code === 'am' ? 'በጥበቃ ላይ' : 'Pending', color: 'bg-amber-100 text-amber-800' };
     }
-  };
-
-  const findAndNavigateTo = (id: string) => {
-    const menu = menus.find(m => m.id === id);
-    if (menu) navigateTo(menu);
   };
 
   const getInputType = () => {
@@ -559,23 +544,15 @@ export function ChatInterface() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-background max-w-2xl mx-auto border-x shadow-2xl relative">
-      <header className="bg-white border-b p-4 flex items-center justify-between sticky top-0 z-10 shadow-sm">
+    <div className="flex flex-col h-full bg-white max-w-2xl mx-auto border-x shadow-2xl relative">
+      <header className="bg-white border-b p-4 flex items-center justify-between sticky top-0 z-50 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="relative w-10 h-10 overflow-hidden rounded-full shadow-md border-2 border-primary/10">
-            <Image 
-              src={logo?.imageUrl || 'https://picsum.photos/seed/logo/100/100'} 
-              alt="TalkTree Logo"
-              fill
-              className="object-cover"
-              data-ai-hint={logo?.imageHint || 'logo'}
-            />
-          </div>
+          <Logo className="w-10 h-10" />
           <div>
             <h1 className="font-bold text-lg">Support Assistant</h1>
             <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-              <span className="text-[10px] uppercase tracking-wider font-bold">Online</span>
+              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+              <span className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Online</span>
             </div>
           </div>
         </div>
@@ -583,8 +560,8 @@ export function ChatInterface() {
         <div className="flex items-center gap-1">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 p-0 hover:bg-muted">
-                <Globe size={18} className="text-muted-foreground" />
+              <Button variant="ghost" size="icon" className="text-muted-foreground h-9 w-9 p-0 hover:bg-primary/10">
+                <Globe size={18} className="text-primary" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-40">
@@ -594,7 +571,7 @@ export function ChatInterface() {
                 <DropdownMenuItem 
                   key={lang.code} 
                   onClick={() => setCurrentLang(lang)}
-                  className={cn("text-xs flex items-center justify-between", currentLang?.code === lang.code && "bg-primary/10 text-primary")}
+                  className={cn("flex items-center justify-between", currentLang?.code === lang.code && "bg-primary/10 text-primary")}
                 >
                   {lang.name}
                   {currentLang?.code === lang.code && <CheckCircle2 size={12} />}
@@ -607,51 +584,35 @@ export function ChatInterface() {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 p-0 border shadow-sm">
                 <Avatar className="h-full w-full">
-                  <AvatarImage src={userAvatar?.imageUrl || "https://picsum.photos/seed/user/100/100"} />
-                  <AvatarFallback className="bg-accent text-white"><UserIcon size={16} /></AvatarFallback>
+                  <AvatarImage src={userAvatar?.imageUrl || ""} />
+                  <AvatarFallback className="bg-primary text-white"><UserIcon size={16} /></AvatarFallback>
                 </Avatar>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64">
               <DropdownMenuLabel className="flex flex-col">
-                <span className="text-sm font-bold">User Profile</span>
+                <span className="text-xs font-bold">User Profile</span>
                 <span className="text-[10px] text-muted-foreground font-mono">{userData.id}</span>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               
               <DropdownMenuLabel className="text-[10px] uppercase text-muted-foreground py-2">Account Actions</DropdownMenuLabel>
-              <DropdownMenuItem onClick={startStatusFlow} className="text-sm gap-2 cursor-pointer">
-                <FileSearch size={16} className="text-primary" />
+              <DropdownMenuItem onClick={startStatusFlow} className="flex items-center gap-2 cursor-pointer">
+                <ClipboardCheck size={16} className="text-primary" />
                 {currentLang?.code === 'am' ? 'የሪፖርት ሁኔታ አረጋግጥ' : 'Check Report Status'}
               </DropdownMenuItem>
-              
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-[10px] uppercase text-muted-foreground py-2">Preferences</DropdownMenuLabel>
-              <div className="px-2 pb-2">
-                <DropdownMenuRadioGroup value={theme} onValueChange={(v: any) => setTheme(v)}>
-                  <DropdownMenuRadioItem value="light" className="text-xs gap-2 cursor-pointer">
-                    <Sun size={14} /> Light Mode
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="dark" className="text-xs gap-2 cursor-pointer">
-                    <Moon size={14} /> Dark Mode
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="system" className="text-xs gap-2 cursor-pointer">
-                    <Monitor size={14} /> System
-                  </DropdownMenuRadioItem>
-                </DropdownMenuRadioGroup>
-              </div>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </header>
       
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
+      <ScrollArea ref={scrollRef} className="flex-1 overflow-x-hidden p-4 md:p-6 space-y-4">
         {history.map(msg => (
           <ChatBubble key={msg.id} isBot={msg.sender === 'bot'}>
             {msg.text && <p>{msg.text}</p>}
             {msg.content && <div dangerouslySetInnerHTML={{ __html: msg.content }} />}
             {msg.reportStatus && (
-              <div className="mt-4 border rounded-xl p-4 bg-muted/30 shadow-sm space-y-4">
+              <div className="mt-4 border rounded-xl p-4 bg-primary/5 shadow-sm space-y-4">
                 <div className="flex items-center justify-between border-b pb-3">
                   <div className="flex items-center gap-2">
                     {getStatusDisplay(msg.reportStatus.status).icon}
@@ -666,18 +627,18 @@ export function ChatInterface() {
                   <div className="text-sm font-semibold">{msg.reportStatus.menuName}</div>
                 </div>
                 {msg.reportStatus.adminResponse && (
-                  <div className="space-y-2 p-3 bg-white rounded-lg border border-dashed border-primary/30">
+                  <div className="mt-2 p-3 bg-white rounded-lg border border-primary/20">
                     <div className="text-[10px] uppercase font-bold text-primary flex items-center gap-1">
-                      <MessageSquare size={10} /> Admin Feedback
+                      <CornerDownRight size={10} /> Admin Feedback
                     </div>
-                    <div className="text-sm italic text-foreground">{msg.reportStatus.adminResponse}</div>
+                    <div className="text-sm italic text-muted-foreground">{msg.reportStatus.adminResponse}</div>
                   </div>
                 )}
               </div>
             )}
             {msg.tableData && (
-              <div className="mt-4 border rounded-lg overflow-hidden bg-muted/20 shadow-sm">
-                <ScrollArea className="max-h-60">
+              <div className="mt-4 border rounded-xl overflow-hidden bg-white shadow-md">
+                <ScrollArea className="w-full">
                   <Table>
                     <TableHeader className="bg-muted/30">
                       <TableRow>
@@ -690,7 +651,7 @@ export function ChatInterface() {
                     </TableHeader>
                     <TableBody>
                       {msg.tableData.rows.map((row, i) => (
-                        <TableRow key={i} className="hover:bg-primary/5 transition-colors">
+                        <TableRow key={i} className="hover:bg-muted/5 transition-colors">
                           {msg.tableData!.columns.map((col, j) => (
                             <TableCell key={j} className="text-xs py-3 font-medium">
                               {String(resolveTableCell(col.key, row, msg.tableData!.rootData, msg.tableData!.arrayPath) ?? '')}
@@ -704,23 +665,23 @@ export function ChatInterface() {
               </div>
             )}
             <div className="flex flex-wrap gap-2 mt-4">
-              {msg.options?.map(opt => <Button key={opt.id} variant="outline" size="sm" className="rounded-full bg-white hover:bg-primary/5 border-primary/20 text-primary-dark" onClick={() => navigateTo(opt)}>{getLocalizedName(opt)}<ChevronRight size={14} className="ml-1 opacity-50" /></Button>)}
-              {msg.relatedOptions?.length ? <div className="w-full flex items-center gap-2 py-2"><div className="h-px bg-muted flex-1" /><span className="text-[9px] font-bold uppercase text-muted-foreground">{currentLang?.code === 'am' ? 'ተዛማጅ' : 'Related'}</span><div className="h-px bg-muted flex-1" /></div> : null}
+              {msg.options?.map(opt => <Button key={opt.id} variant="outline" size="sm" className="rounded-full bg-white hover:bg-primary/5 border-primary/20 text-primary" onClick={() => navigateTo(opt)}>{getLocalizedName(opt)}<ChevronRight size={14} className="ml-1 opacity-50" /></Button>)}
+              {msg.relatedOptions && msg.relatedOptions.length > 0 && <div className="w-full flex items-center gap-2 py-2"><div className="h-px bg-muted flex-1" /><span className="text-[9px] font-bold uppercase text-muted-foreground">{currentLang?.code === 'am' ? 'ተዛማጅ' : 'Related'}</span><div className="h-px bg-muted flex-1" /></div>}
               {msg.relatedOptions?.map(opt => <Button key={opt.id} variant="secondary" size="sm" className="rounded-full shadow-sm" onClick={() => navigateTo(opt)}><ClipboardCheck size={12} className="mr-2" />{getLocalizedName(opt)}</Button>)}
             </div>
           </ChatBubble>
         ))}
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-white border rounded-2xl p-4 shadow-sm flex items-center gap-2 animate-pulse">
+            <div className="bg-white border rounded-2xl p-4 shadow-sm flex items-center gap-2 animate-in fade-in">
               <Loader2 size={16} className="animate-spin text-primary" />
-              <span className="text-xs italic font-medium">{loadingText}</span>
+              <span className="text-sm italic font-medium">{loadingText}</span>
             </div>
           </div>
         )}
-      </div>
+      </ScrollArea>
       
-      {(kycFlow || statusFlow) && <div className="p-4 bg-white border-t flex flex-col gap-2 animate-in slide-in-from-bottom-2 duration-300">
+      {(kycFlow || statusFlow) && <div className="p-4 bg-white border-t flex flex-col gap-2 sticky bottom-0 z-50 animate-in slide-in-from-bottom-2 duration-300">
         <form onSubmit={handleUserInput} className="flex gap-2">
           <Input 
             autoFocus 
@@ -728,25 +689,25 @@ export function ChatInterface() {
             value={kycInput} 
             onChange={e => setKycInput(e.target.value)} 
             placeholder={statusFlow ? (currentLang?.code === 'am' ? 'የሪፖርት ቁጥር እዚህ ያስገቡ...' : 'Enter reference ID...') : (currentLang?.code === 'am' ? 'እዚህ ይጻፉ...' : 'Enter requested information...')} 
-            className="rounded-full shadow-inner" 
+            className="flex-1 shadow-inner" 
           />
-          <Button type="submit" size="icon" className="rounded-full h-10 w-10 shrink-0"><Send size={18} /></Button>
+          <Button type="submit" size="icon" className="rounded-xl h-10 w-10 shrink-0"><Send size={18} /></Button>
           {kycFlow && !kycFlow.fields[kycFlow.fieldIndex].required && (
             <Button type="button" variant="ghost" size="sm" onClick={() => handleKycSubmit(true)} className="text-[10px] font-bold uppercase text-muted-foreground hover:text-primary h-10 px-3">
-              <CornerDownRight size={14} className="mr-1" /> {currentLang?.code === 'am' ? 'ዘልለው' : 'Skip'}
+              Skip
             </Button>
           )}
           {statusFlow && (
             <Button type="button" variant="ghost" size="sm" onClick={() => setStatusFlow(false)} className="text-[10px] font-bold uppercase text-muted-foreground hover:text-destructive h-10 px-3">
-              {currentLang?.code === 'am' ? 'ሰርዝ' : 'Cancel'}
+              Cancel
             </Button>
           )}
         </form>
       </div>}
       
-      <footer className="bg-white border-t p-4 flex justify-center gap-4 shrink-0 overflow-x-auto shadow-[0_-1px_3px_rgba(0,0,0,0.05)]">
-        <Button variant="ghost" size="sm" className="hover:bg-primary/5 rounded-full px-4" onClick={() => { setHistory(prev => [...prev, { id: `home-${Date.now()}`, sender: 'bot', text: currentLang?.code === 'am' ? 'እንዴት ልረዳዎ እችላለሁ?' : 'How can I help you?', options: menus.filter(m => m.parentId === null) }]); setCurrentMenuId(null); setKycFlow(null); setStatusFlow(false); }}><Home className="mr-2 text-primary" size={18} /> {currentLang?.code === 'am' ? 'ቤት' : 'Home'}</Button>
-        {currentMenuId && !kycFlow && !statusFlow && <Button variant="ghost" size="sm" className="hover:bg-primary/5 rounded-full px-4" onClick={() => { const current = menus.find(m => m.id === currentMenuId); const parent = menus.find(m => m.id === current?.parentId); if (parent) navigateTo(parent); else setHistory(p => [...p, { id: 'reset', sender: 'bot', text: 'Navigation Reset', options: menus.filter(m => !m.parentId) }]); }}><ArrowLeft className="mr-2 text-primary" size={18} /> {currentLang?.code === 'am' ? 'ተመለስ' : 'Back'}</Button>}
+      <footer className="bg-white border-t p-4 flex justify-between gap-4 sticky bottom-0 z-40 shadow-[0_-1px_3px_rgba(0,0,0,0.05)]">
+        <Button variant="ghost" size="sm" className="hover:bg-primary/5 rounded-full px-4" onClick={() => { setHistory(prev => [...prev, { id: `home-${Date.now()}`, sender: 'user', text: currentLang?.code === 'am' ? 'እንዴት ልረዳዎ እችላለሁ?' : 'How can I help you?', options: menus.filter(m => m.parentId === null) }]); setCurrentMenuId(null); setKycFlow(null); setStatusFlow(false); }}><Home className="mr-2 text-primary" size={16} /> {currentLang?.code === 'am' ? 'ቤት' : 'Home'}</Button>
+        {currentMenuId && !kycFlow && !statusFlow && <Button variant="ghost" size="sm" className="hover:bg-primary/5 rounded-full px-4" onClick={() => { const current = menus.find(m => m.id === currentMenuId); const parent = menus.find(m => m.id === current?.parentId); if (parent) navigateTo(parent); else setHistory(p => [...p, { id: 'reset', sender: 'bot', text: 'Navigation Reset', options: menus.filter(m => !m.parentId) }]); }}><ArrowLeft className="mr-2 text-primary" size={16} /> {currentLang?.code === 'am' ? 'ተመለስ' : 'Back'}</Button>}
       </footer>
     </div>
   );
