@@ -25,7 +25,8 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
-  ShieldAlert
+  ShieldAlert,
+  Activity
 } from 'lucide-react';
 
 export function Dashboard() {
@@ -34,15 +35,38 @@ export function Dashboard() {
     reports: getStoredReports()
   });
 
+  const [onlineNow, setOnlineNow] = useState(0);
+
   useEffect(() => {
-    // Refresh interval for dashboard data to simulate real-time updates
-    const interval = setInterval(() => {
+    // Initial data load
+    setData({
+      menus: getStoredMenus(),
+      reports: getStoredReports()
+    });
+
+    // Simulate online users fluctuation for the prototype
+    // In a production environment, this would come from a real-time presence system (e.g. Firestore or WebSockets)
+    setOnlineNow(Math.floor(Math.random() * 5) + 3);
+    
+    const presenceInterval = setInterval(() => {
+      setOnlineNow(prev => {
+        const change = Math.random() > 0.5 ? 1 : -1;
+        return Math.max(1, Math.min(25, prev + change));
+      });
+    }, 8000);
+
+    // Refresh interval for dashboard data (simulating real-time updates)
+    const dataInterval = setInterval(() => {
       setData({
         menus: getStoredMenus(),
         reports: getStoredReports()
       });
     }, 5000);
-    return () => clearInterval(interval);
+
+    return () => {
+      clearInterval(presenceInterval);
+      clearInterval(dataInterval);
+    };
   }, []);
 
   const stats = useMemo(() => {
@@ -54,8 +78,7 @@ export function Dashboard() {
     const pendingReports = data.reports.filter(r => r.status === 'pending').length;
     const urgentReports = data.reports.filter(r => r.priority === 'urgent' || r.priority === 'high').length;
     
-    // Calculate unique users from report submissions
-    // This identifies unique individuals rather than just total message volume
+    // Total Active Users: Unique session IDs found in submission history
     const uniqueUsers = new Set(data.reports.map(r => r.userId)).size;
 
     // Chart: Reports by Status (Workflow visualization)
@@ -100,10 +123,24 @@ export function Dashboard() {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       {/* Top Level Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <Card className="border-l-4 border-l-emerald-500 shadow-sm hover:shadow-md transition-all">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Online Now</CardTitle>
+            <div className="relative flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">{onlineNow}</div>
+            <p className="text-[10px] text-muted-foreground mt-1">Live active sessions</p>
+          </CardContent>
+        </Card>
+
         <Card className="border-l-4 border-l-primary shadow-sm hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Active Users</CardTitle>
+            <CardTitle className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Total Bot Users</CardTitle>
             <Users className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
@@ -114,34 +151,34 @@ export function Dashboard() {
 
         <Card className="border-l-4 border-l-amber-500 shadow-sm hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Pending Requests</CardTitle>
+            <CardTitle className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Pending Tasks</CardTitle>
             <Clock className="h-4 w-4 text-amber-500" />
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">{stats.pendingReports}</div>
-            <p className="text-[10px] text-muted-foreground mt-1">Awaiting administrative action</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Awaiting attention</p>
           </CardContent>
         </Card>
 
         <Card className="border-l-4 border-l-red-600 shadow-sm hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Urgent Triage</CardTitle>
+            <CardTitle className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Urgent Triage</CardTitle>
             <ShieldAlert className="h-4 w-4 text-red-600" />
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">{stats.urgentReports}</div>
-            <p className="text-[10px] text-muted-foreground mt-1">High-priority security events</p>
+            <p className="text-[10px] text-muted-foreground mt-1">High-priority events</p>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-emerald-500 shadow-sm hover:shadow-md transition-shadow">
+        <Card className="border-l-4 border-l-blue-600 shadow-sm hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Resolved Total</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+            <CardTitle className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Resolved</CardTitle>
+            <CheckCircle2 className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">{stats.resolvedReports}</div>
-            <p className="text-[10px] text-muted-foreground mt-1">Successfully handled issues</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Total completed cases</p>
           </CardContent>
         </Card>
       </div>
