@@ -36,16 +36,21 @@ The system includes several mock APIs to test different integration patterns. Fo
         *   **Columns**: `id`, `amount`, `status`
 *   **Chat Interaction**: The bot asks for a status. Enter `success` to see matching transactions.
 
-### 3. Product Catalog (Basic Auth)
-*   **Goal**: Test standard Basic Authentication.
+### 3. Product Catalog (Basic Auth) - Table & Message Guide
+*   **Goal**: Test standard Basic Authentication and verify T-Message vs Table resolution.
 *   **Configuration**:
     *   **Endpoint**: `/api/test/products`
     *   **Auth Type**: `Basic Auth`. User: `admin`, Pass: `1234`.
     *   **KYC Needed**: Add a KYC field with key `category`.
     *   **Request Mapping**: Param Key: `category` -> Source: `KYC: category`.
-    *   **Response View**:
+    *   **Response View (Message)**: 
+        *   **Template**: `Found {{response.data.length}} products for your query "{{category}}".`
+    *   **Response View (Table)**:
         *   **Table Data Key**: `data`
-        *   **Columns**: `id`, `name`, `category`
+        *   **Columns**: 
+            *   `name` (Row Key)
+            *   `category` (Row Key)
+            *   `response.success` (Root Key fallback)
 *   **Chat Interaction**: The bot asks for a category. Enter `fruit` to see results.
 
 ---
@@ -56,14 +61,14 @@ The system supports English and Amharic by default.
 *   **Response Templates**: Success and error messages can be fully localized.
 *   **Table Headers**: Use the "Table" tab in Response View Mapping to provide localized column titles.
 
-## 🔑 System Variables
-The following system-level placeholders are always available:
+## 🔑 System Variables & Root-to-Key Mapping
+The following placeholders are available in templates and table keys:
 *   `{{user_id}}`: Resolves to the current session user ID.
 *   `{{user_token}}`: Resolves to the static system token.
-
----
+*   `{{response.path.to.key}}`: Accesses any value from the JSON response root.
+*   `{{kyc_field_name}}`: Accesses any data collected from the user in the current flow.
 
 ## 🪄 Pro-Tips for Admin
-*   **Magic Wand**: Use the Magic Wand icon next to "Data Keys" or "Templates" to automatically pick fields from your Live Preview data.
+*   **Magic Wand**: Use the Magic Wand icon next to "Table Data Key" or "Columns" to automatically pick fields from your Live Preview data.
+*   **Root Fallback**: If a column key is not found in a table row, the system automatically checks the root `response` object.
 *   **Custom Headers**: Configure custom headers like `Content-Type` or `X-App-ID` in the Connectivity section.
-*   **Attach Related**: Use "Attach Related Menus" at the bottom to suggest "Quick Actions" after a bot response.
