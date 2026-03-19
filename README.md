@@ -46,14 +46,23 @@ The system includes several mock APIs to test different integration patterns. Fo
     *   **Table Data Key**: `data`
     *   **Columns**: `name`, `category`, `response.success`
 
-### 4. Inventory Lookup (API Key + Filtering)
-*   **Endpoint**: `/api/test/inventory`
-*   **Auth Type**: `API Key`. Header: `x-api-key`. Value: `mysecretapikey123`.
-*   **KYC Needed**: Add field `category`.
-*   **Request Mapping**: `category` -> `KYC: category`, `limit` -> `Static: 5`.
+### 4. General Transactions (Bearer + Multi-Parameter)
+*   **Endpoint**: `/api/test/transactions`
+*   **Auth Type**: `Bearer Token`. Template: `Bearer talktree_static_token_778899`.
+*   **KYC Needed**: Add field `account_id`.
+*   **Request Mapping**: 
+    *   `account_id` -> `KYC: account_id`
+    *   `limit` -> `Static: 5`
 *   **Response View (Table)**:
-    *   **Table Data Key**: `data`
-    *   **Columns**: `name`, `category`
+    *   **Table Data Key**: `transactions`
+    *   **Columns**: `id`, `date`, `amount`, `status`
+
+### 5. Profile Lookup (Path Parameter)
+*   **Endpoint**: `/api/test/profile/{{account_id}}`
+*   **Auth Type**: `Bearer Token`. Template: `Bearer {{user_token}}`.
+*   **KYC Needed**: Add field `account_id`.
+*   **Response View (Message)**:
+    *   **Template**: `Profile: {{response.data.full_name}} ({{response.data.email}})`
 
 ---
 
