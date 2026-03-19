@@ -30,7 +30,8 @@ import {
   ShieldAlert,
   Download,
   NotebookPen,
-  Filter
+  Filter,
+  CheckCircle
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -73,6 +74,8 @@ export function ReportsManagement() {
   
   const [editingResponse, setEditingResponse] = useState<string>('');
   const [editingNotes, setEditingNotes] = useState<string>('');
+  const [editingStatus, setEditingStatus] = useState<UserReport['status']>('pending');
+  const [editingPriority, setEditingPriority] = useState<ReportPriority>('medium');
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   const [isInspectOpen, setIsInspectOpen] = useState(false);
 
@@ -103,24 +106,18 @@ export function ReportsManagement() {
     });
   }, [reports, search, statusFilter, priorityFilter]);
 
-  const handleUpdateStatus = (reportId: string, newStatus: string) => {
-    updateReportStatus(reportId, newStatus as UserReport['status']);
-    setReports(getStoredReports());
-    toast({ title: "Status Updated", description: `Report marked as ${newStatus}.` });
-  };
-
-  const handleUpdatePriority = (reportId: string, newPriority: string) => {
-    updateReportPriority(reportId, newPriority as ReportPriority);
-    setReports(getStoredReports());
-    toast({ title: "Priority Updated", description: `Report set to ${newPriority} priority.` });
-  };
-
   const handleSaveAdminData = () => {
     if (selectedReportId) {
+      updateReportStatus(selectedReportId, editingStatus);
+      updateReportPriority(selectedReportId, editingPriority);
       updateReportAdminResponse(selectedReportId, editingResponse);
       updateReportInternalNotes(selectedReportId, editingNotes);
       setReports(getStoredReports());
-      toast({ title: "Updated", description: "Admin feedback and notes saved." });
+      toast({ 
+        title: "Submission Updated", 
+        description: "Status, priority, and feedback have been persisted." 
+      });
+      setIsInspectOpen(false);
     }
   };
 
@@ -312,6 +309,8 @@ export function ReportsManagement() {
                         setSelectedReportId(report.id);
                         setEditingResponse(report.adminResponse || '');
                         setEditingNotes(report.internalNotes || '');
+                        setEditingStatus(report.status);
+                        setEditingPriority(report.priority || 'medium');
                         setIsInspectOpen(true);
                       }}>
                         Inspect <ChevronRight size={14} className="ml-1" />
@@ -365,8 +364,8 @@ export function ReportsManagement() {
                 <div className="p-6 space-y-8">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="space-y-2">
-                      <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Status</Label>
-                      <Select defaultValue={selectedReport.status} onValueChange={(val) => handleUpdateStatus(selectedReport.id, val)}>
+                      <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Mark Status</Label>
+                      <Select value={editingStatus} onValueChange={(val: any) => setEditingStatus(val)}>
                         <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="pending">Pending</SelectItem>
@@ -376,8 +375,8 @@ export function ReportsManagement() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Priority</Label>
-                      <Select defaultValue={selectedReport.priority || 'medium'} onValueChange={(val) => handleUpdatePriority(selectedReport.id, val)}>
+                      <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Change Priority</Label>
+                      <Select value={editingPriority} onValueChange={(val: any) => setEditingPriority(val)}>
                         <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="urgent">Urgent</SelectItem>
@@ -450,7 +449,7 @@ export function ReportsManagement() {
               
               <DialogFooter className="p-6 border-t bg-muted/5 sticky bottom-0 z-50">
                 <Button variant="ghost" onClick={() => setIsInspectOpen(false)}>Close</Button>
-                <Button onClick={() => { handleSaveAdminData(); setIsInspectOpen(false); }}>
+                <Button onClick={handleSaveAdminData}>
                   Save All Changes
                 </Button>
               </DialogFooter>
