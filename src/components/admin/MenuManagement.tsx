@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { MenuItem, KYCField, TableColumn, AuthType, ApiConfig, Language, AppSettings } from '@/lib/types';
+import { MenuItem, KYCField, TableColumn, AuthType, ApiConfig, Language, AppSettings, ReportPriority } from '@/lib/types';
 import { getStoredMenus, addMenu, updateMenu, deleteMenu, getAppSettings, saveAppSettings } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,6 +35,7 @@ import {
   Search,
   Link as LinkIcon,
   ClipboardList,
+  ShieldAlert,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -701,7 +702,28 @@ export function MenuManagement() {
                   )}
 
                   <Card>
-                    <CardHeader className="bg-muted/10"><CardTitle className="text-sm">{editForm.responseType === 'report' ? 'Report Collection Fields' : 'KYC & Parameter Mapping'}</CardTitle></CardHeader>
+                    <CardHeader className="bg-muted/10">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-sm">{editForm.responseType === 'report' ? 'Report Configuration' : 'KYC & Parameter Mapping'}</CardTitle>
+                        {editForm.responseType === 'report' && (
+                          <div className="flex items-center gap-3">
+                            <Label className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1"><ShieldAlert size={12} /> Initial Priority</Label>
+                            <Select 
+                              value={editForm.apiConfig?.defaultPriority || 'medium'} 
+                              onValueChange={v => deepUpdate(['apiConfig', 'defaultPriority'], v)}
+                            >
+                              <SelectTrigger className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="low">Low</SelectItem>
+                                <SelectItem value="medium">Medium</SelectItem>
+                                <SelectItem value="high">High</SelectItem>
+                                <SelectItem value="urgent">Urgent</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                      </div>
+                    </CardHeader>
                     <CardContent className="p-4 space-y-6">
                       <div className="space-y-4">
                         <div className="flex items-center justify-between">

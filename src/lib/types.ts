@@ -49,6 +49,7 @@ export interface ApiConfig {
   requiredKYC: string[]; // IDs of KYC fields
   kycFields: KYCField[];
   requestParameters: RequestParameter[]; // Mapping for the API request
+  defaultPriority?: ReportPriority; // Added field for default priority
   responseMapping: {
     type: 'message' | 'table' | 'buttons' | 'trigger';
     template: string; // Handlebars-style template for message type

@@ -120,7 +120,6 @@ export function ChatInterface() {
     const welcomeText = defaultLang.code === 'am' ? 'ሰላም! ዛሬ እንዴት ልረዳዎ እችላለሁ?' : 'Hello! How can I assist you today?';
     setHistory([{ id: 'welcome', sender: 'bot', text: welcomeText, options: data.filter(m => m.parentId === null) }]);
     
-    // Check initial theme
     const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     setTheme(isDark ? 'dark' : 'light');
   }, []);
@@ -134,7 +133,6 @@ export function ChatInterface() {
     }
   }, [history, isLoading, kycFlow, statusFlow]);
 
-  // Handle theme changes
   useEffect(() => {
     const root = window.document.documentElement;
     root.classList.remove('light', 'dark');
@@ -377,7 +375,8 @@ export function ChatInterface() {
       const savedReport = addReport({
         userId: userData.id,
         menuName: menu.name,
-        data: reportPayload
+        data: reportPayload,
+        priority: menu.apiConfig?.defaultPriority || 'medium'
       });
 
       const responseContext = { response: { id: savedReport.id, ...reportPayload } };

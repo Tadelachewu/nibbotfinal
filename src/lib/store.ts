@@ -40,6 +40,7 @@ const defaultMenus: MenuItem[] = [
       timeout: 0,
       retry: 0,
       loginRequired: true,
+      defaultPriority: 'high',
       kycFields: [
         {
           id: 'fraud-acc',
@@ -190,7 +191,7 @@ export function addReport(reportData: Omit<UserReport, 'id' | 'status' | 'timest
     ...reportData,
     id: 'rep_' + Math.random().toString(36).substr(2, 9),
     status: 'pending',
-    priority: 'medium',
+    priority: reportData.priority || 'medium',
     timestamp: new Date().toISOString()
   };
   saveReports([newReport, ...reports]);
