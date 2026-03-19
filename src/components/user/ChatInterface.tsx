@@ -224,7 +224,7 @@ export function ChatInterface() {
       // 2. Response Data
       if (path.startsWith('response.')) {
         const val = getVal(path, context.response);
-        return val !== undefined ? String(val) : ""; // Default to empty if path exists but value missing
+        return val !== undefined ? String(val) : match; // Keep placeholder if path unresolved
       }
       
       // 3. KYC Data (Merged flow + global)
@@ -239,7 +239,7 @@ export function ChatInterface() {
         if (val !== undefined) return String(val);
       }
       
-      return ""; // Default to empty string for unresolved placeholders
+      return match; // Default to returning the placeholder itself for visibility
     });
   };
 

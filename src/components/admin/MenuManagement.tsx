@@ -68,7 +68,7 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover";
+} from "@/Popover";
 import { Switch } from '@/components/ui/switch';
 
 export function MenuManagement() {
@@ -202,6 +202,7 @@ export function MenuManagement() {
         account_number: '12345',
         verification_code: '9988',
         phone: '251911223344', 
+        category: 'fruit'
       };
 
       const resolve = (str: string) => str.replace(/{{\s*(.*?)\s*}}/g, (match, p1) => {
@@ -220,7 +221,7 @@ export function MenuManagement() {
           headers[headerName] = resolve(auth.apiKey.value);
         } else if (auth.type === 'basic' && auth.basicAuth) {
           const user = auth.basicAuth.user || 'admin';
-          const pass = auth.basicAuth.pass || 'password123';
+          const pass = auth.basicAuth.pass || '1234';
           headers[headerName] = `Basic ${btoa(`${user}:${pass}`)}`;
         } else if (auth.type === 'bearer' && auth.bearer) {
           headers[headerName] = resolve(auth.bearer.template);
@@ -249,13 +250,24 @@ export function MenuManagement() {
         cache: 'no-store'
       });
       
-      const data = await response.json().catch(() => ({ 
-        status: 'error', 
-        message: 'The API returned a non-JSON response.' 
-      }));
+      const responseText = await response.text();
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        data = { 
+          status: 'error', 
+          message: 'The API returned a non-JSON response.',
+          debug: {
+            status: response.status,
+            statusText: response.statusText,
+            preview: responseText.substring(0, 300) + (responseText.length > 300 ? '...' : '')
+          }
+        };
+      }
       
       setApiPreviewResult(data);
-      if (response.ok) toast({ title: "API Test Successful" });
+      if (response.ok && data.status !== 'error') toast({ title: "API Test Successful" });
       else toast({ title: "API Warning", description: `Status ${response.status}`, variant: "destructive" });
     } catch (e) {
       toast({ title: "API Network Error", variant: "destructive" });
@@ -693,7 +705,11 @@ export function MenuManagement() {
                               <span className="text-[9px] text-emerald-400 font-bold uppercase">Latest API Response:</span>
                               <Button variant="ghost" size="sm" className="h-6 text-[9px] text-muted-foreground hover:text-white" onClick={() => setApiPreviewResult(null)}>Clear</Button>
                             </div>
-                            <ScrollArea className="h-48"><pre className={cn("text-[10px] font-mono whitespace-pre-wrap", apiPreviewResult.status === 'error' ? 'text-red-400' : 'text-emerald-400')}>{JSON.stringify(apiPreviewResult, null, 2)}</pre></ScrollArea>
+                            <ScrollArea className="h-48">
+                              <pre className={cn("text-[10px] font-mono whitespace-pre-wrap", apiPreviewResult.status === 'error' ? 'text-red-400' : 'text-emerald-400')}>
+                                {JSON.stringify(apiPreviewResult, null, 2)}
+                              </pre>
+                            </ScrollArea>
                           </div>
                         )}
                       </CardContent>
@@ -817,7 +833,7 @@ export function MenuManagement() {
 
                             const handleErrorChange = (val: string) => {
                               if (isDefault) deepUpdate(['apiConfig', 'responseMapping', 'errorFallback'], val);
-                              else if (lang.code === 'am') deepUpdate(['apiConfig', 'responseMapping', 'errorFallbackAm'], val);
+                              else if (lang.code === 'am') deepUpdate(['apiConfig', 'responseMapping', 'templateAm'], val);
                               else {
                                 const translations = { ...(editForm.translations || {}) };
                                 translations[lang.code] = { ...(translations[lang.code] || {}), errorFallback: val };
@@ -913,7 +929,7 @@ export function MenuManagement() {
                                           }}
                                         />
                                       </div>
-                                      <Input className="h-8 text-xs font-mono" value={col.key} onChange={e => { const cols = [...editForm.apiConfig!.responseMapping.tableColumns!]; cols[idx].key = e.target.value; deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], cols); }} />
+                                      <Input className="h-8 text-xs font-mono" value={col.key} onChange={e => { const cols = [...editForm.apiConfig!.responseMapping.tableColumns!]; cols[idx].key = e.target.value; deepUpdate(['apiConfig', 'requestMapping', 'tableColumns'], cols); }} />
                                     </div>
                                     <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100" onClick={() => { const cols = editForm.apiConfig!.responseMapping.tableColumns!.filter((_, i) => i !== idx); deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], cols); }}><Trash2 size={14} /></Button>
                                   </div>
