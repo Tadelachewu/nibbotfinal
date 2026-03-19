@@ -1,10 +1,9 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { MenuItem, KYCField, TableColumn, Language, UserReport, KYCFieldType } from '@/lib/types';
-import { getStoredMenus, getAppSettings, addReport, getStoredReports } from '@/lib/store';
+import { getStoredMenus, getAppSettings, addReport, getStoredReports, incrementMenuClick } from '@/lib/store';
 import { ChatBubble } from './ChatBubble';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -483,6 +482,11 @@ export function ChatInterface() {
   };
 
   const navigateTo = (menu: MenuItem) => {
+    // Analytics: Track Click
+    if (menu.trackClicks) {
+      incrementMenuClick(menu.id);
+    }
+
     const childMenus = menus.filter(m => m.parentId === menu.id);
     const relatedItems = menus.filter(m => menu.attachedMenuIds?.includes(m.id));
     
@@ -536,6 +540,11 @@ export function ChatInterface() {
       case 'reviewed': return { icon: <Clock className="text-blue-500" />, label: currentLang?.code === 'am' ? 'በመመርመር ላይ' : 'Reviewed', color: 'bg-blue-100 text-blue-800' };
       default: return { icon: <AlertCircle className="text-amber-500" />, label: currentLang?.code === 'am' ? 'በጥበቃ ላይ' : 'Pending', color: 'bg-amber-100 text-amber-800' };
     }
+  };
+
+  const findAndNavigateTo = (id: string) => {
+    const menu = menus.find(m => m.id === id);
+    if (menu) navigateTo(menu);
   };
 
   const getInputType = () => {

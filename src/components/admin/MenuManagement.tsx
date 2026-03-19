@@ -36,6 +36,7 @@ import {
   Link as LinkIcon,
   ClipboardList,
   ShieldAlert,
+  Fingerprint,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -106,7 +107,9 @@ export function MenuManagement() {
       responseType: 'static',
       content: '<p>Enter your response message here...</p>',
       order: menus.filter(m => m.parentId === parentId).length,
-      attachedMenuIds: []
+      attachedMenuIds: [],
+      trackClicks: false,
+      clickCount: 0
     });
     refresh();
     handleStartEdit(newItem);
@@ -304,6 +307,11 @@ export function MenuManagement() {
                     <span className="truncate text-sm font-medium">{item.name}</span>
                     {item.nameAm && <span className="truncate text-[10px] text-muted-foreground">{item.nameAm}</span>}
                   </div>
+                  {item.trackClicks && (
+                    <Badge variant="outline" className="text-[9px] px-1.5 h-4 ml-1 border-primary/20 text-primary">
+                      {item.clickCount || 0}
+                    </Badge>
+                  )}
                 </div>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => handleAdd(item.id)}><FolderPlus size={14} /></Button>
@@ -459,7 +467,7 @@ export function MenuManagement() {
           </DialogHeader>
           <ScrollArea className="flex-1">
             <div className="p-6 space-y-8 pb-20">
-              <div className="grid gap-6 sm:grid-cols-2 bg-muted/10 p-4 rounded-xl border">
+              <div className="grid gap-6 sm:grid-cols-3 bg-muted/10 p-4 rounded-xl border">
                 <div className="space-y-2">
                   <Label className="text-xs uppercase font-bold text-muted-foreground">Action Type</Label>
                   <Select value={editForm.responseType} onValueChange={(v: any) => setEditForm({ ...editForm, responseType: v })}>
@@ -474,6 +482,20 @@ export function MenuManagement() {
                 <div className="space-y-2">
                   <Label className="text-xs uppercase font-bold text-muted-foreground">Display Order</Label>
                   <Input type="number" value={editForm.order || 0} onChange={e => setEditForm({ ...editForm, order: parseInt(e.target.value) || 0 })} />
+                </div>
+                <div className="flex flex-col justify-center space-y-2">
+                  <Label className="text-xs uppercase font-bold text-muted-foreground flex items-center gap-1">
+                    <Fingerprint size={12} className="text-primary" /> Enable Click Tracking
+                  </Label>
+                  <div className="flex items-center gap-3">
+                    <Switch 
+                      checked={editForm.trackClicks || false} 
+                      onCheckedChange={(checked) => setEditForm({ ...editForm, trackClicks: checked })} 
+                    />
+                    <span className="text-[10px] text-muted-foreground font-medium uppercase">
+                      {editForm.trackClicks ? 'Active' : 'Disabled'}
+                    </span>
+                  </div>
                 </div>
               </div>
 

@@ -86,6 +86,8 @@ export interface MenuItem {
   apiConfig?: ApiConfig; // For API or Report fields
   order: number;
   attachedMenuIds?: string[];
+  trackClicks?: boolean;
+  clickCount?: number;
   translations?: Record<string, {
     name?: string;
     content?: string;

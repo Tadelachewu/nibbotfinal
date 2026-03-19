@@ -21,7 +21,9 @@ const defaultMenus: MenuItem[] = [
     order: 0, 
     content: '<p>Explore what we can do for you.</p>',
     contentAm: '<p>ለእርስዎ ምን ማድረግ እንደምንችል ይመርምሩ።</p>',
-    attachedMenuIds: ['ex-rate', 'path-param-test', 'fraud-report-test']
+    attachedMenuIds: ['ex-rate', 'path-param-test', 'fraud-report-test'],
+    trackClicks: true,
+    clickCount: 15
   },
   {
     id: 'fraud-report-test',
@@ -32,6 +34,8 @@ const defaultMenus: MenuItem[] = [
     order: 1,
     content: '<p>Thank you for your report. Our security team has been notified and will review it shortly.</p>',
     contentAm: '<p>ለሪፖርትዎ እናመሰግናለን። የደህንነት ቡድናችን መረጃ ደርሶታል እና በቅርቡ ይመረምረዋል።</p>',
+    trackClicks: true,
+    clickCount: 8,
     apiConfig: {
       name: 'Fraud Report Collection',
       endpoint: '', 
@@ -76,6 +80,8 @@ const defaultMenus: MenuItem[] = [
     nameAm: 'የምንዛሬ ተመኖች',
     responseType: 'api',
     order: 2,
+    trackClicks: true,
+    clickCount: 24,
     apiConfig: {
       name: 'Daily Exchange Rates',
       endpoint: '/api/test/exchange-rate',
@@ -113,6 +119,8 @@ const defaultMenus: MenuItem[] = [
     nameAm: 'የመገለጫ ፍለጋ',
     responseType: 'api',
     order: 3,
+    trackClicks: false,
+    clickCount: 0,
     apiConfig: {
       name: 'Dynamic Path Parameter Lookup',
       endpoint: '/api/test/profile/{{account_id}}',
@@ -159,6 +167,12 @@ export function getStoredMenus(): MenuItem[] {
 export function saveMenus(menus: MenuItem[]) {
   if (typeof window === 'undefined') return;
   localStorage.setItem(MENUS_KEY, JSON.stringify(menus));
+}
+
+export function incrementMenuClick(id: string) {
+  const menus = getStoredMenus();
+  const updated = menus.map(m => m.id === id ? { ...m, clickCount: (m.clickCount || 0) + 1 } : m);
+  saveMenus(updated);
 }
 
 // Settings Store
@@ -231,7 +245,13 @@ export function deleteReport(id: string) {
 // Menu Actions
 export function addMenu(menu: Omit<MenuItem, 'id'>): MenuItem {
   const menus = getStoredMenus();
-  const newItem = { ...menu, id: Math.random().toString(36).substr(2, 9), attachedMenuIds: [] } as MenuItem;
+  const newItem = { 
+    ...menu, 
+    id: Math.random().toString(36).substr(2, 9), 
+    attachedMenuIds: [],
+    trackClicks: false,
+    clickCount: 0 
+  } as MenuItem;
   saveMenus([...menus, newItem]);
   return newItem;
 }

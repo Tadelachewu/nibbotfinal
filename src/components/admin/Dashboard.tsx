@@ -26,7 +26,8 @@ import {
   CheckCircle2,
   Clock,
   ShieldAlert,
-  Activity
+  Activity,
+  MousePointerClick
 } from 'lucide-react';
 
 export function Dashboard() {
@@ -45,7 +46,6 @@ export function Dashboard() {
     });
 
     // Simulate online users fluctuation for the prototype
-    // In a production environment, this would come from a real-time presence system (e.g. Firestore or WebSockets)
     setOnlineNow(Math.floor(Math.random() * 5) + 3);
     
     const presenceInterval = setInterval(() => {
@@ -78,30 +78,32 @@ export function Dashboard() {
     const pendingReports = data.reports.filter(r => r.status === 'pending').length;
     const urgentReports = data.reports.filter(r => r.priority === 'urgent' || r.priority === 'high').length;
     
-    // Total Active Users: Unique session IDs found in submission history
     const uniqueUsers = new Set(data.reports.map(r => r.userId)).size;
 
-    // Chart: Reports by Status (Workflow visualization)
+    // Chart: Reports by Status
     const statusData = [
       { name: 'Pending', value: pendingReports, color: '#f59e0b' },
       { name: 'Reviewed', value: data.reports.filter(r => r.status === 'reviewed').length, color: '#3b82f6' },
       { name: 'Resolved', value: resolvedReports, color: '#10b981' }
     ];
 
-    // Chart: Menu Distribution (System complexity)
-    const menuTypeData = [
-      { name: 'Static', value: data.menus.filter(m => m.responseType === 'static').length },
-      { name: 'API', value: apiMenus },
-      { name: 'Report', value: reportMenus }
-    ];
-
-    // Chart: Reports by Priority (Triage visualization)
+    // Chart: Priority Breakdown
     const priorityData = [
       { name: 'Urgent', count: data.reports.filter(r => r.priority === 'urgent').length },
       { name: 'High', count: data.reports.filter(r => r.priority === 'high').length },
       { name: 'Medium', count: data.reports.filter(r => r.priority === 'medium').length },
       { name: 'Low', count: data.reports.filter(r => r.priority === 'low').length }
     ];
+
+    // Chart: Most Clicked Menus (Enabled only)
+    const topClickedData = data.menus
+      .filter(m => m.trackClicks && (m.clickCount || 0) > 0)
+      .sort((a, b) => (b.clickCount || 0) - (a.clickCount || 0))
+      .slice(0, 5)
+      .map(m => ({
+        name: m.name.length > 15 ? m.name.substring(0, 12) + '...' : m.name,
+        clicks: m.clickCount || 0
+      }));
 
     return {
       totalMenus,
@@ -113,8 +115,8 @@ export function Dashboard() {
       urgentReports,
       uniqueUsers,
       statusData,
-      menuTypeData,
-      priorityData
+      priorityData,
+      topClickedData
     };
   }, [data]);
 
@@ -262,7 +264,46 @@ export function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* System Complexity Indicator (Progress Bars) */}
+        {/* Top Clicked Interactions */}
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-sm font-bold flex items-center gap-2">
+              <MousePointerClick size={16} className="text-primary" />
+              Top Interactions
+            </CardTitle>
+            <CardDescription className="text-[10px]">Most accessed menus with tracking enabled.</CardDescription>
+          </CardHeader>
+          <CardContent className="h-64">
+            {stats.topClickedData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={stats.topClickedData} layout="vertical" margin={{ left: 10, right: 30 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                  <XAxis type="number" hide />
+                  <YAxis 
+                    dataKey="name" 
+                    type="category" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fontSize: 10, fill: '#64748b' }}
+                    width={80}
+                  />
+                  <RechartsTooltip 
+                    cursor={{ fill: '#f8fafc' }}
+                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                  />
+                  <Bar dataKey="clicks" fill="hsl(var(--accent))" radius={[0, 4, 4, 0]} barSize={20} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full space-y-2 opacity-30">
+                <MousePointerClick size={32} />
+                <p className="text-[10px] font-bold uppercase">No tracking active</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* System Complexity Indicator */}
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="text-sm font-bold flex items-center gap-2">
@@ -273,7 +314,11 @@ export function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {stats.menuTypeData.map((item, idx) => (
+              {[
+                { name: 'Static', value: data.menus.filter(m => m.responseType === 'static').length },
+                { name: 'API', value: data.menus.filter(m => m.responseType === 'api').length },
+                { name: 'Report', value: data.menus.filter(m => m.responseType === 'report').length }
+              ].map((item, idx) => (
                 <div key={item.name} className="space-y-1.5">
                   <div className="flex justify-between text-[11px] font-medium">
                     <span className="text-muted-foreground">{item.name} Nodes</span>
