@@ -13,47 +13,40 @@ TalkTree is a dynamic, chatbot-driven menu management system built with Next.js,
 
 The system includes several mock APIs to test different integration patterns. Follow these steps in the **Admin Panel** to verify each one:
 
-### 1. Exchange Rates (Header-based API Key + Query Param)
-*   **Goal**: Test combining API Key validation and Request Parameter mapping.
+### 1. Order History (API Key Auth)
+*   **Goal**: Test standard API Key validation via custom headers.
 *   **Configuration**:
-    *   **Endpoint**: `/api/test/exchange-rate`
-    *   **Auth Type**: `API Key`. Header: `X-API-KEY`. Value: `secret-123`.
-    *   **Request Mapping**: Param Key: `base` -> Source: `Static` -> Value: `USD`.
-*   **Chat Interaction**: Returns a table of rates. If the `base` parameter is missing, the API returns a 400 error.
+    *   **Endpoint**: `/api/test/orders`
+    *   **Auth Type**: `API Key`. Header: `x-api-key`. Value: `mysecretapikey123`.
+    *   **Request Mapping**: Param Key: `limit` -> Source: `Static` -> Value: `2`.
+    *   **Response View**:
+        *   **Table Data Key**: `data`
+        *   **Columns**: `id`, `total`
+*   **Chat Interaction**: Returns a list of the first 2 orders.
 
-### 2. Basic Auth + Query Param (Secure Action)
-*   **Goal**: Test standard Basic Authentication with mandatory query parameters.
+### 2. User Secure Transactions (Bearer Auth + Path Parameter)
+*   **Goal**: Test Bearer token authentication and path parameter injection.
 *   **Configuration**:
-    *   **Endpoint**: `/api/test/basic-auth-query`
-    *   **Auth Type**: `Basic Auth`. User: `admin`, Pass: `password123`.
-    *   **Request Mapping**: Param Key: `status` -> Source: `Static` -> Value: `active`.
-*   **Chat Interaction**: Returns a confirmation message. If credentials or the `status` parameter are incorrect, it fails.
+    *   **Endpoint**: `/api/test/user-transactions/{{user_id}}`
+    *   **Auth Type**: `Bearer Token`. Template: `Bearer mysecrettoken123`.
+    *   **KYC Needed**: Add a KYC field with key `status` (e.g., success, pending).
+    *   **Request Mapping**: Param Key: `status` -> Source: `KYC: status`.
+    *   **Response View**:
+        *   **Table Data Key**: `data.transactions`
+        *   **Columns**: `id`, `amount`, `status`
+*   **Chat Interaction**: The bot asks for a status. Enter `success` to see matching transactions.
 
-### 3. Profile Lookup (Dynamic Path Parameter)
-*   **Goal**: Test injecting user-provided values directly into the URL path.
+### 3. Product Catalog (Basic Auth)
+*   **Goal**: Test standard Basic Authentication.
 *   **Configuration**:
-    *   **Endpoint**: `/api/test/profile/{{account_id}}`
-    *   **KYC Needed**: Add a KYC field with key `account_id`.
-    *   **Auth**: `Bearer Token`. Template: `Bearer {{user_token}}`.
-*   **Chat Interaction**: The bot will ask for your ID. Enter `user_123` to see the profile result.
-
-### 4. Transactions (Multi-Parameter Query)
-*   **Goal**: Test sending multiple variables (KYC + Static) as query parameters.
-*   **Configuration**:
-    *   **Endpoint**: `/api/test/transactions`
-    *   **Request Mapping**: 
-        *   `account_id` -> Source: `KYC: account_id`
-        *   `limit` -> Source: `Static: 3`
-    *   **Response View**: Set to **Table**.
-*   **Chat Interaction**: The bot asks for your account ID (try `88991122`). It returns exactly 3 transactions.
-
-### 5. Multi-KYC Secure Action (Custom Header Logic)
-*   **Goal**: Test complex header construction using multiple KYC segments.
-*   **Configuration**:
-    *   **Endpoint**: `/api/test/multi-kyc`
-    *   **KYC Fields**: `account` and `code`.
-    *   **Auth**: `Bearer Token`. Template: `Bearer {{user_token}}.{{account}}.{{code}}`.
-*   **Chat Interaction**: Returns balance after collecting both KYC segments.
+    *   **Endpoint**: `/api/test/products`
+    *   **Auth Type**: `Basic Auth`. User: `admin`, Pass: `1234`.
+    *   **KYC Needed**: Add a KYC field with key `category`.
+    *   **Request Mapping**: Param Key: `category` -> Source: `KYC: category`.
+    *   **Response View**:
+        *   **Table Data Key**: `data`
+        *   **Columns**: `id`, `name`, `category`
+*   **Chat Interaction**: The bot asks for a category. Enter `fruit` to see results.
 
 ---
 
@@ -65,8 +58,8 @@ The system supports English and Amharic by default.
 
 ## 🔑 System Variables
 The following system-level placeholders are always available:
-*   `{{user_id}}`: Resolves to `user_123`.
-*   `{{user_token}}`: Resolves to `talktree_static_token_778899`.
+*   `{{user_id}}`: Resolves to the current session user ID.
+*   `{{user_token}}`: Resolves to the static system token.
 
 ---
 
