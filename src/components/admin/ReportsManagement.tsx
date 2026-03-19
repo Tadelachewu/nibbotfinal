@@ -12,15 +12,18 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Search, User, FileText, ChevronRight, ClipboardList, Loader2, Calendar, CheckCircle2, Clock, AlertCircle, Trash2, Database, LayoutPanelLeft, RefreshCw } from 'lucide-react';
+import { Search, User, FileText, ChevronRight, ClipboardList, Loader2, Calendar, CheckCircle2, Clock, AlertCircle, Trash2, Database, LayoutPanelLeft, RefreshCw, MessageSquare } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { 
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { 
   Select,
@@ -29,7 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getStoredReports, updateReportStatus, deleteReport } from '@/lib/store';
+import { getStoredReports, updateReportStatus, updateReportAdminResponse, deleteReport } from '@/lib/store';
 import { UserReport } from '@/lib/types';
 import { format } from 'date-fns';
 import { toast } from '@/hooks/use-toast';
@@ -38,6 +41,8 @@ export function ReportsManagement() {
   const [reports, setReports] = useState<UserReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [editingResponse, setEditingResponse] = useState<string>('');
+  const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
 
   useEffect(() => {
     refreshReports();
@@ -45,7 +50,6 @@ export function ReportsManagement() {
 
   const refreshReports = () => {
     setLoading(true);
-    // Simulate a brief load for UX consistency
     setTimeout(() => {
       setReports(getStoredReports());
       setLoading(false);
@@ -56,6 +60,7 @@ export function ReportsManagement() {
     return reports.filter(r => 
       r.menuName?.toLowerCase().includes(search.toLowerCase()) ||
       r.userId?.toLowerCase().includes(search.toLowerCase()) ||
+      r.id.toLowerCase().includes(search.toLowerCase()) ||
       Object.values(r.data || {}).some(val => String(val).toLowerCase().includes(search.toLowerCase()))
     );
   }, [reports, search]);
@@ -64,6 +69,14 @@ export function ReportsManagement() {
     updateReportStatus(reportId, newStatus as UserReport['status']);
     setReports(getStoredReports());
     toast({ title: "Status Updated", description: `Report marked as ${newStatus}.` });
+  };
+
+  const handleSaveResponse = () => {
+    if (selectedReportId) {
+      updateReportAdminResponse(selectedReportId, editingResponse);
+      setReports(getStoredReports());
+      toast({ title: "Response Saved", description: "Admin comment has been updated." });
+    }
   };
 
   const handleDeleteReport = (reportId: string) => {
@@ -113,7 +126,7 @@ export function ReportsManagement() {
               <div className="relative flex-1 md:w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input 
-                  placeholder="Search user, type, or data..." 
+                  placeholder="Search user, ref ID, or data..." 
                   className="pl-10 bg-white" 
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -180,13 +193,20 @@ export function ReportsManagement() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <Dialog>
+                        <Dialog onOpenChange={(open) => {
+                          if (open) {
+                            setSelectedReportId(report.id);
+                            setEditingResponse(report.adminResponse || '');
+                          } else {
+                            setSelectedReportId(null);
+                          }
+                        }}>
                           <DialogTrigger asChild>
                             <Button variant="outline" size="sm" className="h-8 text-xs hover:bg-primary hover:text-white transition-all">
                               Inspect <ChevronRight size={14} className="ml-1" />
                             </Button>
                           </DialogTrigger>
-                          <DialogContent className="sm:max-w-xl">
+                          <DialogContent className="sm:max-w-xl flex flex-col max-h-[90vh]">
                             <DialogHeader className="border-b pb-4">
                               <DialogTitle className="flex items-center gap-2 text-xl">
                                 <FileText size={22} className="text-primary" />
@@ -195,54 +215,73 @@ export function ReportsManagement() {
                               <p className="text-xs text-muted-foreground font-mono">Submission Reference: {report.id}</p>
                             </DialogHeader>
                             
-                            <div className="py-6 space-y-6">
-                              <div className="grid grid-cols-2 gap-6 bg-muted/20 p-4 rounded-xl border border-dashed">
-                                <div className="space-y-2">
-                                  <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Submitter Details</span>
-                                  <div className="flex items-center gap-2 text-sm font-medium"><User size={14} className="text-primary" /> {report.userId}</div>
-                                  <div className="text-[10px] text-muted-foreground flex items-center gap-1"><Clock size={10} /> {format(new Date(report.timestamp), 'MMMM dd, yyyy HH:mm:ss')}</div>
-                                </div>
-                                <div className="space-y-2">
-                                  <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Management Status</span>
-                                  <Select 
-                                    defaultValue={report.status} 
-                                    onValueChange={(val) => handleUpdateStatus(report.id, val)}
-                                  >
-                                    <SelectTrigger className="h-9 text-xs">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="pending">Pending Review</SelectItem>
-                                      <SelectItem value="reviewed">Under Investigation</SelectItem>
-                                      <SelectItem value="resolved">Action Completed</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                              </div>
-
-                              <div className="space-y-4">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2">
-                                    <LayoutPanelLeft size={16} className="text-primary" />
-                                    <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Collected JSON Payload</span>
+                            <ScrollArea className="flex-1 py-6 pr-4">
+                              <div className="space-y-6">
+                                <div className="grid grid-cols-2 gap-6 bg-muted/20 p-4 rounded-xl border border-dashed">
+                                  <div className="space-y-2">
+                                    <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Submitter Details</span>
+                                    <div className="flex items-center gap-2 text-sm font-medium"><User size={14} className="text-primary" /> {report.userId}</div>
+                                    <div className="text-[10px] text-muted-foreground flex items-center gap-1"><Clock size={10} /> {format(new Date(report.timestamp), 'MMMM dd, yyyy HH:mm:ss')}</div>
                                   </div>
-                                  <Badge variant="outline" className="text-[9px]">{Object.keys(report.data || {}).length} Active Fields</Badge>
+                                  <div className="space-y-2">
+                                    <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Management Status</span>
+                                    <Select 
+                                      defaultValue={report.status} 
+                                      onValueChange={(val) => handleUpdateStatus(report.id, val)}
+                                    >
+                                      <SelectTrigger className="h-9 text-xs">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="pending">Pending Review</SelectItem>
+                                        <SelectItem value="reviewed">Under Investigation</SelectItem>
+                                        <SelectItem value="resolved">Action Completed</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
                                 </div>
-                                <div className="grid grid-cols-1 gap-3">
-                                  {Object.entries(report.data || {}).map(([key, value]) => (
-                                    <div key={key} className="flex items-center justify-between p-4 rounded-lg border bg-slate-50/50 shadow-sm group hover:border-primary/30 hover:bg-white transition-all">
-                                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">{prettifyKey(key)}</span>
-                                      <span className="text-sm font-semibold text-slate-900 font-mono">{String(value || 'N/A')}</span>
+
+                                <div className="space-y-4">
+                                  <div className="flex items-center gap-2">
+                                    <MessageSquare size={16} className="text-primary" />
+                                    <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Admin Written Response</span>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label className="text-[11px] text-muted-foreground">The user will see this message when they check their report status.</Label>
+                                    <Textarea 
+                                      value={editingResponse} 
+                                      onChange={(e) => setEditingResponse(e.target.value)} 
+                                      placeholder="Write a message to the user regarding their submission..."
+                                      className="min-h-[100px] text-sm"
+                                    />
+                                    <Button onClick={handleSaveResponse} size="sm" className="w-full">Save Admin Response</Button>
+                                  </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <LayoutPanelLeft size={16} className="text-primary" />
+                                      <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Collected JSON Payload</span>
                                     </div>
-                                  ))}
-                                  {(!report.data || Object.keys(report.data).length === 0) && (
-                                    <div className="py-12 text-center text-muted-foreground italic text-xs bg-muted/10 rounded-lg border border-dashed">
-                                      No data fields were captured for this specific report configuration.
-                                    </div>
-                                  )}
+                                    <Badge variant="outline" className="text-[9px]">{Object.keys(report.data || {}).length} Active Fields</Badge>
+                                  </div>
+                                  <div className="grid grid-cols-1 gap-3">
+                                    {Object.entries(report.data || {}).map(([key, value]) => (
+                                      <div key={key} className="flex items-center justify-between p-4 rounded-lg border bg-slate-50/50 shadow-sm group hover:border-primary/30 hover:bg-white transition-all">
+                                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">{prettifyKey(key)}</span>
+                                        <span className="text-sm font-semibold text-slate-900 font-mono">{String(value || 'N/A')}</span>
+                                      </div>
+                                    ))}
+                                    {(!report.data || Object.keys(report.data).length === 0) && (
+                                      <div className="py-12 text-center text-muted-foreground italic text-xs bg-muted/10 rounded-lg border border-dashed">
+                                        No data fields were captured for this specific report configuration.
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
-                            </div>
+                            </ScrollArea>
                           </DialogContent>
                         </Dialog>
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteReport(report.id)}>

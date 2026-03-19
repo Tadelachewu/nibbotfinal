@@ -100,6 +100,7 @@ export interface UserReport {
   menuName: string;
   data: Record<string, any>;
   status: 'pending' | 'reviewed' | 'resolved';
+  adminResponse?: string;
   timestamp: string;
 }
 

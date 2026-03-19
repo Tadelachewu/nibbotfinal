@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
-import { MenuItem, KYCField, TableColumn, Language } from '@/lib/types';
-import { getStoredMenus, getAppSettings, addReport } from '@/lib/store';
+import { MenuItem, KYCField, TableColumn, Language, UserReport } from '@/lib/types';
+import { getStoredMenus, getAppSettings, addReport, getStoredReports } from '@/lib/store';
 import { ChatBubble } from './ChatBubble';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ChevronRight, Home, ArrowLeft, Languages, Send, Loader2, ClipboardCheck, CornerDownRight } from 'lucide-react';
+import { ChevronRight, Home, ArrowLeft, Languages, Send, Loader2, ClipboardCheck, CornerDownRight, Search, FileSearch, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import {
   Table,
@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/table";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
 
 interface Message {
   id: string;
@@ -34,6 +36,7 @@ interface Message {
     rootData: any;
     arrayPath: string;
   };
+  reportStatus?: UserReport;
 }
 
 interface UserData {
@@ -64,6 +67,8 @@ export function ChatInterface() {
     fieldIndex: number;
     fields: KYCField[];
   } | null>(null);
+
+  const [statusFlow, setStatusFlow] = useState<boolean>(false);
   
   const [kycInput, setKycInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -90,7 +95,7 @@ export function ChatInterface() {
         behavior: 'smooth'
       });
     }
-  }, [history, isLoading, kycFlow]);
+  }, [history, isLoading, kycFlow, statusFlow]);
 
   const getLocalizedName = (menu: MenuItem) => {
     if (!currentLang) return menu.name;
@@ -173,9 +178,10 @@ export function ChatInterface() {
     res = res.replace(/{{\s*user_id\s*}}/g, userData.id);
     res = res.replace(/{{\s*user_token\s*}}/g, userData.token);
     
+    // Support {{response.id}} and {{response.xxx}}
     const responseMatches = res.match(/{{\s*response\.(.*?)\s*}}/g);
     responseMatches?.forEach(match => {
-      const path = match.replace('{{', '').replace('}}', '').trim().replace('response.', '');
+      const path = match.replace('{{', '').replace('}}', '').trim();
       res = res.replace(match, String(getVal(path, dataObj) ?? ''));
     });
 
@@ -187,8 +193,46 @@ export function ChatInterface() {
     return res;
   };
 
-  const handleKycSubmit = (e?: React.FormEvent, skip: boolean = false) => {
-    e?.preventDefault();
+  const handleUserInput = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!kycInput.trim()) return;
+
+    if (statusFlow) {
+      handleStatusLookup(kycInput);
+      return;
+    }
+
+    if (kycFlow) {
+      handleKycSubmit();
+      return;
+    }
+  };
+
+  const handleStatusLookup = (id: string) => {
+    setHistory(prev => [...prev, { id: `user-lookup-${Date.now()}`, sender: 'user', text: id }]);
+    const reports = getStoredReports();
+    const found = reports.find(r => r.id === id);
+
+    if (found) {
+      setHistory(prev => [...prev, { 
+        id: `bot-status-${Date.now()}`, 
+        sender: 'bot', 
+        text: currentLang?.code === 'am' ? `ሪፖርት ቁጥር ${id} ተገኝቷል` : `Report ${id} found:`,
+        reportStatus: found
+      }]);
+    } else {
+      setHistory(prev => [...prev, { 
+        id: `bot-notfound-${Date.now()}`, 
+        sender: 'bot', 
+        text: currentLang?.code === 'am' ? `ይቅርታ፣ ሪፖርት ቁጥር ${id} ማግኘት አልቻልንም።` : `Sorry, we couldn't find a report with reference ${id}.`
+      }]);
+    }
+    
+    setKycInput('');
+    setStatusFlow(false);
+  };
+
+  const handleKycSubmit = (skip: boolean = false) => {
     if (!kycFlow) return;
     
     const currentField = kycFlow.fields[kycFlow.fieldIndex];
@@ -227,7 +271,6 @@ export function ChatInterface() {
     setLoadingText(currentLang?.code === 'am' ? 'ሪፖርት እየላክን ነው...' : 'Submitting your report...');
     setIsLoading(true);
     
-    // Simulate slight delay for local storage interaction
     setTimeout(() => {
       const reportPayload: Record<string, any> = {};
       menu.apiConfig?.kycFields?.forEach(field => {
@@ -242,8 +285,9 @@ export function ChatInterface() {
         data: reportPayload
       });
 
-      const responseContext = { id: savedReport.id, ...reportPayload };
-      const finalMsg = replacePlaceholders(getLocalizedTemplate(menu), { response: responseContext });
+      // Data context for replacePlaceholders needs to include the 'response' object
+      const responseContext = { response: { id: savedReport.id, ...reportPayload } };
+      const finalMsg = replacePlaceholders(getLocalizedTemplate(menu), responseContext);
 
       const successContent = getLocalizedContent(menu);
       const defaultSuccess = currentLang?.code === 'am' ? 'ሪፖርትዎ በተሳካ ሁኔታ ቀርቧል። እናመሰግናለን።' : 'Your report has been submitted successfully. Thank you.';
@@ -366,6 +410,23 @@ export function ChatInterface() {
     setCurrentMenuId(menu.id);
   };
 
+  const startStatusFlow = () => {
+    setStatusFlow(true);
+    setHistory(prev => [...prev, { 
+      id: `bot-status-prompt-${Date.now()}`, 
+      sender: 'bot', 
+      text: currentLang?.code === 'am' ? 'እባክዎ የሪፖርት ቁጥርዎን ያስገቡ፡' : 'Please enter your Report Reference ID:' 
+    }]);
+  };
+
+  const getStatusDisplay = (status: string) => {
+    switch (status) {
+      case 'resolved': return { icon: <CheckCircle2 className="text-green-500" />, label: currentLang?.code === 'am' ? 'ተፈትቷል' : 'Resolved', color: 'bg-green-100 text-green-800' };
+      case 'reviewed': return { icon: <Clock className="text-blue-500" />, label: currentLang?.code === 'am' ? 'በመመርመር ላይ' : 'Reviewed', color: 'bg-blue-100 text-blue-800' };
+      default: return { icon: <AlertCircle className="text-amber-500" />, label: currentLang?.code === 'am' ? 'በጥበቃ ላይ' : 'Pending', color: 'bg-amber-100 text-amber-800' };
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-background max-w-2xl mx-auto border-x shadow-2xl relative">
       <header className="bg-white border-b p-4 flex items-center justify-between sticky top-0 z-10">
@@ -401,6 +462,31 @@ export function ChatInterface() {
           <ChatBubble key={msg.id} isBot={msg.sender === 'bot'}>
             {msg.text && <p>{msg.text}</p>}
             {msg.content && <div dangerouslySetInnerHTML={{ __html: msg.content }} />}
+            {msg.reportStatus && (
+              <div className="mt-4 border rounded-xl p-4 bg-muted/30 shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b pb-3">
+                  <div className="flex items-center gap-2">
+                    {getStatusDisplay(msg.reportStatus.status).icon}
+                    <span className="text-xs font-bold uppercase tracking-tight">Report Status</span>
+                  </div>
+                  <Badge className={cn("text-[10px] rounded-full", getStatusDisplay(msg.reportStatus.status).color)}>
+                    {getStatusDisplay(msg.reportStatus.status).label}
+                  </Badge>
+                </div>
+                <div className="space-y-2">
+                  <div className="text-[10px] uppercase font-bold text-muted-foreground">Original Request</div>
+                  <div className="text-sm font-semibold">{msg.reportStatus.menuName}</div>
+                </div>
+                {msg.reportStatus.adminResponse && (
+                  <div className="space-y-2 p-3 bg-white rounded-lg border border-dashed border-primary/30">
+                    <div className="text-[10px] uppercase font-bold text-primary flex items-center gap-1">
+                      <MessageSquare size={10} /> Admin Feedback
+                    </div>
+                    <div className="text-sm italic text-foreground">{msg.reportStatus.adminResponse}</div>
+                  </div>
+                )}
+              </div>
+            )}
             {msg.tableData && (
               <div className="mt-4 border rounded-lg overflow-hidden bg-muted/20 shadow-sm">
                 <ScrollArea className="max-h-60">
@@ -445,20 +531,33 @@ export function ChatInterface() {
           </div>
         )}
       </div>
-      {kycFlow && <div className="p-4 bg-white border-t flex flex-col gap-2 animate-in slide-in-from-bottom-2 duration-300">
-        <form onSubmit={handleKycSubmit} className="flex gap-2">
-          <Input autoFocus type={kycFlow.fields[kycFlow.fieldIndex].type === 'password' ? 'password' : 'text'} value={kycInput} onChange={e => setKycInput(e.target.value)} placeholder={currentLang?.code === 'am' ? 'እዚህ ይጻፉ...' : 'Enter requested information...'} className="rounded-full shadow-inner" />
+      {(kycFlow || statusFlow) && <div className="p-4 bg-white border-t flex flex-col gap-2 animate-in slide-in-from-bottom-2 duration-300">
+        <form onSubmit={handleUserInput} className="flex gap-2">
+          <Input 
+            autoFocus 
+            type={(kycFlow && kycFlow.fields[kycFlow.fieldIndex].type === 'password') ? 'password' : 'text'} 
+            value={kycInput} 
+            onChange={e => setKycInput(e.target.value)} 
+            placeholder={statusFlow ? (currentLang?.code === 'am' ? 'ሪፖርት ቁጥር እዚህ ያስገቡ...' : 'Enter reference ID...') : (currentLang?.code === 'am' ? 'እዚህ ይጻፉ...' : 'Enter requested information...')} 
+            className="rounded-full shadow-inner" 
+          />
           <Button type="submit" size="icon" className="rounded-full h-10 w-10 shrink-0"><Send size={18} /></Button>
-          {!kycFlow.fields[kycFlow.fieldIndex].required && (
-            <Button type="button" variant="ghost" size="sm" onClick={() => handleKycSubmit(undefined, true)} className="text-[10px] font-bold uppercase text-muted-foreground hover:text-primary h-10 px-3">
+          {kycFlow && !kycFlow.fields[kycFlow.fieldIndex].required && (
+            <Button type="button" variant="ghost" size="sm" onClick={() => handleKycSubmit(true)} className="text-[10px] font-bold uppercase text-muted-foreground hover:text-primary h-10 px-3">
               <CornerDownRight size={14} className="mr-1" /> {currentLang?.code === 'am' ? 'ዘልለው' : 'Skip'}
+            </Button>
+          )}
+          {statusFlow && (
+            <Button type="button" variant="ghost" size="sm" onClick={() => setStatusFlow(false)} className="text-[10px] font-bold uppercase text-muted-foreground hover:text-destructive h-10 px-3">
+              {currentLang?.code === 'am' ? 'ሰርዝ' : 'Cancel'}
             </Button>
           )}
         </form>
       </div>}
-      <footer className="bg-white border-t p-4 flex justify-center gap-4 shrink-0">
-        <Button variant="ghost" size="sm" className="hover:bg-primary/5 rounded-full px-6" onClick={() => { setHistory(prev => [...prev, { id: `home-${Date.now()}`, sender: 'bot', text: currentLang?.code === 'am' ? 'እንዴት ልረዳዎ እችላለሁ?' : 'How can I help you?', options: menus.filter(m => m.parentId === null) }]); setCurrentMenuId(null); setKycFlow(null); }}><Home className="mr-2 text-primary" size={18} /> {currentLang?.code === 'am' ? 'ቤት' : 'Home'}</Button>
-        {currentMenuId && !kycFlow && <Button variant="ghost" size="sm" className="hover:bg-primary/5 rounded-full px-6" onClick={() => { const current = menus.find(m => m.id === currentMenuId); const parent = menus.find(m => m.id === current?.parentId); if (parent) navigateTo(parent); else setHistory(p => [...p, { id: 'reset', sender: 'bot', text: 'Navigation Reset', options: menus.filter(m => !m.parentId) }]); }}><ArrowLeft className="mr-2 text-primary" size={18} /> {currentLang?.code === 'am' ? 'ተመለስ' : 'Back'}</Button>}
+      <footer className="bg-white border-t p-4 flex justify-center gap-2 shrink-0 overflow-x-auto">
+        <Button variant="ghost" size="sm" className="hover:bg-primary/5 rounded-full px-4" onClick={() => { setHistory(prev => [...prev, { id: `home-${Date.now()}`, sender: 'bot', text: currentLang?.code === 'am' ? 'እንዴት ልረዳዎ እችላለሁ?' : 'How can I help you?', options: menus.filter(m => m.parentId === null) }]); setCurrentMenuId(null); setKycFlow(null); setStatusFlow(false); }}><Home className="mr-2 text-primary" size={18} /> {currentLang?.code === 'am' ? 'ቤት' : 'Home'}</Button>
+        <Button variant="ghost" size="sm" className="hover:bg-primary/5 rounded-full px-4" onClick={startStatusFlow}><FileSearch className="mr-2 text-primary" size={18} /> {currentLang?.code === 'am' ? 'ሁኔታ አረጋግጥ' : 'Check Status'}</Button>
+        {currentMenuId && !kycFlow && !statusFlow && <Button variant="ghost" size="sm" className="hover:bg-primary/5 rounded-full px-4" onClick={() => { const current = menus.find(m => m.id === currentMenuId); const parent = menus.find(m => m.id === current?.parentId); if (parent) navigateTo(parent); else setHistory(p => [...p, { id: 'reset', sender: 'bot', text: 'Navigation Reset', options: menus.filter(m => !m.parentId) }]); }}><ArrowLeft className="mr-2 text-primary" size={18} /> {currentLang?.code === 'am' ? 'ተመለስ' : 'Back'}</Button>}
       </footer>
     </div>
   );

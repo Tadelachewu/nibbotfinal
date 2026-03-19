@@ -202,6 +202,12 @@ export function updateReportStatus(id: string, status: UserReport['status']) {
   saveReports(updated);
 }
 
+export function updateReportAdminResponse(id: string, adminResponse: string) {
+  const reports = getStoredReports();
+  const updated = reports.map(r => r.id === id ? { ...r, adminResponse } : r);
+  saveReports(updated);
+}
+
 export function deleteReport(id: string) {
   const reports = getStoredReports();
   const filtered = reports.filter(r => r.id !== id);
