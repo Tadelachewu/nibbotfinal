@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -87,10 +88,11 @@ export function ChatInterface() {
   const logo = PlaceHolderImages.find(img => img.id === 'app-logo');
   const userAvatar = PlaceHolderImages.find(img => img.id === 'user-avatar');
   
+  // Dynamic User Session State
   const [userData, setUserData] = useState<UserData>({
-    id: 'user_123',
+    id: 'anonymous',
     token: 'talktree_static_token_778899',
-    isLoggedIn: true,
+    isLoggedIn: false,
     kyc: {}
   });
   
@@ -108,7 +110,23 @@ export function ChatInterface() {
   const [loadingText, setLoadingText] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Initialize Anonymous Session
   useEffect(() => {
+    const STORAGE_KEY = 'talktree_user_session';
+    let sessionId = '';
+    
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        sessionId = stored;
+      } else {
+        sessionId = 'user_' + Math.random().toString(36).substr(2, 9);
+        localStorage.setItem(STORAGE_KEY, sessionId);
+      }
+    }
+
+    setUserData(prev => ({ ...prev, id: sessionId }));
+
     const settings = getAppSettings();
     setLanguages(settings.supportedLanguages);
     const defaultLang = settings.supportedLanguages.find(l => l.isDefault) || settings.supportedLanguages[0];
