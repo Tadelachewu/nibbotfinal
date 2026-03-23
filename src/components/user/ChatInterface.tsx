@@ -1,6 +1,7 @@
 'use client';
 
 import { io } from 'socket.io-client';
+import { useConnectivity } from '@/hooks/useConnectivity';
 
 import { useState, useEffect, useRef } from 'react';
 import { MenuItem, KYCField, TableColumn, Language, UserReport, KYCFieldType } from '@/lib/types';
@@ -620,6 +621,8 @@ export function ChatInterface() {
     return 'text';
   };
 
+  const connectivity = useConnectivity();
+
   return (
     <div className="flex flex-col h-full bg-white max-w-2xl mx-auto border-x shadow-2xl relative">
       <header className="bg-white border-b p-4 flex items-center justify-between sticky top-0 z-50 shadow-sm">
@@ -628,8 +631,24 @@ export function ChatInterface() {
           <div>
             <h1 className="font-bold text-lg text-[#763717]">Nib International Bank</h1>
             <div className="flex items-center gap-1.5">
-              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-              <span className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Online</span>
+              {connectivity === 'checking' && (
+                <>
+                  <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                  <span className="text-[10px] uppercase tracking-wider font-bold text-amber-500">Checking...</span>
+                </>
+              )}
+              {connectivity === 'online' && (
+                <>
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-[10px] uppercase tracking-wider font-bold text-emerald-600">Online</span>
+                </>
+              )}
+              {connectivity === 'offline' && (
+                <>
+                  <div className="w-2 h-2 rounded-full bg-red-500" />
+                  <span className="text-[10px] uppercase tracking-wider font-bold text-red-500">Offline</span>
+                </>
+              )}
             </div>
           </div>
         </div>
