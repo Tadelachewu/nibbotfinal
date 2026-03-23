@@ -5,7 +5,7 @@ import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
 import { Toaster } from '@/components/ui/toaster';
 
 export const metadata: Metadata = {
-  title: 'TalkTree Admin - Conversational Menu Management',
+  title: 'Nib International Bank',
   description: 'Dynamic, chatbot-friendly menu system for modern interfaces.',
 };
 

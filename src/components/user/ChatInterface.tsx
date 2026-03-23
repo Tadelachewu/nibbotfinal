@@ -133,8 +133,7 @@ export function ChatInterface() {
     const data = getStoredMenus();
     setMenus(data);
     
-    const welcomeText = defaultLang.code === 'am' ? 'ሰላም! ዛሬ እንዴት ልረዳዎ እችላለሁ?' : 'Hello! How can I assist you today?';
-    setHistory([{ id: 'welcome', sender: 'bot', text: welcomeText, options: data.filter(m => m.parentId === null) }]);
+    setHistory([{ id: 'welcome', sender: 'bot', options: data.filter(m => m.parentId === null) }]);
     
     const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     setTheme(isDark ? 'dark' : 'light');
@@ -627,7 +626,7 @@ export function ChatInterface() {
         <div className="flex items-center gap-3">
           <Logo className="w-10 h-10" />
           <div>
-            <h1 className="font-bold text-lg">Support Assistant</h1>
+            <h1 className="font-bold text-lg text-[#763717]">Nib International Bank</h1>
             <div className="flex items-center gap-1.5">
               <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
               <span className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Online</span>
@@ -681,7 +680,20 @@ export function ChatInterface() {
         <div className="flex flex-col min-h-full">
           {history.map(msg => (
             <ChatBubble key={msg.id} isBot={msg.sender === 'bot'}>
-              {msg.text && <p>{msg.text}</p>}
+              {msg.id === 'welcome' && (
+                <div className="flex flex-col items-center justify-center pt-4 pb-6 space-y-4">
+                  <div className="w-28 h-28 rounded-full border-4 border-[#f4a61b] shadow-xl flex items-center justify-center bg-white p-1 overflow-hidden">
+                    <Logo className="w-full h-full scale-110" />
+                  </div>
+                  <h2 className="text-xl font-extrabold text-center text-[#763717] px-2">
+                    {currentLang?.code === 'am' ? 'እንኳን ወደ ንብ ኢንተርናሽናል ባንክ በደህና መጡ!' : 'Welcome to Nib International Bank'}
+                  </h2>
+                  <p className="text-sm font-medium text-center text-muted-foreground">
+                    {currentLang?.code === 'am' ? 'እባክዎ ከታች ካሉት አገልግሎቶች ይምረጡ፡' : 'How can we assist you today?'}
+                  </p>
+                </div>
+              )}
+              {msg.id !== 'welcome' && msg.text && <p>{msg.text}</p>}
               {msg.content && <div dangerouslySetInnerHTML={{ __html: msg.content }} />}
               {msg.reportStatus && (
                 <div className="mt-4 border rounded-xl p-4 bg-primary/5 shadow-sm space-y-4">
