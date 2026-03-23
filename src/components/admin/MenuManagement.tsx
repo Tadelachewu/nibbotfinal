@@ -37,6 +37,7 @@ import {
   ShieldAlert,
   Fingerprint,
   Info,
+  FileText,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -48,6 +49,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import {
   Dialog,
   DialogContent,
@@ -551,26 +558,31 @@ export function MenuManagement() {
                         />
                       </div>
 
-                      {(editForm.responseType === 'static' || editForm.responseType === 'report') && (
-                        <div className="space-y-2">
-                          <Label className="text-xs uppercase font-bold text-muted-foreground">
-                            {editForm.responseType === 'report' ? 'Introductory Content' : 'Response Content'} ({lang.name})
-                          </Label>
-                          <WysiwygEditor 
-                            title={`${lang.name} Content`} 
-                            value={lang.isDefault ? (editForm.content || '') : (lang.code === 'am' ? (editForm.contentAm || '') : (editForm.translations?.[lang.code]?.content || ''))} 
-                            onChange={v => {
-                              if (lang.isDefault) setEditForm({ ...editForm, content: v });
-                              else if (lang.code === 'am') setEditForm({ ...editForm, contentAm: v });
-                              else {
-                                const translations = { ...(editForm.translations || {}) };
-                                translations[lang.code] = { ...(translations[lang.code] || {}), content: v };
-                                setEditForm({ ...editForm, translations });
-                              }
-                            }} 
-                          />
-                        </div>
-                      )}
+                      <Accordion type="single" collapsible className="w-full pt-2">
+                        <AccordionItem value="content-editor" className="border rounded-xl px-4 py-0 bg-muted/5">
+                          <AccordionTrigger className="hover:no-underline py-3">
+                            <Label className="text-[10px] uppercase font-bold text-muted-foreground cursor-pointer flex items-center gap-2">
+                              <FileText size={14} className="text-primary"/>
+                              {editForm.responseType === 'static' ? 'Response Content' : 'Introductory Content'} ({lang.name})
+                            </Label>
+                          </AccordionTrigger>
+                          <AccordionContent className="pt-0 pb-4">
+                            <WysiwygEditor 
+                              title={`${lang.name} Content`} 
+                              value={lang.isDefault ? (editForm.content || '') : (lang.code === 'am' ? (editForm.contentAm || '') : (editForm.translations?.[lang.code]?.content || ''))} 
+                              onChange={v => {
+                                if (lang.isDefault) setEditForm({ ...editForm, content: v });
+                                else if (lang.code === 'am') setEditForm({ ...editForm, contentAm: v });
+                                else {
+                                  const translations = { ...(editForm.translations || {}) };
+                                  translations[lang.code] = { ...(translations[lang.code] || {}), content: v };
+                                  setEditForm({ ...editForm, translations });
+                                }
+                              }} 
+                            />
+                          </AccordionContent>
+                        </AccordionItem>
+                      </Accordion>
                     </TabsContent>
                   ))}
                 </Tabs>
@@ -906,23 +918,48 @@ export function MenuManagement() {
 
                         <TabsContent value="table" className="p-4 space-y-4 mt-0">
                           <div className="space-y-4">
-                            <div className="space-y-2">
-                               <div className="flex items-center justify-between">
-                                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">Table Data Key (Array Path)</Label>
-                                  <FieldPicker 
-                                    title="Array Paths Found"
-                                    currentFields={getAvailableFields(apiPreviewResult, '', true)}
-                                    onSelect={(field) => deepUpdate(['apiConfig', 'responseMapping', 'tableDataKey'], field)}
-                                  />
-                               </div>
-                               <Input 
-                                 placeholder="e.g. data.items" 
-                                 value={editForm.apiConfig?.responseMapping?.tableDataKey || ''} 
-                                 onChange={e => deepUpdate(['apiConfig', 'responseMapping', 'tableDataKey'], e.target.value)} 
-                               />
+                            <div className="space-y-3 p-4 border rounded-xl bg-muted/5">
+                               <Label className="text-[10px] uppercase font-bold text-muted-foreground border-b pb-2 flex items-center gap-2">Table Mapping Mode</Label>
+                               <Select 
+                                 value={editForm.apiConfig?.responseMapping?.tableMappingMode || 'array_path'} 
+                                 onValueChange={v => deepUpdate(['apiConfig', 'responseMapping', 'tableMappingMode'], v)}
+                               >
+                                 <SelectTrigger className="h-8 text-xs bg-white"><SelectValue /></SelectTrigger>
+                                 <SelectContent>
+                                   <SelectItem value="array_path">Array Path (Legacy Engine)</SelectItem>
+                                   <SelectItem value="exact_path">Exact Path (Unified Engine)</SelectItem>
+                                 </SelectContent>
+                               </Select>
+                               <p className="text-[9px] text-muted-foreground">
+                                {(editForm.apiConfig?.responseMapping?.tableMappingMode || 'array_path') === 'array_path' 
+                                  ? 'Define a path to an array (e.g. data.items) to loop rows automatically.' 
+                                  : 'Map each column to an exact full path (e.g. data.rates[0].currency) without automatic array looping.'}
+                               </p>
                             </div>
-                            
-                            <Separator />
+
+                            {(editForm.apiConfig?.responseMapping?.tableMappingMode || 'array_path') === 'array_path' && (
+                              <div className="space-y-4">
+                                <div className="space-y-2">
+                                   <div className="flex items-center justify-between">
+                                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Table Data Key (Array Path)</Label>
+                                      <FieldPicker 
+                                        title="Array Paths Found"
+                                        currentFields={getAvailableFields(apiPreviewResult, '', true)}
+                                        onSelect={(field) => {
+                                          const root = editForm.apiConfig?.rootKey || 'data';
+                                          deepUpdate(['apiConfig', 'responseMapping', 'tableDataKey'], `${root}.${field}`);
+                                        }}
+                                      />
+                                   </div>
+                                   <Input 
+                                     placeholder={`e.g. ${editForm.apiConfig?.rootKey || 'data'}.items`} 
+                                     value={editForm.apiConfig?.responseMapping?.tableDataKey || ''} 
+                                     onChange={e => deepUpdate(['apiConfig', 'responseMapping', 'tableDataKey'], e.target.value)} 
+                                   />
+                                </div>
+                                <Separator />
+                              </div>
+                            )}
 
                             <div className="flex items-center justify-between">
                               <Label className="text-xs font-bold flex items-center gap-2 text-muted-foreground uppercase"><TableIcon size={14} /> Column Mapping</Label>

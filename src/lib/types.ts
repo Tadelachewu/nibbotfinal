@@ -56,6 +56,7 @@ export interface ApiConfig {
     template: string; // Handlebars-style template for message type
     templateAm?: string;
     tableDataKey?: string; // Path to the array in the response, e.g., "response.items"
+    tableMappingMode?: 'array_path' | 'exact_path'; // Option to explicitly define paths
     tableColumns?: TableColumn[];
     errorFallback: string;
     errorFallbackAm?: string;

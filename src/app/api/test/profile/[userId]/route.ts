@@ -2,10 +2,10 @@ import { NextResponse } from 'next/server';
 
 export async function GET(
   request: Request,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
+  const { userId } = await params;
   const authHeader = request.headers.get('Authorization');
-  const userId = params.userId;
 
   // 1. Validate Static Bearer Token
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -39,7 +39,13 @@ export async function GET(
     }
   };
 
-  const profile = profiles[userId];
+  // If the dynamic frontend session ID (e.g., user_1kzmdi2hv) is used, return a default mock!
+  const profile = profiles[userId] || {
+    full_name: "Dynamic User",
+    email: `${userId}@example.com`,
+    kyc_status: "Auto-Verified",
+    join_date: new Date().toISOString().split('T')[0]
+  };
 
   if (!profile) {
     return NextResponse.json(

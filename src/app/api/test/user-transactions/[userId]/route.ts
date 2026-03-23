@@ -26,12 +26,12 @@ function authenticate(req: NextRequest) {
 // 📡 GET API
 export async function GET(
   req: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   const authError = authenticate(req);
   if (authError) return authError;
 
-  const { userId } = params;
+  const { userId } = await params;
 
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status");
