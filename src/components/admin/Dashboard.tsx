@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useEffect, useState } from 'react';
+import { io } from 'socket.io-client';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { 
   BarChart, 
@@ -50,15 +51,13 @@ export function Dashboard() {
       reports: getStoredReports()
     });
 
-    // Simulate online users fluctuation for the prototype
-    setOnlineNow(Math.floor(Math.random() * 5) + 3);
-    
-    const presenceInterval = setInterval(() => {
-      setOnlineNow(prev => {
-        const change = Math.random() > 0.5 ? 1 : -1;
-        return Math.max(1, Math.min(25, prev + change));
-      });
-    }, 8000);
+    // Real-Time Socket Connection for Online Counter
+    const socket = io();
+    socket.on('online_count_updated', (data) => {
+      if (data && typeof data.count === 'number') {
+        setOnlineNow(data.count);
+      }
+    });
 
     // Refresh interval for dashboard data (simulating real-time updates)
     const dataInterval = setInterval(() => {
@@ -69,7 +68,7 @@ export function Dashboard() {
     }, 5000);
 
     return () => {
-      clearInterval(presenceInterval);
+      socket.disconnect();
       clearInterval(dataInterval);
     };
   }, []);

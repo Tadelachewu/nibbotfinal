@@ -1,5 +1,7 @@
 'use client';
 
+import { io } from 'socket.io-client';
+
 import { useState, useEffect, useRef } from 'react';
 import { MenuItem, KYCField, TableColumn, Language, UserReport, KYCFieldType } from '@/lib/types';
 import { getStoredMenus, getAppSettings, addReport, getStoredReports, incrementMenuClick } from '@/lib/store';
@@ -137,6 +139,27 @@ export function ChatInterface() {
     const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     setTheme(isDark ? 'dark' : 'light');
   }, []);
+
+  // Socket.io Real-Time Presence Heartbeat Engine
+  useEffect(() => {
+    if (!userData.id || typeof window === 'undefined') return;
+    
+    // Connects to the same origin server mapping the Custom Socket
+    const socket = io({ path: '/socket.io' }); 
+    
+    // Initial announce
+    socket.emit('user_active', { sessionId: userData.id });
+    
+    // Keep-alive heartbeat loop
+    const pingInterval = setInterval(() => {
+      socket.emit('user_active', { sessionId: userData.id });
+    }, 15000);
+    
+    return () => {
+      clearInterval(pingInterval);
+      socket.disconnect();
+    };
+  }, [userData.id]);
 
   useEffect(() => {
     const root = window.document.documentElement;
