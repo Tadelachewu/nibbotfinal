@@ -302,16 +302,18 @@ export function ChatInterface() {
     if (!value.trim()) return { isValid: true };
     switch (type) {
       case 'number':
+        const cleanNum = value.replace(/,/g, ''); // allow thousand separators
         return { 
-          isValid: !isNaN(Number(value)), 
+          isValid: /^\d+(\.\d+)?$/.test(cleanNum) && !isNaN(Number(cleanNum)), 
           error: currentLang?.code === 'am' ? 'እባክዎ ቁጥር ብቻ ያስገቡ' : 'Please enter a valid number' 
         };
       case 'tel':
-        const phoneRegex = /^\+?[0-9]{7,15}$/;
+        // Strict Ethiopian phone validation: starts with +251 or 0, followed by 9 or 7, plus 8 digits.
+        const ethioPhoneRegex = /^(\+251|0)[97]\d{8}$/;
         const stripped = value.replace(/[\s\-()]/g, '');
         return { 
-          isValid: phoneRegex.test(stripped), 
-          error: currentLang?.code === 'am' ? 'እባክዎ ትክክለኛ ስልክ ቁጥር ያስገቡ' : 'Please enter a valid phone number' 
+          isValid: ethioPhoneRegex.test(stripped), 
+          error: currentLang?.code === 'am' ? 'እባክዎ ትክክለኛ የኢትዮጵያ ስልክ ቁጥር ያስገቡ' : 'Please enter a valid Ethiopian phone number (e.g., 0911... or +251...)' 
         };
       case 'email':
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
