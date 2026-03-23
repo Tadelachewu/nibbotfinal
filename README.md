@@ -107,3 +107,8 @@ TalkTree doesn't cheat metrics. When you open the `/admin` dashboard, the **Onli
 2.  The NodeJS server catches this and runs a **Redis ZADD** command, updating the user's explicit Unix timestamp score on the `online_users` Set.
 3.  Every 5 seconds, a custom garbage collection loop in `server.js` triggers **ZREMRANGEBYSCORE**, instantly purging any `sessionId` that hasn't pinged in >20 seconds.
 4.  Finally, it counts the absolute remainder and natively broadcasts `online_count_updated` through Socket.io to any listening Admin dashboard.
+
+
+
+
+redis   sudo service redis-server start  on ubuntu
