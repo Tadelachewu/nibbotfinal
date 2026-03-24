@@ -492,10 +492,26 @@ export function ChatInterface() {
       const requestPayload: Record<string, any> = {};
       menu.apiConfig.requestParameters?.forEach(param => {
         const key = param.apiKey.trim();
-        if (param.sourceValue === 'user.id') requestPayload[key] = userData.id;
-        else if (param.sourceValue === 'user.token') requestPayload[key] = userData.token;
-        else if (param.sourceType === 'static') requestPayload[key] = param.sourceValue;
-        else if (kycData[param.sourceValue] !== undefined) requestPayload[key] = kycData[param.sourceValue];
+        let val: any = null;
+
+        if (param.sourceValue === 'user.id') val = userData.id;
+        else if (param.sourceValue === 'user.token') val = userData.token;
+        else if (param.sourceType === 'static') val = param.sourceValue;
+        else if (kycData[param.sourceValue] !== undefined) val = kycData[param.sourceValue];
+
+        // Smart Casting based on Field Type
+        const fieldConfig = menu.apiConfig?.kycFields?.find(f => f.name === param.sourceValue);
+        if (fieldConfig && typeof val === 'string') {
+          if (fieldConfig.type === 'number') {
+            const parsed = parseFloat(val.replace(/,/g, ''));
+            if (!isNaN(parsed)) val = parsed;
+          } else if (fieldConfig.type === 'boolean') {
+            const low = val.toLowerCase().trim();
+            val = (low === 'true' || low === 'አዎ');
+          }
+        }
+
+        if (val !== null) requestPayload[key] = val;
       });
       const headers: Record<string, string> = { 'Content-Type': 'application/json', ...menu.apiConfig.headers };
       const auth = menu.apiConfig.authConfig;

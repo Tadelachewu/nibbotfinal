@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// 🔐 Bearer Auth
+// 🔐 Strict Bearer Auth
 function authenticate(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
 
@@ -12,8 +12,7 @@ function authenticate(req: NextRequest) {
   }
 
   const token = authHeader.split(" ")[1];
-
-  if (token !== "mysecrettoken123") {
+  if (!token || token !== "mysecrettoken123") {
     return NextResponse.json(
       { success: false, message: "Invalid token" },
       { status: 403 }
@@ -36,14 +35,20 @@ export async function GET(
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status");
 
-  const transactions = [
-    { id: 1, amount: 100, status: "success" },
-    { id: 2, amount: 200, status: "pending" },
-  ];
+  // Simulated account-based transactions
+  const accountTransactions: Record<string, any[]> = {
+    'user_123': [
+      { id: 1, amount: 100, status: "success" },
+      { id: 2, amount: 50, status: "pending" },
+    ],
+    'user_456': [
+      { id: 3, amount: 200, status: "success" }
+    ]
+  };
 
-  const filtered = status
-    ? transactions.filter(t => t.status === status)
-    : transactions;
+  const userTx = accountTransactions[userId] || [];
+
+  const filtered = status ? userTx.filter(t => t.status === status) : userTx;
 
   return NextResponse.json({
     success: true,

@@ -30,53 +30,42 @@ export async function GET(request: Request) {
     }
   };
 
-  // 1. PUBLIC PREVIEW MODE
-  if (!accountId && !authHeader) {
-    return NextResponse.json({
-      status: "success",
-      mode: "public_preview",
-      message: "Public Preview: Showing sample structure. Auth is REQUIRED for specific account lookups.",
-      data: mockAccounts['88991122']
-    });
-  }
-
-  // 2. SECURE MODE
+  // 1. Ensure Authorization header exists
   if (!authHeader) {
     return NextResponse.json(
       { 
         status: "error", 
-        message: `Unauthorized: This endpoint (/api/test/balance) is SECURE. Your request was sent without an 'Authorization' header.` 
+        message: "Unauthorized: This endpoint is SECURE. Please provide an 'Authorization' header." 
       },
       { status: 401 }
     );
   }
 
-  // Static Bearer Token Validation
-  if (authHeader.startsWith('Bearer ')) {
-    const token = authHeader.split(' ')[1] || "";
-    // Accept the system's static token or a standard sample token
-    const isValidToken = token === 'nib_static_token_778899' || token === 'static_sample_123' || token.startsWith('static_');
-
-    if (!isValidToken) {
-      return NextResponse.json(
-        { 
-          status: "error", 
-          message: `Unauthorized: Invalid Static Bearer Token. Received: "${token}". Expected a static token like "nib_static_token_778899".` 
-        },
-        { status: 401 }
-      );
-    }
-  } else {
+  // 2. Static Bearer Token Validation
+  if (!authHeader.startsWith('Bearer ')) {
     return NextResponse.json(
       { 
         status: "error", 
-        message: `Unauthorized: Malformed header. Expected "Authorization: Bearer <static_token>".` 
+        message: 'Unauthorized: Malformed header. Expected "Authorization: Bearer <static_token>".' 
       },
       { status: 401 }
     );
   }
 
-  // Handle data retrieval
+  const token = authHeader.split(' ')[1] || "";
+  const isValidToken = token === 'nib_static_token_778899' || token === 'static_sample_123' || token.startsWith('static_');
+
+  if (!isValidToken) {
+    return NextResponse.json(
+      { 
+        status: "error", 
+        message: `Unauthorized: Invalid Static Bearer Token. Received: "${token}".` 
+      },
+      { status: 401 }
+    );
+  }
+
+  // 3. Return account data
   if (accountId && mockAccounts[accountId]) {
     return NextResponse.json({
       status: "success",
@@ -84,6 +73,7 @@ export async function GET(request: Request) {
     });
   }
 
+  // Default account if no account_id provided
   return NextResponse.json({
     status: "success",
     message: "Authenticated successfully. Returning default account summary.",

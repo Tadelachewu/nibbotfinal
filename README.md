@@ -58,6 +58,8 @@ npm run dev:io
 
 ## 🧪 Admin Playground: Test Scenarios
 
+To help you get started, we've provided a comprehensive **[API Documentation & Test Guide](docs/API_GUIDE.md)** that covers both internal test endpoints and the external mock banking server.
+
 The system is pre-loaded with mock `/api/test/...` endpoints inside the codebase so you can practice configuring the Admin Dashboard. Here is how to configure three powerful scenarios:
 
 ### Scenario 1: User Profile (Message Mapping)
