@@ -743,7 +743,7 @@ export function MenuManagement() {
                           </div>
                           <div className="space-y-2 md:col-span-1">
                             <Label className="text-[10px] uppercase font-bold text-muted-foreground">Endpoint URL</Label>
-                            <Input value={editForm.apiConfig?.endpoint} onChange={e => deepUpdate(['apiConfig', 'endpoint'], e.target.value)} placeholder="e.g. /api/test/profile/{{account_id}}" />
+                            <Input value={editForm.apiConfig?.endpoint || ''} onChange={e => deepUpdate(['apiConfig', 'endpoint'], e.target.value)} placeholder="e.g. /api/test/profile/{{account_id}}" />
                           </div>
                         </div>
 
@@ -781,11 +781,11 @@ export function MenuManagement() {
                                 <div className="space-y-3 p-3 border rounded-md bg-muted/5">
                                   <div className="space-y-1">
                                     <Label className="text-[9px] uppercase font-bold">Header Name</Label>
-                                    <Input placeholder="X-API-KEY" value={editForm.apiConfig?.authConfig?.apiKey?.header} onChange={e => deepUpdate(['apiConfig', 'authConfig', 'apiKey', 'header'], e.target.value)} />
+                                    <Input placeholder="X-API-KEY" value={editForm.apiConfig?.authConfig?.apiKey?.header || ''} onChange={e => deepUpdate(['apiConfig', 'authConfig', 'apiKey', 'header'], e.target.value)} />
                                   </div>
                                   <div className="space-y-1">
                                     <Label className="text-[9px] uppercase font-bold">Key Value</Label>
-                                    <Input placeholder="secret-123" value={editForm.apiConfig?.authConfig?.apiKey?.value} onChange={e => deepUpdate(['apiConfig', 'authConfig', 'apiKey', 'value'], e.target.value)} />
+                                    <Input placeholder="secret-123" value={editForm.apiConfig?.authConfig?.apiKey?.value || ''} onChange={e => deepUpdate(['apiConfig', 'authConfig', 'apiKey', 'value'], e.target.value)} />
                                   </div>
                                 </div>
                               )}
@@ -794,11 +794,11 @@ export function MenuManagement() {
                                 <div className="space-y-4 p-4 border rounded-md bg-muted/5">
                                   <div className="space-y-1 mb-2">
                                     <Label className="text-[9px] uppercase font-bold">Header Name</Label>
-                                    <Input placeholder="Authorization" value={editForm.apiConfig?.authConfig?.basicAuth?.header} onChange={e => deepUpdate(['apiConfig', 'authConfig', 'basicAuth', 'header'], e.target.value)} />
+                                    <Input placeholder="Authorization" value={editForm.apiConfig?.authConfig?.basicAuth?.header || ''} onChange={e => deepUpdate(['apiConfig', 'authConfig', 'basicAuth', 'header'], e.target.value)} />
                                   </div>
                                   <div className="space-y-3">
-                                    <div className="space-y-1"><Label className="text-[9px] uppercase font-bold">Username</Label><Input value={editForm.apiConfig?.authConfig?.basicAuth?.user} onChange={e => { deepUpdate(['apiConfig', 'authConfig', 'basicAuth', 'user'], e.target.value); }} /></div>
-                                    <div className="space-y-1"><Label className="text-[9px] uppercase font-bold">Password</Label><Input type="password" value={editForm.apiConfig?.authConfig?.basicAuth?.pass} onChange={e => { deepUpdate(['apiConfig', 'authConfig', 'basicAuth', 'pass'], e.target.value); }} /></div>
+                                    <div className="space-y-1"><Label className="text-[9px] uppercase font-bold">Username</Label><Input value={editForm.apiConfig?.authConfig?.basicAuth?.user || ''} onChange={e => { deepUpdate(['apiConfig', 'authConfig', 'basicAuth', 'user'], e.target.value); }} /></div>
+                                    <div className="space-y-1"><Label className="text-[9px] uppercase font-bold">Password</Label><Input type="password" value={editForm.apiConfig?.authConfig?.basicAuth?.pass || ''} onChange={e => { deepUpdate(['apiConfig', 'authConfig', 'basicAuth', 'pass'], e.target.value); }} /></div>
                                   </div>
                                 </div>
                               )}
@@ -807,11 +807,11 @@ export function MenuManagement() {
                                 <div className="space-y-3 p-3 border rounded-md bg-muted/5">
                                   <div className="space-y-1">
                                     <Label className="text-[9px] uppercase font-bold">Header Name</Label>
-                                    <Input placeholder="Authorization" value={editForm.apiConfig?.authConfig?.bearer?.header} onChange={e => deepUpdate(['apiConfig', 'authConfig', 'bearer', 'header'], e.target.value)} />
+                                    <Input placeholder="Authorization" value={editForm.apiConfig?.authConfig?.bearer?.header || ''} onChange={e => deepUpdate(['apiConfig', 'authConfig', 'bearer', 'header'], e.target.value)} />
                                   </div>
                                   <div className="space-y-1">
                                     <Label className="text-[9px] uppercase font-bold">Token Template</Label>
-                                    <Input placeholder="Bearer {{user_token}}" value={editForm.apiConfig?.authConfig?.bearer?.template} onChange={e => deepUpdate(['apiConfig', 'authConfig', 'bearer', 'template'], e.target.value)} />
+                                    <Input placeholder="Bearer {{user_token}}" value={editForm.apiConfig?.authConfig?.bearer?.template || ''} onChange={e => deepUpdate(['apiConfig', 'authConfig', 'bearer', 'template'], e.target.value)} />
                                   </div>
                                 </div>
                               )}
@@ -831,7 +831,7 @@ export function MenuManagement() {
                               {Object.entries(editForm.apiConfig?.headers || {}).map(([key, value]) => (
                                 <div key={key} className="flex gap-2 items-center group">
                                   <Input 
-                                    value={key} 
+                                    value={key || ''} 
                                     onChange={e => {
                                       const h = { ...(editForm.apiConfig?.headers || {}) };
                                       const val = h[key];
@@ -842,7 +842,7 @@ export function MenuManagement() {
                                     className="flex-1 font-mono text-xs"
                                   />
                                   <Input 
-                                    value={value} 
+                                    value={value || ''} 
                                     onChange={e => {
                                       const h = { ...(editForm.apiConfig?.headers || {}) };
                                       h[key] = e.target.value;
@@ -920,29 +920,40 @@ export function MenuManagement() {
                             deepUpdate(['apiConfig', 'kycFields'], [...fields, { id: Math.random().toString(36).substr(2, 9), name: '', prompt: '', promptAm: '', type: 'text', order: fields.length, required: true }]);
                           }}><Plus className="mr-1" /> Add Field</Button>
                         </div>
-                        {editForm.apiConfig?.kycFields?.map((field, idx) => (
-                          <div key={field.id} className="flex flex-col gap-3 p-4 border rounded-md bg-muted/5 group relative">
-                            <div className="grid grid-cols-4 gap-3">
-                              <div className="space-y-1"><Label className="text-[10px] uppercase font-bold">Field Key</Label><Input value={field.name} onChange={e => { const fields = [...editForm.apiConfig!.kycFields]; fields[idx].name = e.target.value; deepUpdate(['apiConfig', 'kycFields'], fields); }} /></div>
-                              <div className="space-y-1"><Label className="text-[10px] uppercase font-bold">Type</Label><Select value={field.type} onValueChange={v => { const fields = [...editForm.apiConfig!.kycFields]; fields[idx].type = v as any; deepUpdate(['apiConfig', 'kycFields'], fields); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="text">Text</SelectItem><SelectItem value="tel">Phone</SelectItem><SelectItem value="email">Email</SelectItem><SelectItem value="number">Number</SelectItem><SelectItem value="password">Password</SelectItem></SelectContent></Select></div>
-                              <div className="col-span-2 space-y-1">
-                                <div className="flex items-center justify-between">
-                                  <Label className="text-[10px] uppercase font-bold">English Prompt</Label>
-                                  <div className="flex items-center gap-2">
-                                    <Label className="text-[9px] uppercase font-bold text-muted-foreground">{field.required ? 'Mandatory' : 'Optional'}</Label>
-                                    <Switch checked={field.required} onCheckedChange={checked => {
-                                      const fields = [...editForm.apiConfig!.kycFields];
-                                      fields[idx].required = checked;
-                                      deepUpdate(['apiConfig', 'kycFields'], fields);
-                                    }} />
+                        {editForm.apiConfig?.kycFields?.map((field, idx) => {
+                          const lang = getCurrentLanguage();
+                          const isDefault = lang.code === settings.supportedLanguages.find(l => l.isDefault)?.code || lang.isDefault;
+                          const currentPrompt = isDefault ? (field.prompt || '') : (lang.code === 'am' ? (field.promptAm || '') : (field.prompt || ''));
+
+                          return (
+                            <div key={field.id} className="flex flex-col gap-3 p-4 border rounded-md bg-muted/5 group relative">
+                              <div className="grid grid-cols-4 gap-3">
+                                <div className="space-y-1"><Label className="text-[10px] uppercase font-bold">Field Key</Label><Input value={field.name || ''} onChange={e => { const fields = [...editForm.apiConfig!.kycFields]; fields[idx].name = e.target.value; deepUpdate(['apiConfig', 'kycFields'], fields); }} /></div>
+                                <div className="space-y-1"><Label className="text-[10px] uppercase font-bold">Type</Label><Select value={field.type} onValueChange={v => { const fields = [...editForm.apiConfig!.kycFields]; fields[idx].type = v as any; deepUpdate(['apiConfig', 'kycFields'], fields); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="text">Text</SelectItem><SelectItem value="tel">Phone</SelectItem><SelectItem value="email">Email</SelectItem><SelectItem value="number">Number</SelectItem><SelectItem value="password">Password</SelectItem><SelectItem value="boolean">Boolean (Switch)</SelectItem></SelectContent></Select></div>
+                                <div className="col-span-2 space-y-1">
+                                  <div className="flex items-center justify-between">
+                                    <Label className="text-[10px] uppercase font-bold">Prompt ({lang.name})</Label>
+                                    <div className="flex items-center gap-2">
+                                      <Label className="text-[9px] uppercase font-bold text-muted-foreground">{field.required ? 'Mandatory' : 'Optional'}</Label>
+                                      <Switch checked={field.required} onCheckedChange={checked => {
+                                        const fields = [...editForm.apiConfig!.kycFields];
+                                        fields[idx].required = checked;
+                                        deepUpdate(['apiConfig', 'kycFields'], fields);
+                                      }} />
+                                    </div>
                                   </div>
+                                  <Input value={currentPrompt} onChange={e => { 
+                                    const fields = [...editForm.apiConfig!.kycFields]; 
+                                    if (isDefault) fields[idx].prompt = e.target.value;
+                                    else if (lang.code === 'am') fields[idx].promptAm = e.target.value;
+                                    deepUpdate(['apiConfig', 'kycFields'], fields); 
+                                  }} />
                                 </div>
-                                <Input value={field.prompt} onChange={e => { const fields = [...editForm.apiConfig!.kycFields]; fields[idx].prompt = e.target.value; deepUpdate(['apiConfig', 'kycFields'], fields); }} />
                               </div>
+                              <Button variant="ghost" size="icon" className="absolute -right-2 -top-2 h-7 w-7 rounded-full bg-white border text-destructive opacity-0 group-hover:opacity-100" onClick={() => { const fields = editForm.apiConfig!.kycFields.filter((_, i) => i !== idx); deepUpdate(['apiConfig', 'kycFields'], fields); }}><Trash2 size={12} /></Button>
                             </div>
-                            <Button variant="ghost" size="icon" className="absolute -right-2 -top-2 h-7 w-7 rounded-full bg-white border text-destructive opacity-0 group-hover:opacity-100" onClick={() => { const fields = editForm.apiConfig!.kycFields.filter((_, i) => i !== idx); deepUpdate(['apiConfig', 'kycFields'], fields); }}><Trash2 size={12} /></Button>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
 
                       {editForm.responseType === 'api' && (
@@ -1026,7 +1037,7 @@ export function MenuManagement() {
                                   </div>
                                   <Textarea 
                                     className="min-h-[100px] font-mono text-xs" 
-                                    value={templateVal} 
+                                    value={templateVal || ''} 
                                     onChange={e => handleTemplateChange(e.target.value)} 
                                   />
                                 </div>
@@ -1039,7 +1050,7 @@ export function MenuManagement() {
                                       onSelect={(val) => handleErrorChange(errorVal + val)}
                                     />
                                   </div>
-                                  <Input value={errorVal} onChange={e => handleErrorChange(e.target.value)} />
+                                  <Input value={errorVal || ''} onChange={e => handleErrorChange(e.target.value)} />
                                 </div>
                               </div>
                             );
@@ -1051,16 +1062,30 @@ export function MenuManagement() {
                             const lang = getCurrentLanguage();
                             const isDefault = lang.code === settings.supportedLanguages.find(l => l.isDefault)?.code || lang.isDefault;
                             
-                            const templateVal = isDefault 
-                              ? (editForm.apiConfig?.responseMapping?.template || '') 
-                              : (lang.code === 'am' ? (editForm.apiConfig?.responseMapping?.templateAm || '') : (editForm.translations?.[lang.code]?.responseTemplate || ''));
+                            const tableIntroVal = isDefault 
+                              ? (editForm.apiConfig?.responseMapping?.tableIntro || '') 
+                              : (lang.code === 'am' ? (editForm.apiConfig?.responseMapping?.tableIntroAm || '') : (editForm.translations?.[lang.code]?.tableIntro || ''));
 
-                            const handleTemplateChange = (val: string) => {
-                              if (isDefault) deepUpdate(['apiConfig', 'responseMapping', 'template'], val);
-                              else if (lang.code === 'am') deepUpdate(['apiConfig', 'responseMapping', 'templateAm'], val);
+                            const errorVal = isDefault 
+                              ? (editForm.apiConfig?.responseMapping?.errorFallback || '') 
+                              : (lang.code === 'am' ? (editForm.apiConfig?.responseMapping?.errorFallbackAm || '') : (editForm.translations?.[lang.code]?.errorFallback || ''));
+
+                            const handleTableIntroChange = (val: string) => {
+                              if (isDefault) deepUpdate(['apiConfig', 'responseMapping', 'tableIntro'], val);
+                              else if (lang.code === 'am') deepUpdate(['apiConfig', 'responseMapping', 'tableIntroAm'], val);
                               else {
                                 const translations = { ...(editForm.translations || {}) };
-                                translations[lang.code] = { ...(translations[lang.code] || {}), responseTemplate: val };
+                                translations[lang.code] = { ...(translations[lang.code] || {}), tableIntro: val };
+                                setEditForm({ ...editForm, translations });
+                              }
+                            };
+
+                            const handleErrorChange = (val: string) => {
+                              if (isDefault) deepUpdate(['apiConfig', 'responseMapping', 'errorFallback'], val);
+                              else if (lang.code === 'am') deepUpdate(['apiConfig', 'responseMapping', 'errorFallbackAm'], val);
+                              else {
+                                const translations = { ...(editForm.translations || {}) };
+                                translations[lang.code] = { ...(translations[lang.code] || {}), errorFallback: val };
                                 setEditForm({ ...editForm, translations });
                               }
                             };
@@ -1073,16 +1098,27 @@ export function MenuManagement() {
                                     <FieldPicker 
                                       mode="placeholder"
                                       currentFields={getAvailableFields(apiPreviewResult)}
-                                      onSelect={(val) => handleTemplateChange(templateVal + val)}
+                                      onSelect={(val) => handleTableIntroChange(tableIntroVal + val)}
                                     />
                                   </div>
                                   <Input 
                                     placeholder="e.g. Here are the results for {{name}}:"
                                     className="font-mono text-xs" 
-                                    value={templateVal} 
-                                    onChange={e => handleTemplateChange(e.target.value)} 
+                                    value={tableIntroVal || ''} 
+                                    onChange={e => handleTableIntroChange(e.target.value)} 
                                   />
                                   <p className="text-[9px] text-muted-foreground italic">If left empty, the system defaults to "Here are the results:"</p>
+                                </div>
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Error Fallback ({lang.name})</Label>
+                                    <FieldPicker 
+                                      mode="placeholder"
+                                      currentFields={getAvailableFields(apiPreviewResult)}
+                                      onSelect={(val) => handleErrorChange(errorVal + val)}
+                                    />
+                                  </div>
+                                  <Input value={errorVal || ''} onChange={e => handleErrorChange(e.target.value)} />
                                 </div>
 
                                 <Separator />
@@ -1169,7 +1205,7 @@ export function MenuManagement() {
                                               }}
                                             />
                                           </div>
-                                          <Input className="h-8 text-xs font-mono" value={col.key} onChange={e => { const cols = [...editForm.apiConfig!.responseMapping.tableColumns!]; cols[idx].key = e.target.value; deepUpdate(['apiConfig', 'requestMapping', 'tableColumns'], cols); }} />
+                                          <Input className="h-8 text-xs font-mono" value={col.key || ''} onChange={e => { const cols = [...editForm.apiConfig!.responseMapping.tableColumns!]; cols[idx].key = e.target.value; deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], cols); }} />
                                         </div>
                                         <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100" onClick={() => { const cols = editForm.apiConfig!.responseMapping.tableColumns!.filter((_, i) => i !== idx); deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], cols); }}><Trash2 size={14} /></Button>
                                       </div>
@@ -1193,7 +1229,7 @@ export function MenuManagement() {
                 <div className="bg-white rounded-xl border p-4 shadow-sm">
                   <div className="relative mb-4">
                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input placeholder="Search menus..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-8 h-9 text-sm" />
+                    <Input placeholder="Search menus..." value={searchQuery || ''} onChange={e => setSearchQuery(e.target.value)} className="pl-8 h-9 text-sm" />
                   </div>
                   {renderBrowserTree(null)}
                 </div>

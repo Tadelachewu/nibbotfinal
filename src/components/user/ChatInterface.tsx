@@ -210,12 +210,21 @@ export function ChatInterface() {
   const getLocalizedTemplate = (menu: MenuItem) => {
     if (!menu.apiConfig) return "";
     const mapping = menu.apiConfig.responseMapping;
-    if (!currentLang) return mapping.template || "";
-    if (currentLang.isDefault) return mapping.template || "";
-    const translation = menu.translations?.[currentLang.code]?.responseTemplate;
+    if (currentLang?.isDefault) return mapping.template || "";
+    const translation = menu.translations?.[currentLang?.code || 'en']?.responseTemplate;
     if (translation) return translation;
-    if (currentLang.code === 'am' && mapping.templateAm) return mapping.templateAm;
+    if (currentLang?.code === 'am' && mapping.templateAm) return mapping.templateAm;
     return mapping.template || "";
+  };
+
+  const getLocalizedTableIntro = (menu: MenuItem) => {
+    if (!menu.apiConfig) return "";
+    const mapping = menu.apiConfig.responseMapping;
+    if (currentLang?.isDefault) return mapping.tableIntro || "";
+    const translation = menu.translations?.[currentLang?.code || 'en']?.tableIntro;
+    if (translation) return translation;
+    if (currentLang?.code === 'am' && mapping.tableIntroAm) return mapping.tableIntroAm;
+    return mapping.tableIntro || "";
   };
 
   const getLocalizedErrorFallback = (menu: MenuItem) => {
@@ -296,9 +305,17 @@ export function ChatInterface() {
 
   const validateInput = (value: string, type: KYCFieldType): { isValid: boolean, error?: string } => {
     if (!value.trim()) return { isValid: true };
+    
     switch (type) {
+      case 'boolean':
+        // Only accept English true/false exactly
+        const validTruths = ['true', 'false'];
+        return {
+          isValid: validTruths.includes(value.toLowerCase().trim()),
+          error: currentLang?.code === 'am' ? 'እባክዎ "true" ወይም "false" ብቻ ያስገቡ' : 'Please enter "true" or "false" only'
+        };
       case 'number':
-        const cleanNum = value.replace(/,/g, ''); // allow thousand separators
+        const cleanNum = value.replace(/,/g, ''); 
         return { 
           isValid: /^\d+(\.\d+)?$/.test(cleanNum) && !isNaN(Number(cleanNum)), 
           error: currentLang?.code === 'am' ? 'እባክዎ ቁጥር ብቻ ያስገቡ' : 'Please enter a valid number' 
@@ -548,7 +565,8 @@ export function ChatInterface() {
             rootData: apiResponse, 
             arrayPath 
           };
-          botMsg.text = template ? replacePlaceholders(template, context) : (currentLang?.code === 'am' ? 'የተገኙ ውጤቶች የሚከተሉት ናቸው' : 'Here are the results:');
+          const tableIntro = getLocalizedTableIntro(menu);
+          botMsg.text = tableIntro ? replacePlaceholders(tableIntro, context) : (currentLang?.code === 'am' ? 'የተገኙ ውጤቶች የሚከተሉት ናቸው' : 'Here are the results:');
         } else { 
           const errorMsg = getLocalizedErrorFallback(menu);
           botMsg.text = errorMsg ? replacePlaceholders(errorMsg, context) : (currentLang?.code === 'am' ? 'ምንም መረጃ አልተገኘም።' : 'No data found.'); 

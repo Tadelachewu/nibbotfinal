@@ -1,4 +1,4 @@
-export type KYCFieldType = 'text' | 'number' | 'tel' | 'email' | 'password';
+export type KYCFieldType = 'text' | 'number' | 'tel' | 'email' | 'password' | 'boolean';
 
 export interface KYCField {
   id: string;
@@ -56,6 +56,8 @@ export interface ApiConfig {
     template: string; // Handlebars-style template for message type
     templateAm?: string;
     tableDataKey?: string; // Path to the array in the response, e.g., "response.items"
+    tableIntro?: string;   // Separate intro message specifically for tables
+    tableIntroAm?: string;
     tableMappingMode?: 'array_path' | 'exact_path'; // Option to explicitly define paths
     tableColumns?: TableColumn[];
     errorFallback: string;
@@ -106,6 +108,7 @@ export interface MenuItem {
     name?: string;
     content?: string;
     responseTemplate?: string;
+    tableIntro?: string;
     errorFallback?: string;
     tableHeaders?: Record<string, string>; // Map of column key -> translated header
   }>;
