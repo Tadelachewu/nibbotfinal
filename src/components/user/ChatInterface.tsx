@@ -6,14 +6,15 @@ import { useConnectivity } from '@/hooks/useConnectivity';
 import { useState, useEffect, useRef } from 'react';
 import { MenuItem, KYCField, TableColumn, Language, UserReport, KYCFieldType } from '@/lib/types';
 import { getStoredMenus, getAppSettings, addReport, getStoredReports, incrementMenuClick } from '@/lib/store';
+import { saveLogEntry } from '@/lib/logger';
 import { ChatBubble } from './ChatBubble';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Logo } from '@/components/Logo';
 import { 
   ChevronRight, 
-  Home, 
-  ArrowLeft, 
+  Home as HomeIcon, 
+  ChevronLeft,
   Globe, 
   Send, 
   Loader2, 
@@ -77,13 +78,14 @@ export function ChatInterface() {
   const [languages, setLanguages] = useState<Language[]>([]);
   const [history, setHistory] = useState<Message[]>([]);
   const [currentMenuId, setCurrentMenuId] = useState<string | null>(null);
+  const [menuHistory, setMenuHistory] = useState<string[]>([]);
   const [currentLang, setCurrentLang] = useState<Language | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('light');
   const userAvatar = PlaceHolderImages.find(img => img.id === 'user-avatar');
   
   const [userData, setUserData] = useState<UserData>({
     id: 'anonymous',
-    token: 'talktree_static_token_778899',
+    token: 'nib_static_token_778899',
     isLoggedIn: false,
     kyc: {}
   });
@@ -111,7 +113,7 @@ export function ChatInterface() {
   }, [history, isLoading, kycFlow, statusFlow]);
 
   useEffect(() => {
-    const STORAGE_KEY = 'talktree_user_session';
+    const STORAGE_KEY = 'nib_user_session';
     let sessionId = '';
     
     if (typeof window !== 'undefined') {
@@ -139,6 +141,12 @@ export function ChatInterface() {
     const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     setTheme(isDark ? 'dark' : 'light');
   }, []);
+
+  const t = (key: string, fallback: string) => {
+    const settings = getAppSettings();
+    const langCode = currentLang?.code || 'en';
+    return settings.systemTranslations?.[key]?.[langCode] || fallback;
+  };
 
   // Socket.io Real-Time Presence Heartbeat Engine
   useEffect(() => {
@@ -187,9 +195,7 @@ export function ChatInterface() {
   };
 
   const getLocalizedKYCPrompt = (field: KYCField) => {
-    if (!currentLang) return field.prompt;
-    if (currentLang.code === 'am' && field.promptAm) return field.promptAm;
-    return field.prompt;
+    return (currentLang?.code === 'am' ? field.promptAm : field.prompt) || field.prompt;
   };
 
   const getLocalizedTableHeader = (menu: MenuItem, col: TableColumn) => {
@@ -244,33 +250,23 @@ export function ChatInterface() {
     return value;
   };
 
-  const replacePlaceholders = (template: string, context: { response?: any, kyc?: Record<string, any>, rootKey?: string }) => {
+  const replacePlaceholders = (template: string, context: any) => {
     if (!template) return '';
-    const rootKey = context.rootKey || 'data';
-    
-    return template.replace(/{{\s*(.*?)\s*}}/g, (match, p1) => {
-      const path = p1.trim();
-      const mergedKyc = { ...userData.kyc, ...(context.kyc || {}) };
+    return template.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (match, key) => {
+      const path = key.trim();
       
-      // 1. Explicitly User-Provided KYC Data takes HIGHEST precedence
-      if (mergedKyc[path] !== undefined && mergedKyc[path] !== null) {
-        return String(mergedKyc[path]);
+      // 1. Try unified path resolution from context
+      const value = path.split('.').reduce((obj: any, k: string) => obj?.[k], context);
+      if (value !== undefined && value !== null) return String(value);
+      
+      // 2. Fallback for non-prefixed KYC fields
+      if (context.kyc && context.kyc[path] !== undefined && context.kyc[path] !== null) {
+        return String(context.kyc[path]);
       }
-      
-      // 2. System Variables (if not overridden by a KYC field)
+
+      // 3. Fallback for system variables
       if (path === 'user_id') return String(userData.id);
       if (path === 'user_token') return String(userData.token);
-      
-      // 3. Response Data (Checked with Root Key prefix)
-      if (path.startsWith(rootKey + '.') || path.startsWith('data.')) {
-        const val = getVal(path, context.response, rootKey);
-        return val !== undefined ? String(val) : match;
-      }
-      
-      // 4. Fallback root lookup (only if it matches rootKey)
-      if (path === rootKey || path === 'data') {
-         return JSON.stringify(context.response);
-      }
       
       return match;
     });
@@ -357,6 +353,15 @@ export function ChatInterface() {
         text: currentLang?.code === 'am' ? `ይቅርታ፣ ሪፖርት ቁጥር ${id} ማግኘት አልቻልንም።` : `Sorry, we couldn't find a report with reference ${id}.`
       }]);
     }
+    saveLogEntry({
+      sessionId: userData.id,
+      userMessage: id,
+      botResponse: found ? (currentLang?.code === 'am' ? `ሪፖርት ቁጥር ${id} ተገኝቷል` : `Report ${id} found:`) : (currentLang?.code === 'am' ? `ይቅርታ፣ ሪፖርት ቁጥር ${id} ማግኘት አልቻልንም።` : `Sorry, we couldn't find a report with reference ${id}.`),
+      status: found ? 'success' : 'failed',
+      endpoint: 'Internal:StatusLookup',
+      tags: ['status_lookup']
+    });
+
     setKycInput('');
     setStatusFlow(false);
   };
@@ -425,7 +430,15 @@ export function ChatInterface() {
         priority: menu.apiConfig?.defaultPriority || 'medium'
       });
       const rootKey = menu.apiConfig?.rootKey || 'data';
-      const responseContext = { response: { id: savedReport.id, ...reportPayload }, kyc: kycData, rootKey };
+      const hideId = menu.apiConfig?.responseMapping?.hideReportId;
+      const responseContext = { 
+        ...reportPayload,
+        id: hideId ? '***' : savedReport.id,
+        data: { id: hideId ? '***' : savedReport.id, ...reportPayload },
+        response: { id: hideId ? '***' : savedReport.id, ...reportPayload }, 
+        kyc: kycData, 
+        rootKey 
+      };
       const template = getLocalizedTemplate(menu);
       const finalMsg = template ? replacePlaceholders(template, responseContext) : "";
       const defaultSuccess = currentLang?.code === 'am' ? 'ሪፖርትዎ በተሳካ ሁኔታ ቀርቧል። እናመሰግናለን።' : 'Your report has been submitted successfully. Thank you.';
@@ -435,12 +448,22 @@ export function ChatInterface() {
         text: finalMsg || defaultSuccess,
         options: menus.filter(m => m.parentId === menu.id)
       }]);
+      saveLogEntry({
+        sessionId: userData.id,
+        userMessage: menu.name,
+        botResponse: finalMsg || defaultSuccess,
+        status: 'success',
+        endpoint: 'Internal:Report',
+        tags: ['report', menu.name]
+      });
+
       setIsLoading(false);
     }, 600);
   };
 
   const executeApiCall = async (menu: MenuItem, kycData: Record<string, any>) => {
     if (!menu.apiConfig) return;
+    const startTime = Date.now();
     const rootKey = menu.apiConfig.rootKey || 'data';
     setLoadingText(currentLang?.code === 'am' ? 'ደህንነቱ ከተጠበቀ አገልጋይ ጋር በመገናኘት ላይ...' : 'Connecting to secure server...');
     setIsLoading(true);
@@ -451,10 +474,11 @@ export function ChatInterface() {
       let url = replacePlaceholders(menu.apiConfig.endpoint, { kyc: kycData, rootKey });
       const requestPayload: Record<string, any> = {};
       menu.apiConfig.requestParameters?.forEach(param => {
-        if (param.sourceValue === 'user.id') requestPayload[param.apiKey] = userData.id;
-        else if (param.sourceValue === 'user.token') requestPayload[param.apiKey] = userData.token;
-        else if (param.sourceType === 'static') requestPayload[param.apiKey] = param.sourceValue;
-        else if (kycData[param.sourceValue] !== undefined) requestPayload[param.apiKey] = kycData[param.sourceValue];
+        const key = param.apiKey.trim();
+        if (param.sourceValue === 'user.id') requestPayload[key] = userData.id;
+        else if (param.sourceValue === 'user.token') requestPayload[key] = userData.token;
+        else if (param.sourceType === 'static') requestPayload[key] = param.sourceValue;
+        else if (kycData[param.sourceValue] !== undefined) requestPayload[key] = kycData[param.sourceValue];
       });
       const headers: Record<string, string> = { 'Content-Type': 'application/json', ...menu.apiConfig.headers };
       const auth = menu.apiConfig.authConfig;
@@ -471,7 +495,7 @@ export function ChatInterface() {
       if (menu.apiConfig.method === 'GET') {
         const params = new URLSearchParams();
         Object.entries(requestPayload).forEach(([k, v]) => {
-          if (v !== null) params.append(k, String(v));
+          if (v !== null) params.append(k.trim(), String(v).trim());
         });
         if (params.toString()) url += (url.includes('?') ? '&' : '?') + params.toString();
       } else { options.body = JSON.stringify(requestPayload); }
@@ -481,7 +505,14 @@ export function ChatInterface() {
       apiResponse = data;
     } catch (e) { success = false; }
     
-    const context = { response: apiResponse, kyc: kycData, rootKey };
+    const context = { 
+      ...apiResponse, 
+      [rootKey]: apiResponse?.[rootKey] || apiResponse, 
+      data: apiResponse?.data || apiResponse, // ensure 'data' is always a safe fallback
+      kyc: kycData, 
+      rootKey,
+      response: apiResponse
+    };
     let botMsg: Message = { id: `bot-api-${Date.now()}`, sender: 'bot' };
     
     if (!success) { 
@@ -525,6 +556,18 @@ export function ChatInterface() {
       }
     }
     botMsg.options = menus.filter(m => m.parentId === menu.id);
+    const endTime = Date.now();
+    saveLogEntry({
+      sessionId: userData.id,
+      userMessage: kycData[menu.apiConfig?.kycFields?.[0]?.name || 'unknown'] || 'API Trigger',
+      botResponse: botMsg.text || 'API Result',
+      status: success ? 'success' : 'error',
+      endpoint: menu.apiConfig?.endpoint || 'unknown',
+      responseTime: endTime - startTime,
+      errorDetails: !success ? (apiResponse?.message || 'Network/Server Error') : undefined,
+      tags: ['api', menu.name]
+    });
+
     setHistory(prev => [...prev, botMsg]);
     setIsLoading(false);
   };
@@ -583,14 +626,63 @@ export function ChatInterface() {
       }
       return;
     }
+    setMenuHistory(prev => [...prev, currentMenuId || 'root']);
     setHistory(prev => [...prev, {
       id: `bot-${Date.now()}`, 
       sender: 'bot', 
-      content: replacePlaceholders(getLocalizedContent(menu), { rootKey }) || (childMenus.length > 0 ? (currentLang?.code === 'am' ? 'እባክዎ አማራጭ ይምረጡ፡' : 'Please select an option:') : ''),
+      content: replacePlaceholders(getLocalizedContent(menu), { rootKey }) || (childMenus.length > 0 ? t('ui_select_option', 'Please select an option:') : ''),
       options: childMenus.length > 0 ? childMenus : undefined,
       relatedOptions: relatedItems.length > 0 ? relatedItems : undefined,
     }]);
+
+    saveLogEntry({
+      sessionId: userData.id,
+      userMessage: getLocalizedName(menu),
+      botResponse: replacePlaceholders(getLocalizedContent(menu), { rootKey }) || 'Options',
+      status: 'success',
+      endpoint: 'Internal:MenuNavigation',
+      tags: ['navigation', menu.name]
+    });
+
     setCurrentMenuId(menu.id);
+  };
+
+  const handleBack = () => {
+    if (menuHistory.length === 0) return;
+    const previousId = menuHistory[menuHistory.length - 1];
+    const newHistoryStack = menuHistory.slice(0, -1);
+    
+    setMenuHistory(newHistoryStack);
+    
+    if (previousId === 'root' || !previousId) {
+      handleHome();
+      return;
+    }
+
+    const previousMenu = menus.find(m => m.id === previousId);
+    if (previousMenu) {
+      setCurrentMenuId(previousId);
+      const childMenus = menus.filter(m => m.parentId === previousId).sort((a, b) => a.order - b.order);
+      setHistory(prev => [...prev, {
+        id: `bot-back-${Date.now()}`,
+        sender: 'bot',
+        text: t('ui_back', 'Back'),
+        content: getLocalizedContent(previousMenu),
+        options: childMenus
+      }]);
+    }
+  };
+
+  const handleHome = () => {
+    setMenuHistory([]);
+    setCurrentMenuId(null);
+    setHistory(prev => [...prev, {
+      id: `bot-home-${Date.now()}`,
+      sender: 'bot',
+      text: t('ui_home', 'Home'),
+      content: t('ui_welcome_subtitle', 'How can we assist you today?'),
+      options: menus.filter(m => m.parentId === null).sort((a, b) => a.order - b.order)
+    }]);
   };
 
   const startStatusFlow = () => {
@@ -598,15 +690,15 @@ export function ChatInterface() {
     setHistory(prev => [...prev, { 
       id: `bot-status-prompt-${Date.now()}`, 
       sender: 'bot', 
-      text: currentLang?.code === 'am' ? 'እባክዎ የሪፖርት ቁጥርዎን ያስገቡ፡' : 'Please enter your Report Reference ID:' 
+      text: t('ui_enter_report_id', 'Please enter your Report Reference ID:') 
     }]);
   };
 
   const getStatusDisplay = (status: string) => {
     switch (status) {
-      case 'resolved': return { icon: <CheckCircle2 className="text-emerald-500" />, label: currentLang?.code === 'am' ? 'ተፈትቷል' : 'Resolved', color: 'bg-green-100 text-emerald-800' };
-      case 'reviewed': return { icon: <Clock className="text-blue-500" />, label: currentLang?.code === 'am' ? 'በመመርመር ላይ' : 'Reviewed', color: 'bg-blue-100 text-blue-800' };
-      default: return { icon: <AlertCircle className="text-amber-500" />, label: currentLang?.code === 'am' ? 'በጥበቃ ላይ' : 'Pending', color: 'bg-amber-100 text-amber-800' };
+      case 'resolved': return { icon: <CheckCircle2 className="text-emerald-500" />, label: t('ui_status_resolved', 'Resolved'), color: 'bg-green-100 text-emerald-800' };
+      case 'reviewed': return { icon: <Clock className="text-blue-500" />, label: t('ui_status_reviewed', 'Reviewed'), color: 'bg-blue-100 text-blue-800' };
+      default: return { icon: <AlertCircle className="text-amber-500" />, label: t('ui_status_pending', 'Pending'), color: 'bg-amber-100 text-amber-800' };
     }
   };
 
@@ -625,6 +717,27 @@ export function ChatInterface() {
 
   return (
     <div className="flex flex-col h-full bg-white max-w-2xl mx-auto border-x shadow-2xl relative">
+      {(currentMenuId || menuHistory.length > 0) && (
+        <div className="absolute top-20 right-4 z-40 flex flex-col gap-2">
+          <Button 
+            onClick={handleHome} 
+            size="sm" 
+            variant="secondary" 
+            className="rounded-full shadow-lg border bg-white/80 backdrop-blur-sm h-10 w-10 p-0 text-primary hover:bg-primary/10"
+          >
+            <HomeIcon size={18} />
+          </Button>
+          <Button 
+            disabled={menuHistory.length === 0} 
+            onClick={handleBack} 
+            size="sm" 
+            variant="secondary" 
+            className="rounded-full shadow-lg border bg-white/80 backdrop-blur-sm h-10 w-10 p-0 text-[#763717] hover:bg-primary/10 disabled:opacity-30"
+          >
+            <ChevronLeft size={22} />
+          </Button>
+        </div>
+      )}
       <header className="bg-white border-b p-4 flex items-center justify-between sticky top-0 z-50 shadow-sm">
         <div className="flex items-center gap-3">
           <Logo className="w-10 h-10" />
@@ -634,19 +747,19 @@ export function ChatInterface() {
               {connectivity === 'checking' && (
                 <>
                   <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                  <span className="text-[10px] uppercase tracking-wider font-bold text-amber-500">Checking...</span>
+                  <span className="text-[10px] uppercase tracking-wider font-bold text-amber-500">{t('ui_checking', 'Checking...')}</span>
                 </>
               )}
               {connectivity === 'online' && (
                 <>
                   <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-[10px] uppercase tracking-wider font-bold text-emerald-600">Online</span>
+                  <span className="text-[10px] uppercase tracking-wider font-bold text-emerald-600">{t('ui_online', 'Online')}</span>
                 </>
               )}
               {connectivity === 'offline' && (
                 <>
                   <div className="w-2 h-2 rounded-full bg-red-500" />
-                  <span className="text-[10px] uppercase tracking-wider font-bold text-red-500">Offline</span>
+                  <span className="text-[10px] uppercase tracking-wider font-bold text-red-500">{t('ui_offline', 'Offline')}</span>
                 </>
               )}
             </div>
@@ -689,7 +802,7 @@ export function ChatInterface() {
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={startStatusFlow} className="flex items-center gap-2 cursor-pointer">
                 <ClipboardCheck size={16} className="text-primary" />
-                {currentLang?.code === 'am' ? 'የሪፖርት ሁኔታ አረጋግጥ' : 'Check Report Status'}
+                {t('ui_report_status_btn', 'Check Report Status')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -705,10 +818,10 @@ export function ChatInterface() {
                     <Logo className="w-full h-full scale-110" />
                   </div>
                   <h2 className="text-xl font-extrabold text-center text-[#763717] px-2">
-                    {currentLang?.code === 'am' ? 'እንኳን ወደ ንብ ኢንተርናሽናል ባንክ በደህና መጡ!' : 'Welcome to Nib International Bank'}
+                    {currentLang?.code === 'am' ? t('ui_welcome_am', 'Welcome to Nib International Bank') : t('ui_welcome_en', 'Welcome to Nib International Bank')}
                   </h2>
                   <p className="text-sm font-medium text-center text-muted-foreground">
-                    {currentLang?.code === 'am' ? 'እባክዎ ከታች ካሉት አገልግሎቶች ይምረጡ፡' : 'How can we assist you today?'}
+                    {t('ui_welcome_subtitle', 'How can we assist you today?')}
                   </p>
                 </div>
               )}
@@ -719,14 +832,14 @@ export function ChatInterface() {
                   <div className="flex items-center justify-between border-b pb-3">
                     <div className="flex items-center gap-2">
                       {getStatusDisplay(msg.reportStatus.status).icon}
-                      <span className="text-xs font-bold uppercase tracking-tight">Report Status</span>
+                      <span className="text-xs font-bold uppercase tracking-tight">{t('ui_status_label', 'Report Status')}</span>
                     </div>
                     <Badge className={cn("text-[10px] rounded-full", getStatusDisplay(msg.reportStatus.status).color)}>
                       {getStatusDisplay(msg.reportStatus.status).label}
                     </Badge>
                   </div>
                   <div className="space-y-2">
-                    <div className="text-[10px] uppercase font-bold text-muted-foreground">Original Request</div>
+                    <div className="text-[10px] uppercase font-bold text-muted-foreground">{t('ui_original_request', 'Original Request')}</div>
                     <div className="text-sm font-semibold">{msg.reportStatus.menuName}</div>
                   </div>
                   {msg.reportStatus.adminResponse && (
@@ -809,8 +922,26 @@ export function ChatInterface() {
         </form>
       </div>}
       <footer className="bg-white border-t p-4 flex justify-between gap-4 sticky bottom-0 z-40 shadow-[0_-1px_3px_rgba(0,0,0,0.05)]">
-        <Button variant="ghost" size="sm" className="hover:bg-primary/5 rounded-full px-4" onClick={() => { setHistory(prev => [...prev, { id: `home-${Date.now()}`, sender: 'user', text: currentLang?.code === 'am' ? 'እንዴት ልረዳዎ እችላለሁ?' : 'How can I help you?', options: menus.filter(m => m.parentId === null) }]); setCurrentMenuId(null); setKycFlow(null); setStatusFlow(false); }}><Home className="mr-2 text-primary" size={16} /> {currentLang?.code === 'am' ? 'ቤት' : 'Home'}</Button>
-        {currentMenuId && !kycFlow && !statusFlow && <Button variant="ghost" size="sm" className="hover:bg-primary/5 rounded-full px-4" onClick={() => { const current = menus.find(m => m.id === currentMenuId); const parent = menus.find(m => m.id === current?.parentId); if (parent) navigateTo(parent); else setHistory(p => [...p, { id: 'reset', sender: 'bot', text: 'Navigation Reset', options: menus.filter(m => !m.parentId) }]); }}><ArrowLeft className="mr-2 text-primary" size={16} /> {currentLang?.code === 'am' ? 'ተመለስ' : 'Back'}</Button>}
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="hover:bg-primary/5 rounded-full px-4 text-primary font-medium" 
+          onClick={handleHome}
+        >
+          <HomeIcon className="mr-2" size={16} /> 
+          {t('ui_home', 'Home')}
+        </Button>
+        {(currentMenuId || menuHistory.length > 0) && (
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="hover:bg-primary/5 rounded-full px-4 text-[#763717] font-medium" 
+            onClick={handleBack}
+          >
+            <ChevronLeft className="mr-2" size={18} /> 
+            {t('ui_back', 'Back')}
+          </Button>
+        )}
       </footer>
     </div>
   );

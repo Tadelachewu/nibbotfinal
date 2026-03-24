@@ -1,16 +1,37 @@
 'use client';
 
-import { MenuItem, AppSettings, Language, UserReport, ReportPriority } from './types';
+import { MenuItem, AppSettings, Language, UserReport, ReportPriority, ReportIdConfig } from './types';
+import { generateReportId, getNextSequence } from './id-generator';
 
-const MENUS_KEY = 'talktree_menus';
-const SETTINGS_KEY = 'talktree_settings';
-const REPORTS_KEY = 'talktree_reports';
-const CLICK_LOG_KEY = 'talktree_click_history';
+const MENUS_KEY = 'nib_menus';
+const SETTINGS_KEY = 'nib_settings';
+const REPORTS_KEY = 'nib_reports';
+const CLICK_LOG_KEY = 'nib_click_history';
 
 const defaultLanguages: Language[] = [
   { code: 'en', name: 'English', isDefault: true },
   { code: 'am', name: 'Amharic' }
 ];
+
+export const defaultSystemTranslations: Record<string, Record<string, string>> = {
+  ui_online: { en: 'Online', am: 'አየር ላይ' },
+  ui_offline: { en: 'Offline', am: 'ከመስመር ውጭ' },
+  ui_checking: { en: 'Checking...', am: 'በመፈተሽ ላይ...' },
+  ui_report_status_btn: { en: 'Check Report Status', am: 'የሪፖርት ሁኔታ አረጋግጥ' },
+  ui_select_option: { en: 'Please select an option:', am: 'እባክዎ አማራጭ ይምረጡ፡' },
+  ui_welcome_subtitle: { en: 'How can we assist you today?', am: 'ዛሬ እንዴት ልንረዳዎ እንችላለን?' },
+  ui_enter_report_id: { en: 'Please enter your Report Reference ID:', am: 'እባክዎ የሪፖርት ቁጥርዎን ያስገቡ፡' },
+  ui_status_resolved: { en: 'Resolved', am: 'ተፈትቷል' },
+  ui_status_reviewed: { en: 'Reviewed', am: 'በመመርመር ላይ' },
+  ui_status_pending: { en: 'Pending', am: 'በጥበቃ ላይ' },
+  ui_status_label: { en: 'Report Status', am: 'የሪፖርት ሁኔታ' },
+  ui_original_request: { en: 'Original Request', am: 'የቀረበ ጥያቄ' },
+  ui_error_fallback: { en: 'An error occurred.', am: 'ስህተት ተከስቷል።' },
+  ui_welcome_am: { en: 'Welcome to Nib International Bank', am: 'እንኳን ወደ ንብ ኢንተርናሽናል ባንክ በደህና መጡ!' },
+  ui_welcome_en: { en: 'Welcome to Nib International Bank', am: 'Welcome to Nib International Bank' },
+  ui_back: { en: 'Back', am: 'ተመለስ' },
+  ui_home: { en: 'Home', am: 'ዋና ገጽ' }
+};
 
 const defaultMenus: MenuItem[] = [
   { 
@@ -48,6 +69,7 @@ const defaultMenus: MenuItem[] = [
       retry: 0,
       loginRequired: true,
       defaultPriority: 'high',
+      requiredKYC: [],
       kycFields: [
         {
           id: 'fraud-acc',
@@ -72,7 +94,9 @@ const defaultMenus: MenuItem[] = [
       responseMapping: {
         type: 'message',
         template: 'Report Submitted! Your Reference ID is {{response.id}}',
-        errorFallback: 'Report submission failed.'
+        errorFallback: 'Report submission failed.',
+        timeoutMessage: 'Timeout.',
+        authRequiredMessage: 'Auth Required.'
       }
     }
   },
@@ -95,6 +119,7 @@ const defaultMenus: MenuItem[] = [
       retry: 1,
       loginRequired: false,
       kycFields: [],
+      requiredKYC: [],
       requestParameters: [
         { apiKey: 'base', sourceType: 'static', sourceValue: 'USD' }
       ],
@@ -134,6 +159,7 @@ const defaultMenus: MenuItem[] = [
       timeout: 5000,
       retry: 0,
       loginRequired: true,
+      requiredKYC: [],
       authConfig: {
         type: 'bearer',
         bearer: { header: 'Authorization', template: 'Bearer {{user_token}}' }
@@ -204,10 +230,45 @@ export function incrementMenuClick(id: string, sessionId: string) {
 }
 
 // Settings Store
+export const defaultReportIdConfig: ReportIdConfig = {
+  prefix: 'NIB',
+  yearEnabled: true,
+  numberLength: 6,
+  startValue: 100000,
+  resetEveryYear: true
+};
+
 export function getAppSettings(): AppSettings {
-  if (typeof window === 'undefined') return { supportedLanguages: defaultLanguages };
+  if (typeof window === 'undefined') return { 
+    supportedLanguages: defaultLanguages, 
+    systemTranslations: defaultSystemTranslations,
+    reportId: defaultReportIdConfig
+  };
   const stored = localStorage.getItem(SETTINGS_KEY);
-  return stored ? JSON.parse(stored) : { supportedLanguages: defaultLanguages };
+  const settings: AppSettings = stored ? JSON.parse(stored) : { 
+    supportedLanguages: defaultLanguages, 
+    systemTranslations: defaultSystemTranslations,
+    reportId: defaultReportIdConfig
+  };
+  
+  // Ensure systemTranslations exists and has default keys
+  if (!settings.systemTranslations) {
+    settings.systemTranslations = defaultSystemTranslations;
+  } else {
+    // Fill in missing default keys if any
+    Object.keys(defaultSystemTranslations).forEach(key => {
+      if (!settings.systemTranslations![key]) {
+        settings.systemTranslations![key] = defaultSystemTranslations[key];
+      }
+    });
+  }
+
+  // Ensure reportId configuration exists
+  if (!settings.reportId) {
+    settings.reportId = defaultReportIdConfig;
+  }
+  
+  return settings;
 }
 
 export function saveAppSettings(settings: AppSettings) {
@@ -229,9 +290,23 @@ export function saveReports(reports: UserReport[]) {
 
 export function addReport(reportData: Omit<UserReport, 'id' | 'status' | 'timestamp'>): UserReport {
   const reports = getStoredReports();
+  const settings = getAppSettings();
+  const config = settings.reportId || defaultReportIdConfig;
+  
+  const nextSequence = getNextSequence(config, reports);
+  const newId = generateReportId(config, nextSequence);
+  
+  // Ensure uniqueness (safety check)
+  let finalId = newId;
+  let counter = 1;
+  while (reports.some(r => r.id === finalId)) {
+    finalId = `${newId}_${counter}`;
+    counter++;
+  }
+
   const newReport: UserReport = {
     ...reportData,
-    id: 'rep_' + Math.random().toString(36).substr(2, 9),
+    id: finalId,
     status: 'pending',
     priority: reportData.priority || 'medium',
     timestamp: new Date().toISOString()

@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   }
 
   const token = authHeader.split(' ')[1];
-  if (token !== 'talktree_static_token_778899' && token !== 'static_sample_123') {
+  if (token !== 'nib_static_token_778899' && token !== 'static_sample_123') {
     return NextResponse.json(
       { status: "error", message: "Unauthorized: Invalid Static Token." },
       { status: 401 }
@@ -40,7 +40,7 @@ export async function GET(request: Request) {
     {
       id: "admin_99",
       full_name: "System Admin",
-      email: "admin@talktree.ai",
+      email: "admin@nib.ai",
       kyc_status: "Internal",
       balance: 9999,
       join_date: "2023-01-01"

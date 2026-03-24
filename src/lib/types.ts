@@ -64,6 +64,7 @@ export interface ApiConfig {
     timeoutMessageAm?: string;
     authRequiredMessage: string;
     authRequiredMessageAm?: string;
+    hideReportId?: boolean;
   };
 }
 
@@ -73,8 +74,18 @@ export interface Language {
   isDefault?: boolean;
 }
 
+export interface ReportIdConfig {
+  prefix: string;
+  yearEnabled: boolean;
+  numberLength: number;
+  startValue: number;
+  resetEveryYear: boolean;
+}
+
 export interface AppSettings {
   supportedLanguages: Language[];
+  systemTranslations?: Record<string, Record<string, string>>; // key -> langCode -> translation
+  reportId?: ReportIdConfig;
 }
 
 export interface MenuItem {

@@ -71,7 +71,7 @@ export async function POST(request: Request) {
 
   // 3. Verify Static Token Segment
   const token = parts[0].replace('Bearer ', '').trim();
-  if (token !== 'talktree_static_token_778899' && token !== 'static_sample_123') {
+  if (token !== 'nib_static_token_778899' && token !== 'static_sample_123') {
     return NextResponse.json({ 
       status: "error", 
       message: "Security Error: Invalid or expired Static Security Token." 

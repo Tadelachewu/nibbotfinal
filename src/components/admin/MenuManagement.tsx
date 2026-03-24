@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { MenuItem, KYCField, TableColumn, AuthType, ApiConfig, Language, AppSettings, ReportPriority } from '@/lib/types';
-import { getStoredMenus, addMenu, updateMenu, deleteMenu, getAppSettings, saveAppSettings } from '@/lib/store';
+import { MenuItem, KYCField, TableColumn, AuthType, ApiConfig, Language, AppSettings, ReportPriority, ReportIdConfig } from '@/lib/types';
+import { getStoredMenus, addMenu, updateMenu, deleteMenu, getAppSettings, saveAppSettings, defaultReportIdConfig } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -38,6 +38,8 @@ import {
   Fingerprint,
   Info,
   FileText,
+  Hash,
+  Calendar
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -63,6 +65,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { WysiwygEditor } from './WysiwygEditor';
 import { toast } from '@/hooks/use-toast';
@@ -184,6 +187,16 @@ export function MenuManagement() {
     setSettings({ ...settings, supportedLanguages: newLangs });
   };
 
+  const handleReportIdConfigChange = (key: keyof ReportIdConfig, value: any) => {
+    setSettings(prev => ({
+      ...prev,
+      reportId: {
+        ...(prev.reportId || defaultReportIdConfig),
+        [key]: value
+      }
+    }));
+  };
+
   const removeLanguage = (index: number) => {
     if (settings.supportedLanguages[index].isDefault) {
       toast({ title: "Error", description: "Cannot remove default language.", variant: "destructive" });
@@ -222,7 +235,7 @@ export function MenuManagement() {
 
       const resolve = (str: string) => str.replace(/{{\s*(.*?)\s*}}/g, (match, p1) => {
         const key = p1.trim();
-        if (key === 'user_token') return 'talktree_static_token_778899';
+        if (key === 'user_token') return 'nib_static_token_778899';
         if (key === 'user_id') return 'user_123';
         return sampleKyc[key] || match;
       });
@@ -247,7 +260,7 @@ export function MenuManagement() {
       editForm.apiConfig.requestParameters?.forEach(param => {
         if (param.sourceType === 'kyc') requestPayload[param.apiKey] = sampleKyc[param.sourceValue] || `{{${param.sourceValue}}}`;
         else if (param.sourceValue === 'user.id') requestPayload[param.apiKey] = 'user_123';
-        else if (param.sourceValue === 'user.token') requestPayload[param.apiKey] = 'talktree_static_token_778899';
+        else if (param.sourceValue === 'user.token') requestPayload[param.apiKey] = 'nib_static_token_778899';
         else if (param.sourceType === 'static') requestPayload[param.apiKey] = param.sourceValue;
       });
 
@@ -454,39 +467,142 @@ export function MenuManagement() {
         </TabsContent>
 
         <TabsContent value="settings">
-          <Card>
-            <CardHeader><CardTitle>Language Management</CardTitle></CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-bold uppercase">Supported Languages</Label>
-                  <Button variant="outline" size="sm" onClick={addLanguage}><Plus className="mr-2 h-4 w-4" /> Add Language</Button>
-                </div>
-                <div className="grid gap-3">
-                  {settings.supportedLanguages.map((lang, idx) => (
-                    <div key={lang.code} className="flex gap-3 items-center p-3 border rounded-lg bg-muted/5 group">
-                      <div className="grid grid-cols-2 gap-3 flex-1">
-                        <div className="space-y-1">
-                          <Label className="text-[10px] uppercase font-bold">Language Name</Label>
-                          <Input value={lang.name} onChange={e => updateLanguage(idx, 'name', e.target.value)} />
+          <Tabs defaultValue="languages">
+            <TabsList className="grid grid-cols-2 mb-6">
+              <TabsTrigger value="languages" className="flex items-center gap-2">
+                <Languages size={14} /> Languages
+              </TabsTrigger>
+              <TabsTrigger value="report-id" className="flex items-center gap-2">
+                <Hash size={14} /> Report ID
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="languages">
+              <Card className="border-none shadow-none">
+                <CardHeader className="px-0 pt-0">
+                  <CardTitle className="text-sm font-bold">Language Management</CardTitle>
+                </CardHeader>
+                <CardContent className="px-0 space-y-6">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-bold uppercase">Supported Languages</Label>
+                      <Button variant="outline" size="sm" onClick={addLanguage}><Plus className="mr-2 h-4 w-4" /> Add Language</Button>
+                    </div>
+                    <div className="grid gap-3">
+                      {settings.supportedLanguages.map((lang, idx) => (
+                        <div key={lang.code} className="flex gap-3 items-center p-3 border rounded-lg bg-muted/5 group">
+                          <div className="grid grid-cols-2 gap-3 flex-1">
+                            <div className="space-y-1">
+                              <Label className="text-[10px] uppercase font-bold">Language Name</Label>
+                              <Input value={lang.name} onChange={e => updateLanguage(idx, 'name', e.target.value)} />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[10px] uppercase font-bold">Code (e.g. fr)</Label>
+                              <Input value={lang.code} onChange={e => updateLanguage(idx, 'code', e.target.value)} />
+                            </div>
+                          </div>
+                          <div className="pt-5 flex gap-1">
+                            {lang.isDefault ? <Badge className="h-10 px-3">Default</Badge> : (
+                              <Button variant="ghost" size="icon" onClick={() => removeLanguage(idx)} className="text-destructive opacity-0 group-hover:opacity-100"><Trash2 size={16} /></Button>
+                            )}
+                          </div>
                         </div>
-                        <div className="space-y-1">
-                          <Label className="text-[10px] uppercase font-bold">Code (e.g. fr)</Label>
-                          <Input value={lang.code} onChange={e => updateLanguage(idx, 'code', e.target.value)} />
-                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="report-id" className="space-y-6">
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-sm font-bold flex items-center gap-2 mb-4">
+                    <Hash className="text-primary" size={18} />
+                    Report ID Formatting
+                  </h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="prefix" className="text-xs font-bold uppercase text-muted-foreground">System Prefix</Label>
+                        <Input 
+                          id="prefix"
+                          value={settings.reportId?.prefix || ''}
+                          onChange={(e) => handleReportIdConfigChange('prefix', e.target.value.toUpperCase())}
+                          placeholder="e.g., NIB"
+                          className="font-bold uppercase"
+                        />
                       </div>
-                      <div className="pt-5 flex gap-1">
-                        {lang.isDefault ? <Badge className="h-10 px-3">Default</Badge> : (
-                          <Button variant="ghost" size="icon" onClick={() => removeLanguage(idx)} className="text-destructive opacity-0 group-hover:opacity-100"><Trash2 size={16} /></Button>
-                        )}
+
+                      <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/5">
+                        <div className="space-y-0.5">
+                          <Label className="text-xs font-bold">Include Current Year</Label>
+                          <p className="text-[10px] text-muted-foreground italic">Appends -{new Date().getFullYear()} after the prefix.</p>
+                        </div>
+                        <Switch 
+                          checked={settings.reportId?.yearEnabled || false}
+                          onCheckedChange={(val) => handleReportIdConfigChange('yearEnabled', val)}
+                        />
                       </div>
                     </div>
-                  ))}
+
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="numberLength" className="text-xs font-bold uppercase text-muted-foreground">Digit Length</Label>
+                          <Input 
+                            id="numberLength"
+                            type="number"
+                            min={1}
+                            max={20}
+                            value={settings.reportId?.numberLength || 6}
+                            onChange={(e) => handleReportIdConfigChange('numberLength', parseInt(e.target.value) || 0)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="startValue" className="text-xs font-bold uppercase text-muted-foreground">Start Value</Label>
+                          <Input 
+                            id="startValue"
+                            type="number"
+                            value={settings.reportId?.startValue || 100000}
+                            onChange={(e) => handleReportIdConfigChange('startValue', parseInt(e.target.value) || 0)}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/5">
+                        <div className="space-y-0.5">
+                          <Label className="text-xs font-bold">Yearly Reset</Label>
+                          <p className="text-[10px] text-muted-foreground italic">Reset to start value on Jan 1st.</p>
+                        </div>
+                        <Switch 
+                          checked={settings.reportId?.resetEveryYear || false}
+                          onCheckedChange={(val) => handleReportIdConfigChange('resetEveryYear', val)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 p-4 bg-primary/5 border border-primary/10 rounded-xl flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Live ID Preview</p>
+                      <div className="text-2xl font-mono font-bold tracking-tighter text-primary">
+                        {settings.reportId?.prefix || 'NIB'}
+                        {settings.reportId?.yearEnabled ? `-${new Date().getFullYear()}` : ''}
+                        -{String(settings.reportId?.startValue || 100000).padStart(settings.reportId?.numberLength || 6, '0')}
+                      </div>
+                    </div>
+                    <Info size={24} className="text-primary/20" />
+                  </div>
                 </div>
               </div>
-              <Button className="w-full" onClick={handleSaveSettings}><Save className="mr-2" /> Save Settings</Button>
-            </CardContent>
-          </Card>
+            </TabsContent>
+          </Tabs>
+
+          <div className="mt-8 pt-6 border-t font-mono">
+            <Button className="w-full h-11 text-sm font-bold" onClick={handleSaveSettings}><Save className="mr-2" /> Save System Settings</Button>
+          </div>
         </TabsContent>
       </Tabs>
 
@@ -765,22 +881,32 @@ export function MenuManagement() {
                   <Card>
                     <CardHeader className="bg-muted/10">
                       <div className="flex items-center justify-between">
-                        <CardTitle className="text-sm">{editForm.responseType === 'report' ? 'Report Configuration' : 'KYC & Mapping'}</CardTitle>
+                        <CardTitle className="text-sm">{editForm.responseType === 'report' ? 'Report Configuration' : 'User Input & Mapping'}</CardTitle>
                         {editForm.responseType === 'report' && (
-                          <div className="flex items-center gap-3">
-                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Priority</Label>
-                            <Select 
-                              value={editForm.apiConfig?.defaultPriority || 'medium'} 
-                              onValueChange={v => deepUpdate(['apiConfig', 'defaultPriority'], v)}
-                            >
-                              <SelectTrigger className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="low">Low</SelectItem>
-                                <SelectItem value="medium">Medium</SelectItem>
-                                <SelectItem value="high">High</SelectItem>
-                                <SelectItem value="urgent">Urgent</SelectItem>
-                              </SelectContent>
-                            </Select>
+                          <div className="flex items-center gap-6">
+                            <div className="flex items-center gap-2 border-r pr-6 border-muted/20">
+                              <Label htmlFor="hide-id" className="text-[10px] uppercase font-bold text-muted-foreground whitespace-nowrap">Show ID to User</Label>
+                              <Switch 
+                                id="hide-id"
+                                checked={!editForm.apiConfig?.responseMapping?.hideReportId} 
+                                onCheckedChange={checked => deepUpdate(['apiConfig', 'responseMapping', 'hideReportId'], !checked)}
+                              />
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Priority</Label>
+                              <Select 
+                                value={editForm.apiConfig?.defaultPriority || 'medium'} 
+                                onValueChange={v => deepUpdate(['apiConfig', 'defaultPriority'], v)}
+                              >
+                                <SelectTrigger className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="low">Low</SelectItem>
+                                  <SelectItem value="medium">Medium</SelectItem>
+                                  <SelectItem value="high">High</SelectItem>
+                                  <SelectItem value="urgent">Urgent</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -879,7 +1005,7 @@ export function MenuManagement() {
 
                             const handleErrorChange = (val: string) => {
                               if (isDefault) deepUpdate(['apiConfig', 'responseMapping', 'errorFallback'], val);
-                              else if (lang.code === 'am') deepUpdate(['apiConfig', 'responseMapping', 'templateAm'], val);
+                              else if (lang.code === 'am') deepUpdate(['apiConfig', 'responseMapping', 'errorFallbackAm'], val);
                               else {
                                 const translations = { ...(editForm.translations || {}) };
                                 translations[lang.code] = { ...(translations[lang.code] || {}), errorFallback: val };
@@ -898,7 +1024,11 @@ export function MenuManagement() {
                                       onSelect={(val) => handleTemplateChange(templateVal + val)}
                                     />
                                   </div>
-                                  <Input value={templateVal} onChange={e => handleTemplateChange(e.target.value)} />
+                                  <Textarea 
+                                    className="min-h-[100px] font-mono text-xs" 
+                                    value={templateVal} 
+                                    onChange={e => handleTemplateChange(e.target.value)} 
+                                  />
                                 </div>
                                 <div className="space-y-2">
                                   <div className="flex items-center justify-between">
@@ -917,97 +1047,138 @@ export function MenuManagement() {
                         </TabsContent>
 
                         <TabsContent value="table" className="p-4 space-y-4 mt-0">
-                          <div className="space-y-4">
-                            <div className="space-y-3 p-4 border rounded-xl bg-muted/5">
-                               <Label className="text-[10px] uppercase font-bold text-muted-foreground border-b pb-2 flex items-center gap-2">Table Mapping Mode</Label>
-                               <Select 
-                                 value={editForm.apiConfig?.responseMapping?.tableMappingMode || 'array_path'} 
-                                 onValueChange={v => deepUpdate(['apiConfig', 'responseMapping', 'tableMappingMode'], v)}
-                               >
-                                 <SelectTrigger className="h-8 text-xs bg-white"><SelectValue /></SelectTrigger>
-                                 <SelectContent>
-                                   <SelectItem value="array_path">Array Path (Legacy Engine)</SelectItem>
-                                   <SelectItem value="exact_path">Exact Path (Unified Engine)</SelectItem>
-                                 </SelectContent>
-                               </Select>
-                               <p className="text-[9px] text-muted-foreground">
-                                {(editForm.apiConfig?.responseMapping?.tableMappingMode || 'array_path') === 'array_path' 
-                                  ? 'Define a path to an array (e.g. data.items) to loop rows automatically.' 
-                                  : 'Map each column to an exact full path (e.g. data.rates[0].currency) without automatic array looping.'}
-                               </p>
-                            </div>
+                          {(() => {
+                            const lang = getCurrentLanguage();
+                            const isDefault = lang.code === settings.supportedLanguages.find(l => l.isDefault)?.code || lang.isDefault;
+                            
+                            const templateVal = isDefault 
+                              ? (editForm.apiConfig?.responseMapping?.template || '') 
+                              : (lang.code === 'am' ? (editForm.apiConfig?.responseMapping?.templateAm || '') : (editForm.translations?.[lang.code]?.responseTemplate || ''));
 
-                            {(editForm.apiConfig?.responseMapping?.tableMappingMode || 'array_path') === 'array_path' && (
+                            const handleTemplateChange = (val: string) => {
+                              if (isDefault) deepUpdate(['apiConfig', 'responseMapping', 'template'], val);
+                              else if (lang.code === 'am') deepUpdate(['apiConfig', 'responseMapping', 'templateAm'], val);
+                              else {
+                                const translations = { ...(editForm.translations || {}) };
+                                translations[lang.code] = { ...(translations[lang.code] || {}), responseTemplate: val };
+                                setEditForm({ ...editForm, translations });
+                              }
+                            };
+
+                            return (
                               <div className="space-y-4">
                                 <div className="space-y-2">
-                                   <div className="flex items-center justify-between">
-                                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Table Data Key (Array Path)</Label>
-                                      <FieldPicker 
-                                        title="Array Paths Found"
-                                        currentFields={getAvailableFields(apiPreviewResult, '', true)}
-                                        onSelect={(field) => {
-                                          const root = editForm.apiConfig?.rootKey || 'data';
-                                          deepUpdate(['apiConfig', 'responseMapping', 'tableDataKey'], `${root}.${field}`);
-                                        }}
-                                      />
-                                   </div>
-                                   <Input 
-                                     placeholder={`e.g. ${editForm.apiConfig?.rootKey || 'data'}.items`} 
-                                     value={editForm.apiConfig?.responseMapping?.tableDataKey || ''} 
-                                     onChange={e => deepUpdate(['apiConfig', 'responseMapping', 'tableDataKey'], e.target.value)} 
-                                   />
-                                </div>
-                                <Separator />
-                              </div>
-                            )}
-
-                            <div className="flex items-center justify-between">
-                              <Label className="text-xs font-bold flex items-center gap-2 text-muted-foreground uppercase"><TableIcon size={14} /> Column Mapping</Label>
-                              <Button variant="ghost" size="sm" className="h-8 text-[10px]" onClick={() => { const cols = editForm.apiConfig?.responseMapping?.tableColumns || []; deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], [...cols, { header: 'New Column', key: '' }]); }}><Plus className="mr-1 h-3 w-3" /> Add Column</Button>
-                            </div>
-                            <div className="space-y-2">
-                              {editForm.apiConfig?.responseMapping?.tableColumns?.map((col, idx) => {
-                                const lang = getCurrentLanguage();
-                                const isDefault = lang.code === settings.supportedLanguages.find(l => l.isDefault)?.code || lang.isDefault;
-                                const headerVal = isDefault ? (col.header || '') : (lang.code === 'am' ? (col.headerAm || '') : (editForm.translations?.[lang.code]?.tableHeaders?.[col.key] || ''));
-
-                                return (
-                                  <div key={idx} className="flex gap-3 p-3 border rounded-md bg-white group relative shadow-sm items-end">
-                                    <div className="flex-1 space-y-1">
-                                      <Label className="text-[9px] uppercase font-bold text-muted-foreground">Header ({lang.name})</Label>
-                                      <Input className="h-8 text-xs" value={headerVal} onChange={e => {
-                                        const cols = [...editForm.apiConfig!.responseMapping.tableColumns!];
-                                        if (isDefault) cols[idx].header = e.target.value;
-                                        else if (lang.code === 'am') cols[idx].headerAm = e.target.value;
-                                        else {
-                                          const translations = { ...(editForm.translations || {}) };
-                                          translations[lang.code] = { ...(translations[lang.code] || {}), tableHeaders: { ...(translations[lang.code]?.tableHeaders || {}), [col.key]: e.target.value } };
-                                          setEditForm({ ...editForm, translations });
-                                          return;
-                                        }
-                                        deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], cols);
-                                      }} />
-                                    </div>
-                                    <div className="flex-1 space-y-1">
-                                      <div className="flex items-center justify-between">
-                                        <Label className="text-[9px] uppercase font-bold text-muted-foreground">Data Key</Label>
-                                        <FieldPicker 
-                                          currentFields={getAvailableFields(apiPreviewResult)}
-                                          onSelect={(field) => {
-                                            const cols = [...editForm.apiConfig!.responseMapping.tableColumns!];
-                                            cols[idx].key = field;
-                                            deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], cols);
-                                          }}
-                                        />
-                                      </div>
-                                      <Input className="h-8 text-xs font-mono" value={col.key} onChange={e => { const cols = [...editForm.apiConfig!.responseMapping.tableColumns!]; cols[idx].key = e.target.value; deepUpdate(['apiConfig', 'requestMapping', 'tableColumns'], cols); }} />
-                                    </div>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100" onClick={() => { const cols = editForm.apiConfig!.responseMapping.tableColumns!.filter((_, i) => i !== idx); deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], cols); }}><Trash2 size={14} /></Button>
+                                  <div className="flex items-center justify-between">
+                                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Intro Message / Template ({lang.name})</Label>
+                                    <FieldPicker 
+                                      mode="placeholder"
+                                      currentFields={getAvailableFields(apiPreviewResult)}
+                                      onSelect={(val) => handleTemplateChange(templateVal + val)}
+                                    />
                                   </div>
-                                );
-                              })}
-                            </div>
-                          </div>
+                                  <Input 
+                                    placeholder="e.g. Here are the results for {{name}}:"
+                                    className="font-mono text-xs" 
+                                    value={templateVal} 
+                                    onChange={e => handleTemplateChange(e.target.value)} 
+                                  />
+                                  <p className="text-[9px] text-muted-foreground italic">If left empty, the system defaults to "Here are the results:"</p>
+                                </div>
+
+                                <Separator />
+
+                                <div className="space-y-3 p-4 border rounded-xl bg-muted/5">
+                                   <Label className="text-[10px] uppercase font-bold text-muted-foreground border-b pb-2 flex items-center gap-2">Table Mapping Mode</Label>
+                                   <Select 
+                                     value={editForm.apiConfig?.responseMapping?.tableMappingMode || 'array_path'} 
+                                     onValueChange={v => deepUpdate(['apiConfig', 'responseMapping', 'tableMappingMode'], v)}
+                                   >
+                                     <SelectTrigger className="h-8 text-xs bg-white"><SelectValue /></SelectTrigger>
+                                     <SelectContent>
+                                       <SelectItem value="array_path">Array Path (Legacy Engine)</SelectItem>
+                                       <SelectItem value="exact_path">Exact Path (Unified Engine)</SelectItem>
+                                     </SelectContent>
+                                   </Select>
+                                   <p className="text-[9px] text-muted-foreground">
+                                    {(editForm.apiConfig?.responseMapping?.tableMappingMode || 'array_path') === 'array_path' 
+                                      ? 'Define a path to an array (e.g. data.items) to loop rows automatically.' 
+                                      : 'Map each column to an exact full path (e.g. data.rates[0].currency) without automatic array looping.'}
+                                   </p>
+                                </div>
+
+                                {(editForm.apiConfig?.responseMapping?.tableMappingMode || 'array_path') === 'array_path' && (
+                                  <div className="space-y-4">
+                                    <div className="space-y-2">
+                                       <div className="flex items-center justify-between">
+                                          <Label className="text-[10px] uppercase font-bold text-muted-foreground">Table Data Key (Array Path)</Label>
+                                          <FieldPicker 
+                                            title="Array Paths Found"
+                                            currentFields={getAvailableFields(apiPreviewResult, '', true)}
+                                            onSelect={(field) => {
+                                              const root = editForm.apiConfig?.rootKey || 'data';
+                                              deepUpdate(['apiConfig', 'responseMapping', 'tableDataKey'], `${root}.${field}`);
+                                            }}
+                                          />
+                                       </div>
+                                       <Input 
+                                         placeholder={`e.g. ${editForm.apiConfig?.rootKey || 'data'}.items`} 
+                                         value={editForm.apiConfig?.responseMapping?.tableDataKey || ''} 
+                                         onChange={e => deepUpdate(['apiConfig', 'responseMapping', 'tableDataKey'], e.target.value)} 
+                                       />
+                                    </div>
+                                    <Separator />
+                                  </div>
+                                )}
+
+                                <div className="flex items-center justify-between">
+                                  <Label className="text-xs font-bold flex items-center gap-2 text-muted-foreground uppercase"><TableIcon size={14} /> Column Mapping</Label>
+                                  <Button variant="ghost" size="sm" className="h-8 text-[10px]" onClick={() => { const cols = editForm.apiConfig?.responseMapping?.tableColumns || []; deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], [...cols, { header: 'New Column', key: '' }]); }}><Plus className="mr-1 h-3 w-3" /> Add Column</Button>
+                                </div>
+                                <div className="space-y-2">
+                                  {editForm.apiConfig?.responseMapping?.tableColumns?.map((col, idx) => {
+                                    const lang = getCurrentLanguage();
+                                    const isDefault = lang.code === settings.supportedLanguages.find(l => l.isDefault)?.code || lang.isDefault;
+                                    const headerVal = isDefault ? (col.header || '') : (lang.code === 'am' ? (col.headerAm || '') : (editForm.translations?.[lang.code]?.tableHeaders?.[col.key] || ''));
+
+                                    return (
+                                      <div key={idx} className="flex gap-3 p-3 border rounded-md bg-white group relative shadow-sm items-end">
+                                        <div className="flex-1 space-y-1">
+                                          <Label className="text-[9px] uppercase font-bold text-muted-foreground">Header ({lang.name})</Label>
+                                          <Input className="h-8 text-xs" value={headerVal} onChange={e => {
+                                            const cols = [...editForm.apiConfig!.responseMapping.tableColumns!];
+                                            if (isDefault) cols[idx].header = e.target.value;
+                                            else if (lang.code === 'am') cols[idx].headerAm = e.target.value;
+                                            else {
+                                              const translations = { ...(editForm.translations || {}) };
+                                              translations[lang.code] = { ...(translations[lang.code] || {}), tableHeaders: { ...(translations[lang.code]?.tableHeaders || {}), [col.key]: e.target.value } };
+                                              setEditForm({ ...editForm, translations });
+                                              return;
+                                            }
+                                            deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], cols);
+                                          }} />
+                                        </div>
+                                        <div className="flex-1 space-y-1">
+                                          <div className="flex items-center justify-between">
+                                            <Label className="text-[9px] uppercase font-bold text-muted-foreground">Data Key</Label>
+                                            <FieldPicker 
+                                              currentFields={getAvailableFields(apiPreviewResult)}
+                                              onSelect={(field) => {
+                                                const cols = [...editForm.apiConfig!.responseMapping.tableColumns!];
+                                                cols[idx].key = field;
+                                                deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], cols);
+                                              }}
+                                            />
+                                          </div>
+                                          <Input className="h-8 text-xs font-mono" value={col.key} onChange={e => { const cols = [...editForm.apiConfig!.responseMapping.tableColumns!]; cols[idx].key = e.target.value; deepUpdate(['apiConfig', 'requestMapping', 'tableColumns'], cols); }} />
+                                        </div>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100" onClick={() => { const cols = editForm.apiConfig!.responseMapping.tableColumns!.filter((_, i) => i !== idx); deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], cols); }}><Trash2 size={14} /></Button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </TabsContent>
                       </Tabs>
                     </CardContent>

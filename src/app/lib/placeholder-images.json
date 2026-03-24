@@ -15,9 +15,9 @@
     },
     {
       "id": "app-logo",
-      "description": "Official TalkTree Logo",
-      "imageUrl": "https://picsum.photos/seed/talktree-logo/200/200",
-      "imageHint": "talktree brand logo circular"
+      "description": "Official Nib Logo",
+      "imageUrl": "https://picsum.photos/seed/nib-logo/200/200",
+      "imageHint": "nib brand logo circular"
     }
   ]
 }
