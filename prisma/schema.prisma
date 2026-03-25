@@ -1,0 +1,199 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums used across models
+enum ResponseType {
+  static
+  api
+  report
+}
+
+enum ReportStatus {
+  pending
+  reviewed
+  resolved
+}
+
+enum ReportPriority {
+  low
+  medium
+  high
+  urgent
+}
+
+enum KYCFieldType {
+  text
+  number
+  tel
+  email
+  password
+  boolean
+}
+
+enum LogStatus {
+  success
+  failed
+  error
+}
+
+// Menu items (admin-created navigation/content entries)
+model MenuItem {
+  id                String        @id
+  parentId          String?
+  parent            MenuItem?     @relation("MenuToChildren", fields: [parentId], references: [id])
+  children          MenuItem[]    @relation("MenuToChildren")
+  name              String
+  nameAm            String?
+  responseType      ResponseType
+  content           String?       @db.Text
+  contentAm         String?       @db.Text
+  order             Int            @default(0)
+  trackClicks       Boolean        @default(false)
+  clickCount        Int            @default(0)
+  sessionClickCount Int            @default(0)
+  translations      Json?
+
+  // relations
+  attachments       MenuAttachment[]
+  kycMappings       MenuKYC[]
+  reports           UserReport[]
+  clicks            ClickHistory[]
+
+  @@map("menu_items")
+}
+
+// Many-to-many helper linking a menu to other attached menus
+model MenuAttachment {
+  id             Int      @id @default(autoincrement())
+  menuId         String
+  attachedMenuId String
+
+  menu           MenuItem @relation(fields: [menuId], references: [id])
+  attachedMenu   MenuItem @relation("AttachmentTo", fields: [attachedMenuId], references: [id])
+
+  @@unique([menuId, attachedMenuId])
+  @@map("menu_attachments")
+}
+
+// KYC fields used in conversational forms
+model KYCField {
+  id         String      @id
+  name       String
+  prompt     String
+  promptAm   String?
+  type       KYCFieldType
+  validation String?
+  order      Int          @default(0)
+  required   Boolean      @default(false)
+
+  // inverse relation to menus that use this KYC item
+  menuMappings MenuKYC[]
+
+  @@map("kyc_fields")
+}
+
+// Join table to attach KYC fields to a particular Menu (form)
+model MenuKYC {
+  id      Int      @id @default(autoincrement())
+  menuId  String
+  kycId   String
+  // optional per-menu ordering of the KYC field
+  order   Int?     
+
+  menu    MenuItem @relation(fields: [menuId], references: [id])
+  kyc     KYCField @relation(fields: [kycId], references: [id])
+
+  @@unique([menuId, kycId])
+  @@map("menu_kyc")
+}
+
+// Reports submitted by end users via the conversational forms
+model UserReport {
+  id            String         @id
+  userId        String?
+  menuId        String?
+  menuName      String
+  data          Json
+  status        ReportStatus   @default(pending)
+  priority      ReportPriority @default(medium)
+  adminResponse String?        @db.Text
+  internalNotes String?        @db.Text
+  timestamp     DateTime
+  createdAt     DateTime       @default(now())
+
+  // relations
+  menu          MenuItem?      @relation(fields: [menuId], references: [id])
+
+  @@map("user_reports")
+}
+
+// Application-level settings (singleton row expected)
+model AppSettings {
+  id                 Int      @id @default(1)
+  supportedLanguages Json?
+  systemTranslations Json?
+  reportIdId         Int?     @unique
+  reportId           ReportIdConfig? @relation(fields: [reportIdId], references: [id])
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("app_settings")
+}
+
+model ReportIdConfig {
+  id            Int    @id @default(autoincrement())
+  prefix        String @default("NIB")
+  yearEnabled   Boolean @default(true)
+  numberLength  Int    @default(6)
+  startValue    Int    @default(100000)
+  resetEveryYear Boolean @default(true)
+
+  settings      AppSettings[]
+  @@map("report_id_config")
+}
+
+// Click/session history for menus (used to calculate unique sessionClickCount)
+model ClickHistory {
+  id        Int      @id @default(autoincrement())
+  menuId    String
+  sessionId String
+  clickedAt DateTime @default(now())
+
+  menu      MenuItem @relation(fields: [menuId], references: [id])
+
+  @@index([menuId])
+  @@map("click_history")
+}
+
+// Interaction logs (chat exchanges) - stored as JSON/text
+model InteractionLog {
+  id           Int       @id @default(autoincrement())
+  timestamp    DateTime  @default(now())
+  sessionId    String
+  userMessage  String    @db.Text
+  botResponse  String    @db.Text
+  status       LogStatus
+  endpoint     String?
+  responseTime Int?
+  errorDetails String?
+  tags         String[]?
+
+  @@map("interaction_logs")
+}
+
+// Admin credentials if managed server-side (stored hashed)
+model AdminCredential {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  usernameHash String
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  @@map("admin_credentials")
+}
