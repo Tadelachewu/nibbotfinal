@@ -238,19 +238,9 @@ export function ChatInterface() {
     return mapping.errorFallback || "";
   };
 
-  const getVal = (path: string, obj: any, rootKey: string = 'data') => {
+  const getVal = (path: string, obj: any) => {
     if (!path || !obj) return undefined;
-    // Strip root prefix
-    let cleanPath = path;
-    if (path.startsWith(rootKey + '.')) {
-      cleanPath = path.substring(rootKey.length + 1);
-    } else if (path.startsWith('data.')) {
-      cleanPath = path.substring(5);
-    } else if (path === rootKey || path === 'data') {
-      return obj;
-    }
-    
-    const normalizedPath = cleanPath.replace(/\[(\w+)\]/g, '.$1');
+    const normalizedPath = path.replace(/\[(\w+)\]/g, '.$1');
 
     const value = normalizedPath.split('.').filter(Boolean).reduce((acc, part) => {
       if (acc === undefined || acc === null) return undefined;
@@ -281,10 +271,10 @@ export function ChatInterface() {
     });
   };
 
-  const findArrayData = (obj: any, explicitPath?: string, rootKey: string = 'data'): { path: string; data: any[] } | null => {
+  const findArrayData = (obj: any, explicitPath?: string): { path: string; data: any[] } | null => {
     if (!obj || typeof obj !== 'object' || obj === null) return null;
     if (explicitPath) {
-      const data = getVal(explicitPath, obj, rootKey);
+      const data = getVal(explicitPath, obj);
       if (Array.isArray(data)) return { path: explicitPath, data };
     }
     if (Array.isArray(obj)) return { path: '', data: obj };
@@ -293,13 +283,11 @@ export function ChatInterface() {
     return null;
   };
 
-  const resolveTableCell = (key: string, row: any, root: any, arrayPath: string, rootKey: string = 'data') => {
-    if (key.startsWith(rootKey + '.') || key.startsWith('data.')) {
-      const val = getVal(key, root, rootKey);
-      if (val !== undefined) return val;
-    }
-    const rowVal = getVal(key, row, rootKey);
+  const resolveTableCell = (key: string, row: any, root: any) => {
+    const rowVal = getVal(key, row);
     if (rowVal !== undefined) return rowVal;
+    const rootVal = getVal(key, root);
+    if (rootVal !== undefined) return rootVal;
     return undefined;
   };
 
@@ -448,13 +436,10 @@ export function ChatInterface() {
       });
       const rootKey = menu.apiConfig?.rootKey || 'data';
       const hideId = menu.apiConfig?.responseMapping?.hideReportId;
+      const responsePayload = { id: hideId ? '***' : savedReport.id, ...reportPayload };
       const responseContext = { 
-        ...reportPayload,
-        id: hideId ? '***' : savedReport.id,
-        data: { id: hideId ? '***' : savedReport.id, ...reportPayload },
-        response: { id: hideId ? '***' : savedReport.id, ...reportPayload }, 
-        kyc: kycData, 
-        rootKey 
+        [rootKey]: responsePayload,
+        kyc: kycData
       };
       const template = getLocalizedTemplate(menu);
       const finalMsg = template ? replacePlaceholders(template, responseContext) : "";
@@ -539,12 +524,8 @@ export function ChatInterface() {
     } catch (e) { success = false; }
     
     const context = { 
-      ...apiResponse, 
-      [rootKey]: apiResponse?.[rootKey] || apiResponse, 
-      data: apiResponse?.data || apiResponse, // ensure 'data' is always a safe fallback
-      kyc: kycData, 
-      rootKey,
-      response: apiResponse
+      [rootKey]: apiResponse,
+      kyc: kycData
     };
     let botMsg: Message = { id: `bot-api-${Date.now()}`, sender: 'bot' };
     
@@ -566,7 +547,7 @@ export function ChatInterface() {
           validData = true;
           rows = [{}]; // Dummy single row for direct exact mapping from root
         } else {
-          const foundArray = findArrayData(apiResponse, mapping.tableDataKey, rootKey);
+          const foundArray = findArrayData(context, mapping.tableDataKey);
           if (foundArray) {
             validData = true;
             rows = foundArray.data;
@@ -578,7 +559,7 @@ export function ChatInterface() {
           botMsg.tableData = { 
             columns: (mapping.tableColumns || []).map(col => ({ ...col, localizedHeader: getLocalizedTableHeader(menu, col) })), 
             rows, 
-            rootData: apiResponse, 
+            rootData: context, 
             arrayPath 
           };
           const tableIntro = getLocalizedTableIntro(menu);
@@ -904,7 +885,7 @@ export function ChatInterface() {
                           <TableRow key={i} className="hover:bg-muted/5 transition-colors">
                             {msg.tableData!.columns.map((col, j) => (
                               <TableCell key={j} className="text-xs py-3 font-medium">
-                                {String(resolveTableCell(col.key, row, msg.tableData!.rootData, msg.tableData!.arrayPath, 'data') ?? '')}
+                                {String(resolveTableCell(col.key, row, msg.tableData!.rootData) ?? '')}
                               </TableCell>
                             ))}
                           </TableRow>
