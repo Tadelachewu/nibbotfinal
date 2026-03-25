@@ -100,7 +100,7 @@ model KYCField {
   updatedAt  DateTime     @updatedAt
 
   // inverse relation to menus that use this KYC item
-  menuMappings MenuKYC[]
+  menuMappings MenuKYC[] @relation("MenuKYC_kyc")
 
   @@map("kyc_fields")
 }
@@ -138,6 +138,8 @@ model UserReport {
   // relations
   menu          MenuItem?      @relation("Menu_reports", fields: [menuId], references: [id], onDelete: Cascade)
 
+  @@index([menuId])
+  @@index([userId])
   @@map("user_reports")
 }
 
@@ -147,7 +149,7 @@ model AppSettings {
   supportedLanguages Json?
   systemTranslations Json?
   reportIdId         Int?     @unique
-  reportId           ReportIdConfig? @relation(fields: [reportIdId], references: [id])
+  reportId           ReportIdConfig? @relation(fields: [reportIdId], references: [id], onDelete: SetNull)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
