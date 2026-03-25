@@ -1,6 +1,14 @@
+import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 
-const prisma = new PrismaClient();
+const connectionString = process.env.DATABASE_URL;
+const adapter = new PrismaPg({ connectionString });
+
+const prisma = new PrismaClient({
+    log: ['warn', 'error'],
+    adapter,
+});
 
 function simpleHash(str: string) {
     let hash = 0;
@@ -115,7 +123,7 @@ async function main() {
     });
 
     // KYC fields
-    await prisma.kycField.createMany({
+    await prisma.kYCField.createMany({
         data: [
             {
                 id: 'fraud-acc',
@@ -149,7 +157,7 @@ async function main() {
     });
 
     // MenuKYC mappings
-    await prisma.menuKyc.createMany({
+    await prisma.menuKYC.createMany({
         data: [
             { menuId: 'fraud-report-test', kycId: 'fraud-acc', order: 0 },
             { menuId: 'fraud-report-test', kycId: 'fraud-desc', order: 1 },
