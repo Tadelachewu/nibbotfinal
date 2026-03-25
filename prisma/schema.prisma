@@ -4,7 +4,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 // Enums used across models
@@ -192,7 +191,7 @@ model InteractionLog {
   endpoint     String?
   responseTime Int?
   errorDetails String?
-  tags         String[]?
+  tags         String[]
 
   @@map("interaction_logs")
 }

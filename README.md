@@ -114,3 +114,47 @@ TalkTree doesn't cheat metrics. When you open the `/admin` dashboard, the **Onli
 
 
 redis   sudo service redis-server start  on ubuntu
+
+## Database (Prisma) Setup & Seeding
+
+1. Ensure you have PostgreSQL running and set `DATABASE_URL` in `.env` at the project root. Example:
+
+```env
+DATABASE_URL="postgresql://user:password@localhost:5432/dbname?schema=public"
+```
+
+2. Install Prisma CLI and generate client (if not already installed):
+
+```bash
+npm install prisma --save-dev
+npx prisma generate
+```
+
+3. Create and apply migrations, then generate the client:
+
+```bash
+# create a migration and apply it to your dev DB
+npx prisma migrate dev --name init
+
+# (re)generate the client after changes
+npx prisma generate
+```
+
+4. Seed the database (TypeScript seed script included at `prisma/seed.ts`):
+
+```bash
+# recommended: use a TypeScript runner like tsx (install if needed)
+npm install -D tsx
+
+# run the seed script
+npx tsx prisma/seed.ts
+
+# OR compile and run with node (if you prefer):
+tsc prisma/seed.ts && node prisma/seed.js
+```
+
+Notes:
+- The seed script expects Prisma client to be generated and `DATABASE_URL` reachable.
+- JSON columns in `AppSettings` must be valid JSON objects/arrays (the seed already writes objects). Prisma will set `createdAt` defaults if omitted.
+- For production, replace the simple hashing in the seed with a secure algorithm (bcrypt/argon2).
+- If you want to preserve rows rather than cascade-delete, consider adding `deletedAt` soft-delete fields before running migrations.
