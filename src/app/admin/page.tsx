@@ -10,8 +10,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ListTree, ClipboardList, LayoutDashboard, Globe, Activity } from 'lucide-react';
 import { LocalizationManagement } from '@/components/admin/LocalizationManagement';
 import { LogViewer } from '@/components/admin/LogViewer';
+import { AdminAuthProvider, useAdminAuth } from '@/components/admin/AdminAuthContext';
+import { AdminLoginPage } from '@/components/admin/AdminLoginPage';
 
-export default function AdminPage() {
+function AdminConsole() {
+  const { isAuthenticated } = useAdminAuth();
+
+  if (!isAuthenticated) {
+    return <AdminLoginPage />;
+  }
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <AdminHeader />
@@ -69,5 +77,13 @@ export default function AdminPage() {
       </main>
       <Toaster />
     </div>
+  );
+}
+
+export default function AdminPage() {
+  return (
+    <AdminAuthProvider>
+      <AdminConsole />
+    </AdminAuthProvider>
   );
 }

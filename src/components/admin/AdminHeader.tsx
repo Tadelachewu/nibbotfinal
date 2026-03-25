@@ -2,10 +2,14 @@
 'use client';
 
 import Link from 'next/link';
-import { MessageSquare } from 'lucide-react';
+import { MessageSquare, LogOut } from 'lucide-react';
 import { Logo } from '@/components/Logo';
+import { useAdminAuth } from './AdminAuthContext';
+import { AdminChangePassword } from './AdminChangePassword';
 
 export function AdminHeader() {
+  const { logout, currentUsername } = useAdminAuth();
+
   return (
     <header className="border-b bg-white px-6 py-4 flex items-center justify-between sticky top-0 z-10">
       <div className="flex items-center gap-3">
@@ -14,13 +18,25 @@ export function AdminHeader() {
         <h1 className="text-lg font-extrabold text-[#763717] sm:hidden">Nib Admin</h1>
       </div>
       <nav className="flex items-center gap-4">
+        <span className="text-xs text-muted-foreground hidden md:inline-block">
+          Signed in as <strong className="text-foreground">{currentUsername}</strong>
+        </span>
         <Link 
           href="/"
           className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
         >
           <MessageSquare size={16} />
-          View User Interface
+          <span className="hidden sm:inline">View User Interface</span>
         </Link>
+        <AdminChangePassword />
+        <button
+          onClick={logout}
+          className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-destructive transition-colors"
+          title="Sign out"
+        >
+          <LogOut size={16} />
+          <span className="hidden sm:inline">Logout</span>
+        </button>
       </nav>
     </header>
   );
