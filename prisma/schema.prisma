@@ -46,7 +46,7 @@ enum LogStatus {
 model MenuItem {
   id                String        @id
   parentId          String?
-  parent            MenuItem?     @relation("MenuToChildren", fields: [parentId], references: [id])
+  parent            MenuItem?     @relation("MenuToChildren", fields: [parentId], references: [id], onDelete: Cascade)
   children          MenuItem[]    @relation("MenuToChildren")
   name              String
   nameAm            String?
@@ -58,12 +58,15 @@ model MenuItem {
   clickCount        Int            @default(0)
   sessionClickCount Int            @default(0)
   translations      Json?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
 
   // relations
-  attachments       MenuAttachment[]
-  kycMappings       MenuKYC[]
-  reports           UserReport[]
-  clicks            ClickHistory[]
+  attachments       MenuAttachment[] @relation("MenuAttachment_menu")
+  attachedTo        MenuAttachment[] @relation("MenuAttachment_attached")
+  kycMappings       MenuKYC[]        @relation("MenuKYC_menu")
+  reports           UserReport[]     @relation("Menu_reports")
+  clicks            ClickHistory[]   @relation("Menu_clicks")
 
   @@map("menu_items")
 }
@@ -74,8 +77,10 @@ model MenuAttachment {
   menuId         String
   attachedMenuId String
 
-  menu           MenuItem @relation(fields: [menuId], references: [id])
-  attachedMenu   MenuItem @relation("AttachmentTo", fields: [attachedMenuId], references: [id])
+  menu           MenuItem @relation("MenuAttachment_menu", fields: [menuId], references: [id], onDelete: Cascade)
+  attachedMenu   MenuItem @relation("MenuAttachment_attached", fields: [attachedMenuId], references: [id], onDelete: Cascade)
+
+  createdAt      DateTime @default(now())
 
   @@unique([menuId, attachedMenuId])
   @@map("menu_attachments")
@@ -91,6 +96,8 @@ model KYCField {
   validation String?
   order      Int          @default(0)
   required   Boolean      @default(false)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
 
   // inverse relation to menus that use this KYC item
   menuMappings MenuKYC[]
@@ -103,11 +110,11 @@ model MenuKYC {
   id      Int      @id @default(autoincrement())
   menuId  String
   kycId   String
-  // optional per-menu ordering of the KYC field
-  order   Int?     
+  // per-menu ordering of the KYC field
+  order   Int      @default(0)
 
-  menu    MenuItem @relation(fields: [menuId], references: [id])
-  kyc     KYCField @relation(fields: [kycId], references: [id])
+  menu    MenuItem @relation("MenuKYC_menu", fields: [menuId], references: [id], onDelete: Cascade)
+  kyc     KYCField @relation("MenuKYC_kyc", fields: [kycId], references: [id], onDelete: Cascade)
 
   @@unique([menuId, kycId])
   @@map("menu_kyc")
@@ -124,11 +131,12 @@ model UserReport {
   priority      ReportPriority @default(medium)
   adminResponse String?        @db.Text
   internalNotes String?        @db.Text
-  timestamp     DateTime
+  // timestamp and creation
+  timestamp     DateTime       @default(now())
   createdAt     DateTime       @default(now())
 
   // relations
-  menu          MenuItem?      @relation(fields: [menuId], references: [id])
+  menu          MenuItem?      @relation("Menu_reports", fields: [menuId], references: [id], onDelete: Cascade)
 
   @@map("user_reports")
 }
@@ -165,7 +173,7 @@ model ClickHistory {
   sessionId String
   clickedAt DateTime @default(now())
 
-  menu      MenuItem @relation(fields: [menuId], references: [id])
+  menu      MenuItem @relation("Menu_clicks", fields: [menuId], references: [id], onDelete: Cascade)
 
   @@index([menuId])
   @@map("click_history")
