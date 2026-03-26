@@ -16,10 +16,6 @@ import {
   Cell,
   Legend
 } from 'recharts';
-import { 
-  getStoredMenus, 
-  getStoredReports 
-} from '@/lib/store';
 import { MenuItem, UserReport } from '@/lib/types';
 import { 
   Users, 
@@ -45,11 +41,22 @@ export function Dashboard() {
 
   useEffect(() => {
     setMounted(true);
-    // Initial data load on the client only
-    setData({
-      menus: getStoredMenus(),
-      reports: getStoredReports()
-    });
+    const load = async () => {
+      const [menusRes, reportsRes] = await Promise.all([
+        fetch('/api/menus'),
+        fetch('/api/reports')
+      ]);
+      const [menusJson, reportsJson] = await Promise.all([
+        menusRes.json().catch(() => null),
+        reportsRes.json().catch(() => null)
+      ]);
+      setData({
+        menus: Array.isArray(menusJson?.data) ? menusJson.data : [],
+        reports: Array.isArray(reportsJson?.data) ? reportsJson.data : []
+      });
+    };
+
+    load();
 
     // Real-Time Socket Connection for Online Counter
     const socket = io();
@@ -61,10 +68,7 @@ export function Dashboard() {
 
     // Refresh interval for dashboard data (simulating real-time updates)
     const dataInterval = setInterval(() => {
-      setData({
-        menus: getStoredMenus(),
-        reports: getStoredReports()
-      });
+      load();
     }, 5000);
 
     return () => {

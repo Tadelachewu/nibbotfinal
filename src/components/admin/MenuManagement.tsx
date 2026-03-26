@@ -2,17 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import { MenuItem, KYCField, TableColumn, AuthType, ApiConfig, Language, AppSettings, ReportPriority, ReportIdConfig } from '@/lib/types';
-import { getStoredMenus, addMenu, updateMenu, deleteMenu, getAppSettings, saveAppSettings, defaultReportIdConfig } from '@/lib/store';
+import { defaultReportIdConfig } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { 
-  Plus, 
-  Trash2, 
-  Edit2, 
-  ChevronDown, 
-  Save, 
+import {
+  Plus,
+  Trash2,
+  Edit2,
+  ChevronDown,
+  Save,
   Menu as MenuIcon,
   FolderPlus,
   Loader2,
@@ -80,7 +80,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Switch } from '@/components/ui/switch';
-import { 
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -98,7 +98,7 @@ export function MenuManagement() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   const [activeLangTab, setActiveLangTab] = useState<string>('en');
   const [apiPreviewResult, setApiPreviewResult] = useState<any>(null);
   const [isTestingApi, setIsTestingApi] = useState(false);
@@ -106,30 +106,70 @@ export function MenuManagement() {
   const [sentBody, setSentBody] = useState<any>(null);
 
   useEffect(() => {
-    const data = getStoredMenus();
-    setMenus(data);
-    const appSettings = getAppSettings();
-    setSettings(appSettings);
-    const defaultLang = appSettings.supportedLanguages.find(l => l.isDefault)?.code || 'en';
-    setActiveLangTab(defaultLang);
+    const load = async () => {
+      const [menusRes, settingsRes] = await Promise.all([
+        fetch('/api/menus'),
+        fetch('/api/app-settings')
+      ]);
+      const [menusJson, settingsJson] = await Promise.all([
+        menusRes.json().catch(() => null),
+        settingsRes.json().catch(() => null)
+      ]);
+
+      const loadedMenus = Array.isArray(menusJson?.data) ? menusJson.data : [];
+      const loadedSettings = settingsJson?.data as AppSettings | undefined;
+
+      setMenus(loadedMenus);
+      if (loadedSettings) {
+        setSettings(loadedSettings);
+        const defaultLang = loadedSettings.supportedLanguages.find(l => l.isDefault)?.code || 'en';
+        setActiveLangTab(defaultLang);
+      }
+    };
+
+    load();
   }, []);
 
-  const refresh = () => setMenus(getStoredMenus());
+  const refresh = () => {
+    (async () => {
+      const res = await fetch('/api/menus');
+      const json = await res.json().catch(() => null);
+      setMenus(Array.isArray(json?.data) ? json.data : []);
+    })();
+  };
 
   const handleAdd = (parentId: string | null = null) => {
-    const newItem = addMenu({
-      name: parentId ? 'Sub Menu' : 'Main Menu',
-      parentId,
-      responseType: 'static',
-      content: '<p>Enter your response message here...</p>',
-      order: menus.filter(m => m.parentId === parentId).length,
-      attachedMenuIds: [],
-      trackClicks: false,
-      clickCount: 0
-    });
-    refresh();
-    handleStartEdit(newItem);
-    if (parentId) setExpandedFolders(prev => new Set([...prev, parentId]));
+    (async () => {
+      try {
+        const payload: Partial<MenuItem> = {
+          name: parentId ? 'Sub Menu' : 'Main Menu',
+          parentId,
+          responseType: 'static',
+          content: '<p>Enter your response message here...</p>',
+          order: menus.filter(m => m.parentId === parentId).length,
+          attachedMenuIds: [],
+          trackClicks: false,
+          clickCount: 0,
+          sessionClickCount: 0
+        };
+
+        const res = await fetch('/api/menus', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok || json?.status === 'error' || !json?.data) {
+          throw new Error(json?.message || 'Failed to create menu.');
+        }
+
+        refresh();
+        handleStartEdit(json.data);
+        if (parentId) setExpandedFolders(prev => new Set([...prev, parentId]));
+      } catch {
+        toast({ title: "Error", description: "Could not create menu item.", variant: "destructive" });
+      }
+    })();
   };
 
   const handleStartEdit = (menu: MenuItem) => {
@@ -137,7 +177,7 @@ export function MenuManagement() {
     setApiPreviewResult(null);
     setSentHeaders(null);
     setSentBody(null);
-    setEditForm(JSON.parse(JSON.stringify(menu))); 
+    setEditForm(JSON.parse(JSON.stringify(menu)));
     setIsEditDialogOpen(true);
   };
 
@@ -158,7 +198,15 @@ export function MenuManagement() {
     if (editingId && editForm) {
       setIsSaving(true);
       try {
-        updateMenu(editingId, editForm);
+        const res = await fetch(`/api/menus/${encodeURIComponent(editingId)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(editForm)
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok || json?.status === 'error') {
+          throw new Error(json?.message || 'Failed to save menu.');
+        }
         setIsEditDialogOpen(false);
         setEditingId(null);
         refresh();
@@ -172,8 +220,23 @@ export function MenuManagement() {
   };
 
   const handleSaveSettings = () => {
-    saveAppSettings(settings);
-    toast({ title: "Settings Saved", description: "Languages and app settings updated." });
+    (async () => {
+      try {
+        const res = await fetch('/api/app-settings', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(settings)
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok || json?.status === 'error') {
+          throw new Error(json?.message || 'Failed to save settings.');
+        }
+        setSettings(json.data);
+        toast({ title: "Settings Saved", description: "Languages and app settings updated." });
+      } catch {
+        toast({ title: "Error", description: "Failed to save settings.", variant: "destructive" });
+      }
+    })();
   };
 
   const addLanguage = () => {
@@ -223,11 +286,11 @@ export function MenuManagement() {
         ...editForm.apiConfig.headers
       };
 
-      const sampleKyc: Record<string, string> = { 
-        account_id: '88991122', 
+      const sampleKyc: Record<string, string> = {
+        account_id: '88991122',
         account_number: '12345',
         verification_code: '9988',
-        phone: '251911223344', 
+        phone: '251911223344',
         category: 'fruit'
       };
 
@@ -277,14 +340,14 @@ export function MenuManagement() {
         body: editForm.apiConfig.method === 'POST' ? JSON.stringify(requestPayload) : undefined,
         cache: 'no-store'
       });
-      
+
       const responseText = await response.text();
       let data;
       try {
         data = JSON.parse(responseText);
       } catch (e) {
-        data = { 
-          status: 'error', 
+        data = {
+          status: 'error',
           message: 'The API returned a non-JSON response.',
           debug: {
             status: response.status,
@@ -293,7 +356,7 @@ export function MenuManagement() {
           }
         };
       }
-      
+
       setApiPreviewResult(data);
       if (response.ok && data.status !== 'error') toast({ title: "API Test Successful" });
       else toast({ title: "API Warning", description: `Status ${response.status}`, variant: "destructive" });
@@ -310,7 +373,7 @@ export function MenuManagement() {
     for (const key in obj) {
       const currentPath = prefix ? `${prefix}.${key}` : key;
       const isArray = Array.isArray(obj[key]);
-      
+
       if (isArray) {
         fields.push(currentPath);
         if (obj[key].length > 0 && typeof obj[key][0] === 'object') {
@@ -370,7 +433,7 @@ export function MenuManagement() {
     const items = menus.filter(m => m.parentId === parentId && m.id !== editingId)
       .filter(m => searchQuery === '' || m.name.toLowerCase().includes(searchQuery.toLowerCase()))
       .sort((a, b) => a.order - b.order);
-    
+
     if (items.length === 0 && parentId !== null) return null;
 
     return (
@@ -418,9 +481,9 @@ export function MenuManagement() {
                 const rootKey = editForm.apiConfig?.rootKey || 'data';
                 const finalField = mode === 'placeholder' ? `{{${rootKey}.${field}}}` : field;
                 return (
-                  <Button 
-                    key={field} 
-                    variant="ghost" 
+                  <Button
+                    key={field}
+                    variant="ghost"
                     className="w-full justify-start h-8 text-[11px] px-2 font-mono truncate"
                     onClick={() => onSelect(finalField)}
                   >
@@ -431,12 +494,12 @@ export function MenuManagement() {
             ) : (
               <div className="py-4 text-center text-[10px] text-muted-foreground italic">
                 {editForm.responseType === 'report' ? (
-                   <div className="space-y-1">
-                      {mode === 'placeholder' && <Button variant="ghost" className="w-full justify-start h-8 text-[11px] px-2 font-mono truncate" onClick={() => onSelect(`{{${editForm.apiConfig?.rootKey || 'data'}.id}}`)}>id (Reference ID)</Button>}
-                      {kycFieldsList.map(f => (
-                        <Button key={f.id} variant="ghost" className="w-full justify-start h-8 text-[11px] px-2 font-mono truncate" onClick={() => onSelect(mode === 'placeholder' ? `{{${f.name}}}` : f.name)}>{f.name}</Button>
-                      ))}
-                   </div>
+                  <div className="space-y-1">
+                    {mode === 'placeholder' && <Button variant="ghost" className="w-full justify-start h-8 text-[11px] px-2 font-mono truncate" onClick={() => onSelect(`{{${editForm.apiConfig?.rootKey || 'data'}.id}}`)}>id (Reference ID)</Button>}
+                    {kycFieldsList.map(f => (
+                      <Button key={f.id} variant="ghost" className="w-full justify-start h-8 text-[11px] px-2 font-mono truncate" onClick={() => onSelect(mode === 'placeholder' ? `{{${f.name}}}` : f.name)}>{f.name}</Button>
+                    ))}
+                  </div>
                 ) : 'Test API first to see fields.'}
               </div>
             )}
@@ -521,12 +584,12 @@ export function MenuManagement() {
                     <Hash className="text-primary" size={18} />
                     Report ID Formatting
                   </h3>
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-4">
                       <div className="space-y-2">
                         <Label htmlFor="prefix" className="text-xs font-bold uppercase text-muted-foreground">System Prefix</Label>
-                        <Input 
+                        <Input
                           id="prefix"
                           value={settings.reportId?.prefix || ''}
                           onChange={(e) => handleReportIdConfigChange('prefix', e.target.value.toUpperCase())}
@@ -540,7 +603,7 @@ export function MenuManagement() {
                           <Label className="text-xs font-bold">Include Current Year</Label>
                           <p className="text-[10px] text-muted-foreground italic">Appends -{new Date().getFullYear()} after the prefix.</p>
                         </div>
-                        <Switch 
+                        <Switch
                           checked={settings.reportId?.yearEnabled || false}
                           onCheckedChange={(val) => handleReportIdConfigChange('yearEnabled', val)}
                         />
@@ -551,7 +614,7 @@ export function MenuManagement() {
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="numberLength" className="text-xs font-bold uppercase text-muted-foreground">Digit Length</Label>
-                          <Input 
+                          <Input
                             id="numberLength"
                             type="number"
                             min={1}
@@ -562,7 +625,7 @@ export function MenuManagement() {
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="startValue" className="text-xs font-bold uppercase text-muted-foreground">Start Value</Label>
-                          <Input 
+                          <Input
                             id="startValue"
                             type="number"
                             value={settings.reportId?.startValue || 100000}
@@ -576,7 +639,7 @@ export function MenuManagement() {
                           <Label className="text-xs font-bold">Yearly Reset</Label>
                           <p className="text-[10px] text-muted-foreground italic">Reset to start value on Jan 1st.</p>
                         </div>
-                        <Switch 
+                        <Switch
                           checked={settings.reportId?.resetEveryYear || false}
                           onCheckedChange={(val) => handleReportIdConfigChange('resetEveryYear', val)}
                         />
@@ -634,9 +697,9 @@ export function MenuManagement() {
                     <Fingerprint size={12} className="text-primary" /> Enable Click Tracking
                   </Label>
                   <div className="flex items-center gap-3">
-                    <Switch 
-                      checked={editForm.trackClicks || false} 
-                      onCheckedChange={(checked) => setEditForm({ ...editForm, trackClicks: checked })} 
+                    <Switch
+                      checked={editForm.trackClicks || false}
+                      onCheckedChange={(checked) => setEditForm({ ...editForm, trackClicks: checked })}
                     />
                     <span className="text-[10px] text-muted-foreground font-medium uppercase">
                       {editForm.trackClicks ? 'Active' : 'Disabled'}
@@ -660,8 +723,8 @@ export function MenuManagement() {
                     <TabsContent key={lang.code} value={lang.code} className="p-6 space-y-6 mt-0">
                       <div className="space-y-2">
                         <Label className="text-xs uppercase font-bold text-muted-foreground">Menu Label ({lang.name})</Label>
-                        <Input 
-                          value={lang.isDefault ? (editForm.name || '') : (lang.code === 'am' ? (editForm.nameAm || '') : (editForm.translations?.[lang.code]?.name || ''))} 
+                        <Input
+                          value={lang.isDefault ? (editForm.name || '') : (lang.code === 'am' ? (editForm.nameAm || '') : (editForm.translations?.[lang.code]?.name || ''))}
                           onChange={e => {
                             if (lang.isDefault) setEditForm({ ...editForm, name: e.target.value });
                             else if (lang.code === 'am') setEditForm({ ...editForm, nameAm: e.target.value });
@@ -670,7 +733,7 @@ export function MenuManagement() {
                               translations[lang.code] = { ...(translations[lang.code] || {}), name: e.target.value };
                               setEditForm({ ...editForm, translations });
                             }
-                          }} 
+                          }}
                         />
                       </div>
 
@@ -678,14 +741,14 @@ export function MenuManagement() {
                         <AccordionItem value="content-editor" className="border rounded-xl px-4 py-0 bg-muted/5">
                           <AccordionTrigger className="hover:no-underline py-3">
                             <Label className="text-[10px] uppercase font-bold text-muted-foreground cursor-pointer flex items-center gap-2">
-                              <FileText size={14} className="text-primary"/>
+                              <FileText size={14} className="text-primary" />
                               {editForm.responseType === 'static' ? 'Response Content' : 'Introductory Content'} ({lang.name})
                             </Label>
                           </AccordionTrigger>
                           <AccordionContent className="pt-0 pb-4">
-                            <WysiwygEditor 
-                              title={`${lang.name} Content`} 
-                              value={lang.isDefault ? (editForm.content || '') : (lang.code === 'am' ? (editForm.contentAm || '') : (editForm.translations?.[lang.code]?.content || ''))} 
+                            <WysiwygEditor
+                              title={`${lang.name} Content`}
+                              value={lang.isDefault ? (editForm.content || '') : (lang.code === 'am' ? (editForm.contentAm || '') : (editForm.translations?.[lang.code]?.content || ''))}
                               onChange={v => {
                                 if (lang.isDefault) setEditForm({ ...editForm, content: v });
                                 else if (lang.code === 'am') setEditForm({ ...editForm, contentAm: v });
@@ -694,7 +757,7 @@ export function MenuManagement() {
                                   translations[lang.code] = { ...(translations[lang.code] || {}), content: v };
                                   setEditForm({ ...editForm, translations });
                                 }
-                              }} 
+                              }}
                             />
                           </AccordionContent>
                         </AccordionItem>
@@ -717,29 +780,29 @@ export function MenuManagement() {
                       <CardContent className="p-4 space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div className="space-y-2">
-                             <Label className="text-[10px] uppercase font-bold text-muted-foreground">Method</Label>
-                             <Select value={editForm.apiConfig?.method} onValueChange={v => deepUpdate(['apiConfig', 'method'], v)}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                <SelectContent><SelectItem value="GET">GET</SelectItem><SelectItem value="POST">POST</SelectItem></SelectContent>
-                             </Select>
+                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Method</Label>
+                            <Select value={editForm.apiConfig?.method} onValueChange={v => deepUpdate(['apiConfig', 'method'], v)}>
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent><SelectItem value="GET">GET</SelectItem><SelectItem value="POST">POST</SelectItem></SelectContent>
+                            </Select>
                           </div>
                           <div className="space-y-2 md:col-span-1">
-                             <Label className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1">
-                               Root Mapping Key
-                               <TooltipProvider>
-                                 <Tooltip>
-                                   <TooltipTrigger asChild><Info size={10} className="text-muted-foreground cursor-help" /></TooltipTrigger>
-                                   <TooltipContent className="max-w-xs">
-                                     <p className="text-[10px]">Define the root variable for your templates. E.g., if you set this to <b>data</b>, your placeholders should be <b>{`{{data.status}}`}</b>.</p>
-                                   </TooltipContent>
-                                 </Tooltip>
-                               </TooltipProvider>
-                             </Label>
-                             <Input 
-                               value={editForm.apiConfig?.rootKey || 'data'} 
-                               placeholder="e.g. data" 
-                               onChange={e => deepUpdate(['apiConfig', 'rootKey'], e.target.value)} 
-                             />
+                            <Label className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1">
+                              Root Mapping Key
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild><Info size={10} className="text-muted-foreground cursor-help" /></TooltipTrigger>
+                                  <TooltipContent className="max-w-xs">
+                                    <p className="text-[10px]">Define the root variable for your templates. E.g., if you set this to <b>data</b>, your placeholders should be <b>{`{{data.status}}`}</b>.</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </Label>
+                            <Input
+                              value={editForm.apiConfig?.rootKey || 'data'}
+                              placeholder="e.g. data"
+                              onChange={e => deepUpdate(['apiConfig', 'rootKey'], e.target.value)}
+                            />
                           </div>
                           <div className="space-y-2 md:col-span-1">
                             <Label className="text-[10px] uppercase font-bold text-muted-foreground">Endpoint URL</Label>
@@ -748,15 +811,15 @@ export function MenuManagement() {
                         </div>
 
                         <Separator />
-                        
+
                         <div className="space-y-6">
                           <div className="space-y-4">
                             <Label className="text-xs font-bold uppercase flex items-center gap-2"><ShieldCheck size={14} className="text-primary" /> Authorization</Label>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div className="space-y-2">
                                 <Label className="text-[10px] uppercase font-bold text-muted-foreground">Auth Type</Label>
-                                <Select 
-                                  value={editForm.apiConfig?.authConfig?.type || 'none'} 
+                                <Select
+                                  value={editForm.apiConfig?.authConfig?.type || 'none'}
                                   onValueChange={v => {
                                     const authType = v as AuthType;
                                     deepUpdate(['apiConfig', 'authConfig'], {
@@ -830,24 +893,24 @@ export function MenuManagement() {
                             <div className="space-y-2">
                               {Object.entries(editForm.apiConfig?.headers || {}).map(([key, value]) => (
                                 <div key={key} className="flex gap-2 items-center group">
-                                  <Input 
-                                    value={key || ''} 
+                                  <Input
+                                    value={key || ''}
                                     onChange={e => {
                                       const h = { ...(editForm.apiConfig?.headers || {}) };
                                       const val = h[key];
                                       delete h[key];
                                       h[e.target.value] = val;
                                       deepUpdate(['apiConfig', 'headers'], h);
-                                    }} 
+                                    }}
                                     className="flex-1 font-mono text-xs"
                                   />
-                                  <Input 
-                                    value={value || ''} 
+                                  <Input
+                                    value={value || ''}
                                     onChange={e => {
                                       const h = { ...(editForm.apiConfig?.headers || {}) };
                                       h[key] = e.target.value;
                                       deepUpdate(['apiConfig', 'headers'], h);
-                                    }} 
+                                    }}
                                     className="flex-1 font-mono text-xs"
                                   />
                                   <Button variant="ghost" size="icon" className="text-destructive h-8 w-8 shrink-0" onClick={() => {
@@ -886,16 +949,16 @@ export function MenuManagement() {
                           <div className="flex items-center gap-6">
                             <div className="flex items-center gap-2 border-r pr-6 border-muted/20">
                               <Label htmlFor="hide-id" className="text-[10px] uppercase font-bold text-muted-foreground whitespace-nowrap">Show ID to User</Label>
-                              <Switch 
+                              <Switch
                                 id="hide-id"
-                                checked={!editForm.apiConfig?.responseMapping?.hideReportId} 
+                                checked={!editForm.apiConfig?.responseMapping?.hideReportId}
                                 onCheckedChange={checked => deepUpdate(['apiConfig', 'responseMapping', 'hideReportId'], !checked)}
                               />
                             </div>
                             <div className="flex items-center gap-3">
                               <Label className="text-[10px] uppercase font-bold text-muted-foreground">Priority</Label>
-                              <Select 
-                                value={editForm.apiConfig?.defaultPriority || 'medium'} 
+                              <Select
+                                value={editForm.apiConfig?.defaultPriority || 'medium'}
                                 onValueChange={v => deepUpdate(['apiConfig', 'defaultPriority'], v)}
                               >
                                 <SelectTrigger className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
@@ -942,11 +1005,11 @@ export function MenuManagement() {
                                       }} />
                                     </div>
                                   </div>
-                                  <Input value={currentPrompt} onChange={e => { 
-                                    const fields = [...editForm.apiConfig!.kycFields]; 
+                                  <Input value={currentPrompt} onChange={e => {
+                                    const fields = [...editForm.apiConfig!.kycFields];
                                     if (isDefault) fields[idx].prompt = e.target.value;
                                     else if (lang.code === 'am') fields[idx].promptAm = e.target.value;
-                                    deepUpdate(['apiConfig', 'kycFields'], fields); 
+                                    deepUpdate(['apiConfig', 'kycFields'], fields);
                                   }} />
                                 </div>
                               </div>
@@ -963,12 +1026,12 @@ export function MenuManagement() {
                             {editForm.apiConfig?.requestParameters?.map((param, idx) => (
                               <div key={idx} className="flex gap-2 items-center group">
                                 <Input placeholder="API Param Key" value={param.apiKey} onChange={e => { const params = [...editForm.apiConfig!.requestParameters]; params[idx].apiKey = e.target.value; deepUpdate(['apiConfig', 'requestParameters'], params); }} className="flex-1" />
-                                <Select value={param.sourceValue} onValueChange={v => { 
-                                  const params = [...editForm.apiConfig!.requestParameters]; 
-                                  params[idx].sourceValue = v; 
+                                <Select value={param.sourceValue} onValueChange={v => {
+                                  const params = [...editForm.apiConfig!.requestParameters];
+                                  params[idx].sourceValue = v;
                                   if (v === 'user.id' || v === 'user.token') params[idx].sourceType = 'user_profile';
                                   else params[idx].sourceType = 'kyc';
-                                  deepUpdate(['apiConfig', 'requestParameters'], params); 
+                                  deepUpdate(['apiConfig', 'requestParameters'], params);
                                 }}>
                                   <SelectTrigger className="flex-1"><SelectValue placeholder="Source Field" /></SelectTrigger>
                                   <SelectContent>{kycFieldsList.map(f => <SelectItem key={f.id} value={f.name}>KYC: {f.name}</SelectItem>)}<SelectItem value="user.id">User ID (System)</SelectItem><SelectItem value="user.token">User Token (System)</SelectItem></SelectContent>
@@ -990,18 +1053,18 @@ export function MenuManagement() {
                           <TabsTrigger value="message" className="data-[state=active]:bg-white rounded-none border-r"><Type size={14} className="mr-2" /> Message Template</TabsTrigger>
                           <TabsTrigger value="table" disabled={editForm.responseType === 'report'} className="data-[state=active]:bg-white rounded-none"><TableIcon size={14} className="mr-2" /> Result Table</TabsTrigger>
                         </TabsList>
-                        
+
                         <TabsContent value="message" className="p-4 space-y-4 mt-0">
                           {(() => {
                             const lang = getCurrentLanguage();
                             const isDefault = lang.code === settings.supportedLanguages.find(l => l.isDefault)?.code || lang.isDefault;
-                            
-                            const templateVal = isDefault 
-                              ? (editForm.apiConfig?.responseMapping?.template || '') 
+
+                            const templateVal = isDefault
+                              ? (editForm.apiConfig?.responseMapping?.template || '')
                               : (lang.code === 'am' ? (editForm.apiConfig?.responseMapping?.templateAm || '') : (editForm.translations?.[lang.code]?.responseTemplate || ''));
-                            
-                            const errorVal = isDefault 
-                              ? (editForm.apiConfig?.responseMapping?.errorFallback || '') 
+
+                            const errorVal = isDefault
+                              ? (editForm.apiConfig?.responseMapping?.errorFallback || '')
                               : (lang.code === 'am' ? (editForm.apiConfig?.responseMapping?.errorFallbackAm || '') : (editForm.translations?.[lang.code]?.errorFallback || ''));
 
                             const handleTemplateChange = (val: string) => {
@@ -1029,22 +1092,22 @@ export function MenuManagement() {
                                 <div className="space-y-2">
                                   <div className="flex items-center justify-between">
                                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Success Message ({lang.name})</Label>
-                                    <FieldPicker 
+                                    <FieldPicker
                                       mode="placeholder"
                                       currentFields={getAvailableFields(apiPreviewResult)}
                                       onSelect={(val) => handleTemplateChange(templateVal + val)}
                                     />
                                   </div>
-                                  <Textarea 
-                                    className="min-h-[100px] font-mono text-xs" 
-                                    value={templateVal || ''} 
-                                    onChange={e => handleTemplateChange(e.target.value)} 
+                                  <Textarea
+                                    className="min-h-[100px] font-mono text-xs"
+                                    value={templateVal || ''}
+                                    onChange={e => handleTemplateChange(e.target.value)}
                                   />
                                 </div>
                                 <div className="space-y-2">
                                   <div className="flex items-center justify-between">
                                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Error Fallback ({lang.name})</Label>
-                                    <FieldPicker 
+                                    <FieldPicker
                                       mode="placeholder"
                                       currentFields={getAvailableFields(apiPreviewResult)}
                                       onSelect={(val) => handleErrorChange(errorVal + val)}
@@ -1061,13 +1124,13 @@ export function MenuManagement() {
                           {(() => {
                             const lang = getCurrentLanguage();
                             const isDefault = lang.code === settings.supportedLanguages.find(l => l.isDefault)?.code || lang.isDefault;
-                            
-                            const tableIntroVal = isDefault 
-                              ? (editForm.apiConfig?.responseMapping?.tableIntro || '') 
+
+                            const tableIntroVal = isDefault
+                              ? (editForm.apiConfig?.responseMapping?.tableIntro || '')
                               : (lang.code === 'am' ? (editForm.apiConfig?.responseMapping?.tableIntroAm || '') : (editForm.translations?.[lang.code]?.tableIntro || ''));
 
-                            const errorVal = isDefault 
-                              ? (editForm.apiConfig?.responseMapping?.errorFallback || '') 
+                            const errorVal = isDefault
+                              ? (editForm.apiConfig?.responseMapping?.errorFallback || '')
                               : (lang.code === 'am' ? (editForm.apiConfig?.responseMapping?.errorFallbackAm || '') : (editForm.translations?.[lang.code]?.errorFallback || ''));
 
                             const handleTableIntroChange = (val: string) => {
@@ -1095,24 +1158,24 @@ export function MenuManagement() {
                                 <div className="space-y-2">
                                   <div className="flex items-center justify-between">
                                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Intro Message / Template ({lang.name})</Label>
-                                    <FieldPicker 
+                                    <FieldPicker
                                       mode="placeholder"
                                       currentFields={getAvailableFields(apiPreviewResult)}
                                       onSelect={(val) => handleTableIntroChange(tableIntroVal + val)}
                                     />
                                   </div>
-                                  <Input 
+                                  <Input
                                     placeholder="e.g. Here are the results for {{name}}:"
-                                    className="font-mono text-xs" 
-                                    value={tableIntroVal || ''} 
-                                    onChange={e => handleTableIntroChange(e.target.value)} 
+                                    className="font-mono text-xs"
+                                    value={tableIntroVal || ''}
+                                    onChange={e => handleTableIntroChange(e.target.value)}
                                   />
                                   <p className="text-[9px] text-muted-foreground italic">If left empty, the system defaults to "Here are the results:"</p>
                                 </div>
                                 <div className="space-y-2">
                                   <div className="flex items-center justify-between">
                                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Error Fallback ({lang.name})</Label>
-                                    <FieldPicker 
+                                    <FieldPicker
                                       mode="placeholder"
                                       currentFields={getAvailableFields(apiPreviewResult)}
                                       onSelect={(val) => handleErrorChange(errorVal + val)}
@@ -1124,43 +1187,43 @@ export function MenuManagement() {
                                 <Separator />
 
                                 <div className="space-y-3 p-4 border rounded-xl bg-muted/5">
-                                   <Label className="text-[10px] uppercase font-bold text-muted-foreground border-b pb-2 flex items-center gap-2">Table Mapping Mode</Label>
-                                   <Select 
-                                     value={editForm.apiConfig?.responseMapping?.tableMappingMode || 'array_path'} 
-                                     onValueChange={v => deepUpdate(['apiConfig', 'responseMapping', 'tableMappingMode'], v)}
-                                   >
-                                     <SelectTrigger className="h-8 text-xs bg-white"><SelectValue /></SelectTrigger>
-                                     <SelectContent>
-                                       <SelectItem value="array_path">Array Path (Legacy Engine)</SelectItem>
-                                       <SelectItem value="exact_path">Exact Path (Unified Engine)</SelectItem>
-                                     </SelectContent>
-                                   </Select>
-                                   <p className="text-[9px] text-muted-foreground">
-                                    {(editForm.apiConfig?.responseMapping?.tableMappingMode || 'array_path') === 'array_path' 
-                                      ? 'Define a path to an array (e.g. data.items) to loop rows automatically.' 
+                                  <Label className="text-[10px] uppercase font-bold text-muted-foreground border-b pb-2 flex items-center gap-2">Table Mapping Mode</Label>
+                                  <Select
+                                    value={editForm.apiConfig?.responseMapping?.tableMappingMode || 'array_path'}
+                                    onValueChange={v => deepUpdate(['apiConfig', 'responseMapping', 'tableMappingMode'], v)}
+                                  >
+                                    <SelectTrigger className="h-8 text-xs bg-white"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="array_path">Array Path (Legacy Engine)</SelectItem>
+                                      <SelectItem value="exact_path">Exact Path (Unified Engine)</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <p className="text-[9px] text-muted-foreground">
+                                    {(editForm.apiConfig?.responseMapping?.tableMappingMode || 'array_path') === 'array_path'
+                                      ? 'Define a path to an array (e.g. data.items) to loop rows automatically.'
                                       : 'Map each column to an exact full path (e.g. data.rates[0].currency) without automatic array looping.'}
-                                   </p>
+                                  </p>
                                 </div>
 
                                 {(editForm.apiConfig?.responseMapping?.tableMappingMode || 'array_path') === 'array_path' && (
                                   <div className="space-y-4">
                                     <div className="space-y-2">
-                                       <div className="flex items-center justify-between">
-                                          <Label className="text-[10px] uppercase font-bold text-muted-foreground">Table Data Key (Array Path)</Label>
-                                          <FieldPicker 
-                                            title="Array Paths Found"
-                                            currentFields={getAvailableFields(apiPreviewResult, '', true)}
-                                            onSelect={(field) => {
-                                              const root = editForm.apiConfig?.rootKey || 'data';
-                                              deepUpdate(['apiConfig', 'responseMapping', 'tableDataKey'], `${root}.${field}`);
-                                            }}
-                                          />
-                                       </div>
-                                       <Input 
-                                         placeholder={`e.g. ${editForm.apiConfig?.rootKey || 'data'}.items`} 
-                                         value={editForm.apiConfig?.responseMapping?.tableDataKey || ''} 
-                                         onChange={e => deepUpdate(['apiConfig', 'responseMapping', 'tableDataKey'], e.target.value)} 
-                                       />
+                                      <div className="flex items-center justify-between">
+                                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Table Data Key (Array Path)</Label>
+                                        <FieldPicker
+                                          title="Array Paths Found"
+                                          currentFields={getAvailableFields(apiPreviewResult, '', true)}
+                                          onSelect={(field) => {
+                                            const root = editForm.apiConfig?.rootKey || 'data';
+                                            deepUpdate(['apiConfig', 'responseMapping', 'tableDataKey'], `${root}.${field}`);
+                                          }}
+                                        />
+                                      </div>
+                                      <Input
+                                        placeholder={`e.g. ${editForm.apiConfig?.rootKey || 'data'}.items`}
+                                        value={editForm.apiConfig?.responseMapping?.tableDataKey || ''}
+                                        onChange={e => deepUpdate(['apiConfig', 'responseMapping', 'tableDataKey'], e.target.value)}
+                                      />
                                     </div>
                                     <Separator />
                                   </div>
@@ -1196,7 +1259,7 @@ export function MenuManagement() {
                                         <div className="flex-1 space-y-1">
                                           <div className="flex items-center justify-between">
                                             <Label className="text-[9px] uppercase font-bold text-muted-foreground">Data Key</Label>
-                                            <FieldPicker 
+                                            <FieldPicker
                                               currentFields={getAvailableFields(apiPreviewResult)}
                                               onSelect={(field) => {
                                                 const cols = [...editForm.apiConfig!.responseMapping.tableColumns!];
@@ -1246,7 +1309,21 @@ export function MenuManagement() {
       <AlertDialog open={!!itemToDelete} onOpenChange={() => setItemToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader><AlertDialogTitle>Confirm Deletion</AlertDialogTitle><AlertDialogDescription>Delete this menu and all its descendants?</AlertDialogDescription></AlertDialogHeader>
-          <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction className="bg-destructive" onClick={() => { deleteMenu(itemToDelete!); refresh(); setItemToDelete(null); }}>Delete</AlertDialogAction></AlertDialogFooter>
+          <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction className="bg-destructive" onClick={() => {
+            (async () => {
+              try {
+                const id = itemToDelete!;
+                const res = await fetch(`/api/menus/${encodeURIComponent(id)}`, { method: 'DELETE' });
+                const json = await res.json().catch(() => null);
+                if (!res.ok || json?.status === 'error') throw new Error(json?.message || 'Delete failed.');
+                refresh();
+              } catch {
+                toast({ title: "Error", description: "Could not delete menu item.", variant: "destructive" });
+              } finally {
+                setItemToDelete(null);
+              }
+            })();
+          }}>Delete</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>

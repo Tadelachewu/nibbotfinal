@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, ResponseType } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 
 const connectionString = process.env.DATABASE_URL;
@@ -68,59 +68,134 @@ async function main() {
     });
 
     // Menu items
-    await prisma.menuItem.createMany({
-        data: [
-            {
-                id: '1',
-                parentId: null,
-                name: 'Our Services',
-                nameAm: 'የእኛ አገልግሎቶች',
-                responseType: 'static',
-                content: '<p>Explore what we can do for you.</p>',
-                contentAm: '<p>ለእርስዎ ምን ማድረግ እንደምንችል ይመርምሩ።</p>',
-                order: 0,
-                trackClicks: true,
-                clickCount: 15,
-                sessionClickCount: 10
-            },
-            {
-                id: 'fraud-report-test',
-                parentId: null,
-                name: 'Report Fraud',
-                nameAm: 'ማጭበርበር ሪፖርት ያድርጉ',
-                responseType: 'report',
-                order: 1,
-                content: '<p>Thank you for your report. Our security team has been notified and will review it shortly.</p>',
-                contentAm: '<p>ለሪፖርትዎ እናመሰግናለን። የደህንነት ቡድናችን መረጃ ደርሶታል እና በቅርቡ ይመረምረዋል።</p>',
-                trackClicks: true,
-                clickCount: 8,
-                sessionClickCount: 5
-            },
-            {
-                id: 'ex-rate',
-                parentId: null,
-                name: 'Exchange Rates',
-                nameAm: 'የምንዛሬ ተመኖች',
-                responseType: 'api',
-                order: 2,
-                trackClicks: true,
-                clickCount: 24,
-                sessionClickCount: 18
-            },
-            {
-                id: 'path-param-test',
-                parentId: null,
-                name: 'Profile Lookup',
-                nameAm: 'የመገለጫ ፍለጋ',
-                responseType: 'api',
-                order: 3,
-                trackClicks: false,
-                clickCount: 0,
-                sessionClickCount: 0
+    const menus = [
+        {
+            id: '1',
+            parentId: null,
+            name: 'Our Services',
+            nameAm: 'የእኛ አገልግሎቶች',
+            responseType: ResponseType.static,
+            content: '<p>Explore what we can do for you.</p>',
+            contentAm: '<p>ለእርስዎ ምን ማድረግ እንደምንችል ይመርምሩ።</p>',
+            order: 0,
+            trackClicks: true,
+            clickCount: 15,
+            sessionClickCount: 10
+        },
+        {
+            id: 'fraud-report-test',
+            parentId: null,
+            name: 'Report Fraud',
+            nameAm: 'ማጭበርበር ሪፖርት ያድርጉ',
+            responseType: ResponseType.report,
+            order: 1,
+            content: '<p>Thank you for your report. Our security team has been notified and will review it shortly.</p>',
+            contentAm: '<p>ለሪፖርትዎ እናመሰግናለን። የደህንነት ቡድናችን መረጃ ደርሶታል እና በቅርቡ ይመረምረዋል።</p>',
+            trackClicks: true,
+            clickCount: 8,
+            sessionClickCount: 5,
+            apiConfig: {
+                name: 'Fraud Report Collection',
+                endpoint: '',
+                method: 'POST',
+                headers: {},
+                timeout: 0,
+                retry: 0,
+                loginRequired: true,
+                defaultPriority: 'high',
+                requiredKYC: [],
+                requestParameters: [],
+                responseMapping: {
+                    type: 'message',
+                    template: 'Report Submitted! Your Reference ID is {{response.id}}',
+                    errorFallback: 'Report submission failed.',
+                    timeoutMessage: 'Timeout.',
+                    authRequiredMessage: 'Auth Required.'
+                }
             }
-        ],
-        skipDuplicates: true
-    });
+        },
+        {
+            id: 'ex-rate',
+            parentId: null,
+            name: 'Exchange Rates',
+            nameAm: 'የምንዛሬ ተመኖች',
+            responseType: ResponseType.api,
+            order: 2,
+            trackClicks: true,
+            clickCount: 24,
+            sessionClickCount: 18,
+            apiConfig: {
+                name: 'Daily Exchange Rates',
+                endpoint: '/api/test/exchange-rate',
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' },
+                timeout: 5000,
+                retry: 1,
+                loginRequired: false,
+                requiredKYC: [],
+                requestParameters: [{ apiKey: 'base', sourceType: 'static', sourceValue: 'USD' }],
+                authConfig: {
+                    type: 'apiKey',
+                    apiKey: { header: 'X-API-KEY', value: 'secret-123' }
+                },
+                responseMapping: {
+                    type: 'table',
+                    template: 'Here are the current rates for {{response.base}}:',
+                    tableColumns: [
+                        { header: 'Currency', headerAm: 'ምንዛሬ', key: 'currency' },
+                        { header: 'Rate', headerAm: 'ተመን', key: 'rate' },
+                        { header: 'Last Update', headerAm: 'መጨረሻ የዘመነው', key: 'updated' }
+                    ],
+                    errorFallback: 'Could not retrieve exchange rates.',
+                    timeoutMessage: 'Request timed out.',
+                    authRequiredMessage: 'Login required.'
+                }
+            }
+        },
+        {
+            id: 'path-param-test',
+            parentId: null,
+            name: 'Profile Lookup',
+            nameAm: 'የመገለጫ ፍለጋ',
+            responseType: ResponseType.api,
+            order: 3,
+            trackClicks: false,
+            clickCount: 0,
+            sessionClickCount: 0,
+            apiConfig: {
+                name: 'Dynamic Path Parameter Lookup',
+                endpoint: '/api/test/profile/{{account_id}}',
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' },
+                timeout: 5000,
+                retry: 0,
+                loginRequired: true,
+                requiredKYC: [],
+                requestParameters: [],
+                authConfig: {
+                    type: 'bearer',
+                    bearer: { header: 'Authorization', template: 'Bearer {{user_token}}' }
+                },
+                responseMapping: {
+                    type: 'message',
+                    template: 'Found Profile: {{response.data.full_name}} (Email: {{response.data.email}}). Status: {{response.data.kyc_status}}.',
+                    templateAm: 'መገለጫ ተገኝቷል: {{response.data.full_name}} (ኢሜል: {{response.data.email}})',
+                    errorFallback: 'Profile not found.',
+                    timeoutMessage: 'Timeout.',
+                    authRequiredMessage: 'Auth Required.'
+                }
+            }
+        }
+    ];
+
+    for (const menu of menus) {
+        const { id, ...update } = menu;
+        await prisma.menuItem.upsert({
+            where: { id },
+            create: menu,
+            update
+        });
+    }
 
     // KYC fields
     await prisma.kYCField.createMany({

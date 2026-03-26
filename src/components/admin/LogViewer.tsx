@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getLogs, LogEntry } from '@/lib/logger';
+import { LogEntry } from '@/lib/logger';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -17,16 +17,22 @@ export function LogViewer() {
 
   const fetchLogs = () => {
     setIsLoading(true);
-    const data = getLogs();
-    setLogs(data);
-    setIsLoading(false);
+    (async () => {
+      try {
+        const res = await fetch('/api/logs');
+        const json = await res.json().catch(() => null);
+        setLogs(Array.isArray(json?.data) ? json.data : []);
+      } finally {
+        setIsLoading(false);
+      }
+    })();
   };
 
   useEffect(() => {
     fetchLogs();
   }, []);
 
-  const filteredLogs = logs.filter(log => 
+  const filteredLogs = logs.filter(log =>
     log.sessionId.toLowerCase().includes(filter.toLowerCase()) ||
     log.userMessage.toLowerCase().includes(filter.toLowerCase()) ||
     log.botResponse.toLowerCase().includes(filter.toLowerCase()) ||
@@ -48,8 +54,8 @@ export function LogViewer() {
       <div className="flex items-center justify-between gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-          <Input 
-            placeholder="Search logs by session, message, endpoint or tags..." 
+          <Input
+            placeholder="Search logs by session, message, endpoint or tags..."
             className="pl-10"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}

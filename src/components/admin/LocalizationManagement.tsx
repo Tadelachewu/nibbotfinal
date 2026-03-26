@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { AppSettings, Language } from '@/lib/types';
-import { getAppSettings, saveAppSettings, defaultSystemTranslations } from '@/lib/store';
+import { defaultSystemTranslations } from '@/lib/store';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -19,9 +19,16 @@ export function LocalizationManagement() {
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    const s = getAppSettings();
-    setSettings(s);
-    setTranslations(s.systemTranslations || defaultSystemTranslations);
+    const load = async () => {
+      const res = await fetch('/api/app-settings');
+      const json = await res.json().catch(() => null);
+      const s = json?.data as AppSettings | undefined;
+      if (s) {
+        setSettings(s);
+        setTranslations(s.systemTranslations || defaultSystemTranslations);
+      }
+    };
+    load();
   }, []);
 
   const handleTranslationChange = (key: string, langCode: string, value: string) => {
@@ -36,25 +43,38 @@ export function LocalizationManagement() {
 
   const handleSave = () => {
     setIsSaving(true);
-    try {
-      const updatedSettings = {
-        ...settings,
-        systemTranslations: translations
-      };
-      saveAppSettings(updatedSettings);
-      toast({
-        title: "Success",
-        description: "Global system translations updated successfully.",
-      });
-    } catch (err) {
-      toast({
-        title: "Error",
-        description: "Failed to save translations.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsSaving(false);
-    }
+    (async () => {
+      try {
+        const updatedSettings = {
+          ...settings,
+          systemTranslations: translations
+        };
+
+        const res = await fetch('/api/app-settings', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedSettings)
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok || json?.status === 'error') {
+          throw new Error(json?.message || 'Failed to save translations.');
+        }
+
+        setSettings(json.data);
+        toast({
+          title: "Success",
+          description: "Global system translations updated successfully.",
+        });
+      } catch {
+        toast({
+          title: "Error",
+          description: "Failed to save translations.",
+          variant: "destructive"
+        });
+      } finally {
+        setIsSaving(false);
+      }
+    })();
   };
 
   const stringLabels: Record<string, { label: string, description: string }> = {

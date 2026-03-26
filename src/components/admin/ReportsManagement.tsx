@@ -53,14 +53,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { 
-  getStoredReports, 
-  updateReportStatus, 
-  updateReportPriority,
-  updateReportAdminResponse, 
-  updateReportInternalNotes,
-  deleteReport 
-} from '@/lib/store';
 import { UserReport, ReportPriority } from '@/lib/types';
 import { format } from 'date-fns';
 import { toast } from '@/hooks/use-toast';
@@ -88,10 +80,15 @@ export function ReportsManagement() {
 
   const refreshReports = () => {
     setLoading(true);
-    setTimeout(() => {
-      setReports(getStoredReports());
-      setLoading(false);
-    }, 300);
+    (async () => {
+      try {
+        const res = await fetch('/api/reports');
+        const json = await res.json().catch(() => null);
+        setReports(Array.isArray(json?.data) ? json.data : []);
+      } finally {
+        setLoading(false);
+      }
+    })();
   };
 
   const filteredReports = useMemo(() => {
@@ -112,34 +109,56 @@ export function ReportsManagement() {
   const handleSaveAdminData = (overrideStatus?: UserReport['status']) => {
     if (selectedReportId) {
       const finalStatus = overrideStatus || editingStatus;
-      
-      // Persist status change
-      updateReportStatus(selectedReportId, finalStatus);
-      // Persist priority change
-      updateReportPriority(selectedReportId, editingPriority);
-      // Persist official response (text message to user)
-      updateReportAdminResponse(selectedReportId, editingResponse);
-      // Persist internal notes
-      updateReportInternalNotes(selectedReportId, editingNotes);
-      
-      setReports(getStoredReports());
-      setEditingStatus(finalStatus);
-      
-      toast({ 
-        title: overrideStatus ? `Marked as ${overrideStatus}` : "Changes Saved", 
-        description: "Submission has been updated successfully." 
-      });
-      
-      if (overrideStatus === 'resolved') {
-        setIsInspectOpen(false);
-      }
+
+      (async () => {
+        try {
+          const res = await fetch(`/api/reports/${encodeURIComponent(selectedReportId)}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              status: finalStatus,
+              priority: editingPriority,
+              adminResponse: editingResponse,
+              internalNotes: editingNotes
+            })
+          });
+          const json = await res.json().catch(() => null);
+          if (!res.ok || json?.status === 'error') {
+            throw new Error(json?.message || 'Failed to update report.');
+          }
+
+          setEditingStatus(finalStatus);
+          setReports(prev => prev.map(r => (r.id === selectedReportId ? json.data : r)));
+
+          toast({ 
+            title: overrideStatus ? `Marked as ${overrideStatus}` : "Changes Saved", 
+            description: "Submission has been updated successfully." 
+          });
+
+          if (overrideStatus === 'resolved') {
+            setIsInspectOpen(false);
+          }
+        } catch {
+          toast({ title: "Error", description: "Failed to save changes.", variant: "destructive" });
+        }
+      })();
     }
   };
 
   const handleDeleteReport = (reportId: string) => {
-    deleteReport(reportId);
-    setReports(getStoredReports());
-    toast({ title: "Report Deleted" });
+    (async () => {
+      try {
+        const res = await fetch(`/api/reports/${encodeURIComponent(reportId)}`, { method: 'DELETE' });
+        const json = await res.json().catch(() => null);
+        if (!res.ok || json?.status === 'error') {
+          throw new Error(json?.message || 'Failed to delete report.');
+        }
+        setReports(prev => prev.filter(r => r.id !== reportId));
+        toast({ title: "Report Deleted" });
+      } catch {
+        toast({ title: "Error", description: "Failed to delete report.", variant: "destructive" });
+      }
+    })();
   };
 
   const downloadJson = (report: UserReport) => {

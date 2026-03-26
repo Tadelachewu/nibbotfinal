@@ -52,6 +52,7 @@ model MenuItem {
   responseType      ResponseType
   content           String?       @db.Text
   contentAm         String?       @db.Text
+  apiConfig         Json?         @map("api_config")
   order             Int            @default(0)
   trackClicks       Boolean        @default(false)
   clickCount        Int            @default(0)
