@@ -3,24 +3,24 @@
 import { useMemo, useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip as RechartsTooltip, 
-  ResponsiveContainer, 
-  PieChart, 
-  Pie, 
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
   Cell,
   Legend
 } from 'recharts';
 import { MenuItem, UserReport } from '@/lib/types';
-import { 
-  Users, 
-  Zap, 
-  TrendingUp, 
+import {
+  Users,
+  Zap,
+  TrendingUp,
   AlertTriangle,
   CheckCircle2,
   Clock,
@@ -43,7 +43,7 @@ export function Dashboard() {
     setMounted(true);
     const load = async () => {
       const [menusRes, reportsRes] = await Promise.all([
-        fetch('/api/menus'),
+        fetch('/api/menus?includeInactive=1'),
         fetch('/api/reports')
       ]);
       const [menusJson, reportsJson] = await Promise.all([
@@ -85,7 +85,7 @@ export function Dashboard() {
     const resolvedReports = data.reports.filter(r => r.status === 'resolved').length;
     const pendingReports = data.reports.filter(r => r.status === 'pending').length;
     const urgentReports = data.reports.filter(r => r.priority === 'urgent' || r.priority === 'high').length;
-    
+
     const uniqueUsers = new Set(data.reports.map(r => r.userId)).size;
 
     // Chart: Reports by Status
@@ -223,7 +223,7 @@ export function Dashboard() {
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <RechartsTooltip 
+                <RechartsTooltip
                   contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                   itemStyle={{ fontSize: '10px', fontWeight: 'bold' }}
                 />
@@ -253,18 +253,18 @@ export function Dashboard() {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={stats.priorityData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis 
-                  dataKey="name" 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fontSize: 10, fill: '#64748b' }} 
+                <XAxis
+                  dataKey="name"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 10, fill: '#64748b' }}
                 />
-                <YAxis 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fontSize: 10, fill: '#64748b' }} 
+                <YAxis
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 10, fill: '#64748b' }}
                 />
-                <RechartsTooltip 
+                <RechartsTooltip
                   cursor={{ fill: '#f8fafc' }}
                   contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                 />
@@ -290,18 +290,18 @@ export function Dashboard() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={stats.topClickedData} margin={{ left: 10, right: 30, bottom: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis 
-                    dataKey="name" 
-                    axisLine={false} 
-                    tickLine={false} 
+                  <XAxis
+                    dataKey="name"
+                    axisLine={false}
+                    tickLine={false}
                     tick={{ fontSize: 9, fill: '#64748b' }}
                   />
-                  <YAxis 
-                    axisLine={false} 
-                    tickLine={false} 
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
                     tick={{ fontSize: 9, fill: '#64748b' }}
                   />
-                  <RechartsTooltip 
+                  <RechartsTooltip
                     cursor={{ fill: '#f8fafc' }}
                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                   />
@@ -343,12 +343,12 @@ export function Dashboard() {
                     </span>
                   </div>
                   <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-primary transition-all duration-1000" 
-                      style={{ 
-                        width: `${stats.totalMenus > 0 ? (item.value / stats.totalMenus) * 100 : 0}%`, 
-                        backgroundColor: COLORS[idx] 
-                      }} 
+                    <div
+                      className="h-full bg-primary transition-all duration-1000"
+                      style={{
+                        width: `${stats.totalMenus > 0 ? (item.value / stats.totalMenus) * 100 : 0}%`,
+                        backgroundColor: COLORS[idx]
+                      }}
                     />
                   </div>
                 </div>

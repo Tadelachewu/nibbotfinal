@@ -1,6 +1,15 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
+import { getIronSession } from 'iron-session';
+import { sessionOptions } from '@/lib/session';
+import { cookies } from 'next/headers';
+
+async function isAdminAuthenticated() {
+  const session = await getIronSession<{ username?: string }>(await cookies(), sessionOptions);
+  return Boolean(session.username);
+}
+
 function maskSensitiveInfo(text: string): string {
   const sensitiveKeys = ['password', 'token', 'secret', 'key', 'pin', 'cvv'];
   let out = text;
@@ -12,6 +21,10 @@ function maskSensitiveInfo(text: string): string {
 }
 
 export async function GET() {
+  if (!(await isAdminAuthenticated())) {
+    return NextResponse.json({ status: 'error', message: 'Unauthorized.' }, { status: 401 });
+  }
+
   const logs = await prisma.interactionLog.findMany({
     orderBy: { timestamp: 'desc' },
     take: 500
@@ -67,4 +80,3 @@ export async function POST(req: Request) {
     }
   });
 }
-

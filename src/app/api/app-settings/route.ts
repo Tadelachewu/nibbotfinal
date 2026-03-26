@@ -1,6 +1,15 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
+import { getIronSession } from 'iron-session';
+import { sessionOptions } from '@/lib/session';
+import { cookies } from 'next/headers';
+
+async function isAdminAuthenticated() {
+  const session = await getIronSession<{ username?: string }>(await cookies(), sessionOptions);
+  return Boolean(session.username);
+}
+
 const defaultReportIdConfig = {
   prefix: 'NIB',
   yearEnabled: true,
@@ -29,18 +38,22 @@ export async function GET() {
       systemTranslations: (settings.systemTranslations as any) ?? {},
       reportId: settings.reportId
         ? {
-            prefix: settings.reportId.prefix,
-            yearEnabled: settings.reportId.yearEnabled,
-            numberLength: settings.reportId.numberLength,
-            startValue: settings.reportId.startValue,
-            resetEveryYear: settings.reportId.resetEveryYear
-          }
+          prefix: settings.reportId.prefix,
+          yearEnabled: settings.reportId.yearEnabled,
+          numberLength: settings.reportId.numberLength,
+          startValue: settings.reportId.startValue,
+          resetEveryYear: settings.reportId.resetEveryYear
+        }
         : defaultReportIdConfig
     }
   });
 }
 
 export async function PUT(req: Request) {
+  if (!(await isAdminAuthenticated())) {
+    return NextResponse.json({ status: 'error', message: 'Unauthorized.' }, { status: 401 });
+  }
+
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== 'object') {
     return NextResponse.json({ status: 'error', message: 'Invalid request body.' }, { status: 400 });
@@ -102,14 +115,13 @@ export async function PUT(req: Request) {
       systemTranslations: (saved.systemTranslations as any) ?? {},
       reportId: saved.reportId
         ? {
-            prefix: saved.reportId.prefix,
-            yearEnabled: saved.reportId.yearEnabled,
-            numberLength: saved.reportId.numberLength,
-            startValue: saved.reportId.startValue,
-            resetEveryYear: saved.reportId.resetEveryYear
-          }
+          prefix: saved.reportId.prefix,
+          yearEnabled: saved.reportId.yearEnabled,
+          numberLength: saved.reportId.numberLength,
+          startValue: saved.reportId.startValue,
+          resetEveryYear: saved.reportId.resetEveryYear
+        }
         : defaultReportIdConfig
     }
   });
 }
-

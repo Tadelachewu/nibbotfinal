@@ -39,72 +39,18 @@ export function isStrongPassword(password: string): boolean {
   return Object.values(checks).every(Boolean);
 }
 
-// ─── Simple hash (not cryptographic, but good for client-side demo) ──
-function simpleHash(str: string): string {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash |= 0;
-  }
-  // Convert to a hex-like string and salt it
-  return 'nib_' + Math.abs(hash).toString(36) + '_' + str.length.toString(36);
-}
 
-// ─── Auth Context ───────────────────────────────────────────────────
+
+// ─── Context ────────────────────────────────────────────────────────
 interface AdminAuthContextType {
   isAuthenticated: boolean;
   currentUsername: string;
-  login: (username: string, password: string) => { success: boolean; error?: string };
-  logout: () => void;
-  changeCredentials: (currentPassword: string, newUsername: string, newPassword: string) => { success: boolean; error?: string };
+  login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
+  changeCredentials: (currentPassword: string, newUsername: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 const AdminAuthContext = createContext<AdminAuthContextType | null>(null);
-
-const STORAGE_KEY = 'nib_admin_credentials';
-const SESSION_KEY = 'nib_admin_session';
-
-interface StoredCredentials {
-  usernameHash: string;
-  passwordHash: string;
-  username: string; // stored in plain for display
-}
-
-function getDefaultCredentials(): { username: string; password: string } {
-  return {
-    username: process.env.NEXT_PUBLIC_ADMIN_USERNAME || 'admin',
-    password: process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'Admin@1234',
-  };
-}
-
-function getStoredCredentials(): StoredCredentials | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch { /* ignore */ }
-  return null;
-}
-
-function storeCredentials(username: string, password: string) {
-  const creds: StoredCredentials = {
-    usernameHash: simpleHash(username),
-    passwordHash: simpleHash(password),
-    username,
-  };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(creds));
-}
-
-function validateCredentials(username: string, password: string): boolean {
-  const stored = getStoredCredentials();
-  if (stored) {
-    return stored.usernameHash === simpleHash(username) && stored.passwordHash === simpleHash(password);
-  }
-  // Fall back to default env credentials
-  const defaults = getDefaultCredentials();
-  return username === defaults.username && password === defaults.password;
-}
 
 // ─── Provider ───────────────────────────────────────────────────────
 export function AdminAuthProvider({ children }: { children: ReactNode }) {
@@ -112,46 +58,68 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   const [currentUsername, setCurrentUsername] = useState('');
   const [hydrated, setHydrated] = useState(false);
 
-  // Hydrate from localStorage on mount
   useEffect(() => {
-    const session = sessionStorage.getItem(SESSION_KEY);
-    if (session === 'active') {
-      const stored = getStoredCredentials();
-      setIsAuthenticated(true);
-      setCurrentUsername(stored?.username || getDefaultCredentials().username);
-    }
-    setHydrated(true);
+    let active = true;
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/auth/session', { cache: 'no-store' });
+        const json = await res.json().catch(() => null);
+        if (!active) return;
+        if (json?.isAuthenticated) {
+          setIsAuthenticated(true);
+          setCurrentUsername(typeof json.username === 'string' ? json.username : '');
+        } else {
+          setIsAuthenticated(false);
+          setCurrentUsername('');
+        }
+      } catch {
+        if (!active) return;
+        setIsAuthenticated(false);
+        setCurrentUsername('');
+      } finally {
+        if (active) setHydrated(true);
+      }
+    })();
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const login = useCallback((username: string, password: string) => {
-    if (!username.trim() || !password.trim()) {
+
+
+  const login = useCallback(async (username: string, password: string) => {
+    const trimmedUsername = username.trim();
+    const trimmedPassword = password.trim();
+    if (!trimmedUsername || !trimmedPassword) {
       return { success: false, error: 'Username and password are required.' };
     }
-    if (validateCredentials(username, password)) {
+
+    const response = await fetch('/api/admin/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: trimmedUsername, password: trimmedPassword }),
+    });
+
+    const json = await response.json().catch(() => null);
+
+    if (response.ok && json?.success) {
       setIsAuthenticated(true);
-      setCurrentUsername(username);
-      sessionStorage.setItem(SESSION_KEY, 'active');
+      setCurrentUsername(typeof json.username === 'string' ? json.username : trimmedUsername);
       return { success: true };
     }
-    return { success: false, error: 'Invalid username or password.' };
+
+    return { success: false, error: json?.error || 'Invalid username or password.' };
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    await fetch('/api/admin/auth/logout', { method: 'POST' });
     setIsAuthenticated(false);
     setCurrentUsername('');
-    sessionStorage.removeItem(SESSION_KEY);
   }, []);
 
-  const changeCredentials = useCallback((currentPassword: string, newUsername: string, newPassword: string) => {
-    // Verify current password
-    const stored = getStoredCredentials();
-    const currentUser = stored?.username || getDefaultCredentials().username;
-
-    if (!validateCredentials(currentUser, currentPassword)) {
-      return { success: false, error: 'Current password is incorrect.' };
-    }
-
-    if (!newUsername.trim()) {
+  const changeCredentials = useCallback(async (currentPassword: string, newUsername: string, newPassword: string) => {
+    const trimmedNewUsername = newUsername.trim();
+    if (!trimmedNewUsername) {
       return { success: false, error: 'Username cannot be empty.' };
     }
 
@@ -159,9 +127,22 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
       return { success: false, error: 'New password does not meet strength requirements.' };
     }
 
-    storeCredentials(newUsername.trim(), newPassword);
-    setCurrentUsername(newUsername.trim());
-    return { success: true };
+    const response = await fetch('/api/admin/auth/change-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        currentPassword,
+        newUsername: trimmedNewUsername,
+        newPassword,
+      }),
+    });
+
+    const json = await response.json().catch(() => null);
+    if (response.ok && json?.success) {
+      setCurrentUsername(typeof json.username === 'string' ? json.username : trimmedNewUsername);
+      return { success: true };
+    }
+    return { success: false, error: json?.error || 'Failed to change credentials.' };
   }, []);
 
   // Don't render children until hydrated to avoid flash

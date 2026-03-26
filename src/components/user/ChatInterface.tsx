@@ -675,9 +675,7 @@ export function ChatInterface() {
 
     if (isAction && (hasFields > 0 || childMenus.length === 0)) {
       const kycFields = menu.apiConfig?.kycFields || [];
-      const missingFields = kycFields
-        .filter(f => userData.kyc[f.name] === undefined)
-        .sort((a, b) => a.order - b.order);
+      const orderedFields = kycFields.slice().sort((a, b) => a.order - b.order);
 
       const historyUpdates: Message[] = [];
       const rawIntro = getLocalizedContent(menu);
@@ -693,14 +691,14 @@ export function ChatInterface() {
         });
       }
 
-      if (missingFields.length > 0) {
+      if (orderedFields.length > 0) {
         historyUpdates.push({
           id: `bot-kyc-start-${Date.now()}`,
           sender: 'bot',
-          text: getLocalizedKYCPrompt(missingFields[0]),
+          text: getLocalizedKYCPrompt(orderedFields[0]),
           isKYC: true
         });
-        setKycFlow({ active: true, menuId: menu.id, fieldIndex: 0, fields: missingFields });
+        setKycFlow({ active: true, menuId: menu.id, fieldIndex: 0, fields: orderedFields });
         setHistory(prev => [...prev, ...historyUpdates]);
         return;
       }
@@ -971,9 +969,31 @@ export function ChatInterface() {
                 </div>
               )}
               <div className="flex flex-wrap gap-2 mt-4">
-                {msg.options?.map(opt => <Button key={opt.id} variant="outline" size="sm" className="rounded-full bg-white hover:bg-primary/5 border-primary/20 text-primary" onClick={() => navigateTo(opt)}>{getLocalizedName(opt)}<ChevronRight size={14} className="ml-1 opacity-50" /></Button>)}
+                {msg.options?.map(opt => (
+                  <Button
+                    key={opt.id}
+                    variant="outline"
+                    size="sm"
+                    className="rounded-full bg-white hover:bg-primary/5 border-primary/20 text-primary max-w-full flex items-center gap-1 min-w-0"
+                    onClick={() => navigateTo(opt)}
+                  >
+                    <span className="truncate max-w-[75vw]">{getLocalizedName(opt)}</span>
+                    <ChevronRight size={14} className="opacity-50 shrink-0" />
+                  </Button>
+                ))}
                 {msg.relatedOptions && msg.relatedOptions.length > 0 && <div className="w-full flex items-center gap-2 py-2"><div className="h-px bg-muted flex-1" /><span className="text-[9px] font-bold uppercase text-muted-foreground">{currentLang?.code === 'am' ? 'ተዛማጅ' : 'Related'}</span><div className="h-px bg-muted flex-1" /></div>}
-                {msg.relatedOptions?.map(opt => <Button key={opt.id} variant="secondary" size="sm" className="rounded-full shadow-sm" onClick={() => navigateTo(opt)}><ClipboardCheck size={12} className="mr-2" />{getLocalizedName(opt)}</Button>)}
+                {msg.relatedOptions?.map(opt => (
+                  <Button
+                    key={opt.id}
+                    variant="secondary"
+                    size="sm"
+                    className="rounded-full shadow-sm max-w-full flex items-center gap-2 min-w-0"
+                    onClick={() => navigateTo(opt)}
+                  >
+                    <ClipboardCheck size={12} className="shrink-0" />
+                    <span className="truncate max-w-[75vw]">{getLocalizedName(opt)}</span>
+                  </Button>
+                ))}
               </div>
             </ChatBubble>
           ))}

@@ -1,6 +1,15 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
+import { getIronSession } from 'iron-session';
+import { sessionOptions } from '@/lib/session';
+import { cookies } from 'next/headers';
+
+async function isAdminAuthenticated() {
+  const session = await getIronSession<{ username?: string }>(await cookies(), sessionOptions);
+  return Boolean(session.username);
+}
+
 function parseSequenceFromReportId(id: string): number | null {
   const parts = id.split('-');
   const lastPart = parts[parts.length - 1];
@@ -41,6 +50,10 @@ async function getReportConfig() {
 }
 
 export async function GET() {
+  if (!(await isAdminAuthenticated())) {
+    return NextResponse.json({ status: 'error', message: 'Unauthorized.' }, { status: 401 });
+  }
+
   const reports = await prisma.userReport.findMany({
     orderBy: { timestamp: 'desc' }
   });
@@ -126,4 +139,3 @@ export async function POST(req: Request) {
     }
   });
 }
-

@@ -1,6 +1,15 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
+import { getIronSession } from 'iron-session';
+import { sessionOptions } from '@/lib/session';
+import { cookies } from 'next/headers';
+
+async function isAdminAuthenticated() {
+  const session = await getIronSession<{ username?: string }>(await cookies(), sessionOptions);
+  return Boolean(session.username);
+}
+
 function buildMenuResponse(menu: any) {
   const attachedMenuIds = Array.isArray(menu.attachments)
     ? menu.attachments.map((a: any) => a.attachedMenuId)
@@ -8,28 +17,28 @@ function buildMenuResponse(menu: any) {
 
   const kycFields = Array.isArray(menu.kycMappings)
     ? menu.kycMappings
-        .slice()
-        .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0))
-        .map((m: any) => ({
-          id: m.kyc.id,
-          name: m.kyc.name,
-          prompt: m.kyc.prompt,
-          promptAm: m.kyc.promptAm ?? undefined,
-          type: m.kyc.type,
-          validation: m.kyc.validation ?? undefined,
-          order: m.order ?? m.kyc.order ?? 0,
-          required: Boolean(m.kyc.required)
-        }))
+      .slice()
+      .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0))
+      .map((m: any) => ({
+        id: m.kyc.id,
+        name: m.kyc.name,
+        prompt: m.kyc.prompt,
+        promptAm: m.kyc.promptAm ?? undefined,
+        type: m.kyc.type,
+        validation: m.kyc.validation ?? undefined,
+        order: m.order ?? m.kyc.order ?? 0,
+        required: Boolean(m.kyc.required)
+      }))
     : [];
 
   const apiConfig = menu.apiConfig
     ? {
-        ...(menu.apiConfig as Record<string, any>),
-        requiredKYC: Array.isArray(menu.apiConfig.requiredKYC) ? menu.apiConfig.requiredKYC : [],
-        requestParameters: Array.isArray(menu.apiConfig.requestParameters) ? menu.apiConfig.requestParameters : [],
-        headers: menu.apiConfig.headers && typeof menu.apiConfig.headers === 'object' ? menu.apiConfig.headers : {},
-        kycFields
-      }
+      ...(menu.apiConfig as Record<string, any>),
+      requiredKYC: Array.isArray(menu.apiConfig.requiredKYC) ? menu.apiConfig.requiredKYC : [],
+      requestParameters: Array.isArray(menu.apiConfig.requestParameters) ? menu.apiConfig.requestParameters : [],
+      headers: menu.apiConfig.headers && typeof menu.apiConfig.headers === 'object' ? menu.apiConfig.headers : {},
+      kycFields
+    }
     : undefined;
 
   return {
@@ -42,6 +51,7 @@ function buildMenuResponse(menu: any) {
     contentAm: menu.contentAm ?? undefined,
     apiConfig,
     order: menu.order,
+    isActive: typeof menu.isActive === 'boolean' ? menu.isActive : true,
     attachedMenuIds,
     trackClicks: Boolean(menu.trackClicks),
     clickCount: menu.clickCount ?? 0,
@@ -50,12 +60,18 @@ function buildMenuResponse(menu: any) {
   };
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const includeInactiveRequested =
+    searchParams.get('includeInactive') === '1' || searchParams.get('includeInactive') === 'true';
+  const includeAll = includeInactiveRequested && (await isAdminAuthenticated());
+
   const menus = await prisma.menuItem.findMany({
     include: {
       attachments: true,
       kycMappings: { include: { kyc: true } }
     },
+    where: includeAll ? undefined : { isActive: true },
     orderBy: { order: 'asc' }
   });
 
@@ -63,25 +79,30 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  if (!(await isAdminAuthenticated())) {
+    return NextResponse.json({ status: 'error', message: 'Unauthorized.' }, { status: 401 });
+  }
+
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== 'object') {
     return NextResponse.json({ status: 'error', message: 'Invalid request body.' }, { status: 400 });
   }
 
   const id = typeof body.id === 'string' && body.id.trim() ? body.id.trim() : crypto.randomUUID();
+  const parentId = typeof body.parentId === 'string' && body.parentId.trim() ? body.parentId.trim() : null;
   const attachedMenuIds: string[] = Array.isArray(body.attachedMenuIds) ? body.attachedMenuIds : [];
   const kycFields: any[] = body.apiConfig?.kycFields && Array.isArray(body.apiConfig.kycFields) ? body.apiConfig.kycFields : [];
   const apiConfig = body.apiConfig && typeof body.apiConfig === 'object'
     ? (() => {
-        const { kycFields: _omit, ...rest } = body.apiConfig;
-        return rest;
-      })()
+      const { kycFields: _omit, ...rest } = body.apiConfig;
+      return rest;
+    })()
     : undefined;
 
   await prisma.menuItem.create({
     data: {
       id,
-      parentId: body.parentId ?? null,
+      parent: parentId ? { connect: { id: parentId } } : undefined,
       name: body.name ?? '',
       nameAm: body.nameAm ?? null,
       responseType: body.responseType,
@@ -89,6 +110,7 @@ export async function POST(req: Request) {
       contentAm: body.contentAm ?? null,
       apiConfig: apiConfig ?? null,
       order: Number.isFinite(body.order) ? body.order : 0,
+      isActive: typeof body.isActive === 'boolean' ? body.isActive : true,
       trackClicks: Boolean(body.trackClicks),
       clickCount: Number.isFinite(body.clickCount) ? body.clickCount : 0,
       sessionClickCount: Number.isFinite(body.sessionClickCount) ? body.sessionClickCount : 0,
@@ -150,4 +172,3 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ status: 'success', data: created ? buildMenuResponse(created) : null });
 }
-

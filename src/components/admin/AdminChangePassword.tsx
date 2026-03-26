@@ -66,7 +66,7 @@ export function AdminChangePassword() {
     setIsLoading(true);
     await new Promise(r => setTimeout(r, 400));
 
-    const result = changeCredentials(currentPassword, username, newPassword);
+    const result = await changeCredentials(currentPassword, username, newPassword);
     setIsLoading(false);
 
     if (result.success) {

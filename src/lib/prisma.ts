@@ -1,7 +1,23 @@
-import { PrismaClient } from '@prisma/client'
-import { PrismaPg } from '@prisma/adapter-pg'
+import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL })
-const prisma = new PrismaClient({ log: ['warn', 'error'], adapter })
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+    throw new Error('DATABASE_URL is required');
+}
 
-export default prisma
+const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+
+const prismaClient =
+    globalForPrisma.prisma ??
+    new PrismaClient({
+        log: ['warn', 'error'],
+        adapter: new PrismaPg({ connectionString: databaseUrl }),
+    });
+
+if (process.env.NODE_ENV !== 'production') {
+    globalForPrisma.prisma = prismaClient;
+}
+
+export const prisma = prismaClient;
+export default prismaClient;

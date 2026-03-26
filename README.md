@@ -27,7 +27,8 @@ TalkTree is an advanced, production-grade Conversational AI and Dynamic Menu Man
 
 ### 1. Prerequisites
 *   Node.js 18.x or above.
-*   A local Redis Server running on port `6379`, OR a free Upstash Redis database url. 
+*   PostgreSQL (local or hosted).
+*   Redis (local on `6379`) or a hosted Redis URL (optional but recommended for accurate “Online Now”).
 
 ### 2. Environment Variables
 Create a `.env` file at the root of the directory:
@@ -35,8 +36,15 @@ Create a `.env` file at the root of the directory:
 NODE_ENV=development
 PORT=9002
 
-# Redis configuration (vital for Socket.io tracking to prevent crashes)
+# Required
+DATABASE_URL=postgresql://user:password@localhost:5432/nibbot?schema=public
+SECRET_COOKIE_PASSWORD=replace-with-a-long-random-secret
+
+# Redis configuration (used for Socket.io presence tracking)
 REDIS_URL=redis://localhost:6379
+
+# Optional: initial seeded admin password
+# ADMIN_INITIAL_PASSWORD=Admin@1234
 ```
 
 ### 3. Install Dependencies
@@ -44,7 +52,30 @@ REDIS_URL=redis://localhost:6379
 npm install --legacy-peer-deps
 ```
 
-### 4. Running the Application
+### 4. Database (Prisma) Setup & Seeding
+This project uses Prisma migrations stored in `prisma/migrations/` and a TypeScript seed script at `prisma/seed.ts`.
+
+```bash
+# Generate Prisma client
+npx prisma generate
+
+# Apply migrations to your database (creates DB tables)
+# - Use this for local development (creates new migration files when schema changes)
+npx prisma migrate dev
+
+# Seed initial data (menus, app settings, admin credentials)
+npx tsx prisma/seed.ts
+```
+
+Notes:
+*   If you change `prisma/schema.prisma`, run `npx prisma migrate dev --name <change_name>` to create a new migration.
+*   If you deleted `prisma/migrations`, Prisma will show “No migration found in prisma/migrations” until you recreate migrations.
+*   Deleting migration files does not force Prisma to create new migrations. `prisma migrate dev` only creates a migration when it detects schema changes (difference between `schema.prisma` and the current database).
+*   If you deleted `prisma/migrations` but your database already has migration history, you must either:
+    *   (Dev, data can be lost) run `npx prisma migrate reset --force` then `npx prisma migrate dev --name init`
+    *   (Keep data) recreate a baseline migration using `npx prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script` and then mark it applied with `npx prisma migrate resolve --applied 0_init`
+
+### 5. Running the Application
 Because TalkTree heavily relies on persistent Socket.io connections bypassing Next.js serverless limitations, **do not use `npm run dev`**. Instead, use the custom unified Node server:
 
 ```bash
@@ -115,46 +146,6 @@ TalkTree doesn't cheat metrics. When you open the `/admin` dashboard, the **Onli
 
 redis   sudo service redis-server start  on ubuntu
 
-## Database (Prisma) Setup & Seeding
-
-1. Ensure you have PostgreSQL running and set `DATABASE_URL` in `.env` at the project root. Example:
-
-```env
-DATABASE_URL="postgresql://user:password@localhost:5432/dbname?schema=public"
-```
-
-2. Install Prisma CLI and generate client (if not already installed):
-
-```bash
-npm install prisma --save-dev
-npx prisma generate
-```
-
-3. Create and apply migrations, then generate the client:
-
-```bash
-# create a migration and apply it to your dev DB
-npx prisma migrate dev --name init
-
-# (re)generate the client after changes
-npx prisma generate
-```
-
-4. Seed the database (TypeScript seed script included at `prisma/seed.ts`):
-
-```bash
-# recommended: use a TypeScript runner like tsx (install if needed)
-npm install -D tsx
-
-# run the seed script
-npx tsx prisma/seed.ts
-
-# OR compile and run with node (if you prefer):
-tsc prisma/seed.ts && node prisma/seed.js
-```
-
-Notes:
-- The seed script expects Prisma client to be generated and `DATABASE_URL` reachable.
-- JSON columns in `AppSettings` must be valid JSON objects/arrays (the seed already writes objects). Prisma will set `createdAt` defaults if omitted.
-- For production, replace the simple hashing in the seed with a secure algorithm (bcrypt/argon2).
-- If you want to preserve rows rather than cascade-delete, consider adding `deletedAt` soft-delete fields before running migrations.
+## Production Notes (Migrations)
+*   Use `npx prisma migrate deploy` in production to apply existing migrations (it will not create new ones).
+*   Keep the `prisma/migrations/` folder in source control to ensure environments stay in sync.

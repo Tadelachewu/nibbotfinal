@@ -1,6 +1,15 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
+import { getIronSession } from 'iron-session';
+import { sessionOptions } from '@/lib/session';
+import { cookies } from 'next/headers';
+
+async function isAdminAuthenticated() {
+  const session = await getIronSession<{ username?: string }>(await cookies(), sessionOptions);
+  return Boolean(session.username);
+}
+
 export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   const report = await prisma.userReport.findUnique({ where: { id } });
@@ -18,13 +27,16 @@ export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) 
       status: report.status,
       priority: report.priority,
       adminResponse: report.adminResponse ?? undefined,
-      internalNotes: report.internalNotes ?? undefined,
       timestamp: report.timestamp.toISOString()
     }
   });
 }
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  if (!(await isAdminAuthenticated())) {
+    return NextResponse.json({ status: 'error', message: 'Unauthorized.' }, { status: 401 });
+  }
+
   const { id } = await ctx.params;
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== 'object') {
@@ -58,8 +70,11 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 }
 
 export async function DELETE(_: Request, ctx: { params: Promise<{ id: string }> }) {
+  if (!(await isAdminAuthenticated())) {
+    return NextResponse.json({ status: 'error', message: 'Unauthorized.' }, { status: 401 });
+  }
+
   const { id } = await ctx.params;
   await prisma.userReport.delete({ where: { id } });
   return NextResponse.json({ status: 'success' });
 }
-

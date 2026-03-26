@@ -108,7 +108,7 @@ export function MenuManagement() {
   useEffect(() => {
     const load = async () => {
       const [menusRes, settingsRes] = await Promise.all([
-        fetch('/api/menus'),
+        fetch('/api/menus?includeInactive=1'),
         fetch('/api/app-settings')
       ]);
       const [menusJson, settingsJson] = await Promise.all([
@@ -132,7 +132,7 @@ export function MenuManagement() {
 
   const refresh = () => {
     (async () => {
-      const res = await fetch('/api/menus');
+      const res = await fetch('/api/menus?includeInactive=1');
       const json = await res.json().catch(() => null);
       setMenus(Array.isArray(json?.data) ? json.data : []);
     })();
@@ -411,7 +411,10 @@ export function MenuManagement() {
                   </button>
                   {item.responseType === 'api' ? <Zap size={16} className="text-amber-500 shrink-0" /> : item.responseType === 'report' ? <ClipboardList size={16} className="text-emerald-500 shrink-0" /> : <MenuIcon size={16} className="text-primary shrink-0" />}
                   <div className="flex flex-col min-w-0">
-                    <span className="truncate text-sm font-medium">{item.name}</span>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="truncate text-sm font-medium">{item.name}</span>
+                      {item.isActive === false && <Badge variant="secondary" className="text-[10px] h-4 px-2 shrink-0">Suspended</Badge>}
+                    </div>
                     {item.nameAm && <span className="truncate text-[10px] text-muted-foreground">{item.nameAm}</span>}
                   </div>
                 </div>
@@ -676,7 +679,7 @@ export function MenuManagement() {
           </DialogHeader>
           <ScrollArea className="flex-1">
             <div className="p-6 space-y-8 pb-20">
-              <div className="grid gap-6 sm:grid-cols-3 bg-muted/10 p-4 rounded-xl border">
+              <div className="grid gap-6 sm:grid-cols-4 bg-muted/10 p-4 rounded-xl border">
                 <div className="space-y-2">
                   <Label className="text-xs uppercase font-bold text-muted-foreground">Action Type</Label>
                   <Select value={editForm.responseType} onValueChange={(v: any) => setEditForm({ ...editForm, responseType: v })}>
@@ -691,6 +694,20 @@ export function MenuManagement() {
                 <div className="space-y-2">
                   <Label className="text-xs uppercase font-bold text-muted-foreground">Display Order</Label>
                   <Input type="number" value={editForm.order || 0} onChange={e => setEditForm({ ...editForm, order: parseInt(e.target.value) || 0 })} />
+                </div>
+                <div className="flex flex-col justify-center space-y-2">
+                  <Label className="text-xs uppercase font-bold text-muted-foreground flex items-center gap-1">
+                    <ShieldCheck size={12} className="text-primary" /> Visible To Users
+                  </Label>
+                  <div className="flex items-center gap-3">
+                    <Switch
+                      checked={editForm.isActive !== false}
+                      onCheckedChange={(checked) => setEditForm({ ...editForm, isActive: Boolean(checked) })}
+                    />
+                    <span className="text-[10px] text-muted-foreground font-medium uppercase">
+                      {editForm.isActive === false ? 'Suspended' : 'Enabled'}
+                    </span>
+                  </div>
                 </div>
                 <div className="flex flex-col justify-center space-y-2">
                   <Label className="text-xs uppercase font-bold text-muted-foreground flex items-center gap-1">

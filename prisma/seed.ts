@@ -1,8 +1,13 @@
 import 'dotenv/config';
 import { PrismaClient, ResponseType } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { hashPassword } from '../src/lib/auth';
 
 const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+    throw new Error('DATABASE_URL is required');
+}
+
 const adapter = new PrismaPg({ connectionString });
 
 const prisma = new PrismaClient({
@@ -10,15 +15,7 @@ const prisma = new PrismaClient({
     adapter,
 });
 
-function simpleHash(str: string) {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-        const char = str.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash |= 0;
-    }
-    return 'nib_' + Math.abs(hash).toString(36) + '_' + str.length.toString(36);
-}
+
 
 async function main() {
     console.log('Seeding database...');
@@ -78,6 +75,7 @@ async function main() {
             content: '<p>Explore what we can do for you.</p>',
             contentAm: '<p>ለእርስዎ ምን ማድረግ እንደምንችል ይመርምሩ።</p>',
             order: 0,
+            isActive: true,
             trackClicks: true,
             clickCount: 15,
             sessionClickCount: 10
@@ -89,6 +87,7 @@ async function main() {
             nameAm: 'ማጭበርበር ሪፖርት ያድርጉ',
             responseType: ResponseType.report,
             order: 1,
+            isActive: true,
             content: '<p>Thank you for your report. Our security team has been notified and will review it shortly.</p>',
             contentAm: '<p>ለሪፖርትዎ እናመሰግናለን። የደህንነት ቡድናችን መረጃ ደርሶታል እና በቅርቡ ይመረምረዋል።</p>',
             trackClicks: true,
@@ -121,6 +120,7 @@ async function main() {
             nameAm: 'የምንዛሬ ተመኖች',
             responseType: ResponseType.api,
             order: 2,
+            isActive: true,
             trackClicks: true,
             clickCount: 24,
             sessionClickCount: 18,
@@ -159,6 +159,7 @@ async function main() {
             nameAm: 'የመገለጫ ፍለጋ',
             responseType: ResponseType.api,
             order: 3,
+            isActive: true,
             trackClicks: false,
             clickCount: 0,
             sessionClickCount: 0,
@@ -189,11 +190,21 @@ async function main() {
     ];
 
     for (const menu of menus) {
-        const { id, ...update } = menu;
+        const { id, parentId, ...rest } = menu as any;
+        const connectParent = typeof parentId === 'string' && parentId ? { connect: { id: parentId } } : undefined;
+
         await prisma.menuItem.upsert({
             where: { id },
-            create: menu,
-            update
+            create: {
+                id,
+                ...rest,
+                parent: connectParent
+            },
+            update: {
+                ...rest,
+                ...(parentId === null ? { parent: { disconnect: true } } : {}),
+                ...(connectParent ? { parent: connectParent } : {})
+            }
         });
     }
 
@@ -253,18 +264,26 @@ async function main() {
 
     // Admin credential
     const adminUser = 'admin';
-    const adminPass = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'Admin@1234';
+    const adminPass = process.env.ADMIN_INITIAL_PASSWORD || process.env.ADMIN_PASSWORD || 'Admin@1234';
 
-    await prisma.adminCredential.createMany({
-        data: [
-            {
-                username: adminUser,
-                usernameHash: simpleHash(adminUser),
-                passwordHash: simpleHash(adminPass)
-            }
-        ],
-        skipDuplicates: true
+    // prisma/seed.ts
+
+    // ...
+
+    const hashedPassword = await hashPassword(adminPass);
+
+    await prisma.adminCredential.upsert({
+        where: { username: adminUser },
+        create: {
+            username: adminUser,
+            passwordHash: hashedPassword,
+        },
+        update: {
+            passwordHash: hashedPassword,
+        },
     });
+
+    // ...
 
     console.log('Seeding finished.');
 }

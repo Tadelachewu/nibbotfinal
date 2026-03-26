@@ -100,6 +100,7 @@ export interface MenuItem {
   contentAm?: string; // For static or report success
   apiConfig?: ApiConfig; // For API or Report fields
   order: number;
+  isActive?: boolean;
   attachedMenuIds?: string[];
   trackClicks?: boolean;
   clickCount?: number;
