@@ -592,8 +592,7 @@ export function ChatInterface() {
 
     const context = {
       ...apiResponse,
-      [rootKey]: apiResponse?.[rootKey] || apiResponse,
-      data: apiResponse?.data || apiResponse, // ensure 'data' is always a safe fallback
+      [rootKey]: apiResponse,
       kyc: kycData,
       rootKey,
       response: apiResponse

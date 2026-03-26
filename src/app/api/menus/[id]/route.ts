@@ -34,6 +34,9 @@ function buildMenuResponse(menu: any) {
   const apiConfig = menu.apiConfig
     ? {
       ...(menu.apiConfig as Record<string, any>),
+      rootKey: typeof (menu.apiConfig as any).rootKey === 'string' && String((menu.apiConfig as any).rootKey).trim()
+        ? String((menu.apiConfig as any).rootKey).trim()
+        : 'data',
       requiredKYC: Array.isArray(menu.apiConfig.requiredKYC) ? menu.apiConfig.requiredKYC : [],
       requestParameters: Array.isArray(menu.apiConfig.requestParameters) ? menu.apiConfig.requestParameters : [],
       headers: menu.apiConfig.headers && typeof menu.apiConfig.headers === 'object' ? menu.apiConfig.headers : {},
@@ -75,8 +78,9 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
   const kycFields: any[] = body.apiConfig?.kycFields && Array.isArray(body.apiConfig.kycFields) ? body.apiConfig.kycFields : [];
   const apiConfig = body.apiConfig && typeof body.apiConfig === 'object'
     ? (() => {
-      const { kycFields: _omit, ...rest } = body.apiConfig;
-      return rest;
+      const { kycFields: _omit, rootKey, ...rest } = body.apiConfig;
+      const normalizedRootKey = typeof rootKey === 'string' && rootKey.trim() ? rootKey.trim() : 'data';
+      return { ...rest, rootKey: normalizedRootKey };
     })()
     : undefined;
 

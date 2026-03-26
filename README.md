@@ -87,6 +87,66 @@ npm run dev:io
 
 ---
 
+## 🔌 API Configuration (Admin)
+
+The Admin dashboard can call external APIs using:
+*   **Endpoint URL**: supports placeholders like `{{account_id}}` (from collected KYC)
+*   **Auth**: API Key / Bearer / Basic
+*   **Request Mapping**: maps query/body parameters from KYC or static values
+*   **Response Mapping**: renders either a Message or a Table
+
+### Example: Express Mock Banking API (Bearer + API Key)
+
+Assume your external API server runs on `http://localhost:3000` and exposes:
+*   `GET /api/accounts/:account_id/balance` (Bearer token)
+*   `GET /api/accounts/:account_id/transactions` (Bearer token)
+*   `GET /api/apikey/accounts/summary` (API Key)
+
+#### 1) Balance (Bearer auth, path param + optional query)
+Create a menu (Action Type: **API Action**) with:
+*   **Method**: `GET`
+*   **Endpoint URL**: `http://localhost:3000/api/accounts/{{account_id}}/balance`
+*   **KYC fields**: `account_id` (type: number/text, required)
+*   **Auth**: Bearer
+    *   Header: `Authorization`
+    *   Template: `Bearer secret-token-123`
+*   **Request Mapping** (optional): add query param `currency` as Static `ETB`
+*   **Root Mapping Key**: `data`
+*   **Response Mapping (Message)** example:
+    *   `Balance: {{data.data.available_balance}} {{data.data.currency}} (Account {{data.data.account_id}})`
+
+#### 2) Transactions (Bearer auth, returns an array)
+Create a menu (Action Type: **API Action**) with:
+*   **Method**: `GET`
+*   **Endpoint URL**: `http://localhost:3000/api/accounts/{{account_id}}/transactions`
+*   **KYC fields**: `account_id` (required), optionally `type` and `minAmount` (optional)
+*   **Auth**: Bearer → `Authorization: Bearer secret-token-123`
+*   **Request Mapping** (optional):
+    *   `type` → Source: KYC `type` (e.g. `debit` / `credit`)
+    *   `minAmount` → Source: KYC `minAmount`
+*   **Root Mapping Key**: `data`
+*   **Response Mapping (Table)**:
+    *   Mapping mode: Array Path
+    *   Table Data Key: `data.data`
+    *   Columns: `amount`, `type`, `date`
+
+#### 3) Account Summary (API Key, mandatory query params)
+Create a menu (Action Type: **API Action**) with:
+*   **Method**: `GET`
+*   **Endpoint URL**: `http://localhost:3000/api/apikey/accounts/summary`
+*   **Auth**: API Key
+    *   Header: `X-API-KEY`
+    *   Value: `my-secret-api-key`
+*   **Request Mapping** (query params):
+    *   `account_id` → Source: KYC `account_id` (required)
+    *   `currency` → Static `ETB` (required by the API)
+    *   `includeTransactions` → Static `true` (optional)
+*   **Root Mapping Key**: `data`
+*   **Response Mapping (Message)** example:
+    *   `Account {{data.data.account_id}} balance: {{data.data.balance}} {{data.data.currency}}`
+
+---
+
 ## 🧪 Admin Playground: Test Scenarios
 
 To help you get started, we've provided a comprehensive **[API Documentation & Test Guide](docs/API_GUIDE.md)** that covers both internal test endpoints and the external mock banking server.
@@ -149,3 +209,33 @@ redis   sudo service redis-server start  on ubuntu
 ## Production Notes (Migrations)
 *   Use `npx prisma migrate deploy` in production to apply existing migrations (it will not create new ones).
 *   Keep the `prisma/migrations/` folder in source control to ensure environments stay in sync.
+
+## Internal API Endpoints (Reference)
+This app includes internal Next.js API routes for both the chatbot and admin console.
+
+**Core (DB-backed)**
+*   `GET /api/menus` (public: active menus only)
+*   `GET /api/menus?includeInactive=1` (admin only: includes suspended menus)
+*   `POST /api/menus`, `PUT /api/menus/:id`, `DELETE /api/menus/:id` (admin only)
+*   `POST /api/menus/:id/click` (public)
+*   `GET /api/app-settings` (public)
+*   `PUT /api/app-settings` (admin only)
+*   `POST /api/reports` (public)
+*   `GET /api/reports` (admin only)
+*   `GET /api/reports/:id` (public: status lookup)
+*   `PATCH /api/reports/:id`, `DELETE /api/reports/:id` (admin only)
+*   `POST /api/logs` (public)
+*   `GET /api/logs` (admin only)
+
+**Admin Auth**
+*   `POST /api/admin/auth/login`
+*   `POST /api/admin/auth/logout`
+*   `GET /api/admin/auth/session`
+*   `POST /api/admin/auth/change-password`
+
+**Test APIs (used for demo menus)**
+*   `GET /api/test/exchange-rate`
+*   `GET /api/test/balance`
+*   `GET /api/test/profile/:userId`
+*   `GET /api/test/user-transactions/:userId`
+*   Additional examples under `/api/test/*` (see [API_GUIDE.md](docs/API_GUIDE.md))

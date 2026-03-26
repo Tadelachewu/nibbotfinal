@@ -34,6 +34,9 @@ function buildMenuResponse(menu: any) {
   const apiConfig = menu.apiConfig
     ? {
       ...(menu.apiConfig as Record<string, any>),
+      rootKey: typeof (menu.apiConfig as any).rootKey === 'string' && String((menu.apiConfig as any).rootKey).trim()
+        ? String((menu.apiConfig as any).rootKey).trim()
+        : 'data',
       requiredKYC: Array.isArray(menu.apiConfig.requiredKYC) ? menu.apiConfig.requiredKYC : [],
       requestParameters: Array.isArray(menu.apiConfig.requestParameters) ? menu.apiConfig.requestParameters : [],
       headers: menu.apiConfig.headers && typeof menu.apiConfig.headers === 'object' ? menu.apiConfig.headers : {},
@@ -75,6 +78,27 @@ export async function GET(req: Request) {
     orderBy: { order: 'asc' }
   });
 
+  if (includeAll) {
+    const toBackfill = menus.filter(m => {
+      const cfg: any = m.apiConfig;
+      if (!cfg || typeof cfg !== 'object') return false;
+      const rootKey = cfg.rootKey;
+      return !(typeof rootKey === 'string' && rootKey.trim());
+    });
+
+    if (toBackfill.length) {
+      await prisma.$transaction(
+        toBackfill.map(m => {
+          const cfg: any = m.apiConfig;
+          return prisma.menuItem.update({
+            where: { id: m.id },
+            data: { apiConfig: { ...(cfg || {}), rootKey: 'data' } }
+          });
+        })
+      );
+    }
+  }
+
   return NextResponse.json({ status: 'success', data: menus.map(buildMenuResponse) });
 }
 
@@ -94,8 +118,9 @@ export async function POST(req: Request) {
   const kycFields: any[] = body.apiConfig?.kycFields && Array.isArray(body.apiConfig.kycFields) ? body.apiConfig.kycFields : [];
   const apiConfig = body.apiConfig && typeof body.apiConfig === 'object'
     ? (() => {
-      const { kycFields: _omit, ...rest } = body.apiConfig;
-      return rest;
+      const { kycFields: _omit, rootKey, ...rest } = body.apiConfig;
+      const normalizedRootKey = typeof rootKey === 'string' && rootKey.trim() ? rootKey.trim() : 'data';
+      return { ...rest, rootKey: normalizedRootKey };
     })()
     : undefined;
 
