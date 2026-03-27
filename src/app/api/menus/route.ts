@@ -57,6 +57,41 @@ function normalizeApiConfig(apiConfig: any) {
   };
 }
 
+function extractTemplateVars(template: string) {
+  const str = String(template || '');
+  return Array.from(str.matchAll(/\{\{\s*([^}]+?)\s*\}\}/g))
+    .map(m => (m[1] || '').trim())
+    .filter(Boolean);
+}
+
+function validateEndpointTemplate(endpoint: string, kycFieldNames: string[]) {
+  const vars = extractTemplateVars(endpoint);
+  if (!vars.length) return { ok: true as const, vars, invalid: [] as string[], missingKyc: [] as string[] };
+
+  const allowed = new Set(['user_id', 'user_token', 'user.id', 'user.token']);
+  const kycSet = new Set((kycFieldNames || []).map(v => String(v || '').trim()).filter(Boolean));
+
+  const invalid: string[] = [];
+  const missingKyc: string[] = [];
+
+  for (const v of vars) {
+    if (allowed.has(v)) continue;
+    if (v.startsWith('kyc.')) {
+      const key = v.slice(4).trim();
+      if (!key) invalid.push(v);
+      else if (!kycSet.has(key)) missingKyc.push(key);
+      continue;
+    }
+    if (v.includes('.')) {
+      invalid.push(v);
+      continue;
+    }
+    if (!kycSet.has(v)) missingKyc.push(v);
+  }
+
+  return { ok: invalid.length === 0 && missingKyc.length === 0, vars, invalid, missingKyc };
+}
+
 function buildMenuResponse(menu: any) {
   const attachedMenuIds = Array.isArray(menu.attachments)
     ? menu.attachments.map((a: any) => a.attachedMenuId)
@@ -167,6 +202,17 @@ export async function POST(req: Request) {
       return normalizeApiConfig({ ...rest, rootKey: normalizedRootKey });
     })()
     : undefined;
+
+  if (apiConfig?.endpoint && body.responseType === 'api') {
+    const kycNames = Array.isArray(kycFields) ? kycFields.map(f => f?.name).filter(Boolean) : [];
+    const validation = validateEndpointTemplate(String(apiConfig.endpoint), kycNames);
+    if (!validation.ok) {
+      const parts: string[] = [];
+      if (validation.invalid.length) parts.push(`Invalid placeholders: ${validation.invalid.join(', ')}`);
+      if (validation.missingKyc.length) parts.push(`Missing KYC fields: ${validation.missingKyc.join(', ')}`);
+      return NextResponse.json({ status: 'error', message: `Endpoint template invalid. ${parts.join('. ')}` }, { status: 400 });
+    }
+  }
 
   await prisma.menuItem.create({
     data: {

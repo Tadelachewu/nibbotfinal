@@ -4,6 +4,30 @@ const app = express();
 const PORT = 3000;
 
 app.use(cors()); // Enable CORS for all routes
+app.use(express.json());
+
+// Simple request logger (masks sensitive headers)
+app.use((req, res, next) => {
+    try {
+        const headers = { ...req.headers };
+        if (headers.authorization) headers.authorization = headers.authorization.replace(/Bearer\s+(.+)/i, 'Bearer ****');
+        if (headers['x-api-key']) headers['x-api-key'] = '****';
+
+        console.log('HTTP', {
+            method: req.method,
+            url: req.originalUrl,
+            params: req.params,
+            query: req.query,
+            headers
+        });
+
+        if (req.body && Object.keys(req.body).length) console.log('HTTP BODY', req.body);
+    } catch (e) {
+        // don't break request on logging failure
+        console.warn('Request logger error', e && e.message ? e.message : e);
+    }
+    next();
+});
 
 // ---------------- Mock Database ---------------- //
 const accountsDB = {

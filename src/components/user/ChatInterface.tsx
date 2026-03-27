@@ -303,10 +303,33 @@ export function ChatInterface() {
 
       // 3. Fallback for system variables
       if (path === 'user_id') return String(userData.id);
+      if (path === 'user.id') return String(userData.id);
       if (path === 'user_token') return String(userData.token);
+      if (path === 'user.token') return String(userData.token);
 
       return match;
     });
+  };
+
+  const hasUnresolvedTemplate = (value: any) => {
+    const str = String(value ?? '');
+    if (!str) return false;
+    if (/\{\{\s*[^}]+?\s*\}\}/.test(str)) return true;
+    const lower = str.toLowerCase();
+    if (lower.includes('%7b%7b') || lower.includes('%7d%7d')) return true;
+    return false;
+  };
+
+  const assertNoUnresolvedTemplate = (value: any, label: string) => {
+    if (hasUnresolvedTemplate(value)) {
+      const str = String(value ?? '');
+      const placeholders = Array.from(str.matchAll(/\{\{\s*([^}]+?)\s*\}\}/g)).map(m => (m[1] || '').trim()).filter(Boolean);
+      const encoded = str.toLowerCase().includes('%7b%7b') || str.toLowerCase().includes('%7d%7d');
+      const suffix = placeholders.length
+        ? `: ${placeholders.join(', ')}`
+        : (encoded ? ': url-encoded placeholder(s)' : '');
+      throw new Error(`Unresolved template detected in ${label}${suffix}`);
+    }
   };
 
   const isRootPrefixed = (path: string, rootKey: string) => {
@@ -553,6 +576,7 @@ export function ChatInterface() {
     const mapping = menu.apiConfig.responseMapping;
     try {
       let url = replacePlaceholders(menu.apiConfig.endpoint, { kyc: kycData, rootKey });
+      assertNoUnresolvedTemplate(url, 'endpoint URL');
       const requestPayload: Record<string, any> = {};
       menu.apiConfig.requestParameters?.forEach(param => {
         const key = param.apiKey.trim();
@@ -560,7 +584,9 @@ export function ChatInterface() {
 
         if (param.sourceValue === 'user.id') val = userData.id;
         else if (param.sourceValue === 'user.token') val = userData.token;
-        else if (param.sourceType === 'static') val = param.sourceValue;
+        else if (param.sourceType === 'static') {
+          val = replacePlaceholders(param.sourceValue, { kyc: kycData, rootKey });
+        }
         else if (kycData[param.sourceValue] !== undefined) val = kycData[param.sourceValue];
 
         // Smart Casting based on Field Type
@@ -575,19 +601,26 @@ export function ChatInterface() {
           }
         }
 
+        if (typeof val === 'string') {
+          assertNoUnresolvedTemplate(val, `request parameter "${key}"`);
+        }
         if (val !== null) requestPayload[key] = val;
       });
       const headers: Record<string, string> = { 'Content-Type': 'application/json', ...menu.apiConfig.headers };
       const auth = menu.apiConfig.authConfig;
       if (auth && auth.type !== 'none') {
         const headerName = auth.apiKey?.header || auth.basicAuth?.header || auth.bearer?.header || 'Authorization';
-        if (auth.type === 'apiKey' && auth.apiKey) { headers[headerName] = replacePlaceholders(auth.apiKey.value, { kyc: kycData, rootKey }); }
+        if (auth.type === 'apiKey' && auth.apiKey) {
+          headers[headerName] = replacePlaceholders(auth.apiKey.value, { kyc: kycData, rootKey });
+          assertNoUnresolvedTemplate(headers[headerName], `header "${headerName}"`);
+        }
         else if (auth.type === 'basic' && auth.basicAuth) {
           const user = auth.basicAuth.user || '';
           const pass = auth.basicAuth.pass || '';
           headers[headerName] = `Basic ${btoa(`${user}:${pass}`)}`;
         } else if (auth.type === 'bearer' && auth.bearer) { headers[headerName] = replacePlaceholders(auth.bearer.template, { kyc: kycData, rootKey }); }
       }
+      Object.entries(headers).forEach(([k, v]) => assertNoUnresolvedTemplate(v, `header "${k}"`));
       const options: RequestInit = { method: menu.apiConfig.method, headers };
       if (menu.apiConfig.method === 'GET') {
         const params = new URLSearchParams();
@@ -595,6 +628,7 @@ export function ChatInterface() {
           if (v !== null) params.append(k.trim(), String(v).trim());
         });
         if (params.toString()) url += (url.includes('?') ? '&' : '?') + params.toString();
+        assertNoUnresolvedTemplate(url, 'final URL');
       } else { options.body = JSON.stringify(requestPayload); }
       const res = await fetch(url, options);
       const responseText = await res.text().catch(() => '');
