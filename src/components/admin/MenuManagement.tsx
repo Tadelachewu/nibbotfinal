@@ -1115,10 +1115,10 @@ export function MenuManagement() {
                                       onSelect={(val) => handleTemplateChange(templateVal + val)}
                                     />
                                   </div>
-                                  <Textarea
-                                    className="min-h-[100px] font-mono text-xs"
+                                  <WysiwygEditor
+                                    title="Success Message"
                                     value={templateVal || ''}
-                                    onChange={e => handleTemplateChange(e.target.value)}
+                                    onChange={handleTemplateChange}
                                   />
                                 </div>
                                 <div className="space-y-2">
@@ -1181,11 +1181,10 @@ export function MenuManagement() {
                                       onSelect={(val) => handleTableIntroChange(tableIntroVal + val)}
                                     />
                                   </div>
-                                  <Input
-                                    placeholder="e.g. Here are the results for {{name}}:"
-                                    className="font-mono text-xs"
+                                  <WysiwygEditor
+                                    title="Intro Message"
                                     value={tableIntroVal || ''}
-                                    onChange={e => handleTableIntroChange(e.target.value)}
+                                    onChange={handleTableIntroChange}
                                   />
                                   <p className="text-[9px] text-muted-foreground italic">If left empty, the system defaults to "Here are the results:"</p>
                                 </div>

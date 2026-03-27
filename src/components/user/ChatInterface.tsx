@@ -978,7 +978,7 @@ export function ChatInterface() {
                   </p>
                 </div>
               )}
-              {msg.id !== 'welcome' && msg.text && <p>{msg.text}</p>}
+              {msg.id !== 'welcome' && msg.text && <div dangerouslySetInnerHTML={{ __html: msg.text }} />}
               {msg.content && <div dangerouslySetInnerHTML={{ __html: msg.content }} />}
               {msg.reportStatus && (
                 <div className="mt-4 border rounded-xl p-4 bg-primary/5 shadow-sm space-y-4">
