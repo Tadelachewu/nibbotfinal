@@ -10,6 +10,53 @@ async function isAdminAuthenticated() {
   return Boolean(session.username);
 }
 
+function ensureRootPrefix(path: string, rootKey: string) {
+  const clean = String(path || '').trim();
+  const rk = String(rootKey || '').trim() || 'data';
+  if (!clean) return clean;
+  if (clean === rk) return clean;
+  if (clean.startsWith(`${rk}.`) || clean.startsWith(`${rk}[`)) return clean;
+  return `${rk}.${clean}`;
+}
+
+function normalizeApiConfig(apiConfig: any) {
+  if (!apiConfig || typeof apiConfig !== 'object') return apiConfig;
+
+  const rootKey = typeof apiConfig.rootKey === 'string' && apiConfig.rootKey.trim() ? apiConfig.rootKey.trim() : 'data';
+  const responseMapping = apiConfig.responseMapping && typeof apiConfig.responseMapping === 'object' ? apiConfig.responseMapping : undefined;
+  const tableMappingModeRaw = typeof responseMapping?.tableMappingMode === 'string' ? responseMapping.tableMappingMode.trim() : '';
+  const tableMappingMode = tableMappingModeRaw === 'exact_path' || tableMappingModeRaw === 'array_path'
+    ? tableMappingModeRaw
+    : 'array_path';
+
+  const normalizedResponseMapping = responseMapping
+    ? (() => {
+      const next: any = { ...responseMapping };
+      if (tableMappingMode === 'array_path') {
+        if (typeof next.tableDataKey === 'string' && next.tableDataKey.trim()) {
+          next.tableDataKey = ensureRootPrefix(next.tableDataKey, rootKey);
+        }
+      } else if (tableMappingMode === 'exact_path') {
+        if (Array.isArray(next.tableColumns)) {
+          next.tableColumns = next.tableColumns.map((col: any) => {
+            if (!col || typeof col !== 'object') return col;
+            const key = typeof col.key === 'string' ? col.key.trim() : '';
+            return key ? { ...col, key: ensureRootPrefix(key, rootKey) } : col;
+          });
+        }
+      }
+      next.tableMappingMode = tableMappingMode;
+      return next;
+    })()
+    : undefined;
+
+  return {
+    ...apiConfig,
+    rootKey,
+    ...(normalizedResponseMapping ? { responseMapping: normalizedResponseMapping } : {})
+  };
+}
+
 function buildMenuResponse(menu: any) {
   const attachedMenuIds = Array.isArray(menu.attachments)
     ? menu.attachments.map((a: any) => a.attachedMenuId)
@@ -33,10 +80,7 @@ function buildMenuResponse(menu: any) {
 
   const apiConfig = menu.apiConfig
     ? {
-      ...(menu.apiConfig as Record<string, any>),
-      rootKey: typeof (menu.apiConfig as any).rootKey === 'string' && String((menu.apiConfig as any).rootKey).trim()
-        ? String((menu.apiConfig as any).rootKey).trim()
-        : 'data',
+      ...(normalizeApiConfig(menu.apiConfig) as Record<string, any>),
       requiredKYC: Array.isArray(menu.apiConfig.requiredKYC) ? menu.apiConfig.requiredKYC : [],
       requestParameters: Array.isArray(menu.apiConfig.requestParameters) ? menu.apiConfig.requestParameters : [],
       headers: menu.apiConfig.headers && typeof menu.apiConfig.headers === 'object' ? menu.apiConfig.headers : {},
@@ -80,7 +124,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
     ? (() => {
       const { kycFields: _omit, rootKey, ...rest } = body.apiConfig;
       const normalizedRootKey = typeof rootKey === 'string' && rootKey.trim() ? rootKey.trim() : 'data';
-      return { ...rest, rootKey: normalizedRootKey };
+      return normalizeApiConfig({ ...rest, rootKey: normalizedRootKey });
     })()
     : undefined;
 

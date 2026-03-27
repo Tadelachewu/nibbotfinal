@@ -60,6 +60,7 @@ interface Message {
     rows: any[];
     rootData: any;
     arrayPath: string;
+    rootKey: string;
   };
   reportStatus?: UserReport;
 }
@@ -308,11 +309,21 @@ export function ChatInterface() {
     });
   };
 
+  const isRootPrefixed = (path: string, rootKey: string) => {
+    const p = String(path || '').trim();
+    const rk = String(rootKey || '').trim() || 'data';
+    if (!p) return false;
+    if (p === rk) return true;
+    return p.startsWith(`${rk}.`) || p.startsWith(`${rk}[`);
+  };
+
   const findArrayData = (obj: any, explicitPath?: string, rootKey: string = 'data'): { path: string; data: any[] } | null => {
     if (!obj || typeof obj !== 'object' || obj === null) return null;
-    if (explicitPath) {
+    if (explicitPath && String(explicitPath).trim()) {
+      if (!isRootPrefixed(explicitPath, rootKey)) return null;
       const data = getVal(explicitPath, obj, rootKey);
       if (Array.isArray(data)) return { path: explicitPath, data };
+      return null;
     }
     if (Array.isArray(obj)) return { path: '', data: obj };
     for (const key in obj) { if (Array.isArray(obj[key])) return { path: key, data: obj[key] }; }
@@ -538,6 +549,7 @@ export function ChatInterface() {
     setIsLoading(true);
     let apiResponse: any;
     let success = false;
+    let errorDetails: string | undefined;
     const mapping = menu.apiConfig.responseMapping;
     try {
       let url = replacePlaceholders(menu.apiConfig.endpoint, { kyc: kycData, rootKey });
@@ -585,13 +597,31 @@ export function ChatInterface() {
         if (params.toString()) url += (url.includes('?') ? '&' : '?') + params.toString();
       } else { options.body = JSON.stringify(requestPayload); }
       const res = await fetch(url, options);
-      const data = await res.json().catch(() => null);
-      success = res.ok && data?.status !== 'error';
-      apiResponse = data;
-    } catch (e) { success = false; }
+      const responseText = await res.text().catch(() => '');
+      let parsed: any = null;
+      try {
+        parsed = responseText ? JSON.parse(responseText) : null;
+      } catch (e) {
+        parsed = null;
+      }
+      apiResponse = parsed;
+      success = res.ok && parsed?.status !== 'error';
+      if (!success) {
+        const parts: string[] = [];
+        parts.push(`HTTP ${res.status} ${res.statusText}`.trim());
+        if (parsed?.message) parts.push(`Message: ${String(parsed.message)}`);
+        if (!parsed && responseText) parts.push(`Body: ${responseText.substring(0, 500)}${responseText.length > 500 ? '...' : ''}`);
+        errorDetails = parts.filter(Boolean).join(' | ') || undefined;
+      }
+    } catch (e) {
+      success = false;
+      errorDetails = e instanceof Error ? e.message : String(e);
+      apiResponse = null;
+    }
 
+    const safeApiObject = apiResponse && typeof apiResponse === 'object' ? apiResponse : {};
     const context = {
-      ...apiResponse,
+      ...safeApiObject,
       [rootKey]: apiResponse,
       kyc: kycData,
       rootKey,
@@ -630,7 +660,8 @@ export function ChatInterface() {
             columns: (mapping.tableColumns || []).map(col => ({ ...col, localizedHeader: getLocalizedTableHeader(menu, col) })),
             rows,
             rootData: apiResponse,
-            arrayPath
+            arrayPath,
+            rootKey
           };
           const tableIntro = getLocalizedTableIntro(menu);
           botMsg.text = tableIntro ? replacePlaceholders(tableIntro, context) : (currentLang?.code === 'am' ? 'የተገኙ ውጤቶች የሚከተሉት ናቸው' : 'Here are the results:');
@@ -649,7 +680,7 @@ export function ChatInterface() {
       status: success ? 'success' : 'error',
       endpoint: menu.apiConfig?.endpoint || 'unknown',
       responseTime: endTime - startTime,
-      errorDetails: !success ? (apiResponse?.message || 'Network/Server Error') : undefined,
+      errorDetails: !success ? (errorDetails || apiResponse?.message || 'Network/Server Error') : undefined,
       tags: ['api', menu.name]
     });
 
@@ -957,7 +988,7 @@ export function ChatInterface() {
                           <TableRow key={i} className="hover:bg-muted/5 transition-colors">
                             {msg.tableData!.columns.map((col, j) => (
                               <TableCell key={j} className="text-xs py-3 font-medium">
-                                {String(resolveTableCell(col.key, row, msg.tableData!.rootData, msg.tableData!.arrayPath, 'data') ?? '')}
+                                {String(resolveTableCell(col.key, row, msg.tableData!.rootData, msg.tableData!.arrayPath, msg.tableData!.rootKey) ?? '')}
                               </TableCell>
                             ))}
                           </TableRow>

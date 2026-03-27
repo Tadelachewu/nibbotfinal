@@ -117,6 +117,11 @@ export function LogViewer() {
                           <p className="text-[10px] text-muted-foreground line-clamp-1 italic">
                             Bot: {log.botResponse}
                           </p>
+                          {(log.status === 'error' || log.status === 'failed') && log.errorDetails && (
+                            <p className="text-[10px] text-red-700 line-clamp-2">
+                              Error: {log.errorDetails}
+                            </p>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>{getStatusBadge(log.status)}</TableCell>

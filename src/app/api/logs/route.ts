@@ -60,7 +60,7 @@ export async function POST(req: Request) {
       status: body.status ?? 'success',
       endpoint: body.endpoint ?? null,
       responseTime: Number.isFinite(body.responseTime) ? body.responseTime : null,
-      errorDetails: body.errorDetails ?? null,
+      errorDetails: body.errorDetails ? maskSensitiveInfo(String(body.errorDetails)) : null,
       tags: Array.isArray(body.tags) ? body.tags : []
     }
   });
