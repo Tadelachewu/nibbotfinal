@@ -630,8 +630,9 @@ export function ChatInterface() {
     let botMsg: Message = { id: `bot-api-${Date.now()}`, sender: 'bot' };
 
     if (!success) {
-      const errorMsg = apiResponse?.message || getLocalizedErrorFallback(menu);
-      botMsg.text = errorMsg ? replacePlaceholders(errorMsg, context) : (currentLang?.code === 'am' ? 'ይቅርታ፣ ጥያቄዎን ለማካሄድ ስህተት ተከስቷል።' : 'Sorry, an error occurred while processing your request.');
+      const fallbackMsg = getLocalizedErrorFallback(menu);
+      const chosen = (fallbackMsg && fallbackMsg.trim()) ? fallbackMsg : apiResponse?.message;
+      botMsg.text = chosen ? replacePlaceholders(chosen, context) : (currentLang?.code === 'am' ? 'ይቅርታ፣ ጥያቄዎን ለማካሄድ ስህተት ተከስቷል።' : 'Sorry, an error occurred while processing your request.');
     } else {
       const template = getLocalizedTemplate(menu);
       const mappingType = mapping.type || 'message';
