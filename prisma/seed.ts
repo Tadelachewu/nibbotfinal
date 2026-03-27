@@ -47,7 +47,22 @@ async function main() {
             ],
             systemTranslations: {
                 ui_online: { en: 'Online', am: 'አየር ላይ' },
-                ui_offline: { en: 'Offline', am: 'ከመስመር ውጭ' }
+                ui_offline: { en: 'Offline', am: 'ከመስመር ውጭ' },
+                ui_checking: { en: 'Checking...', am: 'በመፈተሽ ላይ...' },
+                ui_report_status_btn: { en: 'Check Report Status', am: 'የሪፖርት ሁኔታ አረጋግጥ' },
+                ui_select_option: { en: 'Please select an option:', am: 'እባክዎ አማራጭ ይምረጡ፡' },
+                ui_welcome_subtitle: { en: 'How can we assist you today?', am: 'ዛሬ እንዴት ልንረዳዎ እንችላለን?' },
+                ui_enter_report_id: { en: 'Please enter your Report Reference ID:', am: 'እባክዎ የሪፖርት ቁጥርዎን ያስገቡ፡' },
+                ui_status_resolved: { en: 'Resolved', am: 'ተፈትቷል' },
+                ui_status_reviewed: { en: 'Reviewed', am: 'በመመርመር ላይ' },
+                ui_status_pending: { en: 'Pending', am: 'በጥበቃ ላይ' },
+                ui_status_label: { en: 'Report Status', am: 'የሪፖርት ሁኔታ' },
+                ui_original_request: { en: 'Original Request', am: 'የቀረበ ጥያቄ' },
+                ui_error_fallback: { en: 'An error occurred.', am: 'ስህተት ተከስቷል።' },
+                ui_welcome_am: { en: 'Welcome to Nib International Bank', am: 'እንኳን ወደ ንብ ኢንተርናሽናል ባንክ በደህና መጡ!' },
+                ui_welcome_en: { en: 'Welcome to Nib International Bank', am: 'Welcome to Nib International Bank' },
+                ui_back: { en: 'Back', am: 'ተመለስ' },
+                ui_home: { en: 'Home', am: 'ዋና ገጽ' }
             },
             reportIdId: reportConfig ? reportConfig.id : undefined
         },
@@ -58,7 +73,22 @@ async function main() {
             ],
             systemTranslations: {
                 ui_online: { en: 'Online', am: 'አየር ላይ' },
-                ui_offline: { en: 'Offline', am: 'ከመስመር ውጭ' }
+                ui_offline: { en: 'Offline', am: 'ከመስመር ውጭ' },
+                ui_checking: { en: 'Checking...', am: 'በመፈተሽ ላይ...' },
+                ui_report_status_btn: { en: 'Check Report Status', am: 'የሪፖርት ሁኔታ አረጋግጥ' },
+                ui_select_option: { en: 'Please select an option:', am: 'እባክዎ አማራጭ ይምረጡ፡' },
+                ui_welcome_subtitle: { en: 'How can we assist you today?', am: 'ዛሬ እንዴት ልንረዳዎ እንችላለን?' },
+                ui_enter_report_id: { en: 'Please enter your Report Reference ID:', am: 'እባክዎ የሪፖርት ቁጥርዎን ያስገቡ፡' },
+                ui_status_resolved: { en: 'Resolved', am: 'ተፈትቷል' },
+                ui_status_reviewed: { en: 'Reviewed', am: 'በመመርመር ላይ' },
+                ui_status_pending: { en: 'Pending', am: 'በጥበቃ ላይ' },
+                ui_status_label: { en: 'Report Status', am: 'የሪፖርት ሁኔታ' },
+                ui_original_request: { en: 'Original Request', am: 'የቀረበ ጥያቄ' },
+                ui_error_fallback: { en: 'An error occurred.', am: 'ስህተት ተከስቷል።' },
+                ui_welcome_am: { en: 'Welcome to Nib International Bank', am: 'እንኳን ወደ ንብ ኢንተርናሽናል ባንክ በደህና መጡ!' },
+                ui_welcome_en: { en: 'Welcome to Nib International Bank', am: 'Welcome to Nib International Bank' },
+                ui_back: { en: 'Back', am: 'ተመለስ' },
+                ui_home: { en: 'Home', am: 'ዋና ገጽ' }
             },
             reportIdId: reportConfig ? reportConfig.id : undefined
         }
