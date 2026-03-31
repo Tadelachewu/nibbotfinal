@@ -1,14 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
-import { getIronSession } from 'iron-session';
-import { sessionOptions } from '@/lib/session';
-import { cookies } from 'next/headers';
-
-async function isAdminAuthenticated() {
-  const session = await getIronSession<{ username?: string }>(await cookies(), sessionOptions);
-  return Boolean(session.username);
-}
+import { getValidatedAdminSession, verifyCsrfToken } from '@/lib/session';
 
 function maskSensitiveInfo(text: string): string {
   const sensitiveKeys = ['password', 'token', 'secret', 'key', 'pin', 'cvv'];
@@ -21,7 +14,7 @@ function maskSensitiveInfo(text: string): string {
 }
 
 export async function GET() {
-  if (!(await isAdminAuthenticated())) {
+  if (!(await getValidatedAdminSession())) {
     return NextResponse.json({ status: 'error', message: 'Unauthorized.' }, { status: 401 });
   }
 
@@ -47,6 +40,10 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  if (!verifyCsrfToken(req, null, { requireToken: false })) {
+    return NextResponse.json({ status: 'error', message: 'Forbidden.' }, { status: 403 });
+  }
+
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== 'object') {
     return NextResponse.json({ status: 'error', message: 'Invalid request body.' }, { status: 400 });

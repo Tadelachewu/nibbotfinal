@@ -1,14 +1,8 @@
 import { NextResponse } from 'next/server';
-import { getIronSession } from 'iron-session';
-import { sessionOptions } from '@/lib/session';
-import { cookies } from 'next/headers';
+import { getValidatedAdminSession } from '@/lib/session';
 
 export async function GET() {
-  const session = await getIronSession<{ username?: string }>(await cookies(), sessionOptions);
-
-  if (session.username) {
-    return NextResponse.json({ isAuthenticated: true, username: session.username });
-  } else {
-    return NextResponse.json({ isAuthenticated: false });
-  }
+  const session = await getValidatedAdminSession();
+  if (!session) return NextResponse.json({ isAuthenticated: false });
+  return NextResponse.json({ isAuthenticated: true, username: session.username, csrfToken: session.csrfToken });
 }

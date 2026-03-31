@@ -22,6 +22,7 @@ export function AdminChangePassword() {
   const [open, setOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newUsername, setNewUsername] = useState('');
+  const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
@@ -52,6 +53,7 @@ export function AdminChangePassword() {
     }
 
     const username = newUsername.trim() || currentUsername;
+    const email = newEmail.trim() || undefined;
 
     if (!isStrongPassword(newPassword)) {
       setError('New password must have 8+ chars, uppercase, lowercase, number, and special character.');
@@ -66,7 +68,7 @@ export function AdminChangePassword() {
     setIsLoading(true);
     await new Promise(r => setTimeout(r, 400));
 
-    const result = await changeCredentials(currentPassword, username, newPassword);
+    const result = await changeCredentials(currentPassword, username, newPassword, email);
     setIsLoading(false);
 
     if (result.success) {
@@ -147,6 +149,20 @@ export function AdminChangePassword() {
             />
           </div>
 
+          {/* New Email */}
+          <div className="space-y-1.5">
+            <Label htmlFor="new-email" className="text-sm font-medium">
+              New Email <span className="text-muted-foreground font-normal">(optional)</span>
+            </Label>
+            <Input
+              id="new-email"
+              type="email"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              placeholder="admin@example.com"
+            />
+          </div>
+
           {/* New Password */}
           <div className="space-y-1.5">
             <Label htmlFor="new-pw" className="text-sm font-medium">New Password</Label>
@@ -176,12 +192,11 @@ export function AdminChangePassword() {
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">Strength</span>
-                <span className={`text-xs font-semibold ${
-                  strength.score <= 1 ? 'text-red-500' :
-                  strength.score === 2 ? 'text-yellow-600' :
-                  strength.score === 3 ? 'text-blue-600' :
-                  'text-green-600'
-                }`}>
+                <span className={`text-xs font-semibold ${strength.score <= 1 ? 'text-red-500' :
+                    strength.score === 2 ? 'text-yellow-600' :
+                      strength.score === 3 ? 'text-blue-600' :
+                        'text-green-600'
+                  }`}>
                   {strength.label}
                 </span>
               </div>
@@ -189,14 +204,13 @@ export function AdminChangePassword() {
                 {[0, 1, 2, 3, 4].map((i) => (
                   <div
                     key={i}
-                    className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
-                      i <= strength.score
+                    className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${i <= strength.score
                         ? strength.score <= 1 ? 'bg-red-500' :
                           strength.score === 2 ? 'bg-yellow-500' :
-                          strength.score === 3 ? 'bg-blue-500' :
-                          'bg-green-500'
+                            strength.score === 3 ? 'bg-blue-500' :
+                              'bg-green-500'
                         : 'bg-muted'
-                    }`}
+                      }`}
                   />
                 ))}
               </div>
@@ -210,11 +224,10 @@ export function AdminChangePassword() {
                 ].map(({ key, label }) => (
                   <span
                     key={key}
-                    className={`text-[10px] flex items-center gap-1 ${
-                      strength.checks[key as keyof typeof strength.checks]
+                    className={`text-[10px] flex items-center gap-1 ${strength.checks[key as keyof typeof strength.checks]
                         ? 'text-green-600'
                         : 'text-muted-foreground'
-                    }`}
+                      }`}
                   >
                     {strength.checks[key as keyof typeof strength.checks] ? '✓' : '○'} {label}
                   </span>

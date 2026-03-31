@@ -45,9 +45,10 @@ export function isStrongPassword(password: string): boolean {
 interface AdminAuthContextType {
   isAuthenticated: boolean;
   currentUsername: string;
+  csrfFetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
   login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
-  changeCredentials: (currentPassword: string, newUsername: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
+  changeCredentials: (currentPassword: string, newUsername: string, newPassword: string, newEmail?: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 const AdminAuthContext = createContext<AdminAuthContextType | null>(null);
@@ -56,7 +57,26 @@ const AdminAuthContext = createContext<AdminAuthContextType | null>(null);
 export function AdminAuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUsername, setCurrentUsername] = useState('');
+  const [csrfToken, setCsrfToken] = useState('');
   const [hydrated, setHydrated] = useState(false);
+
+  const csrfFetch = useCallback(
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      const method = String(init?.method || 'GET').toUpperCase();
+      const needsToken = !['GET', 'HEAD', 'OPTIONS'].includes(method);
+      if (!needsToken || !csrfToken) return fetch(input, init);
+
+      const headers = new Headers(init?.headers || {});
+      headers.set('x-csrf-token', csrfToken);
+      const res = await fetch(input, { ...init, headers });
+      const nextToken = res.headers.get('x-csrf-token');
+      if (typeof nextToken === 'string' && nextToken) {
+        setCsrfToken(nextToken);
+      }
+      return res;
+    },
+    [csrfToken]
+  );
 
   useEffect(() => {
     let active = true;
@@ -68,14 +88,17 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         if (json?.isAuthenticated) {
           setIsAuthenticated(true);
           setCurrentUsername(typeof json.username === 'string' ? json.username : '');
+          setCsrfToken(typeof json.csrfToken === 'string' ? json.csrfToken : '');
         } else {
           setIsAuthenticated(false);
           setCurrentUsername('');
+          setCsrfToken('');
         }
       } catch {
         if (!active) return;
         setIsAuthenticated(false);
         setCurrentUsername('');
+        setCsrfToken('');
       } finally {
         if (active) setHydrated(true);
       }
@@ -105,6 +128,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     if (response.ok && json?.success) {
       setIsAuthenticated(true);
       setCurrentUsername(typeof json.username === 'string' ? json.username : trimmedUsername);
+      setCsrfToken(typeof json.csrfToken === 'string' ? json.csrfToken : '');
       return { success: true };
     }
 
@@ -112,12 +136,13 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
-    await fetch('/api/admin/auth/logout', { method: 'POST' });
+    await csrfFetch('/api/admin/auth/logout', { method: 'POST' });
     setIsAuthenticated(false);
     setCurrentUsername('');
-  }, []);
+    setCsrfToken('');
+  }, [csrfFetch]);
 
-  const changeCredentials = useCallback(async (currentPassword: string, newUsername: string, newPassword: string) => {
+  const changeCredentials = useCallback(async (currentPassword: string, newUsername: string, newPassword: string, newEmail?: string) => {
     const trimmedNewUsername = newUsername.trim();
     if (!trimmedNewUsername) {
       return { success: false, error: 'Username cannot be empty.' };
@@ -127,13 +152,14 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
       return { success: false, error: 'New password does not meet strength requirements.' };
     }
 
-    const response = await fetch('/api/admin/auth/change-password', {
+    const response = await csrfFetch('/api/admin/auth/change-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         currentPassword,
         newUsername: trimmedNewUsername,
         newPassword,
+        email: typeof newEmail === 'string' ? newEmail.trim() : undefined,
       }),
     });
 
@@ -143,7 +169,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
       return { success: true };
     }
     return { success: false, error: json?.error || 'Failed to change credentials.' };
-  }, []);
+  }, [csrfFetch]);
 
   // Don't render children until hydrated to avoid flash
   if (!hydrated) {
@@ -151,7 +177,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AdminAuthContext.Provider value={{ isAuthenticated, currentUsername, login, logout, changeCredentials }}>
+    <AdminAuthContext.Provider value={{ isAuthenticated, currentUsername, csrfFetch, login, logout, changeCredentials }}>
       {children}
     </AdminAuthContext.Provider>
   );

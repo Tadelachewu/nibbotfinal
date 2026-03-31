@@ -1,14 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
-import { getIronSession } from 'iron-session';
-import { sessionOptions } from '@/lib/session';
-import { cookies } from 'next/headers';
-
-async function isAdminAuthenticated() {
-  const session = await getIronSession<{ username?: string }>(await cookies(), sessionOptions);
-  return Boolean(session.username);
-}
+import { getValidatedAdminSession, rotateCsrfToken, verifyCsrfToken } from '@/lib/session';
 
 function ensureRootPrefix(path: string, rootKey: string) {
   const clean = String(path || '').trim();
@@ -143,8 +136,12 @@ function buildMenuResponse(menu: any) {
 }
 
 export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }) {
-  if (!(await isAdminAuthenticated())) {
+  const session = await getValidatedAdminSession();
+  if (!session) {
     return NextResponse.json({ status: 'error', message: 'Unauthorized.' }, { status: 401 });
+  }
+  if (!verifyCsrfToken(req, session, { requireToken: true })) {
+    return NextResponse.json({ status: 'error', message: 'Forbidden.' }, { status: 403 });
   }
 
   const { id } = await ctx.params;
@@ -254,15 +251,25 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
     include: { attachments: true, kycMappings: { include: { kyc: true } } }
   });
 
-  return NextResponse.json({ status: 'success', data: updated ? buildMenuResponse(updated) : null });
+  const nextToken = await rotateCsrfToken(session);
+  const res = NextResponse.json({ status: 'success', data: updated ? buildMenuResponse(updated) : null });
+  res.headers.set('x-csrf-token', nextToken);
+  return res;
 }
 
 export async function DELETE(_: Request, ctx: { params: Promise<{ id: string }> }) {
-  if (!(await isAdminAuthenticated())) {
+  const session = await getValidatedAdminSession();
+  if (!session) {
     return NextResponse.json({ status: 'error', message: 'Unauthorized.' }, { status: 401 });
+  }
+  if (!verifyCsrfToken(_, session, { requireToken: true })) {
+    return NextResponse.json({ status: 'error', message: 'Forbidden.' }, { status: 403 });
   }
 
   const { id } = await ctx.params;
   await prisma.menuItem.delete({ where: { id } });
-  return NextResponse.json({ status: 'success' });
+  const nextToken = await rotateCsrfToken(session);
+  const res = NextResponse.json({ status: 'success' });
+  res.headers.set('x-csrf-token', nextToken);
+  return res;
 }

@@ -67,7 +67,7 @@
   @apply leading-relaxed break-words;
 }
 
-.wysiwyg-content h1 { @apply text-2xl font-extrabold mb-4 mt-2 text-primary; }
+.wysiwyg-content h1 { @apply text-2xl font-extrabold mb-4 mt-2; color: var(--primary); }
 .wysiwyg-content h2 { @apply text-xl font-bold mb-3 mt-2; }
 .wysiwyg-content h3 { @apply text-lg font-bold mb-2; }
 .wysiwyg-content h4 { @apply text-base font-bold mb-2; }
@@ -81,7 +81,7 @@
 .wysiwyg-content li { @apply pl-1; }
 
 .wysiwyg-content blockquote { @apply border-l-4 border-primary/30 pl-4 py-1 italic mb-4 bg-primary/5 rounded-r-lg; }
-.wysiwyg-content strong { @apply font-bold text-foreground; }
+.wysiwyg-content strong { @apply font-bold; }
 .wysiwyg-content em { @apply italic; }
 .wysiwyg-content u { @apply underline decoration-primary/30 underline-offset-2; }
 

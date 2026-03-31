@@ -74,6 +74,7 @@ import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { useAdminAuth } from './AdminAuthContext';
 import {
   Popover,
   PopoverContent,
@@ -88,6 +89,7 @@ import {
 } from "@/components/ui/tooltip";
 
 export function MenuManagement() {
+  const { csrfFetch } = useAdminAuth();
   const [menus, setMenus] = useState<MenuItem[]>([]);
   const [settings, setSettings] = useState<AppSettings>({ supportedLanguages: [] });
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -153,7 +155,7 @@ export function MenuManagement() {
           sessionClickCount: 0
         };
 
-        const res = await fetch('/api/menus', {
+        const res = await csrfFetch('/api/menus', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -198,7 +200,7 @@ export function MenuManagement() {
     if (editingId && editForm) {
       setIsSaving(true);
       try {
-        const res = await fetch(`/api/menus/${encodeURIComponent(editingId)}`, {
+        const res = await csrfFetch(`/api/menus/${encodeURIComponent(editingId)}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(editForm)
@@ -222,7 +224,7 @@ export function MenuManagement() {
   const handleSaveSettings = () => {
     (async () => {
       try {
-        const res = await fetch('/api/app-settings', {
+        const res = await csrfFetch('/api/app-settings', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(settings)
@@ -1329,7 +1331,7 @@ export function MenuManagement() {
             (async () => {
               try {
                 const id = itemToDelete!;
-                const res = await fetch(`/api/menus/${encodeURIComponent(id)}`, { method: 'DELETE' });
+                const res = await csrfFetch(`/api/menus/${encodeURIComponent(id)}`, { method: 'DELETE' });
                 const json = await res.json().catch(() => null);
                 if (!res.ok || json?.status === 'error') throw new Error(json?.message || 'Delete failed.');
                 refresh();

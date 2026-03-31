@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server';
 import { comparePasswords } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import crypto from 'crypto';
 
-import { getIronSession } from 'iron-session';
-import { sessionOptions } from '@/lib/session';
-import { cookies } from 'next/headers';
+import { getAdminSession, isSameOriginRequest } from '@/lib/session';
 
 export async function POST(req: Request) {
+  if (!isSameOriginRequest(req)) {
+    return NextResponse.json({ success: false, error: 'Forbidden.' }, { status: 403 });
+  }
+
   const body = await req.json().catch(() => null);
   const username = typeof body?.username === 'string' ? body.username.trim() : '';
   const password = typeof body?.password === 'string' ? body.password : '';
@@ -18,11 +21,16 @@ export async function POST(req: Request) {
   const admin = await prisma.adminCredential.findUnique({ where: { username } });
 
   if (admin && (await comparePasswords(password, admin.passwordHash))) {
-    const session = await getIronSession<{ username?: string }>(await cookies(), sessionOptions);
+    const session = await getAdminSession();
+    const now = Date.now();
     session.username = username;
+    session.createdAt = now;
+    session.lastActivityAt = now;
+    session.lastAuthAt = now;
+    session.csrfToken = Buffer.from(crypto.randomUUID()).toString('base64');
     await session.save();
 
-    return NextResponse.json({ success: true, username });
+    return NextResponse.json({ success: true, username, csrfToken: session.csrfToken });
   } else {
     return NextResponse.json({ success: false, error: 'Invalid username or password.' }, { status: 401 });
   }

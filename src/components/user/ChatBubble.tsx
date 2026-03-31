@@ -9,6 +9,12 @@ interface ChatBubbleProps {
   isBot?: boolean;
 }
 
+function makeAvatarDataUri(text: string, background: string) {
+  const safeText = String(text || '').slice(0, 2).toUpperCase();
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="${background}"/><text x="50" y="58" text-anchor="middle" font-family="Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial" font-size="36" font-weight="700" fill="#ffffff">${safeText}</text></svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
 export function ChatBubble({ children, isBot = true }: ChatBubbleProps) {
   return (
     <div className={cn(
@@ -17,7 +23,7 @@ export function ChatBubble({ children, isBot = true }: ChatBubbleProps) {
     )}>
       {isBot && (
         <Avatar className="h-8 w-8 border-2 border-primary/20 shrink-0">
-          <AvatarImage src="https://picsum.photos/seed/bot/100/100" />
+          <AvatarImage src={makeAvatarDataUri('TT', '#763717')} />
           <AvatarFallback className="bg-primary text-white text-[10px]">TT</AvatarFallback>
         </Avatar>
       )}
@@ -35,7 +41,7 @@ export function ChatBubble({ children, isBot = true }: ChatBubbleProps) {
 
       {!isBot && (
         <Avatar className="h-8 w-8 border-2 border-accent/20 shrink-0">
-          <AvatarImage src="https://picsum.photos/seed/user/100/100" />
+          <AvatarImage src={makeAvatarDataUri('ME', '#F4A61B')} />
           <AvatarFallback className="bg-accent text-white text-[10px]">ME</AvatarFallback>
         </Avatar>
       )}

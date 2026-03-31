@@ -379,13 +379,17 @@ async function main() {
 
     const hashedPassword = await hashPassword(adminPass);
 
+    const adminEmail = process.env.ADMIN_EMAIL || 'tade2024bdugit@gmail.com';
+
     await prisma.adminCredential.upsert({
         where: { username: adminUser },
         create: {
             username: adminUser,
+            email: adminEmail,
             passwordHash: hashedPassword,
         },
         update: {
+            email: adminEmail,
             passwordHash: hashedPassword,
         },
     });

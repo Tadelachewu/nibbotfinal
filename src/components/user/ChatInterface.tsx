@@ -42,7 +42,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
@@ -72,6 +71,12 @@ interface UserData {
   kyc: Record<string, any>;
 }
 
+function makeAvatarDataUri(text: string, background: string) {
+  const safeText = String(text || '').slice(0, 2).toUpperCase();
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="${background}"/><text x="50" y="58" text-anchor="middle" font-family="Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial" font-size="36" font-weight="700" fill="#ffffff">${safeText}</text></svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
 export function ChatInterface() {
   const [menus, setMenus] = useState<MenuItem[]>([]);
   const [languages, setLanguages] = useState<Language[]>([]);
@@ -81,7 +86,7 @@ export function ChatInterface() {
   const [menuHistory, setMenuHistory] = useState<string[]>([]);
   const [currentLang, setCurrentLang] = useState<Language | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('light');
-  const userAvatar = PlaceHolderImages.find(img => img.id === 'user-avatar');
+  const userAvatarUrl = makeAvatarDataUri('ME', '#763717');
 
   const [userData, setUserData] = useState<UserData>({
     id: 'anonymous',
@@ -942,7 +947,7 @@ export function ChatInterface() {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 p-0 border shadow-sm">
                 <Avatar className="h-full w-full">
-                  <AvatarImage src={userAvatar?.imageUrl || ""} />
+                  <AvatarImage src={userAvatarUrl} />
                   <AvatarFallback className="bg-primary text-white"><UserIcon size={16} /></AvatarFallback>
                 </Avatar>
               </Button>

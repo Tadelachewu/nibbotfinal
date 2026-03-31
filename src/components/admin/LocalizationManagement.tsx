@@ -12,8 +12,10 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAdminAuth } from './AdminAuthContext';
 
 export function LocalizationManagement() {
+  const { csrfFetch } = useAdminAuth();
   const [settings, setSettings] = useState<AppSettings>({ supportedLanguages: [] });
   const [translations, setTranslations] = useState<Record<string, Record<string, string>>>({});
   const [isSaving, setIsSaving] = useState(false);
@@ -50,7 +52,7 @@ export function LocalizationManagement() {
           systemTranslations: translations
         };
 
-        const res = await fetch('/api/app-settings', {
+        const res = await csrfFetch('/api/app-settings', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(updatedSettings)

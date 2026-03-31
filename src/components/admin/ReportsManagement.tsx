@@ -59,8 +59,10 @@ import { toast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
+import { useAdminAuth } from './AdminAuthContext';
 
 export function ReportsManagement() {
+  const { csrfFetch } = useAdminAuth();
   const [reports, setReports] = useState<UserReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -112,7 +114,7 @@ export function ReportsManagement() {
 
       (async () => {
         try {
-          const res = await fetch(`/api/reports/${encodeURIComponent(selectedReportId)}`, {
+          const res = await csrfFetch(`/api/reports/${encodeURIComponent(selectedReportId)}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -148,7 +150,7 @@ export function ReportsManagement() {
   const handleDeleteReport = (reportId: string) => {
     (async () => {
       try {
-        const res = await fetch(`/api/reports/${encodeURIComponent(reportId)}`, { method: 'DELETE' });
+        const res = await csrfFetch(`/api/reports/${encodeURIComponent(reportId)}`, { method: 'DELETE' });
         const json = await res.json().catch(() => null);
         if (!res.ok || json?.status === 'error') {
           throw new Error(json?.message || 'Failed to delete report.');

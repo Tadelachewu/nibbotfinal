@@ -1,4 +1,4 @@
-'use client';
+ 'use client';
 
 import { MenuItem, AppSettings, Language, UserReport, ReportPriority, ReportIdConfig } from './types';
 import { generateReportId, getNextSequence } from './id-generator';
@@ -381,3 +381,4 @@ export function deleteMenu(id: string) {
   const filtered = menus.filter(m => !toDelete.has(m.id));
   saveMenus(filtered);
 }
+

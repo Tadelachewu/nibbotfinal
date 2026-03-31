@@ -1,14 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
-import { getIronSession } from 'iron-session';
-import { sessionOptions } from '@/lib/session';
-import { cookies } from 'next/headers';
-
-async function isAdminAuthenticated() {
-  const session = await getIronSession<{ username?: string }>(await cookies(), sessionOptions);
-  return Boolean(session.username);
-}
+import { getValidatedAdminSession, rotateCsrfToken, verifyCsrfToken } from '@/lib/session';
 
 const defaultReportIdConfig = {
   prefix: 'NIB',
@@ -50,8 +43,12 @@ export async function GET() {
 }
 
 export async function PUT(req: Request) {
-  if (!(await isAdminAuthenticated())) {
+  const session = await getValidatedAdminSession();
+  if (!session) {
     return NextResponse.json({ status: 'error', message: 'Unauthorized.' }, { status: 401 });
+  }
+  if (!verifyCsrfToken(req, session, { requireToken: true })) {
+    return NextResponse.json({ status: 'error', message: 'Forbidden.' }, { status: 403 });
   }
 
   const body = await req.json().catch(() => null);
@@ -108,7 +105,8 @@ export async function PUT(req: Request) {
     include: { reportId: true }
   });
 
-  return NextResponse.json({
+  const nextToken = await rotateCsrfToken(session);
+  const res = NextResponse.json({
     status: 'success',
     data: {
       supportedLanguages: (saved.supportedLanguages as any) ?? [],
@@ -124,4 +122,6 @@ export async function PUT(req: Request) {
         : defaultReportIdConfig
     }
   });
+  res.headers.set('x-csrf-token', nextToken);
+  return res;
 }

@@ -1,14 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
-import { getIronSession } from 'iron-session';
-import { sessionOptions } from '@/lib/session';
-import { cookies } from 'next/headers';
-
-async function isAdminAuthenticated() {
-  const session = await getIronSession<{ username?: string }>(await cookies(), sessionOptions);
-  return Boolean(session.username);
-}
+import { getValidatedAdminSession, rotateCsrfToken, verifyCsrfToken } from '@/lib/session';
 
 function ensureRootPrefix(path: string, rootKey: string) {
   const clean = String(path || '').trim();
@@ -146,7 +139,8 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const includeInactiveRequested =
     searchParams.get('includeInactive') === '1' || searchParams.get('includeInactive') === 'true';
-  const includeAll = includeInactiveRequested && (await isAdminAuthenticated());
+  const adminSession = includeInactiveRequested ? await getValidatedAdminSession() : null;
+  const includeAll = includeInactiveRequested && Boolean(adminSession);
 
   const menus = await prisma.menuItem.findMany({
     include: {
@@ -182,8 +176,12 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  if (!(await isAdminAuthenticated())) {
+  const session = await getValidatedAdminSession();
+  if (!session) {
     return NextResponse.json({ status: 'error', message: 'Unauthorized.' }, { status: 401 });
+  }
+  if (!verifyCsrfToken(req, session, { requireToken: true })) {
+    return NextResponse.json({ status: 'error', message: 'Forbidden.' }, { status: 403 });
   }
 
   const body = await req.json().catch(() => null);
@@ -285,5 +283,8 @@ export async function POST(req: Request) {
     include: { attachments: true, kycMappings: { include: { kyc: true } } }
   });
 
-  return NextResponse.json({ status: 'success', data: created ? buildMenuResponse(created) : null });
+  const nextToken = await rotateCsrfToken(session);
+  const res = NextResponse.json({ status: 'success', data: created ? buildMenuResponse(created) : null });
+  res.headers.set('x-csrf-token', nextToken);
+  return res;
 }

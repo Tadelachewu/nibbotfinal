@@ -1,12 +1,21 @@
 import { NextResponse } from 'next/server';
 
-import { getIronSession } from 'iron-session';
-import { sessionOptions } from '@/lib/session';
-import { cookies } from 'next/headers';
+import { getValidatedAdminSession, verifyCsrfToken } from '@/lib/session';
 
-export async function POST() {
-  const session = await getIronSession<{ username?: string }>(await cookies(), sessionOptions);
+export async function POST(req: Request) {
+  const session = await getValidatedAdminSession();
+  if (session && !verifyCsrfToken(req, session, { requireToken: true })) {
+    return NextResponse.json({ success: false, error: 'Forbidden.' }, { status: 403 });
+  }
+
+  if (!session) {
+    return NextResponse.json({ success: true });
+  }
+
   session.destroy();
+  await session.save();
 
-  return NextResponse.json({ success: true });
+  const res = NextResponse.json({ success: true });
+  res.headers.set('x-csrf-token', '');
+  return res;
 }

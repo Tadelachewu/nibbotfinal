@@ -8,6 +8,14 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Lock, User, Eye, EyeOff, ShieldCheck, AlertCircle } from 'lucide-react';
 import { Logo } from '@/components/Logo';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+
+} from '@/components/ui/dialog';
+import { useToast } from '@/hooks/use-toast';
 
 export function AdminLoginPage() {
   const { login } = useAdminAuth();
@@ -16,6 +24,19 @@ export function AdminLoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
+
+  // Forgot password state
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [recoveryToken, setRecoveryToken] = useState<string | null>(null);
+
+  // Reveal username removed - not required for production
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetToken, setResetToken] = useState('');
+  const [resetPassword, setResetPassword] = useState('');
+  const [resetConfirm, setResetConfirm] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
 
   const strength = useMemo(() => evaluatePasswordStrength(password), [password]);
 
@@ -122,13 +143,12 @@ export function AdminLoginPage() {
               <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-[hsl(25,20%,50%)]">Password Strength</span>
-                  <span className={`text-xs font-semibold ${
-                    strength.score === 0 ? 'text-red-400' :
-                    strength.score === 1 ? 'text-orange-400' :
-                    strength.score === 2 ? 'text-yellow-400' :
-                    strength.score === 3 ? 'text-blue-400' :
-                    'text-green-400'
-                  }`}>
+                  <span className={`text-xs font-semibold ${strength.score === 0 ? 'text-red-400' :
+                      strength.score === 1 ? 'text-orange-400' :
+                        strength.score === 2 ? 'text-yellow-400' :
+                          strength.score === 3 ? 'text-blue-400' :
+                            'text-green-400'
+                    }`}>
                     {strength.label}
                   </span>
                 </div>
@@ -137,15 +157,14 @@ export function AdminLoginPage() {
                   {[0, 1, 2, 3, 4].map((i) => (
                     <div
                       key={i}
-                      className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
-                        i <= strength.score
+                      className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${i <= strength.score
                           ? strength.score === 0 ? 'bg-red-500' :
                             strength.score === 1 ? 'bg-orange-500' :
-                            strength.score === 2 ? 'bg-yellow-500' :
-                            strength.score === 3 ? 'bg-blue-500' :
-                            'bg-green-500'
+                              strength.score === 2 ? 'bg-yellow-500' :
+                                strength.score === 3 ? 'bg-blue-500' :
+                                  'bg-green-500'
                           : 'bg-[hsl(25,30%,18%)]'
-                      }`}
+                        }`}
                     />
                   ))}
                 </div>
@@ -160,11 +179,10 @@ export function AdminLoginPage() {
                   ].map(({ key, label }) => (
                     <span
                       key={key}
-                      className={`text-[10px] flex items-center gap-1 transition-colors ${
-                        strength.checks[key as keyof typeof strength.checks]
+                      className={`text-[10px] flex items-center gap-1 transition-colors ${strength.checks[key as keyof typeof strength.checks]
                           ? 'text-green-400'
                           : 'text-[hsl(25,20%,35%)]'
-                      }`}
+                        }`}
                     >
                       {strength.checks[key as keyof typeof strength.checks] ? '✓' : '○'} {label}
                     </span>
@@ -193,12 +211,94 @@ export function AdminLoginPage() {
             </Button>
           </form>
 
+          <div className="flex items-center justify-start mt-2">
+            <button className="text-sm text-[hsl(25,20%,45%)] hover:text-[hsl(45,93%,47%)]" onClick={() => setForgotOpen(true)}>
+              Forgot password?
+            </button>
+          </div>
+
+          {/* Forgot Password Dialog */}
+          <Dialog open={forgotOpen} onOpenChange={(v) => { setForgotOpen(v); if (!v) { setForgotEmail(''); setRecoveryToken(null); } }}>
+            <DialogContent className="sm:max-w-[420px]">
+              <DialogHeader>
+                <DialogTitle>Forgot Password</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3 mt-2">
+                {/* In production we don't return the token in the response; an email is sent instead. */}
+                {!recoveryToken ? (
+                  <>
+                    <Label className="text-sm">Enter your admin email</Label>
+                    <Input value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)} placeholder="admin@example.com" />
+                    <div className="flex justify-end">
+                      <Button onClick={async () => {
+                        if (!forgotEmail) return toast({ title: 'Email required', variant: 'destructive' });
+                        try {
+                          const res = await fetch('/api/admin/auth/forgot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: forgotEmail }) });
+                          const json = await res.json().catch(() => null);
+                          if (res.ok && json?.success) {
+                            // Do not expose token in the UI. In production an email is sent.
+                            setRecoveryToken(null);
+                            toast({ title: 'If account exists', description: 'If an account exists for that email we sent password reset instructions.' });
+                            setForgotEmail('');
+                            setForgotOpen(false);
+                          } else {
+                            toast({ title: 'Request failed', description: json?.error || 'Unable to create recovery token', variant: 'destructive' });
+                          }
+                        } catch (e) {
+                          toast({ title: 'Network error', variant: 'destructive' });
+                        }
+                      }} className="ml-2">Generate Token</Button>
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            </DialogContent>
+          </Dialog>
+          {/* Reveal username removed */}
+
           {/* Footer */}
           <p className="text-center text-[10px] text-[hsl(25,20%,35%)] pt-2">
             Secured access · Nib International Bank S.C.
           </p>
         </CardContent>
       </Card>
+      {/* Reset Password Dialog */}
+      <Dialog open={resetOpen} onOpenChange={(v) => { setResetOpen(v); if (!v) { setResetToken(''); setResetPassword(''); setResetConfirm(''); } }}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 mt-2">
+            <Label className="text-sm">Recovery Token</Label>
+            <Input value={resetToken} onChange={(e) => setResetToken(e.target.value)} placeholder="token" />
+            <Label className="text-sm">New Password</Label>
+            <Input type="password" value={resetPassword} onChange={(e) => setResetPassword(e.target.value)} placeholder="new password" />
+            <Label className="text-sm">Confirm Password</Label>
+            <Input type="password" value={resetConfirm} onChange={(e) => setResetConfirm(e.target.value)} placeholder="confirm password" />
+            <div className="flex justify-end">
+              <Button onClick={async () => {
+                if (!resetToken || !resetPassword || !resetConfirm) return toast({ title: 'All fields are required', variant: 'destructive' });
+                if (resetPassword !== resetConfirm) return toast({ title: 'Passwords do not match', variant: 'destructive' });
+                setResetLoading(true);
+                try {
+                  const res = await fetch('/api/admin/auth/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: resetToken, newPassword: resetPassword }) });
+                  const json = await res.json().catch(() => null);
+                  if (res.ok && json?.success) {
+                    toast({ title: 'Password reset', description: 'You can now sign in with your new password.' });
+                    setResetOpen(false);
+                  } else {
+                    toast({ title: 'Reset failed', description: json?.error || 'Invalid token', variant: 'destructive' });
+                  }
+                } catch (e) {
+                  toast({ title: 'Network error', variant: 'destructive' });
+                } finally {
+                  setResetLoading(false);
+                }
+              }} disabled={resetLoading}>Reset</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

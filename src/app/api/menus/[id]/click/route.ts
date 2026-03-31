@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { verifyCsrfToken } from '@/lib/session';
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  if (!verifyCsrfToken(req, null, { requireToken: false })) {
+    return NextResponse.json({ status: 'error', message: 'Forbidden.' }, { status: 403 });
+  }
+
   const { id: menuId } = await ctx.params;
   const body = await req.json().catch(() => null);
   const sessionId = typeof body?.sessionId === 'string' ? body.sessionId : '';

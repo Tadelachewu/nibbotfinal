@@ -27,14 +27,11 @@ const FontSize = Extension.create({
         attributes: {
           fontSize: {
             default: null,
-            parseHTML: (element: any) => element.style?.fontSize?.replace(/['"]+/g, ''),
-            renderHTML: (attributes: any) => {
-              if (!attributes.fontSize) {
-                return {}
-              }
-              return {
-                style: `font-size: ${attributes.fontSize}`,
-              }
+            parseHTML: (element: HTMLElement) =>
+              element.style.fontSize?.replace(/['"]+/g, ''),
+            renderHTML: (attributes: { fontSize?: string | null }) => {
+              if (!attributes.fontSize) return {}
+              return { style: `font-size: ${attributes.fontSize}` }
             },
           },
         },
@@ -44,36 +41,31 @@ const FontSize = Extension.create({
   addCommands() {
     return {
       setFontSize: (fontSize: string) => ({ chain }: any) => {
-        return chain()
-          .setMark('textStyle', { fontSize })
-          .run()
+        return chain().setMark('textStyle', { fontSize }).run()
       },
       unsetFontSize: () => ({ chain }: any) => {
-        return chain()
-          .setMark('textStyle', { fontSize: null })
-          .removeEmptyTextStyle()
-          .run()
+        return chain().setMark('textStyle', { fontSize: null }).removeEmptyTextStyle().run()
       },
     }
   },
 } as any);
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { 
-  Bold, 
-  Italic, 
-  Underline as UnderlineIcon, 
-  List, 
-  ListOrdered, 
-  Heading1, 
-  Heading2, 
+import {
+  Bold,
+  Italic,
+  Underline as UnderlineIcon,
+  List,
+  ListOrdered,
+  Heading1,
+  Heading2,
   Heading3,
   Heading4,
   Heading5,
   Heading6,
-  Quote, 
-  Undo, 
-  Redo, 
+  Quote,
+  Undo,
+  Redo,
   Link as LinkIcon,
   Palette,
   AlignLeft,
@@ -147,7 +139,12 @@ const MenuBar = ({ editor }: { editor: any }) => {
     { name: 'Serif', value: 'Georgia, serif' },
     { name: 'Monospace', value: 'ui-monospace, SFMono-Regular, "JetBrains Mono", monospace' },
     { name: 'Display', value: '"Clash Display", sans-serif' },
-    { name: 'Modern', value: 'Roboto, sans-serif' },
+    { name: 'Roboto', value: 'Roboto, sans-serif' },
+    { name: 'Open Sans', value: '"Open Sans", sans-serif' },
+    { name: 'Lato', value: 'Lato, sans-serif' },
+    { name: 'Montserrat', value: 'Montserrat, sans-serif' },
+    { name: 'Oswald', value: 'Oswald, sans-serif' },
+    { name: 'Playfair Display', value: '"Playfair Display", serif' },
   ];
 
   const highlightColors = [
@@ -179,11 +176,11 @@ const MenuBar = ({ editor }: { editor: any }) => {
             <Type size={14} className="text-muted-foreground" />
             <span className="text-[11px] font-bold uppercase">
               {editor.isActive('heading', { level: 1 }) ? 'H1' :
-               editor.isActive('heading', { level: 2 }) ? 'H2' :
-               editor.isActive('heading', { level: 3 }) ? 'H3' :
-               editor.isActive('heading', { level: 4 }) ? 'H4' :
-               editor.isActive('heading', { level: 5 }) ? 'H5' :
-               editor.isActive('heading', { level: 6 }) ? 'H6' : 'Body'}
+                editor.isActive('heading', { level: 2 }) ? 'H2' :
+                  editor.isActive('heading', { level: 3 }) ? 'H3' :
+                    editor.isActive('heading', { level: 4 }) ? 'H4' :
+                      editor.isActive('heading', { level: 5 }) ? 'H5' :
+                        editor.isActive('heading', { level: 6 }) ? 'H6' : 'Body'}
             </span>
           </Button>
         </DropdownMenuTrigger>
@@ -193,8 +190,8 @@ const MenuBar = ({ editor }: { editor: any }) => {
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           {[1, 2, 3, 4, 5, 6].map((level: any) => (
-            <DropdownMenuItem 
-              key={level} 
+            <DropdownMenuItem
+              key={level}
               onClick={() => editor.chain().focus().toggleHeading({ level }).run()}
               className={cn(editor.isActive('heading', { level }) && "bg-accent")}
             >
@@ -222,8 +219,8 @@ const MenuBar = ({ editor }: { editor: any }) => {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-[180px]">
           {fontFamilies.map((f) => (
-            <DropdownMenuItem 
-              key={f.value} 
+            <DropdownMenuItem
+              key={f.value}
               onClick={() => editor.chain().focus().setFontFamily(f.value).run()}
               className={cn(editor.isActive('textStyle', { fontFamily: f.value }) && "bg-accent")}
               style={{ fontFamily: f.value }}
@@ -251,8 +248,8 @@ const MenuBar = ({ editor }: { editor: any }) => {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-[100px]">
           {fontSizes.map((size) => (
-            <DropdownMenuItem 
-              key={size} 
+            <DropdownMenuItem
+              key={size}
               onClick={() => editor.chain().focus().setFontSize(size).run()}
               className={cn(editor.getAttributes('textStyle').fontSize === size && "bg-accent")}
             >
@@ -271,7 +268,7 @@ const MenuBar = ({ editor }: { editor: any }) => {
       <Button
         variant="ghost"
         size="sm"
-        onClick={() => editor.chain().focus().toggleBold().run()}
+        onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleBold().run(); }}
         className={cn("h-8 w-8 p-0", editor.isActive('bold') && "bg-accent text-accent-foreground")}
       >
         <Bold size={16} />
@@ -279,7 +276,7 @@ const MenuBar = ({ editor }: { editor: any }) => {
       <Button
         variant="ghost"
         size="sm"
-        onClick={() => editor.chain().focus().toggleItalic().run()}
+        onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleItalic().run(); }}
         className={cn("h-8 w-8 p-0", editor.isActive('italic') && "bg-accent text-accent-foreground")}
       >
         <Italic size={16} />
@@ -287,7 +284,7 @@ const MenuBar = ({ editor }: { editor: any }) => {
       <Button
         variant="ghost"
         size="sm"
-        onClick={() => editor.chain().focus().toggleUnderline().run()}
+        onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleUnderline().run(); }}
         className={cn("h-8 w-8 p-0", editor.isActive('underline') && "bg-accent text-accent-foreground")}
       >
         <UnderlineIcon size={16} />
@@ -301,51 +298,120 @@ const MenuBar = ({ editor }: { editor: any }) => {
             className="h-8 w-8 p-0"
             title="Text Color"
           >
-            <Baseline size={16} style={{ color: editor.getAttributes('textStyle').color }} />
+            <div className="relative flex items-center justify-center">
+              <Baseline size={16} />
+              <div
+                className="absolute -bottom-1 left-0 right-1 h-0.5 rounded-full"
+                style={{
+                  backgroundColor: editor.getAttributes('textStyle').color || 'transparent',
+                  opacity: editor.getAttributes('textStyle').color ? 1 : 0
+                }}
+              />
+            </div>
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-48 p-3" align="start">
-          <Label className="text-[10px] uppercase font-bold text-muted-foreground mb-2 block">Text Color</Label>
-          <div className="grid grid-cols-4 gap-2">
-            {textColors.map((c) => (
-              <button
-                key={c.value}
-                type="button"
-                onClick={() => {
-                  if (c.value === 'inherit') {
-                    editor.chain().focus().unsetColor().run();
-                  } else {
-                    editor.chain().focus().setColor(c.value).run();
-                  }
+        <PopoverContent 
+          className="w-64 p-3" 
+          align="start" 
+          onFocusCapture={(e) => e.preventDefault()}
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onCloseAutoFocus={(e) => e.preventDefault()}
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          <div className="space-y-4">
+            <div>
+              <Label className="text-[10px] uppercase font-bold text-muted-foreground mb-2 block tracking-wider">Brand Palette</Label>
+              <div className="grid grid-cols-4 gap-2">
+                {textColors.slice(0, 4).map((c) => {
+                  const isInherit = c.value === 'inherit';
+                  const currentColor = editor.getAttributes('textStyle').color;
+                  const isActive = isInherit
+                    ? !currentColor
+                    : currentColor?.toLowerCase() === c.value.toLowerCase();
+
+                  return (
+                    <button
+                      key={c.value}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        if (isInherit) {
+                          editor.chain().focus().unsetColor().run();
+                        } else {
+                          editor.chain().focus().setColor(c.value).run();
+                        }
+                      }}
+                      className={cn(
+                        "h-8 w-full rounded border border-muted hover:scale-105 transition-all shadow-sm relative flex items-center justify-center",
+                        isActive && "ring-2 ring-primary ring-offset-1 z-10"
+                      )}
+                      style={{ backgroundColor: isInherit ? 'white' : c.value }}
+                      title={c.name}
+                    >
+                      {isInherit && <Eraser size={10} className="text-muted-foreground" />}
+                      {isActive && <div className={cn("w-1.5 h-1.5 rounded-full", c.value.toLowerCase() === '#ffffff' ? "bg-black" : "bg-white")} />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-[10px] uppercase font-bold text-muted-foreground mb-2 block tracking-wider">Accent Colors</Label>
+              <div className="grid grid-cols-4 gap-2">
+                {textColors.slice(4).map((c) => {
+                  const currentColor = editor.getAttributes('textStyle').color;
+                  const isActive = currentColor?.toLowerCase() === c.value.toLowerCase();
+
+                  return (
+                    <button
+                      key={c.value}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        editor.chain().focus().setColor(c.value).run();
+                      }}
+                      className={cn(
+                        "h-8 w-full rounded border border-muted hover:scale-105 transition-all shadow-sm flex items-center justify-center",
+                        isActive && "ring-2 ring-primary ring-offset-1 z-10"
+                      )}
+                      style={{ backgroundColor: c.value }}
+                      title={c.name}
+                    >
+                      {isActive && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="pt-3 border-t">
+              <div className="flex items-center gap-2 mb-3">
+                <input
+                  type="color"
+                  className="w-8 h-8 rounded border cursor-pointer bg-white p-0.5 shrink-0"
+                  onInput={(e: any) => editor.chain().focus().setColor(e.target.value).run()}
+                  value={editor.getAttributes('textStyle').color || '#000000'}
+                  title="Custom Hex Color"
+                />
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase leading-tight">Pick a custom</span>
+                  <span className="text-[10px] font-medium text-muted-foreground/60 uppercase leading-tight">Hex code</span>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full h-8 text-[10px] uppercase font-black text-destructive border-destructive/10 hover:bg-destructive/10 hover:text-destructive flex items-center justify-center gap-2"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  editor.chain().focus().unsetColor().run();
                 }}
-                className={cn(
-                  "h-8 w-full rounded border border-muted hover:scale-110 transition-transform shadow-sm relative group",
-                  (editor.getAttributes('textStyle').color === c.value) && "ring-2 ring-primary ring-offset-2"
-                )}
-                style={{ backgroundColor: c.value === 'inherit' ? 'white' : c.value }}
-                title={c.name}
               >
-                {c.value === 'inherit' && <Eraser size={10} className="absolute inset-0 m-auto text-muted-foreground" />}
-              </button>
-            ))}
+                Clear Text Color
+              </Button>
+            </div>
           </div>
-          <div className="flex items-center gap-2 pt-3 mt-3 border-t">
-            <input 
-              type="color" 
-              className="w-8 h-8 rounded border cursor-pointer bg-white p-0.5"
-              onInput={(e: any) => editor.chain().focus().setColor(e.target.value).run()}
-              title="Custom Color"
-            />
-            <span className="text-[10px] font-medium text-muted-foreground uppercase">Custom Color</span>
-          </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="w-full mt-3 h-8 text-[10px] uppercase font-bold text-destructive hover:text-destructive"
-            onClick={() => editor.chain().focus().unsetColor().run()}
-          >
-            Reset Color
-          </Button>
         </PopoverContent>
       </Popover>
 
@@ -357,43 +423,81 @@ const MenuBar = ({ editor }: { editor: any }) => {
             className="h-8 w-8 p-0"
             title="Highlight Color"
           >
-            <Highlighter size={16} style={{ backgroundColor: editor.getAttributes('highlight').color }} />
+            <div className="relative flex items-center justify-center">
+              <Highlighter size={16} />
+              <div
+                className="absolute -bottom-1 left-0 right-1 h-0.5 rounded-full"
+                style={{
+                  backgroundColor: editor.getAttributes('highlight').color || 'transparent',
+                  opacity: editor.getAttributes('highlight').color ? 1 : 0
+                }}
+              />
+            </div>
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-48 p-3" align="start">
-          <Label className="text-[10px] uppercase font-bold text-muted-foreground mb-2 block">Highlight Color</Label>
-          <div className="grid grid-cols-4 gap-2">
-            {highlightColors.map((c) => (
-              <button
-                key={c.value}
-                type="button"
-                onClick={() => editor.chain().focus().toggleHighlight({ color: c.value }).run()}
-                className={cn(
-                  "h-8 w-full rounded border border-muted hover:scale-110 transition-transform shadow-sm",
-                  editor.isActive('highlight', { color: c.value }) && "ring-2 ring-primary ring-offset-2"
-                )}
-                style={{ backgroundColor: c.value }}
-                title={c.name}
-              />
-            ))}
+        <PopoverContent 
+          className="w-64 p-3" 
+          align="start" 
+          onFocusCapture={(e) => e.preventDefault()}
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onCloseAutoFocus={(e) => e.preventDefault()}
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          <div className="space-y-4">
+            <div>
+              <Label className="text-[10px] uppercase font-bold text-muted-foreground mb-2 block tracking-wider">Highlight Tones</Label>
+              <div className="grid grid-cols-4 gap-2">
+                {highlightColors.map((c) => {
+                  const isActive = editor.isActive('highlight', { color: c.value });
+                  return (
+                    <button
+                      key={c.value}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        editor.chain().focus().toggleHighlight({ color: c.value }).run();
+                      }}
+                      className={cn(
+                        "h-8 w-full rounded border border-muted hover:scale-105 transition-all shadow-sm flex items-center justify-center",
+                        isActive && "ring-2 ring-primary ring-offset-1 z-10"
+                      )}
+                      style={{ backgroundColor: c.value }}
+                      title={c.name}
+                    >
+                      {isActive && <div className={cn("w-1.5 h-1.5 rounded-full", c.value.toLowerCase() === '#763717' ? "bg-white" : "bg-black/50")} />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="pt-3 border-t">
+              <div className="flex items-center gap-2 mb-3">
+                <input
+                  type="color"
+                  className="w-8 h-8 rounded border cursor-pointer bg-white p-0.5 shrink-0"
+                  onInput={(e: any) => editor.chain().focus().toggleHighlight({ color: e.target.value }).run()}
+                  value={editor.getAttributes('highlight').color || '#ffff00'}
+                  title="Custom Highlight Color"
+                />
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase leading-tight">Custom Gloss</span>
+                  <span className="text-[10px] font-medium text-muted-foreground/60 uppercase leading-tight">Highlight picker</span>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full h-8 text-[10px] uppercase font-black text-destructive border-destructive/10 hover:bg-destructive/10 hover:text-destructive flex items-center justify-center gap-2"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  editor.chain().focus().unsetHighlight().run();
+                }}
+              >
+                Remove Highlight
+              </Button>
+            </div>
           </div>
-          <div className="flex items-center gap-2 pt-3 mt-3 border-t">
-            <input 
-              type="color" 
-              className="w-8 h-8 rounded border cursor-pointer bg-transparent"
-              onChange={(e) => editor.chain().focus().toggleHighlight({ color: e.target.value }).run()}
-              title="Custom Highlight"
-            />
-            <span className="text-[10px] font-medium text-muted-foreground uppercase">Custom Color</span>
-          </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="w-full mt-3 h-8 text-[10px] uppercase font-bold text-destructive hover:text-destructive"
-            onClick={() => editor.chain().focus().unsetHighlight().run()}
-          >
-            Clear Highlight
-          </Button>
         </PopoverContent>
       </Popover>
 
@@ -402,7 +506,7 @@ const MenuBar = ({ editor }: { editor: any }) => {
       <Button
         variant="ghost"
         size="sm"
-        onClick={() => editor.chain().focus().setTextAlign('left').run()}
+        onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().setTextAlign('left').run(); }}
         className={cn("h-8 w-8 p-0", editor.isActive({ textAlign: 'left' }) && "bg-accent text-accent-foreground")}
       >
         <AlignLeft size={16} />
@@ -410,7 +514,7 @@ const MenuBar = ({ editor }: { editor: any }) => {
       <Button
         variant="ghost"
         size="sm"
-        onClick={() => editor.chain().focus().setTextAlign('center').run()}
+        onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().setTextAlign('center').run(); }}
         className={cn("h-8 w-8 p-0", editor.isActive({ textAlign: 'center' }) && "bg-accent text-accent-foreground")}
       >
         <AlignCenter size={16} />
@@ -418,7 +522,7 @@ const MenuBar = ({ editor }: { editor: any }) => {
       <Button
         variant="ghost"
         size="sm"
-        onClick={() => editor.chain().focus().setTextAlign('right').run()}
+        onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().setTextAlign('right').run(); }}
         className={cn("h-8 w-8 p-0", editor.isActive({ textAlign: 'right' }) && "bg-accent text-accent-foreground")}
       >
         <AlignRight size={16} />
@@ -441,7 +545,7 @@ const MenuBar = ({ editor }: { editor: any }) => {
       <Button
         variant="ghost"
         size="sm"
-        onClick={() => editor.chain().focus().toggleBulletList().run()}
+        onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleBulletList().run(); }}
         className={cn("h-8 w-8 p-0", editor.isActive('bulletList') && "bg-accent text-accent-foreground")}
       >
         <List size={16} />
@@ -449,7 +553,7 @@ const MenuBar = ({ editor }: { editor: any }) => {
       <Button
         variant="ghost"
         size="sm"
-        onClick={() => editor.chain().focus().toggleOrderedList().run()}
+        onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleOrderedList().run(); }}
         className={cn("h-8 w-8 p-0", editor.isActive('orderedList') && "bg-accent text-accent-foreground")}
       >
         <ListOrdered size={16} />
@@ -457,7 +561,7 @@ const MenuBar = ({ editor }: { editor: any }) => {
       <Button
         variant="ghost"
         size="sm"
-        onClick={() => editor.chain().focus().toggleBlockquote().run()}
+        onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleBlockquote().run(); }}
         className={cn("h-8 w-8 p-0", editor.isActive('blockquote') && "bg-accent text-accent-foreground")}
       >
         <Quote size={16} />
@@ -483,11 +587,11 @@ const MenuBar = ({ editor }: { editor: any }) => {
       >
         <LinkIcon size={16} />
       </Button>
-      
+
       <Button
         variant="ghost"
         size="sm"
-        onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()}
+        onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().unsetAllMarks().clearNodes().run(); }}
         className="h-8 w-8 p-0"
         title="Clear Format"
       >
@@ -520,17 +624,17 @@ const MenuBar = ({ editor }: { editor: any }) => {
 export function WysiwygEditor({ value, onChange, title }: WysiwygEditorProps) {
   const editor = useEditor({
     extensions: [
+      TextStyle,
+      Color.configure({ types: ['textStyle', 'heading', 'paragraph', 'listItem', 'blockquote'] }),
       StarterKit.configure({
         heading: {
           levels: [1, 2, 3, 4, 5, 6],
         },
       }),
       Underline,
-      TextStyle,
-      Color,
       Highlight.configure({ multicolor: true }),
       FontFamily,
-      FontSize,
+      FontSize.configure({ types: ['textStyle', 'heading', 'paragraph', 'listItem', 'blockquote'] }),
       Image.configure({
         inline: true,
         allowBase64: true,
@@ -559,10 +663,15 @@ export function WysiwygEditor({ value, onChange, title }: WysiwygEditorProps) {
     },
   });
 
-  // Keep editor content in sync with props if changed externally
+  // Keep editor content in sync with props while avoiding selection resets
   useEffect(() => {
-    if (editor && value !== editor.getHTML()) {
-      editor.commands.setContent(value);
+    if (!editor) return;
+
+    const currentHTML = editor.getHTML();
+    // Only update the editor if the prop value is actually different AND
+    // the change didn't originate from the editor itself (not focused)
+    if (value !== currentHTML && !editor.isFocused && value !== undefined) {
+      editor.commands.setContent(value, false);
     }
   }, [value, editor]);
 
