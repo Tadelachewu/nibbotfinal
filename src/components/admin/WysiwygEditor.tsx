@@ -11,6 +11,10 @@ import { TextAlign } from '@tiptap/extension-text-align';
 import FontFamily from '@tiptap/extension-font-family';
 import Highlight from '@tiptap/extension-highlight';
 import Image from '@tiptap/extension-image';
+import { Table } from '@tiptap/extension-table';
+import { TableRow } from '@tiptap/extension-table-row';
+import { TableCell } from '@tiptap/extension-table-cell';
+import { TableHeader } from '@tiptap/extension-table-header';
 import { Extension } from '@tiptap/react';
 
 const FontSize = Extension.create({
@@ -81,7 +85,11 @@ import {
   Monitor,
   CaseSensitive,
   Check,
-  X
+  X,
+  Table as TableIcon,
+  Columns,
+  Rows,
+  Trash2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -125,8 +133,8 @@ const TEXT_COLORS = [
   { name: 'Pink', value: '#db2777' },
   { name: 'Purple', value: '#7c3aed' },
   { name: 'Indigo', value: '#4f46e5' },
-  { name: 'Nib Gold', value: '#d4a017' },
-  { name: 'Nib Brown', value: '#5c3a1e' },
+  { name: 'Nib Gold', value: '#f4a61c' },
+  { name: 'Nib Brown', value: '#7a3f16' },
 ];
 
 const HIGHLIGHT_COLORS = [
@@ -401,11 +409,26 @@ const MenuBar = ({ editor }: { editor: any }) => {
     { name: 'Playfair Display', value: '"Playfair Display", serif' },
   ];
 
-  const addImage = () => {
-    const url = window.prompt('URL');
-    if (url) {
-      editor.chain().focus().setImage({ src: url }).run();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64 = event.target?.result as string;
+        editor.chain().focus().setImage({ src: base64 }).run();
+      };
+      reader.readAsDataURL(file);
     }
+    // Reset the input value so the same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const triggerImageUpload = () => {
+    fileInputRef.current?.click();
   };
 
   return (
@@ -616,15 +639,62 @@ const MenuBar = ({ editor }: { editor: any }) => {
 
       <div className="w-px h-6 bg-border mx-1" />
 
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleImageSelect}
+        accept="image/*"
+        className="hidden"
+      />
       <Button
         variant="ghost"
         size="sm"
-        onClick={addImage}
+        onClick={triggerImageUpload}
         className="h-8 w-8 p-0"
-        title="Insert Image"
+        title="Upload Image"
       >
         <ImageIcon size={16} />
       </Button>
+
+      <div className="w-px h-6 bg-border mx-1" />
+
+      {/* Table Dropdown */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Table options">
+            <TableIcon size={16} />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-[200px]">
+          <DropdownMenuItem onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}>
+            <TableIcon className="mr-2 h-4 w-4" /> Insert Table 3x3
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => editor.chain().focus().addColumnBefore().run()} disabled={!editor.can().addColumnBefore()}>
+            <Columns className="mr-2 h-4 w-4" /> Add Column Before
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => editor.chain().focus().addColumnAfter().run()} disabled={!editor.can().addColumnAfter()}>
+            <Columns className="mr-2 h-4 w-4" /> Add Column After
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => editor.chain().focus().deleteColumn().run()} disabled={!editor.can().deleteColumn()} className="text-destructive focus:text-destructive">
+            <Trash2 className="mr-2 h-4 w-4" /> Delete Column
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => editor.chain().focus().addRowBefore().run()} disabled={!editor.can().addRowBefore()}>
+            <Rows className="mr-2 h-4 w-4" /> Add Row Before
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => editor.chain().focus().addRowAfter().run()} disabled={!editor.can().addRowAfter()}>
+            <Rows className="mr-2 h-4 w-4" /> Add Row After
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => editor.chain().focus().deleteRow().run()} disabled={!editor.can().deleteRow()} className="text-destructive focus:text-destructive">
+            <Trash2 className="mr-2 h-4 w-4" /> Delete Row
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => editor.chain().focus().deleteTable().run()} disabled={!editor.can().deleteTable()} className="text-destructive focus:text-destructive font-bold">
+            <Trash2 className="mr-2 h-4 w-4" /> Delete Table
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <div className="w-px h-6 bg-border mx-1" />
 
@@ -726,6 +796,27 @@ export function WysiwygEditor({ value, onChange, title, readOnly }: WysiwygEdito
         allowBase64: true,
         HTMLAttributes: {
           class: 'rounded-xl max-w-full h-auto border-2 border-primary/10 shadow-lg my-4 cursor-pointer hover:scale-[1.01] transition-transform',
+        },
+      }),
+      Table.configure({
+        resizable: true,
+        HTMLAttributes: {
+          class: 'min-w-full border-collapse border border-border my-4 shadow-sm rounded-lg overflow-hidden',
+        },
+      }),
+      TableRow.configure({
+        HTMLAttributes: {
+          class: 'border-b border-border hover:bg-muted/50 transition-colors',
+        },
+      }),
+      TableHeader.configure({
+        HTMLAttributes: {
+          class: 'bg-muted/30 font-bold p-2 text-left border-r border-border last:border-r-0',
+        },
+      }),
+      TableCell.configure({
+        HTMLAttributes: {
+          class: 'p-2 border-r border-border last:border-r-0 align-top',
         },
       }),
       TextAlign.configure({

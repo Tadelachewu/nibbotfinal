@@ -15,6 +15,18 @@ export function LogViewer() {
   const [filter, setFilter] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
+  const toPlainText = (input: string) => {
+    const str = String(input || '');
+    if (!str) return '';
+    if (!str.includes('<')) return str;
+    try {
+      const doc = new DOMParser().parseFromString(str, 'text/html');
+      return String(doc.body.textContent || '').replace(/\s+/g, ' ').trim();
+    } catch {
+      return str.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+  };
+
   const fetchLogs = () => {
     setIsLoading(true);
     (async () => {
@@ -32,13 +44,18 @@ export function LogViewer() {
     fetchLogs();
   }, []);
 
-  const filteredLogs = logs.filter(log =>
-    log.sessionId.toLowerCase().includes(filter.toLowerCase()) ||
-    log.userMessage.toLowerCase().includes(filter.toLowerCase()) ||
-    log.botResponse.toLowerCase().includes(filter.toLowerCase()) ||
-    log.endpoint?.toLowerCase().includes(filter.toLowerCase()) ||
-    log.tags?.some(tag => tag.toLowerCase().includes(filter.toLowerCase()))
-  );
+  const filterLower = filter.toLowerCase();
+  const filteredLogs = logs.filter(log => {
+    const userMsg = toPlainText(log.userMessage || '');
+    const botMsg = toPlainText(log.botResponse || '');
+    return (
+      log.sessionId.toLowerCase().includes(filterLower) ||
+      userMsg.toLowerCase().includes(filterLower) ||
+      botMsg.toLowerCase().includes(filterLower) ||
+      log.endpoint?.toLowerCase().includes(filterLower) ||
+      log.tags?.some(tag => tag.toLowerCase().includes(filterLower))
+    );
+  });
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -111,11 +128,11 @@ export function LogViewer() {
                               {log.endpoint?.split(':').pop()}
                             </Badge>
                             <span className="text-xs font-medium truncate max-w-[300px]" title={log.userMessage}>
-                              {log.userMessage}
+                              {toPlainText(log.userMessage)}
                             </span>
                           </div>
                           <p className="text-[10px] text-muted-foreground line-clamp-1 italic">
-                            Bot: {log.botResponse}
+                            Bot: {toPlainText(log.botResponse)}
                           </p>
                           {(log.status === 'error' || log.status === 'failed') && log.errorDetails && (
                             <p className="text-[10px] text-red-700 line-clamp-2">
