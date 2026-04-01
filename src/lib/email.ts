@@ -33,7 +33,6 @@ export async function sendEmail(opts: MailOptions) {
         // In non-configured environments, log to console for dev visibility
         // and return as success so API can behave non-destructively.
         // DO NOT rely on this in production.
-        // eslint-disable-next-line no-console
         console.info('[email] transporter not configured, skipping send', opts);
         return { ok: true };
     }

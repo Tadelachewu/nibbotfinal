@@ -2,7 +2,7 @@
 'use client';
 
 import { AdminHeader } from '@/components/admin/AdminHeader';
-import { MenuManagement } from '@/components/admin/MenuManagement';
+import { CheckerMenuReview, MenuManagement } from '@/components/admin/MenuManagement';
 import { ReportsManagement } from '@/components/admin/ReportsManagement';
 import { Dashboard } from '@/components/admin/Dashboard';
 import { Toaster } from '@/components/ui/toaster';
@@ -13,11 +13,31 @@ import { LogViewer } from '@/components/admin/LogViewer';
 import { AdminAuthProvider, useAdminAuth } from '@/components/admin/AdminAuthContext';
 import { AdminLoginPage } from '@/components/admin/AdminLoginPage';
 
+function CheckerConsole() {
+  return (
+    <div className="min-h-screen bg-background flex flex-col">
+      <AdminHeader />
+      <main className="flex-1 container mx-auto p-4 md:p-8 space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Checker Console</h2>
+          <p className="text-muted-foreground">Review pending menus and approve or reject changes.</p>
+        </div>
+        <CheckerMenuReview />
+      </main>
+      <Toaster />
+    </div>
+  );
+}
+
 function AdminConsole() {
-  const { isAuthenticated } = useAdminAuth();
+  const { isAuthenticated, currentRole } = useAdminAuth();
 
   if (!isAuthenticated) {
     return <AdminLoginPage />;
+  }
+
+  if (currentRole === 'checker') {
+    return <CheckerConsole />;
   }
 
   return (

@@ -8,8 +8,8 @@ import Underline from '@tiptap/extension-underline';
 import { Color } from '@tiptap/extension-color';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { TextAlign } from '@tiptap/extension-text-align';
-import { Highlight } from '@tiptap/extension-highlight';
 import FontFamily from '@tiptap/extension-font-family';
+import Highlight from '@tiptap/extension-highlight';
 import Image from '@tiptap/extension-image';
 import { Extension } from '@tiptap/react';
 
@@ -67,23 +67,24 @@ import {
   Undo,
   Redo,
   Link as LinkIcon,
-  Palette,
   AlignLeft,
   AlignCenter,
   AlignRight,
   AlignJustify,
   Type,
   Baseline,
+  Highlighter,
   Eraser,
   Minus,
-  Highlighter,
   Image as ImageIcon,
   ChevronDown,
   Monitor,
-  CaseSensitive
+  CaseSensitive,
+  Check,
+  X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -91,22 +92,290 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 
 interface WysiwygEditorProps {
   value: string;
   onChange: (value: string) => void;
   title: string;
+  readOnly?: boolean;
 }
+
+/* ─── Color Picker Panel ────────────────────────────────────────────────────
+ * Rendered inline (NOT in a portal) so it never steals focus from the editor.
+ * Every interactive element uses onMouseDown + preventDefault to keep the
+ * editor's native selection intact.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+const TEXT_COLORS = [
+  { name: 'Default', value: '' },
+  { name: 'Black', value: '#000000' },
+  { name: 'Dark Gray', value: '#374151' },
+  { name: 'Slate', value: '#475569' },
+  { name: 'Gray', value: '#6b7280' },
+  { name: 'Blue', value: '#2563eb' },
+  { name: 'Sky', value: '#0ea5e9' },
+  { name: 'Teal', value: '#14b8a6' },
+  { name: 'Green', value: '#059669' },
+  { name: 'Lime', value: '#65a30d' },
+  { name: 'Yellow', value: '#ca8a04' },
+  { name: 'Amber', value: '#d97706' },
+  { name: 'Orange', value: '#ea580c' },
+  { name: 'Red', value: '#dc2626' },
+  { name: 'Rose', value: '#e11d48' },
+  { name: 'Pink', value: '#db2777' },
+  { name: 'Purple', value: '#7c3aed' },
+  { name: 'Indigo', value: '#4f46e5' },
+  { name: 'Nib Gold', value: '#d4a017' },
+  { name: 'Nib Brown', value: '#5c3a1e' },
+];
+
+const HIGHLIGHT_COLORS = [
+  { name: 'None', value: '' },
+  { name: 'Yellow', value: '#fef08a' },
+  { name: 'Lime', value: '#d9f99d' },
+  { name: 'Green', value: '#bbf7d0' },
+  { name: 'Cyan', value: '#a5f3fc' },
+  { name: 'Blue', value: '#bfdbfe' },
+  { name: 'Purple', value: '#e9d5ff' },
+  { name: 'Pink', value: '#fbcfe8' },
+  { name: 'Rose', value: '#fecdd3' },
+  { name: 'Orange', value: '#fed7aa' },
+  { name: 'Amber', value: '#fde68a' },
+];
+
+interface ColorPanelProps {
+  editor: any;
+  mode: 'text' | 'highlight';
+  onClose: () => void;
+}
+
+function ColorPanel({ editor, mode, onClose }: ColorPanelProps) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [customHex, setCustomHex] = useState('');
+
+  const colors = mode === 'text' ? TEXT_COLORS : HIGHLIGHT_COLORS;
+  const currentColor = mode === 'text'
+    ? editor.getAttributes('textStyle').color || ''
+    : editor.getAttributes('highlight').color || '';
+
+  const applyColor = useCallback((color: string) => {
+    if (mode === 'text') {
+      if (!color) {
+        editor.chain().focus().unsetColor().run();
+      } else {
+        editor.chain().focus().setColor(color).run();
+      }
+    } else {
+      if (!color) {
+        editor.chain().focus().unsetHighlight().run();
+      } else {
+        editor.chain().focus().setHighlight({ color }).run();
+      }
+    }
+  }, [editor, mode]);
+
+  const applyCustomHex = useCallback(() => {
+    const hex = customHex.startsWith('#') ? customHex : `#${customHex}`;
+    if (/^#[0-9a-fA-F]{3,8}$/.test(hex)) {
+      applyColor(hex);
+      setCustomHex('');
+    }
+  }, [customHex, applyColor]);
+
+  // Close on click-outside (mousedown so it fires before focus shift)
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onClose]);
+
+  return (
+    <div
+      ref={panelRef}
+      className="absolute top-full left-0 mt-1 w-[280px] rounded-lg border bg-popover text-popover-foreground shadow-lg z-50 animate-in fade-in-0 zoom-in-95 slide-in-from-top-2"
+      // Prevent the entire panel from stealing focus
+      onMouseDown={(e) => e.preventDefault()}
+    >
+      <div className="p-3 space-y-3">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
+            {mode === 'text' ? 'Text Color' : 'Highlight Color'}
+          </Label>
+          <button
+            type="button"
+            className="h-5 w-5 rounded flex items-center justify-center hover:bg-muted transition-colors"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onClose();
+            }}
+          >
+            <X size={12} className="text-muted-foreground" />
+          </button>
+        </div>
+
+        {/* Color Grid */}
+        <div className="grid grid-cols-5 gap-1.5">
+          {colors.map((c) => {
+            const isActive = c.value
+              ? currentColor?.toLowerCase() === c.value.toLowerCase()
+              : !currentColor;
+
+            return (
+              <button
+                key={c.name}
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  applyColor(c.value);
+                }}
+                className={cn(
+                  "h-7 w-full rounded-md border transition-all flex items-center justify-center group relative",
+                  "hover:scale-110 hover:shadow-md hover:z-10",
+                  isActive
+                    ? "ring-2 ring-primary ring-offset-1 border-primary shadow-sm"
+                    : "border-muted-foreground/20 hover:border-muted-foreground/40"
+                )}
+                style={{
+                  backgroundColor: c.value || (mode === 'text' ? 'white' : 'transparent'),
+                  backgroundImage: !c.value && mode === 'highlight'
+                    ? 'linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%)'
+                    : undefined,
+                  backgroundSize: !c.value && mode === 'highlight' ? '6px 6px' : undefined,
+                  backgroundPosition: !c.value && mode === 'highlight' ? '0 0, 3px 3px' : undefined,
+                }}
+                title={c.name}
+              >
+                {!c.value && mode === 'text' && <Eraser size={10} className="text-muted-foreground" />}
+                {!c.value && mode === 'highlight' && <X size={10} className="text-muted-foreground" />}
+                {isActive && c.value && (
+                  <Check
+                    size={12}
+                    className={cn(
+                      "drop-shadow-sm",
+                      // Use white check on dark colors, dark check on light colors
+                      mode === 'highlight' ? 'text-gray-700' : 'text-white'
+                    )}
+                    strokeWidth={3}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Custom color section */}
+        <div className="pt-2 border-t space-y-2">
+          <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
+            Custom Color
+          </Label>
+          <div className="flex items-center gap-2">
+            {/* Native color picker */}
+            <div className="relative shrink-0">
+              <input
+                type="color"
+                className="w-8 h-8 rounded-md border border-muted-foreground/20 cursor-pointer p-0.5 block"
+                value={currentColor || '#000000'}
+                onMouseDown={(e) => {
+                  // Allow native picker to open but prevent editor blur
+                  e.stopPropagation();
+                }}
+                onChange={(e) => {
+                  applyColor(e.target.value);
+                }}
+                title="Pick a color"
+              />
+            </div>
+            {/* Hex text input */}
+            <div className="flex items-center gap-1 flex-1">
+              <span className="text-xs text-muted-foreground font-mono">#</span>
+              <input
+                type="text"
+                placeholder="hex code"
+                value={customHex.replace('#', '')}
+                className="flex-1 h-7 px-1.5 text-xs font-mono border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                onMouseDown={(e) => {
+                  // Allow typing but stop propagation so panel stays
+                  e.stopPropagation();
+                }}
+                onChange={(e) => setCustomHex(e.target.value.replace('#', ''))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    applyCustomHex();
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className="h-7 px-2 rounded-md bg-primary text-primary-foreground text-[10px] font-bold uppercase hover:bg-primary/90 transition-colors"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  applyCustomHex();
+                }}
+              >
+                Set
+              </button>
+            </div>
+          </div>
+
+
+          {/* Current color display */}
+          {currentColor && (
+            <div className="flex items-center gap-2">
+              <div
+                className="w-4 h-4 rounded-sm border border-muted-foreground/20"
+                style={{ backgroundColor: currentColor }}
+              />
+              <span className="text-[10px] font-mono text-muted-foreground uppercase">
+                {currentColor}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Always-visible Clear button */}
+        <div className="pt-2 border-t">
+          <button
+            type="button"
+            className="w-full h-8 rounded-md border border-destructive/20 bg-destructive/5 text-destructive text-[11px] uppercase font-bold hover:bg-destructive/15 transition-colors flex items-center justify-center gap-1.5"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              applyColor('');
+            }}
+          >
+            <Eraser size={12} />
+            {mode === 'text' ? 'Clear Text Color' : 'Clear Highlight'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+/* ─── Menu Bar ──────────────────────────────────────────────────────────── */
 
 const MenuBar = ({ editor }: { editor: any }) => {
   if (!editor) {
     return null;
   }
+
+  const [colorPanelMode, setColorPanelMode] = useState<'text' | 'highlight' | null>(null);
+
+  const closeColorPanel = useCallback(() => setColorPanelMode(null), []);
+
+  const toggleColorPanel = useCallback((mode: 'text' | 'highlight') => {
+    setColorPanelMode((prev) => (prev === mode ? null : mode));
+  }, []);
 
   const setLink = () => {
     const url = window.prompt('URL');
@@ -114,21 +383,6 @@ const MenuBar = ({ editor }: { editor: any }) => {
       editor.chain().focus().setLink({ href: url }).run();
     }
   };
-
-  const textColors = [
-    { name: 'Logo Brown', value: '#763717' },
-    { name: 'Logo Gold', value: '#F4A61B' },
-    { name: 'Logo White', value: '#FFFFFF' },
-    { name: 'Default', value: 'inherit' },
-    { name: 'Deep Black', value: '#000000' },
-    { name: 'Royal Blue', value: '#2563eb' },
-    { name: 'Emerald Green', value: '#059669' },
-    { name: 'Vibrant Red', value: '#dc2626' },
-    { name: 'Amethyst Purple', value: '#7c3aed' },
-    { name: 'Slate Gray', value: '#475569' },
-    { name: 'Terracotta', value: '#c2410c' },
-    { name: 'Teal', value: '#0d9488' },
-  ];
 
   const fontSizes = [
     '12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px', '48px', '64px'
@@ -145,20 +399,6 @@ const MenuBar = ({ editor }: { editor: any }) => {
     { name: 'Montserrat', value: 'Montserrat, sans-serif' },
     { name: 'Oswald', value: 'Oswald, sans-serif' },
     { name: 'Playfair Display', value: '"Playfair Display", serif' },
-  ];
-
-  const highlightColors = [
-    { name: 'Logo Gold', value: '#F4A61B' },
-    { name: 'Logo Brown', value: '#763717' },
-    { name: 'Logo White', value: '#FFFFFF' },
-    { name: 'Nib Gold Glow', value: '#fef3c7' },
-    { name: 'Soft Mint', value: '#dcfce7' },
-    { name: 'Sky Blue', value: '#dbeafe' },
-    { name: 'Rose Petal', value: '#ffe4e6' },
-    { name: 'Lavender', value: '#f3e8ff' },
-    { name: 'Orange Peel', value: '#ffedd5' },
-    { name: 'Cyan Breeze', value: '#cffafe' },
-    { name: 'Lime Zest', value: '#f0fdf4' },
   ];
 
   const addImage = () => {
@@ -290,216 +530,62 @@ const MenuBar = ({ editor }: { editor: any }) => {
         <UnderlineIcon size={16} />
       </Button>
 
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0"
-            title="Text Color"
-          >
-            <div className="relative flex items-center justify-center">
-              <Baseline size={16} />
-              <div
-                className="absolute -bottom-1 left-0 right-1 h-0.5 rounded-full"
-                style={{
-                  backgroundColor: editor.getAttributes('textStyle').color || 'transparent',
-                  opacity: editor.getAttributes('textStyle').color ? 1 : 0
-                }}
-              />
-            </div>
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent 
-          className="w-64 p-3" 
-          align="start" 
-          onFocusCapture={(e) => e.preventDefault()}
-          onOpenAutoFocus={(e) => e.preventDefault()}
-          onCloseAutoFocus={(e) => e.preventDefault()}
-          onMouseDown={(e) => e.preventDefault()}
+      {/* ── Text Color Button ────────────────────────────────── */}
+      <div className="relative">
+        <Button
+          variant="ghost"
+          size="sm"
+          className={cn("h-8 w-8 p-0", colorPanelMode === 'text' && "bg-accent")}
+          title="Text Color"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleColorPanel('text');
+          }}
         >
-          <div className="space-y-4">
-            <div>
-              <Label className="text-[10px] uppercase font-bold text-muted-foreground mb-2 block tracking-wider">Brand Palette</Label>
-              <div className="grid grid-cols-4 gap-2">
-                {textColors.slice(0, 4).map((c) => {
-                  const isInherit = c.value === 'inherit';
-                  const currentColor = editor.getAttributes('textStyle').color;
-                  const isActive = isInherit
-                    ? !currentColor
-                    : currentColor?.toLowerCase() === c.value.toLowerCase();
-
-                  return (
-                    <button
-                      key={c.value}
-                      type="button"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        if (isInherit) {
-                          editor.chain().focus().unsetColor().run();
-                        } else {
-                          editor.chain().focus().setColor(c.value).run();
-                        }
-                      }}
-                      className={cn(
-                        "h-8 w-full rounded border border-muted hover:scale-105 transition-all shadow-sm relative flex items-center justify-center",
-                        isActive && "ring-2 ring-primary ring-offset-1 z-10"
-                      )}
-                      style={{ backgroundColor: isInherit ? 'white' : c.value }}
-                      title={c.name}
-                    >
-                      {isInherit && <Eraser size={10} className="text-muted-foreground" />}
-                      {isActive && <div className={cn("w-1.5 h-1.5 rounded-full", c.value.toLowerCase() === '#ffffff' ? "bg-black" : "bg-white")} />}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div>
-              <Label className="text-[10px] uppercase font-bold text-muted-foreground mb-2 block tracking-wider">Accent Colors</Label>
-              <div className="grid grid-cols-4 gap-2">
-                {textColors.slice(4).map((c) => {
-                  const currentColor = editor.getAttributes('textStyle').color;
-                  const isActive = currentColor?.toLowerCase() === c.value.toLowerCase();
-
-                  return (
-                    <button
-                      key={c.value}
-                      type="button"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        editor.chain().focus().setColor(c.value).run();
-                      }}
-                      className={cn(
-                        "h-8 w-full rounded border border-muted hover:scale-105 transition-all shadow-sm flex items-center justify-center",
-                        isActive && "ring-2 ring-primary ring-offset-1 z-10"
-                      )}
-                      style={{ backgroundColor: c.value }}
-                      title={c.name}
-                    >
-                      {isActive && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="pt-3 border-t">
-              <div className="flex items-center gap-2 mb-3">
-                <input
-                  type="color"
-                  className="w-8 h-8 rounded border cursor-pointer bg-white p-0.5 shrink-0"
-                  onInput={(e: any) => editor.chain().focus().setColor(e.target.value).run()}
-                  value={editor.getAttributes('textStyle').color || '#000000'}
-                  title="Custom Hex Color"
-                />
-                <div className="flex flex-col">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase leading-tight">Pick a custom</span>
-                  <span className="text-[10px] font-medium text-muted-foreground/60 uppercase leading-tight">Hex code</span>
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full h-8 text-[10px] uppercase font-black text-destructive border-destructive/10 hover:bg-destructive/10 hover:text-destructive flex items-center justify-center gap-2"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  editor.chain().focus().unsetColor().run();
-                }}
-              >
-                Clear Text Color
-              </Button>
-            </div>
+          <div className="relative flex items-center justify-center">
+            <Baseline size={16} />
+            <div
+              className="absolute -bottom-1 left-0 right-0 h-1 rounded-full"
+              style={{
+                backgroundColor: editor.getAttributes('textStyle').color || '#000000',
+              }}
+            />
           </div>
-        </PopoverContent>
-      </Popover>
+        </Button>
+        {colorPanelMode === 'text' && (
+          <ColorPanel editor={editor} mode="text" onClose={closeColorPanel} />
+        )}
+      </div>
 
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0"
-            title="Highlight Color"
-          >
-            <div className="relative flex items-center justify-center">
-              <Highlighter size={16} />
-              <div
-                className="absolute -bottom-1 left-0 right-1 h-0.5 rounded-full"
-                style={{
-                  backgroundColor: editor.getAttributes('highlight').color || 'transparent',
-                  opacity: editor.getAttributes('highlight').color ? 1 : 0
-                }}
-              />
-            </div>
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent 
-          className="w-64 p-3" 
-          align="start" 
-          onFocusCapture={(e) => e.preventDefault()}
-          onOpenAutoFocus={(e) => e.preventDefault()}
-          onCloseAutoFocus={(e) => e.preventDefault()}
-          onMouseDown={(e) => e.preventDefault()}
+      {/* ── Highlight Color Button ───────────────────────────── */}
+      <div className="relative">
+        <Button
+          variant="ghost"
+          size="sm"
+          className={cn("h-8 w-8 p-0", colorPanelMode === 'highlight' && "bg-accent")}
+          title="Highlight Color"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleColorPanel('highlight');
+          }}
         >
-          <div className="space-y-4">
-            <div>
-              <Label className="text-[10px] uppercase font-bold text-muted-foreground mb-2 block tracking-wider">Highlight Tones</Label>
-              <div className="grid grid-cols-4 gap-2">
-                {highlightColors.map((c) => {
-                  const isActive = editor.isActive('highlight', { color: c.value });
-                  return (
-                    <button
-                      key={c.value}
-                      type="button"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        editor.chain().focus().toggleHighlight({ color: c.value }).run();
-                      }}
-                      className={cn(
-                        "h-8 w-full rounded border border-muted hover:scale-105 transition-all shadow-sm flex items-center justify-center",
-                        isActive && "ring-2 ring-primary ring-offset-1 z-10"
-                      )}
-                      style={{ backgroundColor: c.value }}
-                      title={c.name}
-                    >
-                      {isActive && <div className={cn("w-1.5 h-1.5 rounded-full", c.value.toLowerCase() === '#763717' ? "bg-white" : "bg-black/50")} />}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="pt-3 border-t">
-              <div className="flex items-center gap-2 mb-3">
-                <input
-                  type="color"
-                  className="w-8 h-8 rounded border cursor-pointer bg-white p-0.5 shrink-0"
-                  onInput={(e: any) => editor.chain().focus().toggleHighlight({ color: e.target.value }).run()}
-                  value={editor.getAttributes('highlight').color || '#ffff00'}
-                  title="Custom Highlight Color"
-                />
-                <div className="flex flex-col">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase leading-tight">Custom Gloss</span>
-                  <span className="text-[10px] font-medium text-muted-foreground/60 uppercase leading-tight">Highlight picker</span>
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full h-8 text-[10px] uppercase font-black text-destructive border-destructive/10 hover:bg-destructive/10 hover:text-destructive flex items-center justify-center gap-2"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  editor.chain().focus().unsetHighlight().run();
-                }}
-              >
-                Remove Highlight
-              </Button>
-            </div>
+          <div className="relative flex items-center justify-center">
+            <Highlighter size={16} />
+            <div
+              className="absolute -bottom-1 left-0 right-0 h-1 rounded-full"
+              style={{
+                backgroundColor: editor.getAttributes('highlight').color || 'transparent',
+                opacity: editor.getAttributes('highlight').color ? 1 : 0,
+              }}
+            />
           </div>
-        </PopoverContent>
-      </Popover>
+        </Button>
+        {colorPanelMode === 'highlight' && (
+          <ColorPanel editor={editor} mode="highlight" onClose={closeColorPanel} />
+        )}
+      </div>
 
       <div className="w-px h-6 bg-border mx-1" />
 
@@ -621,18 +707,18 @@ const MenuBar = ({ editor }: { editor: any }) => {
   );
 };
 
-export function WysiwygEditor({ value, onChange, title }: WysiwygEditorProps) {
+export function WysiwygEditor({ value, onChange, title, readOnly }: WysiwygEditorProps) {
   const editor = useEditor({
     extensions: [
       TextStyle,
-      Color.configure({ types: ['textStyle', 'heading', 'paragraph', 'listItem', 'blockquote'] }),
+      Color.configure({ types: ['textStyle'] }),
+      Highlight.configure({ multicolor: true }),
       StarterKit.configure({
         heading: {
           levels: [1, 2, 3, 4, 5, 6],
         },
       }),
       Underline,
-      Highlight.configure({ multicolor: true }),
       FontFamily,
       FontSize.configure({ types: ['textStyle', 'heading', 'paragraph', 'listItem', 'blockquote'] }),
       Image.configure({
@@ -654,8 +740,9 @@ export function WysiwygEditor({ value, onChange, title }: WysiwygEditorProps) {
     ],
     content: value,
     onUpdate: ({ editor }) => {
-      onChange(editor.getHTML());
+      if (!readOnly) onChange(editor.getHTML());
     },
+    editable: !readOnly,
     editorProps: {
       attributes: {
         class: 'wysiwyg-content focus:outline-none min-h-[150px] max-h-[400px] overflow-y-auto p-4 bg-white',
@@ -677,7 +764,7 @@ export function WysiwygEditor({ value, onChange, title }: WysiwygEditorProps) {
 
   return (
     <div className="border rounded-xl overflow-hidden bg-white shadow-sm ring-1 ring-border mt-1 transition-all focus-within:ring-primary/50 focus-within:border-primary">
-      <MenuBar editor={editor} />
+      {!readOnly && <MenuBar editor={editor} />}
       <EditorContent editor={editor} />
       <div className="flex items-center justify-between px-3 py-1.5 bg-muted/5 border-t text-[10px] text-muted-foreground">
         <span className="font-bold uppercase tracking-wider">{title} Editor</span>
@@ -688,4 +775,5 @@ export function WysiwygEditor({ value, onChange, title }: WysiwygEditorProps) {
     </div>
   );
 }
+
 

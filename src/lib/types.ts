@@ -34,14 +34,14 @@ export interface ApiConfig {
   authConfig?: {
     type: AuthType;
     apiKey?: { header: string; value: string };
-    basicAuth?: { 
+    basicAuth?: {
       header?: string;
-      user?: string; 
+      user?: string;
       pass?: string;
     };
-    bearer?: { 
+    bearer?: {
       header?: string;
-      template: string; 
+      template: string;
     };
   };
   timeout: number;
@@ -90,6 +90,23 @@ export interface AppSettings {
   reportId?: ReportIdConfig;
 }
 
+export type MenuApprovalStatus = 'pending' | 'approved' | 'rejected';
+
+export type MenuUpdatePayload = {
+  parentId?: string | null;
+  name?: string;
+  nameAm?: string | null;
+  responseType?: 'static' | 'api' | 'report';
+  content?: string | null;
+  contentAm?: string | null;
+  apiConfig?: ApiConfig | null;
+  order?: number;
+  isActive?: boolean;
+  trackClicks?: boolean;
+  translations?: MenuItem['translations'] | null;
+  attachedMenuIds?: string[] | null;
+};
+
 export interface MenuItem {
   id: string;
   parentId: string | null;
@@ -101,6 +118,17 @@ export interface MenuItem {
   apiConfig?: ApiConfig; // For API or Report fields
   order: number;
   isActive?: boolean;
+  approvalStatus?: MenuApprovalStatus;
+  createdBy?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  rejectionReason?: string;
+  pendingUpdate?: MenuUpdatePayload;
+  pendingStatus?: MenuApprovalStatus;
+  pendingCreatedBy?: string;
+  pendingReviewedBy?: string;
+  pendingReviewedAt?: string;
+  pendingRejectionReason?: string;
   attachedMenuIds?: string[];
   trackClicks?: boolean;
   clickCount?: number;

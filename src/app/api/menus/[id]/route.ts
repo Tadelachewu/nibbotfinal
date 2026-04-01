@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 
 import { getValidatedAdminSession, rotateCsrfToken, verifyCsrfToken } from '@/lib/session';
@@ -116,6 +117,11 @@ function buildMenuResponse(menu: any) {
     }
     : undefined;
 
+  const pendingUpdate =
+    menu.pendingUpdate && typeof menu.pendingUpdate === 'object'
+      ? (menu.pendingUpdate as Record<string, any>)
+      : undefined;
+
   return {
     id: menu.id,
     parentId: menu.parentId ?? null,
@@ -127,12 +133,225 @@ function buildMenuResponse(menu: any) {
     apiConfig,
     order: menu.order,
     isActive: typeof menu.isActive === 'boolean' ? menu.isActive : true,
+    approvalStatus: menu.approvalStatus ?? 'approved',
+    createdBy: typeof menu.createdBy === 'string' ? menu.createdBy : undefined,
+    reviewedBy: typeof menu.reviewedBy === 'string' ? menu.reviewedBy : undefined,
+    reviewedAt: menu.reviewedAt ? new Date(menu.reviewedAt).toISOString() : undefined,
+    rejectionReason: typeof menu.rejectionReason === 'string' ? menu.rejectionReason : undefined,
+    pendingUpdate,
+    pendingStatus: typeof menu.pendingStatus === 'string' ? menu.pendingStatus : undefined,
+    pendingCreatedBy: typeof menu.pendingCreatedBy === 'string' ? menu.pendingCreatedBy : undefined,
+    pendingReviewedBy: typeof menu.pendingReviewedBy === 'string' ? menu.pendingReviewedBy : undefined,
+    pendingReviewedAt: menu.pendingReviewedAt ? new Date(menu.pendingReviewedAt).toISOString() : undefined,
+    pendingRejectionReason: typeof menu.pendingRejectionReason === 'string' ? menu.pendingRejectionReason : undefined,
     attachedMenuIds,
     trackClicks: Boolean(menu.trackClicks),
     clickCount: menu.clickCount ?? 0,
     sessionClickCount: menu.sessionClickCount ?? 0,
     translations: (menu.translations as any) ?? undefined
   };
+}
+
+export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const session = await getValidatedAdminSession();
+  if (!session?.username) {
+    return NextResponse.json({ status: 'error', message: 'Unauthorized.' }, { status: 401 });
+  }
+  if (!verifyCsrfToken(req, session, { requireToken: true })) {
+    return NextResponse.json({ status: 'error', message: 'Forbidden.' }, { status: 403 });
+  }
+
+  const { id } = await ctx.params;
+  const body = await req.json().catch(() => null);
+  const action = typeof body?.action === 'string' ? body.action.trim() : '';
+  if (action !== 'approve' && action !== 'reject') {
+    return NextResponse.json({ status: 'error', message: 'Invalid action.' }, { status: 400 });
+  }
+
+  const actor = await prisma.adminCredential.findUnique({ where: { username: session.username } });
+  if (!actor || actor.role !== 'checker') {
+    return NextResponse.json({ status: 'error', message: 'Forbidden.' }, { status: 403 });
+  }
+
+  const existing = await prisma.menuItem.findUnique({
+    where: { id },
+    include: { attachments: true, kycMappings: { include: { kyc: true } } }
+  });
+  if (!existing) {
+    return NextResponse.json({ status: 'error', message: 'Not found.' }, { status: 404 });
+  }
+  const isNewMenuPending = existing.approvalStatus === 'pending';
+  const isUpdatePending = existing.pendingStatus === 'pending' || existing.pendingStatus === 'rejected';
+  if (!isNewMenuPending && !isUpdatePending) {
+    return NextResponse.json({ status: 'error', message: 'Menu is not pending approval.' }, { status: 409 });
+  }
+
+  const makerUsername = isNewMenuPending ? existing.createdBy : existing.pendingCreatedBy;
+  if (typeof makerUsername === 'string' && makerUsername === session.username) {
+    return NextResponse.json({ status: 'error', message: 'Maker cannot approve their own menu.' }, { status: 403 });
+  }
+
+  const reviewedAt = new Date();
+  if (isNewMenuPending) {
+    const data: any = { reviewedBy: session.username, reviewedAt };
+    if (action === 'approve') {
+      data.approvalStatus = 'approved';
+      data.rejectionReason = null;
+    } else {
+      const reason = typeof body?.reason === 'string' ? body.reason.trim() : '';
+      if (!reason) {
+        return NextResponse.json({ status: 'error', message: 'Rejection reason is required.' }, { status: 400 });
+      }
+      data.approvalStatus = 'rejected';
+      data.rejectionReason = reason;
+    }
+    await prisma.menuItem.update({ where: { id }, data });
+  } else {
+    if (action === 'approve') {
+      const pendingUpdate =
+        existing.pendingUpdate && typeof existing.pendingUpdate === 'object'
+          ? (existing.pendingUpdate as Record<string, any>)
+          : null;
+      if (!pendingUpdate) {
+        return NextResponse.json({ status: 'error', message: 'No pending update to approve.' }, { status: 409 });
+      }
+
+      const attachedMenuIds: string[] = Array.isArray(pendingUpdate.attachedMenuIds)
+        ? pendingUpdate.attachedMenuIds
+        : [];
+
+      const pendingApiConfigRaw =
+        pendingUpdate.apiConfig && typeof pendingUpdate.apiConfig === 'object'
+          ? (pendingUpdate.apiConfig as Record<string, any>)
+          : null;
+
+      const kycFields: any[] = Array.isArray(pendingApiConfigRaw?.kycFields) ? pendingApiConfigRaw!.kycFields : [];
+
+      const pendingApiConfig = pendingApiConfigRaw
+        ? (() => {
+          const { kycFields: _omit, rootKey, ...rest } = pendingApiConfigRaw;
+          const normalizedRootKey = typeof rootKey === 'string' && rootKey.trim() ? rootKey.trim() : 'data';
+          return normalizeApiConfig({ ...rest, rootKey: normalizedRootKey });
+        })()
+        : undefined;
+
+      if (pendingApiConfig?.endpoint && pendingUpdate.responseType === 'api') {
+        const kycNames = Array.isArray(kycFields) ? kycFields.map(f => f?.name).filter(Boolean) : [];
+        const validation = validateEndpointTemplate(String(pendingApiConfig.endpoint), kycNames);
+        if (!validation.ok) {
+          const parts: string[] = [];
+          if (validation.invalid.length) parts.push(`Invalid placeholders: ${validation.invalid.join(', ')}`);
+          if (validation.missingKyc.length) parts.push(`Missing KYC fields: ${validation.missingKyc.join(', ')}`);
+          return NextResponse.json({ status: 'error', message: `Endpoint template invalid. ${parts.join('. ')}` }, { status: 400 });
+        }
+      }
+
+      await prisma.menuItem.update({
+        where: { id },
+        data: {
+          ...(() => {
+            if (!Object.prototype.hasOwnProperty.call(pendingUpdate, 'parentId')) return {};
+            if (typeof pendingUpdate.parentId === 'string' && pendingUpdate.parentId.trim()) {
+              return { parent: { connect: { id: pendingUpdate.parentId.trim() } } };
+            }
+            return { parent: { disconnect: true } };
+          })(),
+          name: pendingUpdate.name ?? undefined,
+          nameAm: Object.prototype.hasOwnProperty.call(pendingUpdate, 'nameAm') ? (pendingUpdate.nameAm ?? null) : undefined,
+          responseType: pendingUpdate.responseType ?? undefined,
+          content: Object.prototype.hasOwnProperty.call(pendingUpdate, 'content') ? (pendingUpdate.content ?? null) : undefined,
+          contentAm: Object.prototype.hasOwnProperty.call(pendingUpdate, 'contentAm') ? (pendingUpdate.contentAm ?? null) : undefined,
+          apiConfig: Object.prototype.hasOwnProperty.call(pendingUpdate, 'apiConfig')
+            ? (pendingApiConfig ?? null)
+            : undefined,
+          order: Number.isFinite(pendingUpdate.order) ? pendingUpdate.order : undefined,
+          isActive: typeof pendingUpdate.isActive === 'boolean' ? pendingUpdate.isActive : undefined,
+          trackClicks: typeof pendingUpdate.trackClicks === 'boolean' ? pendingUpdate.trackClicks : undefined,
+          translations: Object.prototype.hasOwnProperty.call(pendingUpdate, 'translations') ? (pendingUpdate.translations ?? null) : undefined,
+          pendingUpdate: Prisma.DbNull,
+          pendingStatus: null,
+          pendingCreatedBy: null,
+          pendingReviewedBy: session.username,
+          pendingReviewedAt: reviewedAt,
+          pendingRejectionReason: null
+        }
+      });
+
+      await prisma.menuAttachment.deleteMany({ where: { menuId: id } });
+      if (attachedMenuIds.length) {
+        await prisma.menuAttachment.createMany({
+          data: attachedMenuIds.map(attachedMenuId => ({ menuId: id, attachedMenuId })),
+          skipDuplicates: true
+        });
+      }
+
+      if (Array.isArray(pendingApiConfigRaw?.kycFields)) {
+        for (const field of kycFields) {
+          if (!field?.id || !field?.name || !field?.prompt || !field?.type) continue;
+          await prisma.kYCField.upsert({
+            where: { id: field.id },
+            create: {
+              id: field.id,
+              name: field.name,
+              prompt: field.prompt,
+              promptAm: field.promptAm ?? null,
+              type: field.type,
+              validation: field.validation ?? null,
+              order: Number.isFinite(field.order) ? field.order : 0,
+              required: Boolean(field.required)
+            },
+            update: {
+              name: field.name,
+              prompt: field.prompt,
+              promptAm: field.promptAm ?? null,
+              type: field.type,
+              validation: field.validation ?? null,
+              order: Number.isFinite(field.order) ? field.order : 0,
+              required: Boolean(field.required)
+            }
+          });
+        }
+
+        await prisma.menuKYC.deleteMany({ where: { menuId: id } });
+        if (kycFields.length) {
+          await prisma.menuKYC.createMany({
+            data: kycFields
+              .filter(f => f?.id)
+              .map((f, idx) => ({
+                menuId: id,
+                kycId: f.id,
+                order: Number.isFinite(f.order) ? f.order : idx
+              })),
+            skipDuplicates: true
+          });
+        }
+      }
+    } else {
+      const reason = typeof body?.reason === 'string' ? body.reason.trim() : '';
+      if (!reason) {
+        return NextResponse.json({ status: 'error', message: 'Rejection reason is required.' }, { status: 400 });
+      }
+      await prisma.menuItem.update({
+        where: { id },
+        data: {
+          pendingStatus: 'rejected',
+          pendingReviewedBy: session.username,
+          pendingReviewedAt: reviewedAt,
+          pendingRejectionReason: reason
+        }
+      });
+    }
+  }
+
+  const updated = await prisma.menuItem.findUnique({
+    where: { id },
+    include: { attachments: true, kycMappings: { include: { kyc: true } } }
+  });
+
+  const nextToken = await rotateCsrfToken(session);
+  const res = NextResponse.json({ status: 'success', data: updated ? buildMenuResponse(updated) : null });
+  res.headers.set('x-csrf-token', nextToken);
+  return res;
 }
 
 export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -144,10 +363,27 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
     return NextResponse.json({ status: 'error', message: 'Forbidden.' }, { status: 403 });
   }
 
+  if (session.username) {
+    const actor = await prisma.adminCredential.findUnique({ where: { username: session.username } });
+    if (!actor || actor.role !== 'admin') {
+      return NextResponse.json({ status: 'error', message: 'Forbidden.' }, { status: 403 });
+    }
+  } else {
+    return NextResponse.json({ status: 'error', message: 'Unauthorized.' }, { status: 401 });
+  }
+
   const { id } = await ctx.params;
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== 'object') {
     return NextResponse.json({ status: 'error', message: 'Invalid request body.' }, { status: 400 });
+  }
+
+  const existing = await prisma.menuItem.findUnique({
+    where: { id },
+    select: { id: true, approvalStatus: true, pendingStatus: true }
+  });
+  if (!existing) {
+    return NextResponse.json({ status: 'error', message: 'Not found.' }, { status: 404 });
   }
 
   const attachedMenuIds: string[] = Array.isArray(body.attachedMenuIds) ? body.attachedMenuIds : [];
@@ -171,78 +407,109 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
     }
   }
 
-  await prisma.menuItem.update({
-    where: { id },
-    data: {
-      ...(() => {
-        if (!Object.prototype.hasOwnProperty.call(body, 'parentId')) return {};
-        if (typeof body.parentId === 'string' && body.parentId.trim()) {
-          return { parent: { connect: { id: body.parentId.trim() } } };
-        }
-        return { parent: { disconnect: true } };
-      })(),
+  if (existing.approvalStatus === 'approved') {
+    const pendingUpdate = {
+      parentId: Object.prototype.hasOwnProperty.call(body, 'parentId')
+        ? (typeof body.parentId === 'string' && body.parentId.trim() ? body.parentId.trim() : null)
+        : undefined,
       name: body.name ?? undefined,
-      nameAm: body.nameAm ?? null,
+      nameAm: Object.prototype.hasOwnProperty.call(body, 'nameAm') ? (body.nameAm ?? null) : undefined,
       responseType: body.responseType ?? undefined,
-      content: body.content ?? null,
-      contentAm: body.contentAm ?? null,
-      apiConfig: apiConfig ?? null,
+      content: Object.prototype.hasOwnProperty.call(body, 'content') ? (body.content ?? null) : undefined,
+      contentAm: Object.prototype.hasOwnProperty.call(body, 'contentAm') ? (body.contentAm ?? null) : undefined,
+      apiConfig: Object.prototype.hasOwnProperty.call(body, 'apiConfig') ? (apiConfig ? { ...(apiConfig as any), kycFields } : null) : undefined,
       order: Number.isFinite(body.order) ? body.order : undefined,
       isActive: typeof body.isActive === 'boolean' ? body.isActive : undefined,
       trackClicks: typeof body.trackClicks === 'boolean' ? body.trackClicks : undefined,
-      clickCount: Number.isFinite(body.clickCount) ? body.clickCount : undefined,
-      sessionClickCount: Number.isFinite(body.sessionClickCount) ? body.sessionClickCount : undefined,
-      translations: body.translations ?? null
-    }
-  });
+      translations: Object.prototype.hasOwnProperty.call(body, 'translations') ? (body.translations ?? null) : undefined,
+      attachedMenuIds: Object.prototype.hasOwnProperty.call(body, 'attachedMenuIds') ? attachedMenuIds : undefined
+    };
 
-  await prisma.menuAttachment.deleteMany({ where: { menuId: id } });
-  if (attachedMenuIds.length) {
-    await prisma.menuAttachment.createMany({
-      data: attachedMenuIds.map(attachedMenuId => ({ menuId: id, attachedMenuId })),
-      skipDuplicates: true
+    await prisma.menuItem.update({
+      where: { id },
+      data: {
+        pendingUpdate,
+        pendingStatus: 'pending',
+        pendingCreatedBy: session.username ?? null,
+        pendingReviewedBy: null,
+        pendingReviewedAt: null,
+        pendingRejectionReason: null
+      }
     });
-  }
+  } else {
+    await prisma.menuItem.update({
+      where: { id },
+      data: {
+        ...(() => {
+          if (!Object.prototype.hasOwnProperty.call(body, 'parentId')) return {};
+          if (typeof body.parentId === 'string' && body.parentId.trim()) {
+            return { parent: { connect: { id: body.parentId.trim() } } };
+          }
+          return { parent: { disconnect: true } };
+        })(),
+        name: body.name ?? undefined,
+        nameAm: body.nameAm ?? null,
+        responseType: body.responseType ?? undefined,
+        content: body.content ?? null,
+        contentAm: body.contentAm ?? null,
+        apiConfig: apiConfig ?? null,
+        order: Number.isFinite(body.order) ? body.order : undefined,
+        isActive: typeof body.isActive === 'boolean' ? body.isActive : undefined,
+        trackClicks: typeof body.trackClicks === 'boolean' ? body.trackClicks : undefined,
+        clickCount: Number.isFinite(body.clickCount) ? body.clickCount : undefined,
+        sessionClickCount: Number.isFinite(body.sessionClickCount) ? body.sessionClickCount : undefined,
+        translations: body.translations ?? null
+      }
+    });
 
-  if (Array.isArray(body.apiConfig?.kycFields)) {
-    for (const field of kycFields) {
-      if (!field?.id || !field?.name || !field?.prompt || !field?.type) continue;
-      await prisma.kYCField.upsert({
-        where: { id: field.id },
-        create: {
-          id: field.id,
-          name: field.name,
-          prompt: field.prompt,
-          promptAm: field.promptAm ?? null,
-          type: field.type,
-          validation: field.validation ?? null,
-          order: Number.isFinite(field.order) ? field.order : 0,
-          required: Boolean(field.required)
-        },
-        update: {
-          name: field.name,
-          prompt: field.prompt,
-          promptAm: field.promptAm ?? null,
-          type: field.type,
-          validation: field.validation ?? null,
-          order: Number.isFinite(field.order) ? field.order : 0,
-          required: Boolean(field.required)
-        }
-      });
-    }
-
-    await prisma.menuKYC.deleteMany({ where: { menuId: id } });
-    if (kycFields.length) {
-      await prisma.menuKYC.createMany({
-        data: kycFields
-          .filter(f => f?.id)
-          .map((f, idx) => ({
-            menuId: id,
-            kycId: f.id,
-            order: Number.isFinite(f.order) ? f.order : idx
-          })),
+    await prisma.menuAttachment.deleteMany({ where: { menuId: id } });
+    if (attachedMenuIds.length) {
+      await prisma.menuAttachment.createMany({
+        data: attachedMenuIds.map(attachedMenuId => ({ menuId: id, attachedMenuId })),
         skipDuplicates: true
       });
+    }
+
+    if (Array.isArray(body.apiConfig?.kycFields)) {
+      for (const field of kycFields) {
+        if (!field?.id || !field?.name || !field?.prompt || !field?.type) continue;
+        await prisma.kYCField.upsert({
+          where: { id: field.id },
+          create: {
+            id: field.id,
+            name: field.name,
+            prompt: field.prompt,
+            promptAm: field.promptAm ?? null,
+            type: field.type,
+            validation: field.validation ?? null,
+            order: Number.isFinite(field.order) ? field.order : 0,
+            required: Boolean(field.required)
+          },
+          update: {
+            name: field.name,
+            prompt: field.prompt,
+            promptAm: field.promptAm ?? null,
+            type: field.type,
+            validation: field.validation ?? null,
+            order: Number.isFinite(field.order) ? field.order : 0,
+            required: Boolean(field.required)
+          }
+        });
+      }
+
+      await prisma.menuKYC.deleteMany({ where: { menuId: id } });
+      if (kycFields.length) {
+        await prisma.menuKYC.createMany({
+          data: kycFields
+            .filter(f => f?.id)
+            .map((f, idx) => ({
+              menuId: id,
+              kycId: f.id,
+              order: Number.isFinite(f.order) ? f.order : idx
+            })),
+          skipDuplicates: true
+        });
+      }
     }
   }
 
@@ -264,6 +531,15 @@ export async function DELETE(_: Request, ctx: { params: Promise<{ id: string }> 
   }
   if (!verifyCsrfToken(_, session, { requireToken: true })) {
     return NextResponse.json({ status: 'error', message: 'Forbidden.' }, { status: 403 });
+  }
+
+  if (session.username) {
+    const actor = await prisma.adminCredential.findUnique({ where: { username: session.username } });
+    if (!actor || actor.role !== 'admin') {
+      return NextResponse.json({ status: 'error', message: 'Forbidden.' }, { status: 403 });
+    }
+  } else {
+    return NextResponse.json({ status: 'error', message: 'Unauthorized.' }, { status: 401 });
   }
 
   const { id } = await ctx.params;

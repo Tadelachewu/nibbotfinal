@@ -89,7 +89,7 @@ import {
 } from "@/components/ui/tooltip";
 
 export function MenuManagement() {
-  const { csrfFetch } = useAdminAuth();
+  const { csrfFetch, currentRole, currentUsername } = useAdminAuth();
   const [menus, setMenus] = useState<MenuItem[]>([]);
   const [settings, setSettings] = useState<AppSettings>({ supportedLanguages: [] });
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -97,6 +97,8 @@ export function MenuManagement() {
   const [expandedBrowserFolders, setExpandedBrowserFolders] = useState<Set<string>>(new Set(['root']));
   const [editForm, setEditForm] = useState<Partial<MenuItem>>({});
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState<string>('');
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -140,6 +142,42 @@ export function MenuManagement() {
     })();
   };
 
+  const handleApprove = async (id: string) => {
+    try {
+      const res = await csrfFetch(`/api/menus/${encodeURIComponent(id)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'approve' })
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || json?.status === 'error') {
+        throw new Error(json?.message || 'Approval failed.');
+      }
+      refresh();
+      toast({ title: "Approved", description: "Menu approved successfully." });
+    } catch {
+      toast({ title: "Error", description: "Could not approve menu.", variant: "destructive" });
+    }
+  };
+
+  const handleReject = async (id: string, reason: string) => {
+    try {
+      const res = await csrfFetch(`/api/menus/${encodeURIComponent(id)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reject', reason })
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || json?.status === 'error') {
+        throw new Error(json?.message || 'Rejection failed.');
+      }
+      refresh();
+      toast({ title: "Rejected", description: "Menu rejected." });
+    } catch {
+      toast({ title: "Error", description: "Could not reject menu.", variant: "destructive" });
+    }
+  };
+
   const handleAdd = (parentId: string | null = null) => {
     (async () => {
       try {
@@ -179,7 +217,10 @@ export function MenuManagement() {
     setApiPreviewResult(null);
     setSentHeaders(null);
     setSentBody(null);
-    setEditForm(JSON.parse(JSON.stringify(menu)));
+    const cloned = JSON.parse(JSON.stringify(menu));
+    const hasPending = (menu.pendingStatus === 'pending' || menu.pendingStatus === 'rejected') && menu.pendingUpdate && typeof menu.pendingUpdate === 'object';
+    const merged = hasPending ? { ...cloned, ...(menu.pendingUpdate as any) } : cloned;
+    setEditForm(merged);
     setIsEditDialogOpen(true);
   };
 
@@ -396,10 +437,12 @@ export function MenuManagement() {
   const renderTree = (parentId: string | null = null, level = 0) => {
     const items = menus.filter(m => m.parentId === parentId).sort((a, b) => a.order - b.order);
     if (items.length === 0 && parentId !== null) return null;
+    const isChecker = currentRole === 'checker';
     return (
       <div className={`space-y-1 ${level > 0 ? 'ml-4 border-l pl-2 mt-1' : ''}`}>
         {items.map(item => {
           const hasChildren = menus.some(m => m.parentId === item.id);
+          const approvalStatus = item.approvalStatus || 'approved';
           return (
             <div key={item.id} className="group">
               <div className={cn("flex items-center justify-between p-2 rounded-md hover:bg-muted/50 transition-colors", editingId === item.id && 'bg-primary/10 ring-1 ring-primary/30')}>
@@ -416,11 +459,19 @@ export function MenuManagement() {
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="truncate text-sm font-medium">{item.name}</span>
                       {item.isActive === false && <Badge variant="secondary" className="text-[10px] h-4 px-2 shrink-0">Suspended</Badge>}
+                      {approvalStatus === 'pending' && <Badge variant="secondary" className="text-[10px] h-4 px-2 shrink-0 text-amber-600">Pending</Badge>}
+                      {approvalStatus === 'rejected' && <Badge variant="secondary" className="text-[10px] h-4 px-2 shrink-0 text-destructive">Rejected</Badge>}
                     </div>
                     {item.nameAm && <span className="truncate text-[10px] text-muted-foreground">{item.nameAm}</span>}
                   </div>
                 </div>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {isChecker && approvalStatus === 'pending' && item.createdBy !== currentUsername && (
+                    <>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-emerald-600" onClick={() => handleApprove(item.id)}><ShieldCheck size={14} /></Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => { setRejectingId(item.id); setRejectReason(''); }}><ShieldAlert size={14} /></Button>
+                    </>
+                  )}
                   <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => handleAdd(item.id)}><FolderPlus size={14} /></Button>
                   <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleStartEdit(item)}><Edit2 size={14} /></Button>
                   <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setItemToDelete(item.id)}><Trash2 size={14} /></Button>
@@ -1342,6 +1393,848 @@ export function MenuManagement() {
               }
             })();
           }}>Delete</AlertDialogAction></AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!rejectingId} onOpenChange={() => { setRejectingId(null); setRejectReason(''); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reject Menu</AlertDialogTitle>
+            <AlertDialogDescription>Provide a reason to reject this menu.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label className="text-[10px] uppercase font-bold">Reason</Label>
+            <Input value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="e.g. Incorrect content, missing translations..." />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setRejectingId(null); setRejectReason(''); }}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive"
+              onClick={() => {
+                (async () => {
+                  const id = rejectingId!;
+                  const reason = rejectReason.trim();
+                  if (!reason) {
+                    toast({ title: "Missing Reason", description: "Rejection reason is required.", variant: "destructive" });
+                    return;
+                  }
+                  await handleReject(id, reason);
+                  setRejectingId(null);
+                  setRejectReason('');
+                })();
+              }}
+            >
+              Reject
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+export function CheckerMenuReview() {
+  const { csrfFetch, currentRole, currentUsername } = useAdminAuth();
+  const [menus, setMenus] = useState<MenuItem[]>([]);
+  const [settings, setSettings] = useState<AppSettings>({ supportedLanguages: [] });
+  const [activeLangTab, setActiveLangTab] = useState<string>('en');
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<MenuItem | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState<string>('');
+
+  useEffect(() => {
+    const load = async () => {
+      const [menusRes, settingsRes] = await Promise.all([
+        fetch('/api/menus?includeInactive=1', { cache: 'no-store' }),
+        fetch('/api/app-settings', { cache: 'no-store' })
+      ]);
+      const [menusJson, settingsJson] = await Promise.all([
+        menusRes.json().catch(() => null),
+        settingsRes.json().catch(() => null)
+      ]);
+      setMenus(Array.isArray(menusJson?.data) ? menusJson.data : []);
+
+      const loadedSettings = settingsJson?.data as AppSettings | undefined;
+      if (loadedSettings) {
+        setSettings(loadedSettings);
+        const defaultLang = loadedSettings.supportedLanguages.find(l => l.isDefault)?.code || 'en';
+        setActiveLangTab(defaultLang);
+      }
+    };
+    load();
+  }, []);
+
+  const refresh = () => {
+    (async () => {
+      const res = await fetch('/api/menus?includeInactive=1', { cache: 'no-store' });
+      const json = await res.json().catch(() => null);
+      setMenus(Array.isArray(json?.data) ? json.data : []);
+    })();
+  };
+
+  const pending = menus.filter(m =>
+    (m.approvalStatus || 'approved') === 'pending' ||
+    (m.pendingStatus || null) === 'pending' ||
+    (m.pendingStatus || null) === 'rejected'
+  );
+  const isChecker = currentRole === 'checker';
+
+  const mergeMenuWithUpdate = (menu: MenuItem, update: any) => {
+    const merged: any = { ...(menu as any), ...(update || {}) };
+    if (Object.prototype.hasOwnProperty.call(update || {}, 'apiConfig')) {
+      merged.apiConfig = update?.apiConfig ?? undefined;
+    }
+    if (Object.prototype.hasOwnProperty.call(update || {}, 'attachedMenuIds')) {
+      merged.attachedMenuIds = update?.attachedMenuIds ?? [];
+    }
+    if (Object.prototype.hasOwnProperty.call(update || {}, 'content')) {
+      merged.content = update?.content ?? undefined;
+    }
+    if (Object.prototype.hasOwnProperty.call(update || {}, 'contentAm')) {
+      merged.contentAm = update?.contentAm ?? undefined;
+    }
+    if (Object.prototype.hasOwnProperty.call(update || {}, 'nameAm')) {
+      merged.nameAm = update?.nameAm ?? undefined;
+    }
+    if (Object.prototype.hasOwnProperty.call(update || {}, 'parentId')) {
+      merged.parentId = update?.parentId ?? null;
+    }
+    if (Object.prototype.hasOwnProperty.call(update || {}, 'translations')) {
+      merged.translations = update?.translations ?? undefined;
+    }
+    return merged as MenuItem;
+  };
+
+  const getLanguages = () => {
+    if (Array.isArray(settings.supportedLanguages) && settings.supportedLanguages.length) return settings.supportedLanguages;
+    return [{ code: 'en', name: 'English', isDefault: true }, { code: 'am', name: 'Amharic' }] as Language[];
+  };
+
+  const getCurrentLanguage = () => getLanguages().find(l => l.code === activeLangTab) || getLanguages().find(l => l.isDefault) || getLanguages()[0];
+
+  const handleApprove = async (id: string) => {
+    try {
+      const res = await csrfFetch(`/api/menus/${encodeURIComponent(id)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'approve' })
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || json?.status === 'error') throw new Error(json?.message || 'Approval failed.');
+      refresh();
+      toast({ title: "Approved", description: "Menu approved successfully." });
+    } catch {
+      toast({ title: "Error", description: "Could not approve menu.", variant: "destructive" });
+    }
+  };
+
+  const handleReject = async (id: string, reason: string) => {
+    try {
+      const res = await csrfFetch(`/api/menus/${encodeURIComponent(id)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reject', reason })
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || json?.status === 'error') throw new Error(json?.message || 'Rejection failed.');
+      refresh();
+      toast({ title: "Rejected", description: "Menu rejected." });
+    } catch {
+      toast({ title: "Error", description: "Could not reject menu.", variant: "destructive" });
+    }
+  };
+
+  const openDetails = (menu: MenuItem) => {
+    setSelected(menu);
+    setIsDetailsOpen(true);
+  };
+
+  const renderTree = (parentId: string | null = null, level = 0) => {
+    const items = menus.filter(m => m.parentId === parentId).sort((a, b) => a.order - b.order);
+    if (items.length === 0 && parentId !== null) return null;
+    return (
+      <div className={`space-y-1 ${level > 0 ? 'ml-4 border-l pl-2 mt-1' : ''}`}>
+        {items.map(item => {
+          const hasChildren = menus.some(m => m.parentId === item.id);
+          const isExpanded = expanded.has(item.id);
+          const approvalStatus = item.approvalStatus || 'approved';
+          return (
+            <div key={item.id} className="group">
+              <div className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50 transition-colors">
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <button
+                    onClick={() => {
+                      const next = new Set(expanded);
+                      if (next.has(item.id)) next.delete(item.id); else next.add(item.id);
+                      setExpanded(next);
+                    }}
+                    className={cn("text-muted-foreground hover:text-primary shrink-0 transition-transform", !hasChildren && "opacity-0 cursor-default", isExpanded ? 'rotate-0' : '-rotate-90')}
+                    disabled={!hasChildren}
+                  >
+                    <ChevronDown size={14} />
+                  </button>
+                  <div className="flex flex-col min-w-0">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="truncate text-sm font-medium">{item.name}</span>
+                      {approvalStatus === 'pending' && <Badge variant="secondary" className="text-[10px] h-4 px-2 shrink-0 text-amber-600">Pending</Badge>}
+                      {approvalStatus === 'rejected' && <Badge variant="secondary" className="text-[10px] h-4 px-2 shrink-0 text-destructive">Rejected</Badge>}
+                    </div>
+                    {item.nameAm && <span className="truncate text-[10px] text-muted-foreground">{item.nameAm}</span>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openDetails(item)}><Eye size={14} /></Button>
+                </div>
+              </div>
+              {isExpanded && renderTree(item.id, level + 1)}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderReadonlyMenuForm = (menu: MenuItem) => {
+    const langs = getLanguages();
+    const defaultLangCode = langs.find(l => l.isDefault)?.code || 'en';
+
+    const resolveName = (lang: Language) => {
+      if (lang.isDefault || lang.code === defaultLangCode) return menu.name || '';
+      if (lang.code === 'am') return menu.nameAm || '';
+      return menu.translations?.[lang.code]?.name || '';
+    };
+
+    const resolveContent = (lang: Language) => {
+      if (lang.isDefault || lang.code === defaultLangCode) return menu.content || '';
+      if (lang.code === 'am') return menu.contentAm || '';
+      return menu.translations?.[lang.code]?.content || '';
+    };
+
+    const resolveResponseTemplate = (lang: Language) => {
+      if (lang.isDefault || lang.code === defaultLangCode) return menu.apiConfig?.responseMapping?.template || '';
+      if (lang.code === 'am') return menu.apiConfig?.responseMapping?.templateAm || '';
+      return menu.translations?.[lang.code]?.responseTemplate || '';
+    };
+
+    const resolveTableIntro = (lang: Language) => {
+      if (lang.isDefault || lang.code === defaultLangCode) return menu.apiConfig?.responseMapping?.tableIntro || '';
+      if (lang.code === 'am') return menu.apiConfig?.responseMapping?.tableIntroAm || '';
+      return menu.translations?.[lang.code]?.tableIntro || '';
+    };
+
+    const resolveErrorFallback = (lang: Language) => {
+      if (lang.isDefault || lang.code === defaultLangCode) return menu.apiConfig?.responseMapping?.errorFallback || '';
+      if (lang.code === 'am') return menu.apiConfig?.responseMapping?.errorFallbackAm || '';
+      return menu.translations?.[lang.code]?.errorFallback || '';
+    };
+
+    const attachedNames = (menu.attachedMenuIds || [])
+      .map(id => menus.find(m => m.id === id)?.name || id)
+      .filter(Boolean);
+
+    return (
+      <div className="space-y-8">
+        <div className="grid gap-6 sm:grid-cols-4 bg-muted/10 p-4 rounded-xl border">
+          <div className="space-y-2">
+            <Label className="text-xs uppercase font-bold text-muted-foreground">Action Type</Label>
+            <Select value={menu.responseType} onValueChange={() => { }}>
+              <SelectTrigger disabled><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="static">Static Response</SelectItem>
+                <SelectItem value="api">API Action</SelectItem>
+                <SelectItem value="report">Internal Report</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs uppercase font-bold text-muted-foreground">Display Order</Label>
+            <Input type="number" value={menu.order || 0} disabled />
+          </div>
+          <div className="flex flex-col justify-center space-y-2">
+            <Label className="text-xs uppercase font-bold text-muted-foreground flex items-center gap-1">
+              <ShieldCheck size={12} className="text-primary" /> Visible To Users
+            </Label>
+            <div className="flex items-center gap-3">
+              <Switch checked={menu.isActive !== false} disabled />
+              <span className="text-[10px] text-muted-foreground font-medium uppercase">
+                {menu.isActive === false ? 'Suspended' : 'Enabled'}
+              </span>
+            </div>
+          </div>
+          <div className="flex flex-col justify-center space-y-2">
+            <Label className="text-xs uppercase font-bold text-muted-foreground flex items-center gap-1">
+              <Fingerprint size={12} className="text-primary" /> Enable Click Tracking
+            </Label>
+            <div className="flex items-center gap-3">
+              <Switch checked={menu.trackClicks || false} disabled />
+              <span className="text-[10px] text-muted-foreground font-medium uppercase">
+                {menu.trackClicks ? 'Active' : 'Disabled'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <Label className="text-sm font-bold flex items-center gap-2"><Languages size={16} className="text-primary" /> Localization & Label</Label>
+          <Tabs value={activeLangTab} onValueChange={setActiveLangTab} className="w-full border rounded-xl overflow-hidden bg-white shadow-sm">
+            <TabsList className="w-full justify-start rounded-none border-b h-12 bg-muted/20 px-4 gap-2">
+              {langs.map(lang => (
+                <TabsTrigger key={lang.code} value={lang.code} className="data-[state=active]:bg-white rounded-none border-b-2 border-transparent data-[state=active]:border-primary px-4 text-xs">
+                  {lang.name}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+
+            {langs.map(lang => (
+              <TabsContent key={lang.code} value={lang.code} className="p-6 space-y-6 mt-0">
+                <div className="space-y-2">
+                  <Label className="text-xs uppercase font-bold text-muted-foreground">Menu Label ({lang.name})</Label>
+                  <Input value={resolveName(lang)} disabled />
+                </div>
+
+                <Accordion type="single" collapsible className="w-full pt-2">
+                  <AccordionItem value="content-editor" className="border rounded-xl px-4 py-0 bg-muted/5">
+                    <AccordionTrigger className="hover:no-underline py-3">
+                      <Label className="text-[10px] uppercase font-bold text-muted-foreground cursor-pointer flex items-center gap-2">
+                        <FileText size={14} className="text-primary" />
+                        {(menu.responseType === 'static' ? 'Response Content' : 'Introductory Content')} ({lang.name})
+                      </Label>
+                    </AccordionTrigger>
+                    <AccordionContent className="pt-0 pb-4">
+                      <WysiwygEditor
+                        title={`${lang.name} Content`}
+                        value={resolveContent(lang)}
+                        onChange={() => { }}
+                        readOnly
+                      />
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+              </TabsContent>
+            ))}
+          </Tabs>
+        </div>
+
+        {(menu.responseType === 'api' || menu.responseType === 'report') && (
+          <div className="space-y-6">
+            <Card>
+              <CardHeader className="bg-muted/10">
+                <CardTitle className="text-sm">API Connectivity</CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Method</Label>
+                    <Select value={menu.apiConfig?.method || 'GET'} onValueChange={() => { }}>
+                      <SelectTrigger disabled><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="GET">GET</SelectItem>
+                        <SelectItem value="POST">POST</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2 md:col-span-1">
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Root Mapping Key</Label>
+                    <Input value={menu.apiConfig?.rootKey || 'data'} disabled className="font-mono text-xs" />
+                  </div>
+                  <div className="space-y-2 md:col-span-1">
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Endpoint URL</Label>
+                    <Input value={menu.apiConfig?.endpoint || ''} disabled className="font-mono text-xs" />
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="space-y-4">
+                  <Label className="text-xs font-bold uppercase flex items-center gap-2"><ShieldCheck size={14} className="text-primary" /> Authorization</Label>
+                  <Select value={menu.apiConfig?.authConfig?.type || 'none'} onValueChange={() => { }}>
+                    <SelectTrigger disabled><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None (Public API)</SelectItem>
+                      <SelectItem value="apiKey">API Key</SelectItem>
+                      <SelectItem value="basic">Basic Auth</SelectItem>
+                      <SelectItem value="bearer">Bearer Token</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {menu.apiConfig?.authConfig?.type === 'apiKey' && (
+                    <div className="space-y-3 p-3 border rounded-md bg-muted/5">
+                      <div className="space-y-1">
+                        <Label className="text-[9px] uppercase font-bold">Header Name</Label>
+                        <Input value={menu.apiConfig?.authConfig?.apiKey?.header || ''} disabled />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[9px] uppercase font-bold">Key Value</Label>
+                        <Input type="password" value={menu.apiConfig?.authConfig?.apiKey?.value || ''} disabled />
+                      </div>
+                    </div>
+                  )}
+
+                  {menu.apiConfig?.authConfig?.type === 'basic' && (
+                    <div className="space-y-4 p-4 border rounded-md bg-muted/5">
+                      <div className="space-y-1 mb-2">
+                        <Label className="text-[9px] uppercase font-bold">Header Name</Label>
+                        <Input value={menu.apiConfig?.authConfig?.basicAuth?.header || ''} disabled />
+                      </div>
+                      <div className="space-y-3">
+                        <div className="space-y-1"><Label className="text-[9px] uppercase font-bold">Username</Label><Input value={menu.apiConfig?.authConfig?.basicAuth?.user || ''} disabled /></div>
+                        <div className="space-y-1"><Label className="text-[9px] uppercase font-bold">Password</Label><Input type="password" value={menu.apiConfig?.authConfig?.basicAuth?.pass || ''} disabled /></div>
+                      </div>
+                    </div>
+                  )}
+
+                  {menu.apiConfig?.authConfig?.type === 'bearer' && (
+                    <div className="space-y-3 p-3 border rounded-md bg-muted/5">
+                      <div className="space-y-1">
+                        <Label className="text-[9px] uppercase font-bold">Header Name</Label>
+                        <Input value={menu.apiConfig?.authConfig?.bearer?.header || ''} disabled />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[9px] uppercase font-bold">Token Template</Label>
+                        <Input value={menu.apiConfig?.authConfig?.bearer?.template || ''} disabled className="font-mono text-xs" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-4">
+                  <Label className="text-xs font-bold uppercase flex items-center gap-2"><LinkIcon size={14} className="text-primary" /> Custom Headers</Label>
+                  <div className="space-y-2">
+                    {Object.entries(menu.apiConfig?.headers || {}).length === 0 ? (
+                      <div className="text-xs text-muted-foreground">No custom headers.</div>
+                    ) : (
+                      Object.entries(menu.apiConfig?.headers || {}).map(([k, v]) => (
+                        <div key={k} className="flex gap-2 items-center">
+                          <Input value={k} disabled className="flex-1 font-mono text-xs" />
+                          <Input value={v || ''} disabled className="flex-1 font-mono text-xs" />
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="bg-muted/10">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm">{menu.responseType === 'report' ? 'Report Configuration' : 'User Input & Mapping'}</CardTitle>
+                  {menu.responseType === 'report' && (
+                    <div className="flex items-center gap-6">
+                      <div className="flex items-center gap-2 border-r pr-6 border-muted/20">
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground whitespace-nowrap">Show ID to User</Label>
+                        <Switch checked={!(menu.apiConfig?.responseMapping?.hideReportId)} disabled />
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Priority</Label>
+                        <Select value={menu.apiConfig?.defaultPriority || 'medium'} onValueChange={() => { }}>
+                          <SelectTrigger disabled className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="low">Low</SelectItem>
+                            <SelectItem value="medium">Medium</SelectItem>
+                            <SelectItem value="high">High</SelectItem>
+                            <SelectItem value="urgent">Urgent</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="p-4 space-y-6">
+                <div className="space-y-3">
+                  <Label className="text-xs font-bold uppercase">Collected Fields</Label>
+                  {(menu.apiConfig?.kycFields || []).length === 0 ? (
+                    <div className="text-xs text-muted-foreground">No KYC fields.</div>
+                  ) : (
+                    (menu.apiConfig?.kycFields || []).map((field) => (
+                      <div key={field.id} className="flex flex-col gap-3 p-4 border rounded-md bg-muted/5">
+                        <div className="grid grid-cols-4 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-[10px] uppercase font-bold">Field Key</Label>
+                            <Input value={field.name || ''} disabled />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[10px] uppercase font-bold">Type</Label>
+                            <Select value={field.type} onValueChange={() => { }}>
+                              <SelectTrigger disabled><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="text">Text</SelectItem>
+                                <SelectItem value="tel">Phone</SelectItem>
+                                <SelectItem value="email">Email</SelectItem>
+                                <SelectItem value="number">Number</SelectItem>
+                                <SelectItem value="password">Password</SelectItem>
+                                <SelectItem value="boolean">Boolean (Switch)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="col-span-2 space-y-1">
+                            <div className="flex items-center justify-between">
+                              <Label className="text-[10px] uppercase font-bold">Prompt ({getCurrentLanguage().name})</Label>
+                              <div className="flex items-center gap-2">
+                                <Label className="text-[9px] uppercase font-bold text-muted-foreground">{field.required ? 'Mandatory' : 'Optional'}</Label>
+                                <Switch checked={field.required} disabled />
+                              </div>
+                            </div>
+                            <Input
+                              value={(() => {
+                                const lang = getCurrentLanguage();
+                                const isDefault = lang.code === defaultLangCode || lang.isDefault;
+                                if (isDefault) return field.prompt || '';
+                                if (lang.code === 'am') return field.promptAm || '';
+                                return field.prompt || '';
+                              })()}
+                              disabled
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {menu.responseType === 'api' && (
+                  <>
+                    <Separator />
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs font-bold uppercase">API Request Mapping</Label>
+                      </div>
+                      <div className="space-y-2">
+                        {(menu.apiConfig?.requestParameters || []).length === 0 ? (
+                          <div className="text-xs text-muted-foreground">No request parameters.</div>
+                        ) : (
+                          (menu.apiConfig?.requestParameters || []).map((param, idx) => (
+                            <div key={idx} className="flex gap-2 items-center">
+                              <Input value={param.apiKey || ''} disabled className="flex-1" />
+                              <Input value={param.sourceValue || ''} disabled className="flex-1 font-mono text-xs" />
+                              <Input value={param.sourceType || ''} disabled className="w-32 font-mono text-xs" />
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                <Separator />
+
+                <div className="space-y-4">
+                  <Label className="text-xs font-bold uppercase">Response Mapping</Label>
+                  <Tabs defaultValue={menu.apiConfig?.responseMapping?.type || 'message'}>
+                    <TabsList className="grid w-full grid-cols-2 rounded-none border bg-muted/50 h-10">
+                      <TabsTrigger value="message" className="data-[state=active]:bg-white rounded-none border-r"><Type size={14} className="mr-2" /> Message Template</TabsTrigger>
+                      <TabsTrigger value="table" disabled={menu.responseType === 'report'} className="data-[state=active]:bg-white rounded-none"><TableIcon size={14} className="mr-2" /> Result Table</TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="message" className="p-4 space-y-4 mt-0 border border-t-0">
+                      <div className="space-y-2">
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Success Message ({getCurrentLanguage().name})</Label>
+                        <WysiwygEditor
+                          title="Success Message"
+                          value={resolveResponseTemplate(getCurrentLanguage())}
+                          onChange={() => { }}
+                          readOnly
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Error Fallback ({getCurrentLanguage().name})</Label>
+                        <Input value={resolveErrorFallback(getCurrentLanguage())} disabled />
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="table" className="p-4 space-y-4 mt-0 border border-t-0">
+                      <div className="space-y-2">
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Intro Message / Template ({getCurrentLanguage().name})</Label>
+                        <WysiwygEditor
+                          title="Intro Message"
+                          value={resolveTableIntro(getCurrentLanguage())}
+                          onChange={() => { }}
+                          readOnly
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Error Fallback ({getCurrentLanguage().name})</Label>
+                        <Input value={resolveErrorFallback(getCurrentLanguage())} disabled />
+                      </div>
+
+                      <Separator />
+
+                      <div className="space-y-3 p-4 border rounded-xl bg-muted/5">
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground border-b pb-2 flex items-center gap-2">Table Mapping Mode</Label>
+                        <Select value={menu.apiConfig?.responseMapping?.tableMappingMode || 'array_path'} onValueChange={() => { }}>
+                          <SelectTrigger disabled className="h-8 text-xs bg-white"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="array_path">Array Path (Legacy Engine)</SelectItem>
+                            <SelectItem value="exact_path">Exact Path (Unified Engine)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {(menu.apiConfig?.responseMapping?.tableMappingMode || 'array_path') === 'array_path' && (
+                        <div className="space-y-2">
+                          <Label className="text-[10px] uppercase font-bold text-muted-foreground">Table Data Key (Array Path)</Label>
+                          <Input value={menu.apiConfig?.responseMapping?.tableDataKey || ''} disabled className="font-mono text-xs" />
+                        </div>
+                      )}
+
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold flex items-center gap-2 text-muted-foreground uppercase"><TableIcon size={14} /> Column Mapping</Label>
+                        {(menu.apiConfig?.responseMapping?.tableColumns || []).length === 0 ? (
+                          <div className="text-xs text-muted-foreground">No columns.</div>
+                        ) : (
+                          <div className="space-y-2">
+                            {(menu.apiConfig?.responseMapping?.tableColumns || []).map((col, idx) => {
+                              const lang = getCurrentLanguage();
+                              const isDefault = lang.code === defaultLangCode || lang.isDefault;
+                              const headerVal = isDefault
+                                ? (col.header || '')
+                                : (lang.code === 'am'
+                                  ? (col.headerAm || '')
+                                  : (menu.translations?.[lang.code]?.tableHeaders?.[col.key] || ''));
+
+                              return (
+                                <div key={idx} className="flex gap-3 p-3 border rounded-md bg-white shadow-sm items-end">
+                                  <div className="flex-1 space-y-1">
+                                    <Label className="text-[9px] uppercase font-bold text-muted-foreground">Header ({lang.name})</Label>
+                                    <Input className="h-8 text-xs" value={headerVal} disabled />
+                                  </div>
+                                  <div className="flex-1 space-y-1">
+                                    <Label className="text-[9px] uppercase font-bold text-muted-foreground">Data Key</Label>
+                                    <Input className="h-8 text-xs font-mono" value={col.key || ''} disabled />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </TabsContent>
+                  </Tabs>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        <div className="space-y-3">
+          <Label className="text-sm font-bold flex items-center gap-2"><ListTree size={16} /> Attach Related Menus</Label>
+          <div className="bg-white rounded-xl border p-4 shadow-sm">
+            <div className="relative mb-4">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Search menus..." value="" disabled className="pl-8 h-9 text-sm" />
+            </div>
+            {attachedNames.length === 0 ? (
+              <div className="text-sm text-muted-foreground">No attached menus.</div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {attachedNames.map((n, idx) => (
+                  <Badge key={`${n}-${idx}`} variant="secondary" className="text-[10px] h-5 px-2">{n}</Badge>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      <Tabs defaultValue="approvals">
+        <TabsList className="grid grid-cols-2 w-full bg-muted/20 p-1 border shadow-sm">
+          <TabsTrigger value="approvals" className="flex items-center gap-2 text-xs md:text-sm">
+            <ShieldCheck size={14} />
+            Approvals
+          </TabsTrigger>
+          <TabsTrigger value="menus" className="flex items-center gap-2 text-xs md:text-sm">
+            <ListTree size={14} />
+            Menu List
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="approvals" className="m-0 border-none p-0 outline-none">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/10">
+              <div className="space-y-1">
+                <CardTitle>Pending Menus</CardTitle>
+                <div className="text-[11px] text-muted-foreground">{pending.length} pending approval</div>
+              </div>
+              <Button variant="outline" size="sm" onClick={refresh}>Refresh</Button>
+            </CardHeader>
+            <CardContent className="p-6 space-y-3">
+              {pending.length === 0 ? (
+                <div className="text-sm text-muted-foreground">No pending menus.</div>
+              ) : (
+                pending
+                  .slice()
+                  .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+                  .map(m => (
+                    <div key={m.id} className="flex items-center justify-between p-3 rounded-lg border bg-white">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="font-medium truncate">{((m.pendingStatus === 'pending' || m.pendingStatus === 'rejected') && m.pendingUpdate?.name) ? m.pendingUpdate.name : m.name}</span>
+                          {m.pendingStatus === 'rejected' ? (
+                            <Badge variant="secondary" className="text-[10px] h-4 px-2 text-destructive">Rejected</Badge>
+                          ) : (
+                            <Badge variant="secondary" className="text-[10px] h-4 px-2 text-amber-600">Pending</Badge>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground truncate">
+                          Created by: {(m.approvalStatus === 'pending' ? m.createdBy : m.pendingCreatedBy) || '-'}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {(m.pendingStatus === 'pending' || m.pendingStatus === 'rejected') && (
+                          <Badge variant="secondary" className="text-[10px] h-4 px-2 shrink-0 text-sky-700">Edit</Badge>
+                        )}
+                        <Button variant="ghost" size="sm" onClick={() => openDetails(m)} className="h-8">
+                          <Eye size={14} className="mr-2" /> View
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white"
+                          onClick={() => handleApprove(m.id)}
+                          disabled={!isChecker || (m.approvalStatus === 'pending' ? m.createdBy === currentUsername : m.pendingCreatedBy === currentUsername)}
+                        >
+                          Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="h-8"
+                          onClick={() => { setRejectingId(m.id); setRejectReason(''); }}
+                          disabled={!isChecker || (m.approvalStatus === 'pending' ? m.createdBy === currentUsername : m.pendingCreatedBy === currentUsername)}
+                        >
+                          Reject
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="menus" className="m-0 border-none p-0 outline-none">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/10">
+              <div><CardTitle>Menu Hierarchy (Read Only)</CardTitle></div>
+              <Button variant="outline" size="sm" onClick={refresh}>Refresh</Button>
+            </CardHeader>
+            <CardContent className="p-6">{renderTree(null)}</CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+        <DialogContent className="sm:max-w-5xl h-[95vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="p-6 border-b bg-white">
+            <DialogTitle className="flex items-center gap-2"><Eye size={18} /> Menu Details</DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="flex-1">
+            <div className="p-6 space-y-6">
+              {selected ? (() => {
+                const hasPendingUpdate = (selected.pendingStatus === 'pending' || selected.pendingStatus === 'rejected') && !!selected.pendingUpdate;
+                const pendingView = hasPendingUpdate ? mergeMenuWithUpdate(selected, selected.pendingUpdate) : null;
+                const pendingMaker = selected.pendingCreatedBy || '-';
+                const pendingReviewer = selected.pendingReviewedBy || '-';
+                const pendingReason = selected.pendingRejectionReason || '';
+
+                const newMenuMaker = selected.createdBy || '-';
+                const newMenuReviewer = selected.reviewedBy || '-';
+                const newMenuReason = selected.rejectionReason || '';
+
+                return (
+                  <>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="p-3 rounded-lg border bg-white">
+                        <div className="text-[10px] uppercase font-bold text-muted-foreground">Type</div>
+                        <div className="text-sm font-medium">{hasPendingUpdate ? 'Edit Request' : 'Menu'}</div>
+                      </div>
+                      <div className="p-3 rounded-lg border bg-white">
+                        <div className="text-[10px] uppercase font-bold text-muted-foreground">Status</div>
+                        <div className="text-sm font-medium">{hasPendingUpdate ? (selected.pendingStatus || '-') : (selected.approvalStatus || 'approved')}</div>
+                      </div>
+                      <div className="p-3 rounded-lg border bg-white">
+                        <div className="text-[10px] uppercase font-bold text-muted-foreground">{hasPendingUpdate ? 'Edited By' : 'Created By'}</div>
+                        <div className="text-sm font-medium">{hasPendingUpdate ? pendingMaker : newMenuMaker}</div>
+                      </div>
+                      <div className="p-3 rounded-lg border bg-white">
+                        <div className="text-[10px] uppercase font-bold text-muted-foreground">Reviewed By</div>
+                        <div className="text-sm font-medium">{hasPendingUpdate ? pendingReviewer : newMenuReviewer}</div>
+                      </div>
+                    </div>
+
+                    {(hasPendingUpdate ? pendingReason : newMenuReason) ? (
+                      <div className="p-3 rounded-lg border bg-white">
+                        <div className="text-[10px] uppercase font-bold text-muted-foreground">Rejection Reason</div>
+                        <div className="text-sm">{hasPendingUpdate ? pendingReason : newMenuReason}</div>
+                      </div>
+                    ) : null}
+
+                    {hasPendingUpdate && pendingView ? (
+                      <Tabs defaultValue="pending" className="w-full">
+                        <TabsList className="grid grid-cols-2 w-full bg-muted/20 p-1 border shadow-sm">
+                          <TabsTrigger value="pending" className="text-xs">Pending Edit</TabsTrigger>
+                          <TabsTrigger value="live" className="text-xs">Current Live</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="pending" className="m-0 border-none p-0 outline-none mt-4">
+                          {renderReadonlyMenuForm(pendingView)}
+                        </TabsContent>
+                        <TabsContent value="live" className="m-0 border-none p-0 outline-none mt-4">
+                          {renderReadonlyMenuForm(selected)}
+                        </TabsContent>
+                      </Tabs>
+                    ) : (
+                      renderReadonlyMenuForm(selected)
+                    )}
+                  </>
+                );
+              })() : (
+                <div className="text-sm text-muted-foreground">No menu selected.</div>
+              )}
+            </div>
+          </ScrollArea>
+          <DialogFooter className="p-4 border-t bg-white sticky bottom-0 z-50">
+            <Button onClick={() => setIsDetailsOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!rejectingId} onOpenChange={() => { setRejectingId(null); setRejectReason(''); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reject Menu</AlertDialogTitle>
+            <AlertDialogDescription>Provide a reason to reject this menu.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label className="text-[10px] uppercase font-bold">Reason</Label>
+            <Input value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="e.g. Incorrect content, missing translations..." />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setRejectingId(null); setRejectReason(''); }}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive"
+              onClick={() => {
+                (async () => {
+                  const id = rejectingId!;
+                  const reason = rejectReason.trim();
+                  if (!reason) {
+                    toast({ title: "Missing Reason", description: "Rejection reason is required.", variant: "destructive" });
+                    return;
+                  }
+                  await handleReject(id, reason);
+                  setRejectingId(null);
+                  setRejectReason('');
+                })();
+              }}
+            >
+              Reject
+            </AlertDialogAction>
+          </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>

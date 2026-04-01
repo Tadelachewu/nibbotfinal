@@ -387,11 +387,33 @@ async function main() {
             username: adminUser,
             email: adminEmail,
             passwordHash: hashedPassword,
+            role: 'admin'
         },
         update: {
             email: adminEmail,
             passwordHash: hashedPassword,
+            role: 'admin'
         },
+    });
+
+    const checkerUser = process.env.CHECKER_USERNAME || 'checker';
+    const checkerPass = process.env.CHECKER_INITIAL_PASSWORD || process.env.CHECKER_PASSWORD || 'Checker@1234';
+    const checkerEmail = process.env.CHECKER_EMAIL || 'checker@nib.local';
+    const checkerPasswordHash = await hashPassword(checkerPass);
+
+    await prisma.adminCredential.upsert({
+        where: { username: checkerUser },
+        create: {
+            username: checkerUser,
+            email: checkerEmail,
+            passwordHash: checkerPasswordHash,
+            role: 'checker'
+        },
+        update: {
+            email: checkerEmail,
+            passwordHash: checkerPasswordHash,
+            role: 'checker'
+        }
     });
 
     // ...

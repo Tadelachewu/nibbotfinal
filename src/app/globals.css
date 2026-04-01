@@ -95,3 +95,8 @@
 
 .wysiwyg-content a { @apply text-primary underline underline-offset-4 font-semibold hover:text-primary/80 transition-colors; }
 .wysiwyg-content strong { @apply font-semibold; }
+
+/* Highlight mark — let the inline color attribute take priority */
+.wysiwyg-content mark[data-color] {
+  background-color: var(--highlight-color, inherit);
+}

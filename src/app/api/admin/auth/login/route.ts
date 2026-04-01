@@ -30,7 +30,7 @@ export async function POST(req: Request) {
     session.csrfToken = Buffer.from(crypto.randomUUID()).toString('base64');
     await session.save();
 
-    return NextResponse.json({ success: true, username, csrfToken: session.csrfToken });
+    return NextResponse.json({ success: true, username, role: admin.role, csrfToken: session.csrfToken });
   } else {
     return NextResponse.json({ success: false, error: 'Invalid username or password.' }, { status: 401 });
   }

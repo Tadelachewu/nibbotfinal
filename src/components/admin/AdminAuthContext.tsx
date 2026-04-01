@@ -45,6 +45,7 @@ export function isStrongPassword(password: string): boolean {
 interface AdminAuthContextType {
   isAuthenticated: boolean;
   currentUsername: string;
+  currentRole: 'admin' | 'checker' | '';
   csrfFetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
   login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
@@ -57,6 +58,7 @@ const AdminAuthContext = createContext<AdminAuthContextType | null>(null);
 export function AdminAuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUsername, setCurrentUsername] = useState('');
+  const [currentRole, setCurrentRole] = useState<'admin' | 'checker' | ''>('');
   const [csrfToken, setCsrfToken] = useState('');
   const [hydrated, setHydrated] = useState(false);
 
@@ -88,16 +90,19 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         if (json?.isAuthenticated) {
           setIsAuthenticated(true);
           setCurrentUsername(typeof json.username === 'string' ? json.username : '');
+          setCurrentRole(json?.role === 'checker' || json?.role === 'admin' ? json.role : '');
           setCsrfToken(typeof json.csrfToken === 'string' ? json.csrfToken : '');
         } else {
           setIsAuthenticated(false);
           setCurrentUsername('');
+          setCurrentRole('');
           setCsrfToken('');
         }
       } catch {
         if (!active) return;
         setIsAuthenticated(false);
         setCurrentUsername('');
+        setCurrentRole('');
         setCsrfToken('');
       } finally {
         if (active) setHydrated(true);
@@ -128,6 +133,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     if (response.ok && json?.success) {
       setIsAuthenticated(true);
       setCurrentUsername(typeof json.username === 'string' ? json.username : trimmedUsername);
+      setCurrentRole(json?.role === 'checker' || json?.role === 'admin' ? json.role : '');
       setCsrfToken(typeof json.csrfToken === 'string' ? json.csrfToken : '');
       return { success: true };
     }
@@ -139,6 +145,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     await csrfFetch('/api/admin/auth/logout', { method: 'POST' });
     setIsAuthenticated(false);
     setCurrentUsername('');
+    setCurrentRole('');
     setCsrfToken('');
   }, [csrfFetch]);
 
@@ -177,7 +184,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AdminAuthContext.Provider value={{ isAuthenticated, currentUsername, csrfFetch, login, logout, changeCredentials }}>
+    <AdminAuthContext.Provider value={{ isAuthenticated, currentUsername, currentRole, csrfFetch, login, logout, changeCredentials }}>
       {children}
     </AdminAuthContext.Provider>
   );

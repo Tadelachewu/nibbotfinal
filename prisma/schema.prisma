@@ -41,6 +41,17 @@ enum LogStatus {
   error
 }
 
+enum MenuApprovalStatus {
+  pending
+  approved
+  rejected
+}
+
+enum AdminRole {
+  admin
+  checker
+}
+
 // Menu items (admin-created navigation/content entries)
 model MenuItem {
   id                String        @id
@@ -55,6 +66,17 @@ model MenuItem {
   apiConfig         Json?         @map("api_config")
   order             Int            @default(0)
   isActive          Boolean        @default(true)
+  approvalStatus    MenuApprovalStatus @default(approved)
+  createdBy         String?
+  reviewedBy        String?
+  reviewedAt        DateTime?
+  rejectionReason   String?       @db.Text
+  pendingUpdate     Json?         @map("pending_update")
+  pendingStatus     MenuApprovalStatus? @map("pending_status")
+  pendingCreatedBy  String?       @map("pending_created_by")
+  pendingReviewedBy String?       @map("pending_reviewed_by")
+  pendingReviewedAt DateTime?     @map("pending_reviewed_at")
+  pendingRejectionReason String?  @db.Text @map("pending_rejection_reason")
   trackClicks       Boolean        @default(false)
   clickCount        Int            @default(0)
   sessionClickCount Int            @default(0)
@@ -205,6 +227,7 @@ model AdminCredential {
   email        String   @unique
 
   passwordHash String
+  role         AdminRole @default(admin)
   createdAt    DateTime @default(now())
 
   @@map("admin_credentials")

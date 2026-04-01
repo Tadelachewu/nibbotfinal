@@ -39,6 +39,36 @@ node postget.js  # Transfer & GET/POST Demo (Port 3001)
 - **Response Root:** `data`
 - **Success Message Example:** `{{data.message}}! Ref: {{data.data.reference_id}}. New Balance: {{data.data.sender.balance_after}} ETB.`
 
+#### Quick test (curl)
+```bash
+curl -s -X POST http://localhost:3001/api/transfer \
+    -H "Authorization: Bearer secure-bank-token" \
+    -H "Content-Type: application/json" \
+    -d '{
+        "sender_account": "1001",
+        "receiver_account": "1002",
+        "amount": 50.00,
+        "currency": "ETB",
+        "remark": "Test transfer"
+    }'
+```
+
+Expected (example) JSON response:
+
+```json
+{
+    "success": true,
+    "data": {
+        "reference_id": "TXN-000011",
+        "sender": { "account_id": "1001", "balance_after": 14950.00 },
+        "receiver": { "account_id": "1002", "balance_after": 8250.00 }
+    },
+    "message": "Transfer completed"
+}
+```
+
+If auth fails you will see a 401 or an error JSON containing an auth error message.
+
 ### 2️⃣ Account Info (GET)
 - **Method:** `GET`
 - **Path:** `http://localhost:3001/api/account/{{account_id}}`
@@ -56,6 +86,27 @@ node postget.js  # Transfer & GET/POST Demo (Port 3001)
 ### 1️⃣ Account Balance (GET)
 - **Path:** `http://localhost:3000/api/accounts/{{account_id}}/balance`
 - **Auth:** Bearer (`secret-token-123`)
+
+#### Quick test (curl)
+```bash
+curl -s http://localhost:3000/api/accounts/1001/balance \
+    -H "Authorization: Bearer secret-token-123"
+```
+
+Expected (example) JSON response:
+
+```json
+{
+    "success": true,
+    "data": {
+        "account_id": "1001",
+        "available_balance": 15000.00,
+        "currency": "ETB"
+    }
+}
+```
+
+If the token is invalid you'll receive a 401 and an error message.
 
 ### 2️⃣ Account Summary (GET)
 - **Path:** `http://localhost:3000/api/apikey/accounts/summary`

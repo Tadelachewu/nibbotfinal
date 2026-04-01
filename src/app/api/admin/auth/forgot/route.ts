@@ -26,7 +26,6 @@ export async function POST(req: Request) {
     await sendRecoveryEmail(admin.email, token, admin.username);
   } catch (err) {
     // Log the error but still return a generic success to avoid account probing.
-    // eslint-disable-next-line no-console
     console.error('[admin/forgot] email send failed', err);
   }
 

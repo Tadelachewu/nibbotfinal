@@ -116,6 +116,11 @@ function buildMenuResponse(menu: any) {
     }
     : undefined;
 
+  const pendingUpdate =
+    menu.pendingUpdate && typeof menu.pendingUpdate === 'object'
+      ? (menu.pendingUpdate as Record<string, any>)
+      : undefined;
+
   return {
     id: menu.id,
     parentId: menu.parentId ?? null,
@@ -127,6 +132,17 @@ function buildMenuResponse(menu: any) {
     apiConfig,
     order: menu.order,
     isActive: typeof menu.isActive === 'boolean' ? menu.isActive : true,
+    approvalStatus: menu.approvalStatus ?? 'approved',
+    createdBy: typeof menu.createdBy === 'string' ? menu.createdBy : undefined,
+    reviewedBy: typeof menu.reviewedBy === 'string' ? menu.reviewedBy : undefined,
+    reviewedAt: menu.reviewedAt ? new Date(menu.reviewedAt).toISOString() : undefined,
+    rejectionReason: typeof menu.rejectionReason === 'string' ? menu.rejectionReason : undefined,
+    pendingUpdate,
+    pendingStatus: typeof menu.pendingStatus === 'string' ? menu.pendingStatus : undefined,
+    pendingCreatedBy: typeof menu.pendingCreatedBy === 'string' ? menu.pendingCreatedBy : undefined,
+    pendingReviewedBy: typeof menu.pendingReviewedBy === 'string' ? menu.pendingReviewedBy : undefined,
+    pendingReviewedAt: menu.pendingReviewedAt ? new Date(menu.pendingReviewedAt).toISOString() : undefined,
+    pendingRejectionReason: typeof menu.pendingRejectionReason === 'string' ? menu.pendingRejectionReason : undefined,
     attachedMenuIds,
     trackClicks: Boolean(menu.trackClicks),
     clickCount: menu.clickCount ?? 0,
@@ -147,7 +163,7 @@ export async function GET(req: Request) {
       attachments: true,
       kycMappings: { include: { kyc: true } }
     },
-    where: includeAll ? undefined : { isActive: true },
+    where: includeAll ? undefined : { isActive: true, approvalStatus: 'approved' },
     orderBy: { order: 'asc' }
   });
 
@@ -182,6 +198,15 @@ export async function POST(req: Request) {
   }
   if (!verifyCsrfToken(req, session, { requireToken: true })) {
     return NextResponse.json({ status: 'error', message: 'Forbidden.' }, { status: 403 });
+  }
+
+  if (session.username) {
+    const actor = await prisma.adminCredential.findUnique({ where: { username: session.username } });
+    if (!actor || actor.role !== 'admin') {
+      return NextResponse.json({ status: 'error', message: 'Forbidden.' }, { status: 403 });
+    }
+  } else {
+    return NextResponse.json({ status: 'error', message: 'Unauthorized.' }, { status: 401 });
   }
 
   const body = await req.json().catch(() => null);
@@ -224,6 +249,8 @@ export async function POST(req: Request) {
       apiConfig: apiConfig ?? null,
       order: Number.isFinite(body.order) ? body.order : 0,
       isActive: typeof body.isActive === 'boolean' ? body.isActive : true,
+      approvalStatus: 'pending',
+      createdBy: session.username ?? null,
       trackClicks: Boolean(body.trackClicks),
       clickCount: Number.isFinite(body.clickCount) ? body.clickCount : 0,
       sessionClickCount: Number.isFinite(body.sessionClickCount) ? body.sessionClickCount : 0,
