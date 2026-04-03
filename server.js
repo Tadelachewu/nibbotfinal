@@ -3,6 +3,7 @@ const { parse } = require('url');
 const next = require('next');
 const { Server } = require('socket.io');
 const Redis = require('ioredis');
+const crypto = require('crypto');
 require('dotenv').config();
 
 const dev = process.env.NODE_ENV !== 'production';
@@ -92,7 +93,7 @@ app.prepare().then(async () => {
     return false;
   }
 
-  function buildContentSecurityPolicy() {
+  function buildContentSecurityPolicy(nonce) {
     const explicitWsOrigins = [];
     if (dev) {
       explicitWsOrigins.push(`ws://${hostname}:${port}`, `ws://localhost:${port}`, `ws://127.0.0.1:${port}`);
@@ -104,6 +105,9 @@ app.prepare().then(async () => {
     }
     const connectSrc = Array.from(new Set([...combinedConnectSrc, ...explicitWsOrigins])).join(' ');
 
+    const scriptSrc = nonce ? `'self' 'nonce-${nonce}'` : "'self'";
+    const styleSrc = nonce ? `'self' 'nonce-${nonce}'` : "'self'";
+
     const directives = [
       "default-src 'self'",
       "base-uri 'self'",
@@ -111,8 +115,8 @@ app.prepare().then(async () => {
       "frame-ancestors 'none'",
       "form-action 'self'",
       `connect-src ${connectSrc}`,
-      `script-src 'self'${dev ? " 'unsafe-inline' 'unsafe-eval'" : ''}`,
-      "style-src 'self' 'unsafe-inline'",
+      `script-src ${scriptSrc}`,
+      `style-src ${styleSrc}`,
       `img-src 'self' data: blob: https://placehold.co https://images.unsplash.com https://picsum.photos`,
       "font-src 'self' data:",
       "frame-src 'none'",
@@ -168,8 +172,9 @@ app.prepare().then(async () => {
       const isApiRoute = pathname.startsWith('/api');
       const shouldLimitBody = hasBodyMethod && (isApiRoute || method === 'POST');
       const origin = typeof req.headers.origin === 'string' ? req.headers.origin : '';
-      const isStaticAssetWithTrailingSlash = /\/_next\/static\/.+\.[a-z0-9]+\/$/i.test(pathname);
-      if (isStaticAssetWithTrailingSlash) {
+      const isDirectoryAccess = pathname !== '/' && pathname.endsWith('/');
+      if (isDirectoryAccess) {
+        // Explicitly block any directory access that isn't the root to prevent directory listing.
         res.statusCode = 404;
         res.end('Not Found');
         return;
@@ -205,12 +210,10 @@ app.prepare().then(async () => {
         }
       }
 
-      const rawCspHeader = pathname === '/sitemap.xml'
-        ? buildSitemapContentSecurityPolicy()
-        : buildContentSecurityPolicy();
-      const cspHeader = sanitizeCsp(rawCspHeader);
-      req.headers['content-security-policy'] = cspHeader;
-      res.setHeader('Content-Security-Policy', cspHeader);
+      // req.headers['content-security-policy'] = cspHeader;
+      // req.headers['x-nonce'] = nonce;
+      // res.setHeader('Content-Security-Policy', cspHeader);
+      // res.setHeader('x-nonce', nonce);
       res.setHeader('X-Frame-Options', 'DENY');
       res.setHeader('X-Content-Type-Options', 'nosniff');
       if (!dev && isHttpsRequest(req)) {
@@ -220,6 +223,8 @@ app.prepare().then(async () => {
       res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
       res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
       res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+
+      // req.nonce = nonce;
       if (pathname.startsWith('/_next/static/')) {
         const defaultOrigin = `http://${hostname}:${port}`;
         res.setHeader('Access-Control-Allow-Origin', origin && allowedOrigins.has(origin) ? origin : defaultOrigin);

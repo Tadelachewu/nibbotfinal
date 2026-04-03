@@ -1,9 +1,6 @@
 import type { NextConfig } from 'next';
 
 type NextConfigCompat = NextConfig & {
-  eslint?: {
-    ignoreDuringBuilds?: boolean;
-  };
   typescript?: {
     ignoreBuildErrors?: boolean;
   };
@@ -16,8 +13,8 @@ const cspDirectives = [
   "object-src 'none'",
   "frame-ancestors 'none'",
   "form-action 'self'",
-  `script-src 'self'${process.env.NODE_ENV !== 'production' ? " 'unsafe-inline' 'unsafe-eval'" : ''}`,
-  "style-src 'self' 'unsafe-inline'",
+  "script-src 'self'",
+  "style-src 'self'",
   "img-src 'self' data: blob: https://placehold.co https://images.unsplash.com https://picsum.photos",
   "font-src 'self' data:",
   `connect-src 'self' https://www.google.com ${appOrigin}${process.env.NODE_ENV !== 'production' ? ' ws://localhost:9002 ws://127.0.0.1:9002 http://localhost:3000 http://localhost:3001' : ''}`,
@@ -44,15 +41,12 @@ const nextConfig: NextConfigCompat = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   async headers() {
     return [
       {
         source: '/:path*',
         headers: [
-          { key: 'Content-Security-Policy', value: cspDirectives },
+          // { key: 'Content-Security-Policy', value: cspDirectives },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'X-Permitted-Cross-Domain-Policies', value: 'none' },
@@ -72,7 +66,7 @@ const nextConfig: NextConfigCompat = {
       {
         source: '/_next/static/:path*',
         headers: [
-          { key: 'Content-Security-Policy', value: cspDirectives },
+          // { key: 'Content-Security-Policy', value: cspDirectives },
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'Access-Control-Allow-Origin', value: appOrigin },
           { key: 'Vary', value: 'Origin' },
@@ -81,7 +75,7 @@ const nextConfig: NextConfigCompat = {
       {
         source: '/sitemap.xml',
         headers: [
-          { key: 'Content-Security-Policy', value: sitemapCspDirectives },
+          // { key: 'Content-Security-Policy', value: sitemapCspDirectives },
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
         ],
