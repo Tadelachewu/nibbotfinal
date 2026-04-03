@@ -7,26 +7,46 @@ type MailOptions = {
     html?: string;
 };
 
-function createTransporter() {
+async function createTransporter() {
     const host = process.env.SMTP_HOST;
     const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
     const user = process.env.SMTP_USER;
     const pass = process.env.SMTP_PASS;
 
-    if (!host || !port || !user || !pass) {
-        return null;
+    if (host && port && user && pass) {
+        console.info(`[email] SMTP configured host=${host} port=${port} user=${user}`);
+        return nodemailer.createTransport({
+            host,
+            port,
+            secure: port === 465,
+            auth: { user, pass },
+        });
     }
 
-    return nodemailer.createTransport({
-        host,
-        port,
-        secure: port === 465,
-        auth: { user, pass },
-    });
+    // In development, fall back to a disposable Ethereal test account so
+    // password recovery emails can be inspected without a real SMTP provider.
+    if (process.env.NODE_ENV !== 'production') {
+        try {
+            const testAccount = await nodemailer.createTestAccount();
+            const transporter = nodemailer.createTransport({
+                host: testAccount.smtp.host,
+                port: testAccount.smtp.port,
+                secure: testAccount.smtp.secure,
+                auth: { user: testAccount.user, pass: testAccount.pass },
+            });
+            console.info('[email] using Ethereal test account for development:', testAccount.user);
+            return transporter;
+        } catch (err) {
+            console.warn('[email] failed to create Ethereal test account', err);
+            return null;
+        }
+    }
+
+    return null;
 }
 
 export async function sendEmail(opts: MailOptions) {
-    const transporter = createTransporter();
+    const transporter = await createTransporter();
     const from = process.env.EMAIL_FROM || `noreply@localhost`;
 
     if (!transporter) {
@@ -37,15 +57,26 @@ export async function sendEmail(opts: MailOptions) {
         return { ok: true };
     }
 
-    const info = await transporter.sendMail({
-        from,
-        to: opts.to,
-        subject: opts.subject,
-        text: opts.text,
-        html: opts.html,
-    });
+    console.info(`[email] sending to=${opts.to} subject=${opts.subject}`);
+    try {
+        const info = await transporter.sendMail({
+            from,
+            to: opts.to,
+            subject: opts.subject,
+            text: opts.text,
+            html: opts.html,
+        });
 
-    return { ok: true, info };
+        // If using Ethereal (dev), include a preview URL to inspect the message
+        const previewUrl = nodemailer.getTestMessageUrl(info) || undefined;
+        console.info(`[email] sent to=${opts.to} messageId=${info.messageId}`);
+        if (previewUrl) console.info('[email] preview URL:', previewUrl);
+
+        return { ok: true, info, previewUrl };
+    } catch (err) {
+        console.error('[email] send failed', { to: opts.to, subject: opts.subject, err });
+        throw err;
+    }
 }
 
 export async function sendRecoveryEmail(to: string, token: string, username: string) {

@@ -3,7 +3,6 @@ const { parse } = require('url');
 const next = require('next');
 const { Server } = require('socket.io');
 const Redis = require('ioredis');
-const crypto = require('crypto');
 require('dotenv').config();
 
 const dev = process.env.NODE_ENV !== 'production';
@@ -93,24 +92,69 @@ app.prepare().then(async () => {
     return false;
   }
 
-  function buildContentSecurityPolicy({ nonce }) {
-    const extraConnectSrcSchemes = dev ? ['ws:', 'wss:'] : ['wss:'];
-    const connectSrc = Array.from(new Set([...combinedConnectSrc, ...extraConnectSrcSchemes])).join(' ');
+  function buildContentSecurityPolicy() {
+    const explicitWsOrigins = [];
+    if (dev) {
+      explicitWsOrigins.push(`ws://${hostname}:${port}`, `ws://localhost:${port}`, `ws://127.0.0.1:${port}`);
+    }
+    // Convert HTTP/HTTPS allowed origins to WS/WSS
+    for (const origin of allowedOrigins) {
+      if (origin.startsWith('https://')) explicitWsOrigins.push(origin.replace('https://', 'wss://'));
+      else if (origin.startsWith('http://')) explicitWsOrigins.push(origin.replace('http://', 'ws://'));
+    }
+    const connectSrc = Array.from(new Set([...combinedConnectSrc, ...explicitWsOrigins])).join(' ');
 
     const directives = [
       "default-src 'self'",
+      "base-uri 'self'",
+      "object-src 'none'",
+      "frame-ancestors 'none'",
+      "form-action 'self'",
       `connect-src ${connectSrc}`,
-      `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ''}`,
-      `style-src 'self' 'nonce-${nonce}'`,
+      `script-src 'self'${dev ? " 'unsafe-inline' 'unsafe-eval'" : ''}`,
+      "style-src 'self' 'unsafe-inline'",
       `img-src 'self' data: blob: https://placehold.co https://images.unsplash.com https://picsum.photos`,
       "font-src 'self' data:",
-      "object-src 'none'",
-      "base-uri 'self'",
-      "form-action 'self'",
-      "frame-ancestors 'none'",
       "frame-src 'none'",
       ...(!dev ? ['upgrade-insecure-requests', 'block-all-mixed-content'] : []),
     ];
+
+    return directives.join('; ');
+  }
+
+  function buildSitemapContentSecurityPolicy() {
+    return [
+      "default-src 'none'",
+      "base-uri 'none'",
+      "object-src 'none'",
+      "frame-ancestors 'none'",
+      "form-action 'none'",
+      "script-src 'none'",
+      "style-src 'none'",
+      "img-src 'none'",
+      "font-src 'none'",
+      "connect-src 'none'",
+      "frame-src 'none'",
+    ].join('; ');
+  }
+
+  // Tidy the directive string. In production we strip any 'unsafe-eval' tokens
+  // for defense-in-depth; in development we allow 'unsafe-eval' to enable
+  // React/Next dev debugging features (source maps / callstack reconstruction).
+  function sanitizeCsp(header) {
+    if (!header || typeof header !== 'string') return header;
+    let directives = header
+      .split(';')
+      .map(s => s.trim())
+      .filter(Boolean)
+      .map(dir => dir.replace(/\s+/g, ' ').trim())
+      .filter(Boolean);
+
+    if (!dev) {
+      directives = directives
+        .map(dir => dir.replace(/'unsafe-eval'/g, '').trim())
+        .filter(Boolean);
+    }
 
     return directives.join('; ');
   }
@@ -124,6 +168,12 @@ app.prepare().then(async () => {
       const isApiRoute = pathname.startsWith('/api');
       const shouldLimitBody = hasBodyMethod && (isApiRoute || method === 'POST');
       const origin = typeof req.headers.origin === 'string' ? req.headers.origin : '';
+      const isStaticAssetWithTrailingSlash = /\/_next\/static\/.+\.[a-z0-9]+\/$/i.test(pathname);
+      if (isStaticAssetWithTrailingSlash) {
+        res.statusCode = 404;
+        res.end('Not Found');
+        return;
+      }
       if (origin && allowedOrigins.size && !allowedOrigins.has(origin)) {
         res.statusCode = 403;
         res.end('Forbidden');
@@ -155,9 +205,10 @@ app.prepare().then(async () => {
         }
       }
 
-      const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
-      const cspHeader = buildContentSecurityPolicy({ nonce });
-      req.headers['x-nonce'] = nonce;
+      const rawCspHeader = pathname === '/sitemap.xml'
+        ? buildSitemapContentSecurityPolicy()
+        : buildContentSecurityPolicy();
+      const cspHeader = sanitizeCsp(rawCspHeader);
       req.headers['content-security-policy'] = cspHeader;
       res.setHeader('Content-Security-Policy', cspHeader);
       res.setHeader('X-Frame-Options', 'DENY');
@@ -169,6 +220,13 @@ app.prepare().then(async () => {
       res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
       res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
       res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+      if (pathname.startsWith('/_next/static/')) {
+        const defaultOrigin = `http://${hostname}:${port}`;
+        res.setHeader('Access-Control-Allow-Origin', origin && allowedOrigins.has(origin) ? origin : defaultOrigin);
+        res.setHeader('Vary', 'Origin');
+        // Prevent indexing of internal static assets (defense-in-depth)
+        res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+      }
       // Remove X-Powered-By header (Express adds this by default)
       res.removeHeader('X-Powered-By');
       res.removeHeader('Server');
@@ -196,6 +254,21 @@ app.prepare().then(async () => {
       },
       methods: ['GET', 'POST'] // Specify allowed methods
     }
+  });
+  const applyEngineSecurityHeaders = (headers) => {
+    headers['content-security-policy'] = sanitizeCsp(buildContentSecurityPolicy());
+    headers['x-content-type-options'] = 'nosniff';
+    headers['x-frame-options'] = 'DENY';
+    headers['x-permitted-cross-domain-policies'] = 'none';
+    headers['cross-origin-embedder-policy'] = 'require-corp';
+    headers['cross-origin-opener-policy'] = 'same-origin';
+    headers['cross-origin-resource-policy'] = 'same-origin';
+  };
+  io.engine.on('initial_headers', (headers) => {
+    applyEngineSecurityHeaders(headers);
+  });
+  io.engine.on('headers', (headers) => {
+    applyEngineSecurityHeaders(headers);
   });
 
   io.on('connection', (socket) => {

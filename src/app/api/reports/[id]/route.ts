@@ -3,6 +3,9 @@ import prisma from '@/lib/prisma';
 
 import { getValidatedAdminSession, rotateCsrfToken, verifyCsrfToken } from '@/lib/session';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   const report = await prisma.userReport.findUnique({ where: { id } });

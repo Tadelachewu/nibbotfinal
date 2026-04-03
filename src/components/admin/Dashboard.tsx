@@ -43,8 +43,8 @@ export function Dashboard() {
     setMounted(true);
     const load = async () => {
       const [menusRes, reportsRes] = await Promise.all([
-        fetch('/api/menus?includeInactive=1'),
-        fetch('/api/reports')
+        fetch('/api/menus?includeInactive=1', { cache: 'no-store' }),
+        fetch('/api/reports', { cache: 'no-store' })
       ]);
       const [menusJson, reportsJson] = await Promise.all([
         menusRes.json().catch(() => null),
@@ -59,7 +59,7 @@ export function Dashboard() {
     load();
 
     // Real-Time Socket Connection for Online Counter
-    const socket = io();
+    const socket = io({ transports: ['websocket'] });
     socket.on('online_count_updated', (data) => {
       if (data && typeof data.count === 'number') {
         setOnlineNow(data.count);

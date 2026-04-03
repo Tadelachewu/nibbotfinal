@@ -22,7 +22,7 @@ export function LocalizationManagement() {
 
   useEffect(() => {
     const load = async () => {
-      const res = await fetch('/api/app-settings');
+      const res = await fetch('/api/app-settings', { cache: 'no-store' });
       const json = await res.json().catch(() => null);
       const s = json?.data as AppSettings | undefined;
       if (s) {

@@ -112,8 +112,8 @@ export function MenuManagement() {
   useEffect(() => {
     const load = async () => {
       const [menusRes, settingsRes] = await Promise.all([
-        fetch('/api/menus?includeInactive=1'),
-        fetch('/api/app-settings')
+        fetch('/api/menus?includeInactive=1', { cache: 'no-store' }),
+        fetch('/api/app-settings', { cache: 'no-store' })
       ]);
       const [menusJson, settingsJson] = await Promise.all([
         menusRes.json().catch(() => null),
@@ -136,7 +136,7 @@ export function MenuManagement() {
 
   const refresh = () => {
     (async () => {
-      const res = await fetch('/api/menus?includeInactive=1');
+      const res = await fetch('/api/menus?includeInactive=1', { cache: 'no-store' });
       const json = await res.json().catch(() => null);
       setMenus(Array.isArray(json?.data) ? json.data : []);
     })();

@@ -3,7 +3,7 @@
 import { io } from 'socket.io-client';
 import { useConnectivity } from '@/hooks/useConnectivity';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { MenuItem, KYCField, TableColumn, Language, UserReport, KYCFieldType, AppSettings } from '@/lib/types';
 import { ChatBubble } from './ChatBubble';
 import { Button } from '@/components/ui/button';
@@ -109,6 +109,33 @@ export function ChatInterface() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const fetchRuntimeConfig = useCallback(async () => {
+    const [settingsRes, menusRes] = await Promise.all([
+      fetch('/api/app-settings', { cache: 'no-store' }),
+      fetch('/api/menus', { cache: 'no-store' })
+    ]);
+    const [settingsJson, menusJson] = await Promise.all([
+      settingsRes.json().catch(() => null),
+      menusRes.json().catch(() => null)
+    ]);
+
+    const settings = (settingsJson?.data as AppSettings | undefined) || { supportedLanguages: [] };
+    const data = Array.isArray(menusJson?.data) ? menusJson.data : [];
+
+    setAppSettings(settings);
+    setLanguages(settings.supportedLanguages || []);
+    setCurrentLang(prev => {
+      if (prev) {
+        const matched = settings.supportedLanguages?.find(l => l.code === prev.code);
+        if (matched) return matched;
+      }
+      return settings.supportedLanguages?.find(l => l.isDefault) || settings.supportedLanguages?.[0] || null;
+    });
+    setMenus(data);
+
+    return { settings, menus: data as MenuItem[] };
+  }, []);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -134,30 +161,13 @@ export function ChatInterface() {
     setUserData(prev => ({ ...prev, id: sessionId }));
 
     (async () => {
-      const [settingsRes, menusRes] = await Promise.all([
-        fetch('/api/app-settings'),
-        fetch('/api/menus')
-      ]);
-      const [settingsJson, menusJson] = await Promise.all([
-        settingsRes.json().catch(() => null),
-        menusRes.json().catch(() => null)
-      ]);
-
-      const settings = (settingsJson?.data as AppSettings | undefined) || { supportedLanguages: [] };
-      const data = Array.isArray(menusJson?.data) ? menusJson.data : [];
-
-      setAppSettings(settings);
-      setLanguages(settings.supportedLanguages || []);
-      const defaultLang = settings.supportedLanguages?.find(l => l.isDefault) || settings.supportedLanguages?.[0] || null;
-      setCurrentLang(defaultLang);
-
-      setMenus(data);
-      setHistory([{ id: 'welcome', sender: 'bot', options: data.filter((m: MenuItem) => m.parentId === null) }]);
+      const runtime = await fetchRuntimeConfig().catch(() => ({ menus: [] as MenuItem[] }));
+      setHistory([{ id: 'welcome', sender: 'bot', options: runtime.menus.filter((m: MenuItem) => m.parentId === null) }]);
     })();
 
     const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     setTheme(isDark ? 'dark' : 'light');
-  }, []);
+  }, [fetchRuntimeConfig]);
 
   const t = (key: string, fallback: string) => {
     const langCode = currentLang?.code || 'en';
@@ -186,7 +196,7 @@ export function ChatInterface() {
     if (!userData.id || typeof window === 'undefined') return;
 
     // Connects to the same origin server mapping the Custom Socket
-    const socket = io({ path: '/socket.io' });
+    const socket = io({ path: '/socket.io', transports: ['websocket'] });
 
     // Initial announce
     socket.emit('user_active', { sessionId: userData.id });
@@ -422,7 +432,7 @@ export function ChatInterface() {
     setHistory(prev => [...prev, { id: `user-lookup-${Date.now()}`, sender: 'user', text: id }]);
     let found: UserReport | null = null;
     try {
-      const res = await fetch(`/api/reports/${encodeURIComponent(id)}`);
+      const res = await fetch(`/api/reports/${encodeURIComponent(id)}`, { cache: 'no-store' });
       const json = await res.json().catch(() => null);
       if (res.ok && json?.data) found = json.data;
     } catch { }
@@ -626,7 +636,7 @@ export function ChatInterface() {
         } else if (auth.type === 'bearer' && auth.bearer) { headers[headerName] = replacePlaceholders(auth.bearer.template, { kyc: kycData, rootKey }); }
       }
       Object.entries(headers).forEach(([k, v]) => assertNoUnresolvedTemplate(v, `header "${k}"`));
-      const options: RequestInit = { method: menu.apiConfig.method, headers };
+      const options: RequestInit = { method: menu.apiConfig.method, headers, cache: 'no-store' };
       if (menu.apiConfig.method === 'GET') {
         const params = new URLSearchParams();
         Object.entries(requestPayload).forEach(([k, v]) => {
@@ -728,27 +738,31 @@ export function ChatInterface() {
     setIsLoading(false);
   };
 
-  const navigateTo = (menu: MenuItem) => {
-    if (menu.trackClicks) {
-      fetch(`/api/menus/${encodeURIComponent(menu.id)}/click`, {
+  const navigateTo = async (menu: MenuItem) => {
+    const runtime = await fetchRuntimeConfig().catch(() => ({ menus }));
+    const activeMenus = runtime.menus;
+    const effectiveMenu = activeMenus.find(m => m.id === menu.id) || menu;
+    if (effectiveMenu.trackClicks) {
+      fetch(`/api/menus/${encodeURIComponent(effectiveMenu.id)}/click`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId: userData.id })
+        body: JSON.stringify({ sessionId: userData.id }),
+        cache: 'no-store'
       }).catch(() => { });
     }
-    const childMenus = menus.filter(m => m.parentId === menu.id);
-    const relatedItems = menus.filter(m => menu.attachedMenuIds?.includes(m.id));
-    setHistory(prev => [...prev, { id: `user-${Date.now()}`, sender: 'user', text: getLocalizedName(menu) }]);
-    const isAction = (menu.responseType === 'api' || menu.responseType === 'report') && menu.apiConfig;
-    const hasFields = menu.apiConfig?.kycFields?.length || 0;
-    const rootKey = menu.apiConfig?.rootKey || 'data';
+    const childMenus = activeMenus.filter(m => m.parentId === effectiveMenu.id);
+    const relatedItems = activeMenus.filter(m => effectiveMenu.attachedMenuIds?.includes(m.id));
+    setHistory(prev => [...prev, { id: `user-${Date.now()}`, sender: 'user', text: getLocalizedName(effectiveMenu) }]);
+    const isAction = (effectiveMenu.responseType === 'api' || effectiveMenu.responseType === 'report') && effectiveMenu.apiConfig;
+    const hasFields = effectiveMenu.apiConfig?.kycFields?.length || 0;
+    const rootKey = effectiveMenu.apiConfig?.rootKey || 'data';
 
     if (isAction && (hasFields > 0 || childMenus.length === 0)) {
-      const kycFields = menu.apiConfig?.kycFields || [];
+      const kycFields = effectiveMenu.apiConfig?.kycFields || [];
       const orderedFields = kycFields.slice().sort((a, b) => a.order - b.order);
 
       const historyUpdates: Message[] = [];
-      const rawIntro = getLocalizedContent(menu);
+      const rawIntro = getLocalizedContent(effectiveMenu);
       const isDefault = rawIntro === '<p>Enter your response message here...</p>';
       const isEmptyText = rawIntro.replace(/<[^>]*>?/gm, '').trim() === '';
       const introContent = (isDefault || isEmptyText) ? null : rawIntro;
@@ -768,7 +782,7 @@ export function ChatInterface() {
           text: getLocalizedKYCPrompt(orderedFields[0]),
           isKYC: true
         });
-        setKycFlow({ active: true, menuId: menu.id, fieldIndex: 0, fields: orderedFields });
+        setKycFlow({ active: true, menuId: effectiveMenu.id, fieldIndex: 0, fields: orderedFields });
         setHistory(prev => [...prev, ...historyUpdates]);
         return;
       }
@@ -777,10 +791,10 @@ export function ChatInterface() {
         setHistory(prev => [...prev, ...historyUpdates]);
       }
 
-      if (menu.responseType === 'report') {
-        handleInternalReport(menu, userData.kyc);
+      if (effectiveMenu.responseType === 'report') {
+        handleInternalReport(effectiveMenu, userData.kyc);
       } else {
-        executeApiCall(menu, userData.kyc);
+        executeApiCall(effectiveMenu, userData.kyc);
       }
       return;
     }
@@ -788,21 +802,21 @@ export function ChatInterface() {
     setHistory(prev => [...prev, {
       id: `bot-${Date.now()}`,
       sender: 'bot',
-      content: replacePlaceholders(getLocalizedContent(menu), { rootKey }) || (childMenus.length > 0 ? t('ui_select_option', 'Please select an option:') : ''),
+      content: replacePlaceholders(getLocalizedContent(effectiveMenu), { rootKey }) || (childMenus.length > 0 ? t('ui_select_option', 'Please select an option:') : ''),
       options: childMenus.length > 0 ? childMenus : undefined,
       relatedOptions: relatedItems.length > 0 ? relatedItems : undefined,
     }]);
 
     logInteraction({
       sessionId: userData.id,
-      userMessage: getLocalizedName(menu),
-      botResponse: replacePlaceholders(getLocalizedContent(menu), { rootKey }) || 'Options',
+      userMessage: getLocalizedName(effectiveMenu),
+      botResponse: replacePlaceholders(getLocalizedContent(effectiveMenu), { rootKey }) || 'Options',
       status: 'success',
       endpoint: 'Internal:MenuNavigation',
-      tags: ['navigation', menu.name]
+      tags: ['navigation', effectiveMenu.name]
     });
 
-    setCurrentMenuId(menu.id);
+    setCurrentMenuId(effectiveMenu.id);
   };
 
   const handleBack = () => {

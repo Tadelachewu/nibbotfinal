@@ -3,6 +3,9 @@ import prisma from '@/lib/prisma';
 
 import { getValidatedAdminSession, verifyCsrfToken } from '@/lib/session';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 function maskSensitiveInfo(text: string): string {
   const sensitiveKeys = ['password', 'token', 'secret', 'key', 'pin', 'cvv'];
   let out = text;

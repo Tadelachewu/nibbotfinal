@@ -3,6 +3,9 @@ import prisma from '@/lib/prisma';
 
 import { getValidatedAdminSession, rotateCsrfToken, verifyCsrfToken } from '@/lib/session';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 const defaultReportIdConfig = {
   prefix: 'NIB',
   yearEnabled: true,

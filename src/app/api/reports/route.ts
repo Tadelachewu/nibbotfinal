@@ -3,6 +3,9 @@ import prisma from '@/lib/prisma';
 
 import { getValidatedAdminSession, verifyCsrfToken } from '@/lib/session';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 function parseSequenceFromReportId(id: string): number | null {
   const parts = id.split('-');
   const lastPart = parts[parts.length - 1];

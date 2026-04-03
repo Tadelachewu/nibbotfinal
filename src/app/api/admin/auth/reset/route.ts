@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false, error: 'token and newPassword are required.' }, { status: 400 });
   }
 
-  const username = verifyRecoveryToken(token);
+  const username = await verifyRecoveryToken(token);
   if (!username) {
     return NextResponse.json({ success: false, error: 'Invalid or expired token.' }, { status: 400 });
   }
@@ -20,7 +20,7 @@ export async function POST(req: Request) {
   const passwordHash = await hashPassword(newPassword);
   await prisma.adminCredential.update({ where: { username }, data: { passwordHash } });
 
-  invalidateRecoveryToken(token);
+  await invalidateRecoveryToken(token);
 
   return NextResponse.json({ success: true });
 }

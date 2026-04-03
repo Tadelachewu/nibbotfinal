@@ -1,41 +1,36 @@
 import crypto from 'crypto';
+import { prisma } from '@/lib/prisma';
 
-type RecoveryEntry = {
-  username: string;
-  expiresAt: number;
-};
-
-const store = new Map<string, RecoveryEntry>();
-
-export function createRecoveryToken(username: string, ttlMs = 1000 * 60 * 60) {
+// Persisted recovery tokens backed by the database for production.
+export async function createRecoveryToken(username: string, ttlMs = 1000 * 60 * 60) {
   const token = crypto.randomUUID();
-  const expiresAt = Date.now() + ttlMs;
-  store.set(token, { username, expiresAt });
+  const expiresAt = new Date(Date.now() + ttlMs);
+  await prisma.adminRecoveryToken.create({ data: { token, username, expiresAt } });
   return token;
 }
 
-export function verifyRecoveryToken(token: string) {
-  const entry = store.get(token);
+export async function verifyRecoveryToken(token: string) {
+  const entry = await prisma.adminRecoveryToken.findUnique({ where: { token } });
   if (!entry) return null;
-  if (Date.now() > entry.expiresAt) {
-    store.delete(token);
+  if (entry.consumed) return null;
+  if (new Date() > entry.expiresAt) {
+    // expired - remove
+    await prisma.adminRecoveryToken.deleteMany({ where: { token } }).catch(() => null);
     return null;
   }
   return entry.username;
 }
 
-export function invalidateRecoveryToken(token: string) {
-  store.delete(token);
+export async function invalidateRecoveryToken(token: string) {
+  await prisma.adminRecoveryToken.updateMany({ where: { token }, data: { consumed: true } }).catch(() => null);
 }
 
-export function cleanupExpired() {
-  const now = Date.now();
-  for (const [k, v] of store.entries()) {
-    if (v.expiresAt <= now) store.delete(k);
-  }
+export async function cleanupExpired() {
+  const now = new Date();
+  await prisma.adminRecoveryToken.deleteMany({ where: { expiresAt: { lte: now } } }).catch(() => null);
 }
 
-// Periodic cleanup
-setInterval(cleanupExpired, 1000 * 60 * 10);
+// Periodic cleanup (every 10 minutes)
+setInterval(() => { cleanupExpired().catch(() => null); }, 1000 * 60 * 10);
 
 export default { createRecoveryToken, verifyRecoveryToken, invalidateRecoveryToken };

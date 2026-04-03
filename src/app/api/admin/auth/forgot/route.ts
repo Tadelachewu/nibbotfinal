@@ -17,13 +17,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true });
   }
 
-  const token = createRecoveryToken(admin.username);
+  const token = await createRecoveryToken(admin.username);
 
   // Production behavior: send the token to the admin's email if available.
-  // Do NOT return the token in the API response.
+  // Do NOT return the token in the API response. Add logging to help debug
+  // why emails may not be delivered during local development.
   try {
-    // Send email to the admin's configured email address.
-    await sendRecoveryEmail(admin.email, token, admin.username);
+    console.info(`[admin/forgot] creating recovery token for user=${admin.username} email=${admin.email}`);
+    console.info('[admin/forgot] sending recovery email...');
+    const sendResult = await sendRecoveryEmail(admin.email, token, admin.username);
+    console.info('[admin/forgot] sendRecoveryEmail result:', sendResult);
   } catch (err) {
     // Log the error but still return a generic success to avoid account probing.
     console.error('[admin/forgot] email send failed', err);

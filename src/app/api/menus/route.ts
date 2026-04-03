@@ -3,6 +3,9 @@ import prisma from '@/lib/prisma';
 
 import { getValidatedAdminSession, rotateCsrfToken, verifyCsrfToken } from '@/lib/session';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 function ensureRootPrefix(path: string, rootKey: string) {
   const clean = String(path || '').trim();
   const rk = String(rootKey || '').trim() || 'data';

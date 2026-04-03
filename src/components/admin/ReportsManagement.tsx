@@ -84,7 +84,7 @@ export function ReportsManagement() {
     setLoading(true);
     (async () => {
       try {
-        const res = await fetch('/api/reports');
+        const res = await fetch('/api/reports', { cache: 'no-store' });
         const json = await res.json().catch(() => null);
         setReports(Array.isArray(json?.data) ? json.data : []);
       } finally {

@@ -239,3 +239,14 @@ This app includes internal Next.js API routes for both the chatbot and admin con
 *   `GET /api/test/profile/:userId`
 *   `GET /api/test/user-transactions/:userId`
 *   Additional examples under `/api/test/*` (see [API_GUIDE.md](docs/API_GUIDE.md))
+
+
+
+
+redis
+
+Wsl then ubuntu
+sudo service redis-server start
+redis-cli ping
+it says pong
+

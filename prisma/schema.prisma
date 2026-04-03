@@ -233,6 +233,18 @@ model AdminCredential {
   @@map("admin_credentials")
 }
 
+// Admin recovery tokens for password reset (persisted for production)
+model AdminRecoveryToken {
+  token     String   @id
+  username  String
+  expiresAt DateTime
+  consumed  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([username])
+  @@map("admin_recovery_tokens")
+}
+
 model Account {
   id        Int      @id @default(autoincrement())
   accountId String   @unique

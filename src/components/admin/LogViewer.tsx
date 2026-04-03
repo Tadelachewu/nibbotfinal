@@ -31,7 +31,7 @@ export function LogViewer() {
     setIsLoading(true);
     (async () => {
       try {
-        const res = await fetch('/api/logs');
+        const res = await fetch('/api/logs', { cache: 'no-store' });
         const json = await res.json().catch(() => null);
         setLogs(Array.isArray(json?.data) ? json.data : []);
       } finally {
