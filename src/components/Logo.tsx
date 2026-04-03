@@ -12,7 +12,7 @@ interface LogoProps {
   priority?: boolean;
 }
 
-export function Logo({ className, src = '/logo.png', alt = 'Logo', priority }: LogoProps) {
+export function Logo({ className, src = '/logo.png', alt = 'Logo', priority = true }: LogoProps) {
   const [imageError, setImageError] = useState(false);
 
   return (
