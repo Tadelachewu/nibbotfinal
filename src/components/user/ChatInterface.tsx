@@ -77,6 +77,94 @@ function makeAvatarDataUri(text: string, background: string) {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
+function MessageOptionsList({
+  options,
+  relatedOptions,
+  navigateTo,
+  getLocalizedName,
+  currentLang
+}: {
+  options?: MenuItem[];
+  relatedOptions?: MenuItem[];
+  navigateTo: (opt: MenuItem) => void;
+  getLocalizedName: (opt: MenuItem) => string;
+  currentLang: Language | null;
+}) {
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 12;
+
+  const totalOptions = options?.length || 0;
+  const totalPages = Math.ceil(totalOptions / PAGE_SIZE);
+  const currentOptions = options?.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  if (!options?.length && !relatedOptions?.length) return null;
+
+  return (
+    <div className="flex flex-wrap content-start gap-2.5 mt-4 w-full">
+      {currentOptions?.map(opt => (
+        <Button
+          key={opt.id}
+          variant="outline"
+          className="rounded-[1.25rem] bg-white hover:bg-primary/5 border-primary/30 text-primary/90 h-auto py-3 px-4 flex items-center justify-start text-left w-fit max-w-full shadow-sm"
+          onClick={() => navigateTo(opt)}
+        >
+          <span className="whitespace-normal break-words font-medium text-[13px] leading-snug">{getLocalizedName(opt)}</span>
+        </Button>
+      ))}
+      
+      {totalPages > 1 && (
+        <div className="w-full flex items-center justify-between gap-2 mt-2 px-1">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setPage(p => Math.max(0, p - 1))} 
+            disabled={page === 0}
+            className="text-[11px] font-bold uppercase rounded-full h-8 px-3"
+          >
+            <ChevronLeft size={14} className="mr-1" />
+            {currentLang?.code === 'am' ? 'ወደ ኋላ' : 'Prev'}
+          </Button>
+          <span className="text-[10px] text-muted-foreground font-bold tracking-widest">
+            {page + 1} / {totalPages}
+          </span>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} 
+            disabled={page === totalPages - 1}
+            className="text-[11px] font-bold uppercase rounded-full h-8 px-3"
+          >
+            {currentLang?.code === 'am' ? 'ቀጣይ' : 'Next'}
+            <ChevronRight size={14} className="ml-1" />
+          </Button>
+        </div>
+      )}
+
+      {relatedOptions && relatedOptions.length > 0 && (
+        <div className="w-full flex items-center gap-2 py-2">
+          <div className="h-px bg-muted flex-1" />
+          <span className="text-[9px] font-bold uppercase text-muted-foreground">
+            {currentLang?.code === 'am' ? 'ተዛማጅ' : 'Related'}
+          </span>
+          <div className="h-px bg-muted flex-1" />
+        </div>
+      )}
+      
+      {relatedOptions?.map(opt => (
+        <Button
+          key={opt.id}
+          variant="secondary"
+          className="rounded-[1.25rem] shadow-sm flex items-center justify-start text-left w-fit max-w-full h-auto py-3 px-4 gap-2 bg-primary/5 hover:bg-primary/10 text-primary/90"
+          onClick={() => navigateTo(opt)}
+        >
+          <ClipboardCheck size={16} className="shrink-0 opacity-70" />
+          <span className="whitespace-normal break-words font-medium text-[13px] leading-snug">{getLocalizedName(opt)}</span>
+        </Button>
+      ))}
+    </div>
+  );
+}
+
 export function ChatInterface() {
   const [menus, setMenus] = useState<MenuItem[]>([]);
   const [languages, setLanguages] = useState<Language[]>([]);
@@ -1052,33 +1140,13 @@ export function ChatInterface() {
                   </ScrollArea>
                 </div>
               )}
-              <div className="flex flex-wrap gap-2 mt-4">
-                {msg.options?.map(opt => (
-                  <Button
-                    key={opt.id}
-                    variant="outline"
-                    size="sm"
-                    className="rounded-full bg-white hover:bg-primary/5 border-primary/20 text-primary max-w-full flex items-center gap-1 min-w-0"
-                    onClick={() => navigateTo(opt)}
-                  >
-                    <span className="truncate max-w-[75vw]">{getLocalizedName(opt)}</span>
-                    <ChevronRight size={14} className="opacity-50 shrink-0" />
-                  </Button>
-                ))}
-                {msg.relatedOptions && msg.relatedOptions.length > 0 && <div className="w-full flex items-center gap-2 py-2"><div className="h-px bg-muted flex-1" /><span className="text-[9px] font-bold uppercase text-muted-foreground">{currentLang?.code === 'am' ? 'ተዛማጅ' : 'Related'}</span><div className="h-px bg-muted flex-1" /></div>}
-                {msg.relatedOptions?.map(opt => (
-                  <Button
-                    key={opt.id}
-                    variant="secondary"
-                    size="sm"
-                    className="rounded-full shadow-sm max-w-full flex items-center gap-2 min-w-0"
-                    onClick={() => navigateTo(opt)}
-                  >
-                    <ClipboardCheck size={12} className="shrink-0" />
-                    <span className="truncate max-w-[75vw]">{getLocalizedName(opt)}</span>
-                  </Button>
-                ))}
-              </div>
+              <MessageOptionsList 
+                options={msg.options} 
+                relatedOptions={msg.relatedOptions}
+                navigateTo={navigateTo}
+                getLocalizedName={getLocalizedName}
+                currentLang={currentLang}
+              />
             </ChatBubble>
           ))}
           {isLoading && (
