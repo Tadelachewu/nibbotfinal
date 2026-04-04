@@ -88,7 +88,7 @@ function validateEndpointTemplate(endpoint: string, kycFieldNames: string[]) {
   return { ok: invalid.length === 0 && missingKyc.length === 0, vars, invalid, missingKyc };
 }
 
-function buildMenuResponse(menu: any) {
+function buildMenuResponse(menu: any, mergePending: boolean = false) {
   const attachedMenuIds = Array.isArray(menu.attachments)
     ? menu.attachments.map((a: any) => a.attachedMenuId)
     : [];
@@ -124,7 +124,7 @@ function buildMenuResponse(menu: any) {
       ? (menu.pendingUpdate as Record<string, any>)
       : undefined;
 
-  return {
+  const base = {
     id: menu.id,
     parentId: menu.parentId ?? null,
     name: menu.name,
@@ -152,6 +152,28 @@ function buildMenuResponse(menu: any) {
     sessionClickCount: menu.sessionClickCount ?? 0,
     translations: (menu.translations as any) ?? undefined
   };
+
+  if (mergePending && pendingUpdate) {
+    if (pendingUpdate.name !== undefined) base.name = pendingUpdate.name;
+    if (pendingUpdate.nameAm !== undefined) base.nameAm = pendingUpdate.nameAm;
+    if (pendingUpdate.responseType !== undefined) base.responseType = pendingUpdate.responseType;
+    if (pendingUpdate.content !== undefined) base.content = pendingUpdate.content;
+    if (pendingUpdate.contentAm !== undefined) base.contentAm = pendingUpdate.contentAm;
+    if (pendingUpdate.order !== undefined) base.order = pendingUpdate.order;
+    if (pendingUpdate.isActive !== undefined) base.isActive = pendingUpdate.isActive;
+    if (pendingUpdate.parentId !== undefined) base.parentId = pendingUpdate.parentId;
+    if (pendingUpdate.attachedMenuIds !== undefined) base.attachedMenuIds = pendingUpdate.attachedMenuIds;
+    if (pendingUpdate.apiConfig !== undefined) {
+      const pApi = pendingUpdate.apiConfig;
+      const kycFromPending = Array.isArray(pApi.kycFields) ? pApi.kycFields : kycFields;
+      base.apiConfig = {
+        ...normalizeApiConfig(pApi),
+        kycFields: kycFromPending
+      };
+    }
+  }
+
+  return base;
 }
 
 export async function GET(req: Request) {
@@ -191,7 +213,12 @@ export async function GET(req: Request) {
     }
   }
 
-  return NextResponse.json({ status: 'success', data: menus.map(buildMenuResponse) });
+  const responseData = menus.map(m => buildMenuResponse(m, includeAll));
+  if (includeAll) {
+    responseData.sort((a, b) => (a.order - b.order) || a.name.localeCompare(b.name));
+  }
+
+  return NextResponse.json({ status: 'success', data: responseData });
 }
 
 export async function POST(req: Request) {
@@ -314,7 +341,7 @@ export async function POST(req: Request) {
   });
 
   const nextToken = await rotateCsrfToken(session);
-  const res = NextResponse.json({ status: 'success', data: created ? buildMenuResponse(created) : null });
+  const res = NextResponse.json({ status: 'success', data: created ? buildMenuResponse(created, true) : null });
   res.headers.set('x-csrf-token', nextToken);
   return res;
 }

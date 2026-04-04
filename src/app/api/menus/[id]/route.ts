@@ -86,7 +86,7 @@ function validateEndpointTemplate(endpoint: string, kycFieldNames: string[]) {
   return { ok: invalid.length === 0 && missingKyc.length === 0, vars, invalid, missingKyc };
 }
 
-function buildMenuResponse(menu: any) {
+function buildMenuResponse(menu: any, mergePending: boolean = false) {
   const attachedMenuIds = Array.isArray(menu.attachments)
     ? menu.attachments.map((a: any) => a.attachedMenuId)
     : [];
@@ -122,7 +122,7 @@ function buildMenuResponse(menu: any) {
       ? (menu.pendingUpdate as Record<string, any>)
       : undefined;
 
-  return {
+  const base = {
     id: menu.id,
     parentId: menu.parentId ?? null,
     name: menu.name,
@@ -150,6 +150,28 @@ function buildMenuResponse(menu: any) {
     sessionClickCount: menu.sessionClickCount ?? 0,
     translations: (menu.translations as any) ?? undefined
   };
+
+  if (mergePending && pendingUpdate) {
+    if (pendingUpdate.name !== undefined) base.name = pendingUpdate.name;
+    if (pendingUpdate.nameAm !== undefined) base.nameAm = pendingUpdate.nameAm;
+    if (pendingUpdate.responseType !== undefined) base.responseType = pendingUpdate.responseType;
+    if (pendingUpdate.content !== undefined) base.content = pendingUpdate.content;
+    if (pendingUpdate.contentAm !== undefined) base.contentAm = pendingUpdate.contentAm;
+    if (pendingUpdate.order !== undefined) base.order = pendingUpdate.order;
+    if (pendingUpdate.isActive !== undefined) base.isActive = pendingUpdate.isActive;
+    if (pendingUpdate.parentId !== undefined) base.parentId = pendingUpdate.parentId;
+    if (pendingUpdate.attachedMenuIds !== undefined) base.attachedMenuIds = pendingUpdate.attachedMenuIds;
+    if (pendingUpdate.apiConfig !== undefined) {
+      const pApi = pendingUpdate.apiConfig;
+      const kycFromPending = Array.isArray(pApi.kycFields) ? pApi.kycFields : kycFields;
+      base.apiConfig = {
+        ...normalizeApiConfig(pApi),
+        kycFields: kycFromPending
+      };
+    }
+  }
+
+  return base;
 }
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -349,7 +371,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   });
 
   const nextToken = await rotateCsrfToken(session);
-  const res = NextResponse.json({ status: 'success', data: updated ? buildMenuResponse(updated) : null });
+  const res = NextResponse.json({ status: 'success', data: updated ? buildMenuResponse(updated, true) : null });
   res.headers.set('x-csrf-token', nextToken);
   return res;
 }
@@ -519,7 +541,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
   });
 
   const nextToken = await rotateCsrfToken(session);
-  const res = NextResponse.json({ status: 'success', data: updated ? buildMenuResponse(updated) : null });
+  const res = NextResponse.json({ status: 'success', data: updated ? buildMenuResponse(updated, true) : null });
   res.headers.set('x-csrf-token', nextToken);
   return res;
 }

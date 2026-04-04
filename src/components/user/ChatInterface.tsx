@@ -200,7 +200,7 @@ export function ChatInterface() {
   const fetchRuntimeConfig = useCallback(async () => {
     const [settingsRes, menusRes] = await Promise.all([
       fetch('/api/app-settings', { cache: 'no-store' }),
-      fetch('/api/menus', { cache: 'no-store' })
+      fetch('/api/menus?includeInactive=true', { cache: 'no-store' })
     ]);
     const [settingsJson, menusJson] = await Promise.all([
       settingsRes.json().catch(() => null),
