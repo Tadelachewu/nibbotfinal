@@ -40,9 +40,7 @@ import {
   FileText,
   Hash,
   Calendar,
-  ArrowUp,
-  ArrowDown,
-  ArrowRightLeft
+  ChevronLeft
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -115,8 +113,8 @@ export function MenuManagement() {
   useEffect(() => {
     const load = async () => {
       const [menusRes, settingsRes] = await Promise.all([
-        fetch('/api/menus?includeInactive=1', { cache: 'no-store' }),
-        fetch('/api/app-settings', { cache: 'no-store' })
+        fetch('/api/menus?includeInactive=1'),
+        fetch('/api/app-settings')
       ]);
       const [menusJson, settingsJson] = await Promise.all([
         menusRes.json().catch(() => null),
@@ -139,7 +137,7 @@ export function MenuManagement() {
 
   const refresh = () => {
     (async () => {
-      const res = await fetch('/api/menus?includeInactive=1', { cache: 'no-store' });
+      const res = await fetch('/api/menus?includeInactive=1');
       const json = await res.json().catch(() => null);
       setMenus(Array.isArray(json?.data) ? json.data : []);
     })();
@@ -213,54 +211,6 @@ export function MenuManagement() {
         toast({ title: "Error", description: "Could not create menu item.", variant: "destructive" });
       }
     })();
-  };
-
-  const handleMove = async (item: MenuItem, direction: 'up' | 'down') => {
-    const siblings = menus.filter(m => m.parentId === item.parentId).sort((a, b) => a.order - b.order);
-    const index = siblings.findIndex(m => m.id === item.id);
-    
-    if (direction === 'up' && index > 0) {
-      const prevItem = siblings[index - 1];
-      siblings[index - 1] = item;
-      siblings[index] = prevItem;
-    } else if (direction === 'down' && index < siblings.length - 1) {
-      const nextItem = siblings[index + 1];
-      siblings[index + 1] = item;
-      siblings[index] = nextItem;
-    } else {
-      return;
-    }
-
-    const updates = siblings.map((sibling, idx) => ({ ...sibling, newOrder: idx }));
-    const changed = updates.filter(u => u.order !== u.newOrder);
-
-    if (changed.length > 0) {
-      try {
-        await Promise.all(changed.map(u => 
-          csrfFetch(`/api/menus/${u.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...u, order: u.newOrder, isSwap: true }) })
-        ));
-        refresh();
-      } catch {
-        toast({ title: 'Error', description: 'Failed to reorder menus.', variant: 'destructive' });
-      }
-    }
-  };
-
-  const handleSwap = async (item1: MenuItem, item2: MenuItem) => {
-    try {
-      const order1 = item1.order;
-      const order2 = item2.order;
-      
-      await Promise.all([
-        csrfFetch(`/api/menus/${item1.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...item1, order: order2, isSwap: true }) }),
-        csrfFetch(`/api/menus/${item2.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...item2, order: order1, isSwap: true }) })
-      ]);
-      
-      refresh();
-      toast({ title: "Swapped", description: `Swapped "${item1.name}" with "${item2.name}"` });
-    } catch {
-      toast({ title: "Error", description: "Failed to swap positions.", variant: "destructive" });
-    }
   };
 
   const handleStartEdit = (menu: MenuItem) => {
@@ -486,16 +436,14 @@ export function MenuManagement() {
   };
 
   const renderTree = (parentId: string | null = null, level = 0) => {
-    const items = menus.filter(m => m.parentId === parentId).sort((a, b) => (a.order - b.order) || a.name.localeCompare(b.name));
+    const items = menus.filter(m => m.parentId === parentId).sort((a, b) => a.order - b.order);
     if (items.length === 0 && parentId !== null) return null;
     const isChecker = currentRole === 'checker';
     return (
       <div className={`space-y-1 ${level > 0 ? 'ml-4 border-l pl-2 mt-1' : ''}`}>
-        {items.map((item, idx) => {
+        {items.map(item => {
           const hasChildren = menus.some(m => m.parentId === item.id);
           const approvalStatus = item.approvalStatus || 'approved';
-          const isFirst = idx === 0;
-          const isLast = idx === items.length - 1;
           return (
             <div key={item.id} className="group">
               <div className={cn("flex items-center justify-between p-2 rounded-md hover:bg-muted/50 transition-colors", editingId === item.id && 'bg-primary/10 ring-1 ring-primary/30')}>
@@ -514,55 +462,11 @@ export function MenuManagement() {
                       {item.isActive === false && <Badge variant="secondary" className="text-[10px] h-4 px-2 shrink-0">Suspended</Badge>}
                       {approvalStatus === 'pending' && <Badge variant="secondary" className="text-[10px] h-4 px-2 shrink-0 text-amber-600">Pending</Badge>}
                       {approvalStatus === 'rejected' && <Badge variant="secondary" className="text-[10px] h-4 px-2 shrink-0 text-destructive">Rejected</Badge>}
-                      {item.pendingStatus === 'pending' && <Badge variant="secondary" className="text-[10px] h-4 px-2 shrink-0 text-amber-600 bg-amber-50 border border-amber-200 ml-1">Pending Update</Badge>}
-                      {item.pendingStatus === 'rejected' && <Badge variant="secondary" className="text-[10px] h-4 px-2 shrink-0 text-destructive bg-red-50 border border-red-200 ml-1">Update Rejected</Badge>}
                     </div>
                     {item.nameAm && <span className="truncate text-[10px] text-muted-foreground">{item.nameAm}</span>}
                   </div>
                 </div>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:bg-muted" onClick={() => handleMove(item, 'up')} disabled={isFirst}><ArrowUp size={14} /></Button>
-                      </TooltipTrigger>
-                      <TooltipContent><p className="text-[10px]">Move Up</p></TooltipContent>
-                    </Tooltip>
-
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:bg-muted" onClick={() => handleMove(item, 'down')} disabled={isLast}><ArrowDown size={14} /></Button>
-                      </TooltipTrigger>
-                      <TooltipContent><p className="text-[10px]">Move Down</p></TooltipContent>
-                    </Tooltip>
-
-                    <Popover>
-                      <Tooltip>
-                        <PopoverTrigger asChild>
-                          <TooltipTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:bg-muted"><ArrowRightLeft size={14} /></Button>
-                          </TooltipTrigger>
-                        </PopoverTrigger>
-                        <TooltipContent><p className="text-[10px]">Swap Position With...</p></TooltipContent>
-                      </Tooltip>
-                      <PopoverContent className="w-56 p-2" align="end">
-                        <div className="text-[10px] font-bold uppercase text-muted-foreground mb-2 px-2">Swap "{item.name}" With</div>
-                        <ScrollArea className="h-48">
-                          <div className="space-y-1">
-                            {items.filter(m => m.id !== item.id).map(sibling => (
-                              <Button key={sibling.id} variant="ghost" className="w-full justify-start h-8 text-xs font-medium px-2 truncate" onClick={() => handleSwap(item, sibling)}>
-                                {sibling.name}
-                              </Button>
-                            ))}
-                            {items.length <= 1 && <div className="text-[10px] italic text-center py-4 text-muted-foreground">No other items to swap with.</div>}
-                          </div>
-                        </ScrollArea>
-                      </PopoverContent>
-                    </Popover>
-                  </TooltipProvider>
-
-                  <Separator orientation="vertical" className="h-4 mx-1" />
-
                   {isChecker && approvalStatus === 'pending' && item.createdBy !== currentUsername && (
                     <>
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-emerald-600" onClick={() => handleApprove(item.id)}><ShieldCheck size={14} /></Button>
@@ -585,7 +489,7 @@ export function MenuManagement() {
   const renderBrowserTree = (parentId: string | null = null, level = 0) => {
     const items = menus.filter(m => m.parentId === parentId && m.id !== editingId)
       .filter(m => searchQuery === '' || m.name.toLowerCase().includes(searchQuery.toLowerCase()))
-      .sort((a, b) => (a.order - b.order) || a.name.localeCompare(b.name));
+      .sort((a, b) => a.order - b.order);
 
     if (items.length === 0 && parentId !== null) return null;
 
@@ -822,40 +726,23 @@ export function MenuManagement() {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-5xl h-[95vh] flex flex-col p-0 overflow-hidden">
-          <DialogHeader className="p-6 border-b bg-white">
-            <DialogTitle className="flex items-center gap-2"><Settings2 size={18} /> Configure {editForm.name}</DialogTitle>
-          </DialogHeader>
-
-          {/* Status Alerts */}
-          {(editForm.approvalStatus === 'pending' || editForm.pendingStatus === 'pending') && (
-            <div className="bg-amber-50 border-b border-amber-100 p-3 px-6 flex items-center gap-3">
-              <Info size={16} className="text-amber-600 shrink-0" />
-              <span className="text-xs font-medium text-amber-800">
-                {editForm.approvalStatus === 'pending' 
-                  ? "This is a NEW menu item waiting for initial approval. Your changes will update the pending creation." 
-                  : "This menu has an EXISTING pending update. You are currently editing the pending version."}
-              </span>
-            </div>
-          )}
-          {(editForm.approvalStatus === 'rejected' || editForm.pendingStatus === 'rejected') && (
-            <div className="bg-destructive/10 border-b border-destructive/20 p-3 px-6 flex items-center gap-3">
-              <ShieldAlert size={16} className="text-destructive shrink-0" />
-              <div className="flex flex-col">
-                <span className="text-xs font-bold text-destructive uppercase tracking-tight">
-                  {editForm.approvalStatus === 'rejected' ? "New Menu Creation Rejected" : "Previous Update Rejected"}
-                </span>
-                {(editForm.rejectionReason || editForm.pendingRejectionReason) && (
-                  <span className="text-[10px] text-destructive/80 font-medium">
-                    Rejection Reason: {editForm.rejectionReason || editForm.pendingRejectionReason}
-                  </span>
-                )}
+      {isEditDialogOpen ? (
+        <div className="fixed inset-0 z-50 bg-background">
+          <div className="h-full flex flex-col">
+            <div className="p-6 border-b bg-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Button variant="ghost" className="h-9 px-3" onClick={() => setIsEditDialogOpen(false)}>
+                  <ChevronLeft size={16} className="mr-2" />
+                  Back
+                </Button>
+                <div className="flex items-center gap-2 text-base font-semibold">
+                  <Settings2 size={18} />
+                  <span>Configure {editForm.name}</span>
+                </div>
               </div>
             </div>
-          )}
-          <ScrollArea className="flex-1">
-            <div className="p-6 space-y-8 pb-20">
+            <ScrollArea className="flex-1">
+              <div className="p-6 space-y-8 pb-24">
               <div className="grid gap-6 sm:grid-cols-4 bg-muted/10 p-4 rounded-xl border">
                 <div className="space-y-2">
                   <Label className="text-xs uppercase font-bold text-muted-foreground">Action Type</Label>
@@ -1490,14 +1377,17 @@ export function MenuManagement() {
                   {renderBrowserTree(null)}
                 </div>
               </div>
+              </div>
+            </ScrollArea>
+            <div className="p-4 border-t bg-white flex items-center justify-end gap-2">
+              <Button variant="ghost" onClick={() => setIsEditDialogOpen(false)}>Back</Button>
+              <Button onClick={handleSaveEdit} disabled={isSaving}>
+                {isSaving ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2" />} Save Changes
+              </Button>
             </div>
-          </ScrollArea>
-          <DialogFooter className="p-4 border-t bg-white sticky bottom-0 z-50">
-            <Button variant="ghost" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSaveEdit} disabled={isSaving}>{isSaving ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2" />} Save Changes</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </div>
+      ) : null}
 
       <AlertDialog open={!!itemToDelete} onOpenChange={() => setItemToDelete(null)}>
         <AlertDialogContent>
