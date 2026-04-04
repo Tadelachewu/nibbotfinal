@@ -731,48 +731,61 @@ export function MenuManagement() {
             <DialogTitle className="flex items-center gap-2"><Settings2 size={18} /> Configure {editForm.name}</DialogTitle>
           </DialogHeader>
           <ScrollArea className="flex-1">
-            <div className="p-6 space-y-8 pb-20">
-              <div className="grid gap-6 sm:grid-cols-4 bg-muted/10 p-4 rounded-xl border">
+            <div className="p-6 space-y-8 pb-20 bg-muted/5">
+              {/* Primary Configuration Grid */}
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 bg-white p-6 rounded-2xl border shadow-sm">
                 <div className="space-y-2">
-                  <Label className="text-xs uppercase font-bold text-muted-foreground">Action Type</Label>
+                  <Label className="text-[11px] uppercase font-bold text-muted-foreground flex items-center gap-2">
+                    <Zap size={14} className="text-amber-500" /> Action Type
+                  </Label>
                   <Select value={editForm.responseType} onValueChange={(v: any) => setEditForm({ ...editForm, responseType: v })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-10 border-muted/50"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="static">Static Response</SelectItem>
-                      <SelectItem value="api">API Action</SelectItem>
-                      <SelectItem value="report">Internal Report</SelectItem>
+                      <SelectItem value="api">API Action (External)</SelectItem>
+                      <SelectItem value="report">Internal Report (Dashboard)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
+
                 <div className="space-y-2">
-                  <Label className="text-xs uppercase font-bold text-muted-foreground">Display Order</Label>
-                  <Input type="number" value={editForm.order || 0} onChange={e => setEditForm({ ...editForm, order: parseInt(e.target.value) || 0 })} />
-                </div>
-                <div className="flex flex-col justify-center space-y-2">
-                  <Label className="text-xs uppercase font-bold text-muted-foreground flex items-center gap-1">
-                    <ShieldCheck size={12} className="text-primary" /> Visible To Users
+                  <Label className="text-[11px] uppercase font-bold text-muted-foreground flex items-center gap-2">
+                    <Type size={14} className="text-primary" /> Display Order
                   </Label>
-                  <div className="flex items-center gap-3">
+                  <Input 
+                    type="number" 
+                    className="h-10"
+                    value={editForm.order || 0} 
+                    onChange={e => setEditForm({ ...editForm, order: parseInt(e.target.value) || 0 })} 
+                  />
+                </div>
+
+                <div className="flex flex-col justify-between p-3 border rounded-xl bg-muted/10 hover:bg-muted/20 transition-colors">
+                  <Label className="text-[11px] uppercase font-bold text-muted-foreground flex items-center gap-2">
+                    <ShieldCheck size={14} className="text-emerald-500" /> Visibility
+                  </Label>
+                  <div className="flex items-center gap-3 mt-2">
                     <Switch
                       checked={editForm.isActive !== false}
                       onCheckedChange={(checked) => setEditForm({ ...editForm, isActive: Boolean(checked) })}
                     />
-                    <span className="text-[10px] text-muted-foreground font-medium uppercase">
-                      {editForm.isActive === false ? 'Suspended' : 'Enabled'}
+                    <span className={cn("text-[10px] font-bold uppercase", editForm.isActive === false ? 'text-destructive' : 'text-emerald-600')}>
+                      {editForm.isActive === false ? 'Suspended' : 'Live on Bot'}
                     </span>
                   </div>
                 </div>
-                <div className="flex flex-col justify-center space-y-2">
-                  <Label className="text-xs uppercase font-bold text-muted-foreground flex items-center gap-1">
-                    <Fingerprint size={12} className="text-primary" /> Enable Click Tracking
+
+                <div className="flex flex-col justify-between p-3 border rounded-xl bg-primary/5 border-primary/10 hover:bg-primary/10 transition-colors">
+                  <Label className="text-[11px] uppercase font-bold text-primary flex items-center gap-2">
+                    <Fingerprint size={14} /> Track User Clicks
                   </Label>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 mt-2">
                     <Switch
                       checked={editForm.trackClicks || false}
                       onCheckedChange={(checked) => setEditForm({ ...editForm, trackClicks: checked })}
                     />
-                    <span className="text-[10px] text-muted-foreground font-medium uppercase">
-                      {editForm.trackClicks ? 'Active' : 'Disabled'}
+                    <span className={cn("text-[10px] font-bold uppercase", editForm.trackClicks ? 'text-primary' : 'text-muted-foreground')}>
+                      {editForm.trackClicks ? 'Tracking Enabled' : 'Disabled'}
                     </span>
                   </div>
                 </div>
@@ -1011,71 +1024,59 @@ export function MenuManagement() {
                     </Card>
                   )}
 
-                  <Card>
-                    <CardHeader className="bg-muted/10">
+              {(editForm.responseType === 'api' || editForm.responseType === 'report') ? (
+                <div className="space-y-8 pt-4">
+                  {/* ... existing fields ... */}
+                  <Card className="border-primary/20 shadow-sm border-t-4 border-t-primary">
+                    <CardHeader className="bg-primary/5 pb-3">
                       <div className="flex items-center justify-between">
-                        <CardTitle className="text-sm">{editForm.responseType === 'report' ? 'Report Configuration' : 'User Input & Mapping'}</CardTitle>
-                        {editForm.responseType === 'report' && (
-                          <div className="flex items-center gap-6">
-                            <div className="flex items-center gap-2 border-r pr-6 border-muted/20">
-                              <Label htmlFor="hide-id" className="text-[10px] uppercase font-bold text-muted-foreground whitespace-nowrap">Show ID to User</Label>
-                              <Switch
-                                id="hide-id"
-                                checked={!editForm.apiConfig?.responseMapping?.hideReportId}
-                                onCheckedChange={checked => deepUpdate(['apiConfig', 'responseMapping', 'hideReportId'], !checked)}
-                              />
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Priority</Label>
-                              <Select
-                                value={editForm.apiConfig?.defaultPriority || 'medium'}
-                                onValueChange={v => deepUpdate(['apiConfig', 'defaultPriority'], v)}
-                              >
-                                <SelectTrigger className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="low">Low</SelectItem>
-                                  <SelectItem value="medium">Medium</SelectItem>
-                                  <SelectItem value="high">High</SelectItem>
-                                  <SelectItem value="urgent">Urgent</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          </div>
-                        )}
+                        <div>
+                          <CardTitle className="text-sm flex items-center gap-2">
+                             <Fingerprint size={16} className="text-primary" />
+                             {editForm.responseType === 'report' ? 'Report Data Collection' : 'User Input (KYC) Fields'}
+                          </CardTitle>
+                          <p className="text-[10px] text-muted-foreground mt-1 tracking-tight">Define the information users must provide before this action completes.</p>
+                        </div>
+                        <Button variant="default" size="sm" className="h-9 px-4 font-bold bg-primary hover:bg-primary/90" onClick={() => {
+                          const fields = editForm.apiConfig?.kycFields || [];
+                          deepUpdate(['apiConfig', 'kycFields'], [...fields, { id: Math.random().toString(36).substr(2, 9), name: '', prompt: '', promptAm: '', type: 'text', order: fields.length, required: true }]);
+                        }}>
+                          <Plus className="mr-2 h-4 w-4" /> Add Required Field
+                        </Button>
                       </div>
                     </CardHeader>
-                    <CardContent className="p-4 space-y-6">
+                    <CardContent className="p-4 space-y-4">
+                      {(!editForm.apiConfig?.kycFields || editForm.apiConfig.kycFields.length === 0) && (
+                         <div className="flex flex-col items-center justify-center py-10 border border-dashed rounded-lg bg-muted/5 opacity-60">
+                           <Info size={24} className="text-muted-foreground mb-2" />
+                           <p className="text-xs font-bold text-muted-foreground">No input fields defined yet.</p>
+                           <p className="text-[10px] text-muted-foreground">Click "Add Required Field" to start collecting user data.</p>
+                         </div>
+                      )}
                       <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-xs font-bold uppercase">1. Collected Fields</Label>
-                          <Button variant="ghost" size="sm" onClick={() => {
-                            const fields = editForm.apiConfig?.kycFields || [];
-                            deepUpdate(['apiConfig', 'kycFields'], [...fields, { id: Math.random().toString(36).substr(2, 9), name: '', prompt: '', promptAm: '', type: 'text', order: fields.length, required: true }]);
-                          }}><Plus className="mr-1" /> Add Field</Button>
-                        </div>
                         {editForm.apiConfig?.kycFields?.map((field, idx) => {
                           const lang = getCurrentLanguage();
                           const isDefault = lang.code === settings.supportedLanguages.find(l => l.isDefault)?.code || lang.isDefault;
                           const currentPrompt = isDefault ? (field.prompt || '') : (lang.code === 'am' ? (field.promptAm || '') : (field.prompt || ''));
 
                           return (
-                            <div key={field.id} className="flex flex-col gap-3 p-4 border rounded-md bg-muted/5 group relative">
+                            <div key={field.id} className="flex flex-col gap-3 p-4 border rounded-xl bg-white group relative shadow-sm hover:ring-1 hover:ring-primary/20 transition-all">
                               <div className="grid grid-cols-4 gap-3">
-                                <div className="space-y-1"><Label className="text-[10px] uppercase font-bold">Field Key</Label><Input value={field.name || ''} onChange={e => { const fields = [...editForm.apiConfig!.kycFields]; fields[idx].name = e.target.value; deepUpdate(['apiConfig', 'kycFields'], fields); }} /></div>
-                                <div className="space-y-1"><Label className="text-[10px] uppercase font-bold">Type</Label><Select value={field.type} onValueChange={v => { const fields = [...editForm.apiConfig!.kycFields]; fields[idx].type = v as any; deepUpdate(['apiConfig', 'kycFields'], fields); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="text">Text</SelectItem><SelectItem value="tel">Phone</SelectItem><SelectItem value="email">Email</SelectItem><SelectItem value="number">Number</SelectItem><SelectItem value="password">Password</SelectItem><SelectItem value="boolean">Boolean (Switch)</SelectItem></SelectContent></Select></div>
+                                <div className="space-y-1"><Label className="text-[11px] uppercase font-bold text-muted-foreground">Internal Key</Label><Input className="h-9 font-mono" placeholder="e.g. account_number" value={field.name || ''} onChange={e => { const fields = [...editForm.apiConfig!.kycFields]; fields[idx].name = e.target.value; deepUpdate(['apiConfig', 'kycFields'], fields); }} /></div>
+                                <div className="space-y-1"><Label className="text-[11px] uppercase font-bold text-muted-foreground">Input Type</Label><Select value={field.type} onValueChange={v => { const fields = [...editForm.apiConfig!.kycFields]; fields[idx].type = v as any; deepUpdate(['apiConfig', 'kycFields'], fields); }}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="text">General Text</SelectItem><SelectItem value="tel">Phone Number</SelectItem><SelectItem value="email">Email Address</SelectItem><SelectItem value="number">Numeric Only</SelectItem><SelectItem value="password">Password/Pin</SelectItem><SelectItem value="boolean">Yes/No Switch</SelectItem></SelectContent></Select></div>
                                 <div className="col-span-2 space-y-1">
-                                  <div className="flex items-center justify-between">
-                                    <Label className="text-[10px] uppercase font-bold">Prompt ({lang.name})</Label>
+                                  <div className="flex items-center justify-between h-5">
+                                    <Label className="text-[11px] uppercase font-bold text-muted-foreground">Bot Prompt ({lang.name})</Label>
                                     <div className="flex items-center gap-2">
-                                      <Label className="text-[9px] uppercase font-bold text-muted-foreground">{field.required ? 'Mandatory' : 'Optional'}</Label>
-                                      <Switch checked={field.required} onCheckedChange={checked => {
+                                      <Label className={cn("text-[9px] uppercase font-bold", field.required ? 'text-primary' : 'text-muted-foreground')}>{field.required ? 'Mandatory' : 'Optional'}</Label>
+                                      <Switch className="scale-75 origin-right" checked={field.required} onCheckedChange={checked => {
                                         const fields = [...editForm.apiConfig!.kycFields];
                                         fields[idx].required = checked;
                                         deepUpdate(['apiConfig', 'kycFields'], fields);
                                       }} />
                                     </div>
                                   </div>
-                                  <Input value={currentPrompt} onChange={e => {
+                                  <Input className="h-9" placeholder="e.g. Please enter your account number:" value={currentPrompt} onChange={e => {
                                     const fields = [...editForm.apiConfig!.kycFields];
                                     if (isDefault) fields[idx].prompt = e.target.value;
                                     else if (lang.code === 'am') fields[idx].promptAm = e.target.value;
@@ -1083,11 +1084,29 @@ export function MenuManagement() {
                                   }} />
                                 </div>
                               </div>
-                              <Button variant="ghost" size="icon" className="absolute -right-2 -top-2 h-7 w-7 rounded-full bg-white border text-destructive opacity-0 group-hover:opacity-100" onClick={() => { const fields = editForm.apiConfig!.kycFields.filter((_, i) => i !== idx); deepUpdate(['apiConfig', 'kycFields'], fields); }}><Trash2 size={12} /></Button>
+                              <Button variant="ghost" size="icon" className="absolute -right-3 -top-3 h-8 w-8 rounded-full bg-white border border-destructive/20 text-destructive shadow-sm hover:bg-destructive hover:text-white transition-opacity opacity-0 group-hover:opacity-100" onClick={() => { const fields = editForm.apiConfig!.kycFields.filter((_, i) => i !== idx); deepUpdate(['apiConfig', 'kycFields'], fields); }}><Trash2 size={14} /></Button>
                             </div>
                           );
                         })}
                       </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              ) : (
+                <div className="mt-8 p-10 flex flex-col items-center justify-center border border-dashed rounded-2xl bg-muted/20 text-center space-y-6">
+                   <div className="p-4 bg-muted/50 rounded-full">
+                     <FileText size={32} className="text-muted-foreground" />
+                   </div>
+                   <div className="max-w-xs space-y-2">
+                     <h3 className="font-bold text-base">Static Content Only</h3>
+                     <p className="text-xs text-muted-foreground">To collect user input (like account numbers) or trigger external APIs, change the <strong>Action Type</strong> to API or Report at the top of the form.</p>
+                   </div>
+                   <Button variant="outline" onClick={() => { setEditForm(prev => ({ ...prev, responseType: 'api' })) }}>
+                     <Zap size={14} className="mr-2" />
+                     Enable API Action
+                   </Button>
+                </div>
+              )}
 
                       {editForm.responseType === 'api' && (
                         <div className="space-y-4">
@@ -2119,12 +2138,42 @@ export function CheckerMenuReview() {
         </TabsContent>
 
         <TabsContent value="menus" className="m-0 border-none p-0 outline-none">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/10">
-              <div><CardTitle>Menu Hierarchy (Read Only)</CardTitle></div>
-              <Button variant="outline" size="sm" onClick={refresh}>Refresh</Button>
+          <Card className="border-none shadow-md">
+            <CardHeader className="flex flex-row items-center justify-between border-b bg-white">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary/10 rounded-lg text-primary">
+                  <ListTree size={20} />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Bot Menu structure</CardTitle>
+                  <p className="text-xs text-muted-foreground italic">Manage parent menus and nested sub-actions.</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={refresh} className="h-9">
+                  <Loader2 size={14} className={cn("mr-2", isSaving && "animate-spin")} />
+                  Refresh
+                </Button>
+                <Button size="sm" onClick={() => handleAdd(null)} className="h-9 bg-primary hover:bg-primary/90 text-white font-bold">
+                  <Plus size={16} className="mr-2" />
+                  Create Main Menu
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent className="p-6">{renderTree(null)}</CardContent>
+            <CardContent className="p-6 bg-muted/5 min-h-[400px]">
+              {menus.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
+                  <div className="p-4 bg-muted rounded-full">
+                    <ListTree size={40} className="text-muted-foreground" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg">No Menus Found</h3>
+                    <p className="text-sm text-muted-foreground">Start by creating your first top-level menu.</p>
+                  </div>
+                  <Button onClick={() => handleAdd(null)}>Initialize Bot Menu</Button>
+                </div>
+              ) : renderTree(null)}
+            </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
