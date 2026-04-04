@@ -14,14 +14,49 @@ const port = process.env.PORT || 9002;
 const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
 
-// Initialize Redis. Uses environment variable REDIS_URL or defaults to localhost
-const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-const redis = new Redis(redisUrl);
-const prisma = require('./src/lib/prisma').default;
+const redisUrl = process.env.REDIS_URL;
+let redis = null;
+let redisReady = false;
+if (redisUrl) {
+  try {
+    redis = new Redis(redisUrl, {
+      lazyConnect: true,
+      enableOfflineQueue: false,
+      maxRetriesPerRequest: 1,
+      connectTimeout: Number(process.env.REDIS_CONNECT_TIMEOUT_MS || 1000),
+      retryStrategy: () => null,
+      reconnectOnError: () => false,
+    });
 
-redis.on('error', (err) => {
-  console.warn('[Redis] Connection warning. Make sure Redis is running locally or REDIS_URL is correctly set in .env', err.message);
-});
+    redis.on('ready', () => {
+      redisReady = true;
+      console.log('[Redis] Connected (presence tracking enabled).');
+    });
+    redis.on('end', () => {
+      redisReady = false;
+      console.warn('[Redis] Connection ended (presence tracking disabled).');
+    });
+    redis.on('error', (err) => {
+      console.warn('[Redis] Connection warning. Presence tracking may be unavailable.', err?.message || err);
+    });
+
+    redis.connect().catch((err) => {
+      redisReady = false;
+      console.warn('[Redis] Disabled (could not connect). Online Now metric will be unavailable.', err?.message || err);
+      try {
+        redis.disconnect();
+      } catch { }
+      redis = null;
+    });
+  } catch (err) {
+    redisReady = false;
+    redis = null;
+    console.warn('[Redis] Disabled (invalid configuration). Online Now metric will be unavailable.', err?.message || err);
+  }
+} else {
+  console.log('[Redis] REDIS_URL not set. Presence tracking disabled.');
+}
+const prisma = require('./src/lib/prisma').default;
 
 app.prepare().then(async () => {
   const defaultConnectSrc = ["'self'", "https://www.google.com"];
@@ -284,7 +319,9 @@ app.prepare().then(async () => {
         socket.sessionId = sessionId;
 
         // ZADD: Tracks exact timestamp they were last seen
-        await redis.zadd('online_users', Date.now(), sessionId).catch(() => null);
+        if (redis && redisReady) {
+          await redis.zadd('online_users', Date.now(), sessionId).catch(() => null);
+        }
         broadcastOnlineCount();
       }
     });
@@ -307,7 +344,7 @@ app.prepare().then(async () => {
 
   async function broadcastOnlineCount() {
     try {
-      if (redis.status !== 'ready') return;
+      if (!redis || !redisReady) return;
 
       const twentySecondsAgo = Date.now() - 20000;
       // Removals (TTL)

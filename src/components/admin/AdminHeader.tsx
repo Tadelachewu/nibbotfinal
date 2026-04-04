@@ -22,11 +22,11 @@ export function AdminHeader() {
           Signed in as <strong className="text-foreground">{currentUsername}</strong>
         </span>
         <Link 
-          href="/"
+          href="/?adminPreview=1"
           className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
         >
           <MessageSquare size={16} />
-          <span className="hidden sm:inline">View User Interface</span>
+          <span className="hidden sm:inline">Preview User Interface</span>
         </Link>
         <AdminChangePassword />
         <button

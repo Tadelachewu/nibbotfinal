@@ -11,6 +11,8 @@ import {
   Plus,
   Trash2,
   Edit2,
+  ArrowDown,
+  ArrowUp,
   ChevronDown,
   Save,
   Menu as MenuIcon,
@@ -108,6 +110,7 @@ export function MenuManagement() {
   const [isTestingApi, setIsTestingApi] = useState(false);
   const [sentHeaders, setSentHeaders] = useState<Record<string, string> | null>(null);
   const [sentBody, setSentBody] = useState<any>(null);
+  const [isReordering, setIsReordering] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -140,6 +143,77 @@ export function MenuManagement() {
       const json = await res.json().catch(() => null);
       setMenus(Array.isArray(json?.data) ? json.data : []);
     })();
+  };
+
+  const updateOrders = async (updates: Array<{ id: string; order: number }>) => {
+    if (!updates.length) return;
+    setIsReordering(true);
+    try {
+      for (const u of updates) {
+        await csrfFetch(`/api/menus/${encodeURIComponent(u.id)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order: u.order })
+        });
+      }
+      refresh();
+      toast({ title: "Order updated", description: "Menu order updated successfully." });
+    } catch {
+      toast({ title: "Error", description: "Could not update menu order.", variant: "destructive" });
+    } finally {
+      setIsReordering(false);
+    }
+  };
+
+  const normalizeSiblings = (parentId: string | null) => {
+    return menus
+      .filter(m => m.parentId === parentId)
+      .slice()
+      .sort((a, b) => ((a.order ?? 0) - (b.order ?? 0)) || String(a.name || '').localeCompare(String(b.name || '')));
+  };
+
+  const swapWithNeighbor = async (menuId: string, direction: -1 | 1) => {
+    const current = menus.find(m => m.id === menuId);
+    if (!current) return;
+    const siblings = normalizeSiblings(current.parentId ?? null);
+    const idx = siblings.findIndex(s => s.id === menuId);
+    const targetIdx = idx + direction;
+    if (idx < 0 || targetIdx < 0 || targetIdx >= siblings.length) return;
+
+    const a = siblings[idx];
+    const b = siblings[targetIdx];
+    const aOrder = Number.isFinite(a.order) ? (a.order as number) : idx;
+    const bOrder = Number.isFinite(b.order) ? (b.order as number) : targetIdx;
+
+    if (aOrder !== bOrder) {
+      await updateOrders([{ id: a.id, order: bOrder }, { id: b.id, order: aOrder }]);
+      return;
+    }
+
+    const reordered = siblings.slice();
+    reordered[idx] = b;
+    reordered[targetIdx] = a;
+    await updateOrders(reordered.map((m, i) => ({ id: m.id, order: i })));
+  };
+
+  const moveToPosition = async (menuId: string) => {
+    if (typeof window === 'undefined') return;
+    const current = menus.find(m => m.id === menuId);
+    if (!current) return;
+    const siblings = normalizeSiblings(current.parentId ?? null);
+    const idx = siblings.findIndex(s => s.id === menuId);
+    if (idx < 0) return;
+
+    const raw = window.prompt(`Move to position (1-${siblings.length})`, String(idx + 1));
+    if (!raw) return;
+    const nextPos = Math.max(1, Math.min(siblings.length, parseInt(raw, 10) || (idx + 1)));
+    const targetIdx = nextPos - 1;
+    if (targetIdx === idx) return;
+
+    const reordered = siblings.slice();
+    const [removed] = reordered.splice(idx, 1);
+    reordered.splice(targetIdx, 0, removed);
+    await updateOrders(reordered.map((m, i) => ({ id: m.id, order: i })));
   };
 
   const handleApprove = async (id: string) => {
@@ -443,6 +517,8 @@ export function MenuManagement() {
         {items.map(item => {
           const hasChildren = menus.some(m => m.parentId === item.id);
           const approvalStatus = item.approvalStatus || 'approved';
+          const pendingStatus = item.pendingStatus || null;
+          const hasPendingUpdate = (pendingStatus === 'pending' || pendingStatus === 'rejected') && !!item.pendingUpdate;
           return (
             <div key={item.id} className="group">
               <div className={cn("flex items-center justify-between p-2 rounded-md hover:bg-muted/50 transition-colors", editingId === item.id && 'bg-primary/10 ring-1 ring-primary/30')}>
@@ -459,17 +535,57 @@ export function MenuManagement() {
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="truncate text-sm font-medium">{item.name}</span>
                       {item.isActive === false && <Badge variant="secondary" className="text-[10px] h-4 px-2 shrink-0">Suspended</Badge>}
-                      {approvalStatus === 'pending' && <Badge variant="secondary" className="text-[10px] h-4 px-2 shrink-0 text-amber-600">Pending</Badge>}
+                      {approvalStatus === 'pending' && <Badge variant="secondary" className="text-[10px] h-4 px-2 shrink-0 text-amber-600">Pending Approval</Badge>}
                       {approvalStatus === 'rejected' && <Badge variant="secondary" className="text-[10px] h-4 px-2 shrink-0 text-destructive">Rejected</Badge>}
+                      {approvalStatus === 'approved' && hasPendingUpdate && pendingStatus === 'pending' && (
+                        <Badge variant="secondary" className="text-[10px] h-4 px-2 shrink-0 text-sky-700">Pending Update</Badge>
+                      )}
+                      {approvalStatus === 'approved' && hasPendingUpdate && pendingStatus === 'rejected' && (
+                        <Badge variant="secondary" className="text-[10px] h-4 px-2 shrink-0 text-destructive">Update Rejected</Badge>
+                      )}
                     </div>
                     {item.nameAm && <span className="truncate text-[10px] text-muted-foreground">{item.nameAm}</span>}
                   </div>
                 </div>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {isChecker && approvalStatus === 'pending' && item.createdBy !== currentUsername && (
+                  {isChecker && (approvalStatus === 'pending' || (approvalStatus === 'approved' && pendingStatus === 'pending')) && item.createdBy !== currentUsername && item.pendingCreatedBy !== currentUsername && (
                     <>
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-emerald-600" onClick={() => handleApprove(item.id)}><ShieldCheck size={14} /></Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => { setRejectingId(item.id); setRejectReason(''); }}><ShieldAlert size={14} /></Button>
+                    </>
+                  )}
+                  {!isChecker && (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        disabled={isReordering}
+                        onClick={() => swapWithNeighbor(item.id, -1)}
+                        title="Move up"
+                      >
+                        <ArrowUp size={14} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        disabled={isReordering}
+                        onClick={() => swapWithNeighbor(item.id, 1)}
+                        title="Move down"
+                      >
+                        <ArrowDown size={14} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        disabled={isReordering}
+                        onClick={() => moveToPosition(item.id)}
+                        title="Move to position"
+                      >
+                        <Hash size={14} />
+                      </Button>
                     </>
                   )}
                   <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => handleAdd(item.id)}><FolderPlus size={14} /></Button>
@@ -567,171 +683,37 @@ export function MenuManagement() {
 
   const getCurrentLanguage = () => settings.supportedLanguages.find(l => l.code === activeLangTab) || settings.supportedLanguages.find(l => l.isDefault) || settings.supportedLanguages[0];
 
+  const closeEditor = () => {
+    setIsEditDialogOpen(false);
+    setEditingId(null);
+    setEditForm({});
+    setApiPreviewResult(null);
+    setSentHeaders(null);
+    setSentBody(null);
+    setSearchQuery('');
+  };
+
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <Tabs defaultValue="menus">
-        <TabsList className="mb-4">
-          <TabsTrigger value="menus" className="flex items-center gap-2"><ListTree size={16} /> Menu Hierarchy</TabsTrigger>
-          <TabsTrigger value="settings" className="flex items-center gap-2"><Globe size={16} /> App Settings</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="menus">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/10">
-              <div><CardTitle>Menu Hierarchy</CardTitle></div>
-              <Button onClick={() => handleAdd(null)}><Plus size={16} className="mr-2" /> Add Main Menu</Button>
-            </CardHeader>
-            <CardContent className="p-6">{renderTree(null)}</CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="settings">
-          <Tabs defaultValue="languages">
-            <TabsList className="grid grid-cols-2 mb-6">
-              <TabsTrigger value="languages" className="flex items-center gap-2">
-                <Languages size={14} /> Languages
-              </TabsTrigger>
-              <TabsTrigger value="report-id" className="flex items-center gap-2">
-                <Hash size={14} /> Report ID
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="languages">
-              <Card className="border-none shadow-none">
-                <CardHeader className="px-0 pt-0">
-                  <CardTitle className="text-sm font-bold">Language Management</CardTitle>
-                </CardHeader>
-                <CardContent className="px-0 space-y-6">
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs font-bold uppercase">Supported Languages</Label>
-                      <Button variant="outline" size="sm" onClick={addLanguage}><Plus className="mr-2 h-4 w-4" /> Add Language</Button>
-                    </div>
-                    <div className="grid gap-3">
-                      {settings.supportedLanguages.map((lang, idx) => (
-                        <div key={lang.code} className="flex gap-3 items-center p-3 border rounded-lg bg-muted/5 group">
-                          <div className="grid grid-cols-2 gap-3 flex-1">
-                            <div className="space-y-1">
-                              <Label className="text-[10px] uppercase font-bold">Language Name</Label>
-                              <Input value={lang.name} onChange={e => updateLanguage(idx, 'name', e.target.value)} />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-[10px] uppercase font-bold">Code (e.g. fr)</Label>
-                              <Input value={lang.code} onChange={e => updateLanguage(idx, 'code', e.target.value)} />
-                            </div>
-                          </div>
-                          <div className="pt-5 flex gap-1">
-                            {lang.isDefault ? <Badge className="h-10 px-3">Default</Badge> : (
-                              <Button variant="ghost" size="icon" onClick={() => removeLanguage(idx)} className="text-destructive opacity-0 group-hover:opacity-100"><Trash2 size={16} /></Button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="report-id" className="space-y-6">
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-sm font-bold flex items-center gap-2 mb-4">
-                    <Hash className="text-primary" size={18} />
-                    Report ID Formatting
-                  </h3>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="prefix" className="text-xs font-bold uppercase text-muted-foreground">System Prefix</Label>
-                        <Input
-                          id="prefix"
-                          value={settings.reportId?.prefix || ''}
-                          onChange={(e) => handleReportIdConfigChange('prefix', e.target.value.toUpperCase())}
-                          placeholder="e.g., NIB"
-                          className="font-bold uppercase"
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/5">
-                        <div className="space-y-0.5">
-                          <Label className="text-xs font-bold">Include Current Year</Label>
-                          <p className="text-[10px] text-muted-foreground italic">Appends -{new Date().getFullYear()} after the prefix.</p>
-                        </div>
-                        <Switch
-                          checked={settings.reportId?.yearEnabled || false}
-                          onCheckedChange={(val) => handleReportIdConfigChange('yearEnabled', val)}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="numberLength" className="text-xs font-bold uppercase text-muted-foreground">Digit Length</Label>
-                          <Input
-                            id="numberLength"
-                            type="number"
-                            min={1}
-                            max={20}
-                            value={settings.reportId?.numberLength || 6}
-                            onChange={(e) => handleReportIdConfigChange('numberLength', parseInt(e.target.value) || 0)}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="startValue" className="text-xs font-bold uppercase text-muted-foreground">Start Value</Label>
-                          <Input
-                            id="startValue"
-                            type="number"
-                            value={settings.reportId?.startValue || 100000}
-                            onChange={(e) => handleReportIdConfigChange('startValue', parseInt(e.target.value) || 0)}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/5">
-                        <div className="space-y-0.5">
-                          <Label className="text-xs font-bold">Yearly Reset</Label>
-                          <p className="text-[10px] text-muted-foreground italic">Reset to start value on Jan 1st.</p>
-                        </div>
-                        <Switch
-                          checked={settings.reportId?.resetEveryYear || false}
-                          onCheckedChange={(val) => handleReportIdConfigChange('resetEveryYear', val)}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 p-4 bg-primary/5 border border-primary/10 rounded-xl flex items-center justify-between">
-                    <div>
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Live ID Preview</p>
-                      <div className="text-2xl font-mono font-bold tracking-tighter text-primary">
-                        {settings.reportId?.prefix || 'NIB'}
-                        {settings.reportId?.yearEnabled ? `-${new Date().getFullYear()}` : ''}
-                        -{String(settings.reportId?.startValue || 100000).padStart(settings.reportId?.numberLength || 6, '0')}
-                      </div>
-                    </div>
-                    <Info size={24} className="text-primary/20" />
-                  </div>
-                </div>
+    <div className="w-full">
+      {isEditDialogOpen ? (
+        <div className="min-h-[100dvh] bg-background">
+          <div className="sticky top-0 z-40 bg-white border-b">
+            <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
+              <Button variant="ghost" onClick={closeEditor} className="shrink-0">
+                <ChevronRight size={16} className="mr-2 rotate-180" />
+                Back
+              </Button>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-bold truncate">Configure {editForm.name || 'Menu'}</div>
               </div>
-            </TabsContent>
-          </Tabs>
-
-          <div className="mt-8 pt-6 border-t font-mono">
-            <Button className="w-full h-11 text-sm font-bold" onClick={handleSaveSettings}><Save className="mr-2" /> Save System Settings</Button>
+              <Button onClick={handleSaveEdit} disabled={isSaving} className="shrink-0">
+                {isSaving ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2" />} Save
+              </Button>
+            </div>
           </div>
-        </TabsContent>
-      </Tabs>
 
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-5xl h-[95vh] flex flex-col p-0 overflow-hidden">
-          <DialogHeader className="p-6 border-b bg-white">
-            <DialogTitle className="flex items-center gap-2"><Settings2 size={18} /> Configure {editForm.name}</DialogTitle>
-          </DialogHeader>
-          <ScrollArea className="flex-1">
-            <div className="p-6 space-y-8 pb-20">
+          <div className="max-w-6xl mx-auto px-4 py-6">
+            <div className="space-y-8 pb-24">
               <div className="grid gap-6 sm:grid-cols-4 bg-muted/10 p-4 rounded-xl border">
                 <div className="space-y-2">
                   <Label className="text-xs uppercase font-bold text-muted-foreground">Action Type</Label>
@@ -1367,13 +1349,176 @@ export function MenuManagement() {
                 </div>
               </div>
             </div>
-          </ScrollArea>
-          <DialogFooter className="p-4 border-t bg-white sticky bottom-0 z-50">
-            <Button variant="ghost" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSaveEdit} disabled={isSaving}>{isSaving ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2" />} Save Changes</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+
+          <div className="sticky bottom-0 z-40 bg-white border-t">
+            <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+              <Button variant="ghost" onClick={closeEditor}>Back</Button>
+              <Button onClick={handleSaveEdit} disabled={isSaving}>
+                {isSaving ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2" />} Save Changes
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="max-w-4xl mx-auto space-y-6">
+          <Tabs defaultValue="menus">
+            <TabsList className="mb-4">
+              <TabsTrigger value="menus" className="flex items-center gap-2"><ListTree size={16} /> Menu Hierarchy</TabsTrigger>
+              <TabsTrigger value="settings" className="flex items-center gap-2"><Globe size={16} /> App Settings</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="menus">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/10">
+                  <div><CardTitle>Menu Hierarchy</CardTitle></div>
+                  <Button onClick={() => handleAdd(null)}><Plus size={16} className="mr-2" /> Add Main Menu</Button>
+                </CardHeader>
+                <CardContent className="p-6">{renderTree(null)}</CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="settings">
+              <Tabs defaultValue="languages">
+                <TabsList className="grid grid-cols-2 mb-6">
+                  <TabsTrigger value="languages" className="flex items-center gap-2">
+                    <Languages size={14} /> Languages
+                  </TabsTrigger>
+                  <TabsTrigger value="report-id" className="flex items-center gap-2">
+                    <Hash size={14} /> Report ID
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="languages">
+                  <Card className="border-none shadow-none">
+                    <CardHeader className="px-0 pt-0">
+                      <CardTitle className="text-sm font-bold">Language Management</CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-0 space-y-6">
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs font-bold uppercase">Supported Languages</Label>
+                          <Button variant="outline" size="sm" onClick={addLanguage}><Plus className="mr-2 h-4 w-4" /> Add Language</Button>
+                        </div>
+                        <div className="grid gap-3">
+                          {settings.supportedLanguages.map((lang, idx) => (
+                            <div key={lang.code} className="flex gap-3 items-center p-3 border rounded-lg bg-muted/5 group">
+                              <div className="grid grid-cols-2 gap-3 flex-1">
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] uppercase font-bold">Language Name</Label>
+                                  <Input value={lang.name} onChange={e => updateLanguage(idx, 'name', e.target.value)} />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] uppercase font-bold">Code (e.g. fr)</Label>
+                                  <Input value={lang.code} onChange={e => updateLanguage(idx, 'code', e.target.value)} />
+                                </div>
+                              </div>
+                              <div className="pt-5 flex gap-1">
+                                {lang.isDefault ? <Badge className="h-10 px-3">Default</Badge> : (
+                                  <Button variant="ghost" size="icon" onClick={() => removeLanguage(idx)} className="text-destructive opacity-0 group-hover:opacity-100"><Trash2 size={16} /></Button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="report-id" className="space-y-6">
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-sm font-bold flex items-center gap-2 mb-4">
+                        <Hash className="text-primary" size={18} />
+                        Report ID Formatting
+                      </h3>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="prefix" className="text-xs font-bold uppercase text-muted-foreground">System Prefix</Label>
+                            <Input
+                              id="prefix"
+                              value={settings.reportId?.prefix || ''}
+                              onChange={(e) => handleReportIdConfigChange('prefix', e.target.value.toUpperCase())}
+                              placeholder="e.g., NIB"
+                              className="font-bold uppercase"
+                            />
+                          </div>
+
+                          <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/5">
+                            <div className="space-y-0.5">
+                              <Label className="text-xs font-bold">Include Current Year</Label>
+                              <p className="text-[10px] text-muted-foreground italic">Appends -{new Date().getFullYear()} after the prefix.</p>
+                            </div>
+                            <Switch
+                              checked={settings.reportId?.yearEnabled || false}
+                              onCheckedChange={(val) => handleReportIdConfigChange('yearEnabled', val)}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="numberLength" className="text-xs font-bold uppercase text-muted-foreground">Digit Length</Label>
+                              <Input
+                                id="numberLength"
+                                type="number"
+                                min={1}
+                                max={20}
+                                value={settings.reportId?.numberLength || 6}
+                                onChange={(e) => handleReportIdConfigChange('numberLength', parseInt(e.target.value) || 0)}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="startValue" className="text-xs font-bold uppercase text-muted-foreground">Start Value</Label>
+                              <Input
+                                id="startValue"
+                                type="number"
+                                value={settings.reportId?.startValue || 100000}
+                                onChange={(e) => handleReportIdConfigChange('startValue', parseInt(e.target.value) || 0)}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/5">
+                            <div className="space-y-0.5">
+                              <Label className="text-xs font-bold">Yearly Reset</Label>
+                              <p className="text-[10px] text-muted-foreground italic">Reset to start value on Jan 1st.</p>
+                            </div>
+                            <Switch
+                              checked={settings.reportId?.resetEveryYear || false}
+                              onCheckedChange={(val) => handleReportIdConfigChange('resetEveryYear', val)}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 p-4 bg-primary/5 border border-primary/10 rounded-xl flex items-center justify-between">
+                        <div>
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Live ID Preview</p>
+                          <div className="text-2xl font-mono font-bold tracking-tighter text-primary">
+                            {settings.reportId?.prefix || 'NIB'}
+                            {settings.reportId?.yearEnabled ? `-${new Date().getFullYear()}` : ''}
+                            -{String(settings.reportId?.startValue || 100000).padStart(settings.reportId?.numberLength || 6, '0')}
+                          </div>
+                        </div>
+                        <Info size={24} className="text-primary/20" />
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+              </Tabs>
+
+              <div className="mt-8 pt-6 border-t font-mono">
+                <Button className="w-full h-11 text-sm font-bold" onClick={handleSaveSettings}><Save className="mr-2" /> Save System Settings</Button>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </div>
+      )}
 
       <AlertDialog open={!!itemToDelete} onOpenChange={() => setItemToDelete(null)}>
         <AlertDialogContent>
@@ -1560,6 +1705,8 @@ export function CheckerMenuReview() {
           const hasChildren = menus.some(m => m.parentId === item.id);
           const isExpanded = expanded.has(item.id);
           const approvalStatus = item.approvalStatus || 'approved';
+          const pendingStatus = item.pendingStatus || null;
+          const hasPendingUpdate = (pendingStatus === 'pending' || pendingStatus === 'rejected') && !!item.pendingUpdate;
           return (
             <div key={item.id} className="group">
               <div className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50 transition-colors">
@@ -1578,8 +1725,14 @@ export function CheckerMenuReview() {
                   <div className="flex flex-col min-w-0">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="truncate text-sm font-medium">{item.name}</span>
-                      {approvalStatus === 'pending' && <Badge variant="secondary" className="text-[10px] h-4 px-2 shrink-0 text-amber-600">Pending</Badge>}
+                      {approvalStatus === 'pending' && <Badge variant="secondary" className="text-[10px] h-4 px-2 shrink-0 text-amber-600">Pending Approval</Badge>}
                       {approvalStatus === 'rejected' && <Badge variant="secondary" className="text-[10px] h-4 px-2 shrink-0 text-destructive">Rejected</Badge>}
+                      {approvalStatus === 'approved' && hasPendingUpdate && pendingStatus === 'pending' && (
+                        <Badge variant="secondary" className="text-[10px] h-4 px-2 shrink-0 text-sky-700">Pending Update</Badge>
+                      )}
+                      {approvalStatus === 'approved' && hasPendingUpdate && pendingStatus === 'rejected' && (
+                        <Badge variant="secondary" className="text-[10px] h-4 px-2 shrink-0 text-destructive">Update Rejected</Badge>
+                      )}
                     </div>
                     {item.nameAm && <span className="truncate text-[10px] text-muted-foreground">{item.nameAm}</span>}
                   </div>
@@ -2060,7 +2213,7 @@ export function CheckerMenuReview() {
             <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/10">
               <div className="space-y-1">
                 <CardTitle>Pending Menus</CardTitle>
-                <div className="text-[11px] text-muted-foreground">{pending.length} pending approval</div>
+                <div className="text-[11px] text-muted-foreground">{pending.length} pending items</div>
               </div>
               <Button variant="outline" size="sm" onClick={refresh}>Refresh</Button>
             </CardHeader>
@@ -2076,10 +2229,12 @@ export function CheckerMenuReview() {
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="font-medium truncate">{((m.pendingStatus === 'pending' || m.pendingStatus === 'rejected') && m.pendingUpdate?.name) ? m.pendingUpdate.name : m.name}</span>
-                          {m.pendingStatus === 'rejected' ? (
-                            <Badge variant="secondary" className="text-[10px] h-4 px-2 text-destructive">Rejected</Badge>
+                          {((m.approvalStatus || 'approved') === 'pending') ? (
+                            <Badge variant="secondary" className="text-[10px] h-4 px-2 text-amber-600">Pending Approval</Badge>
+                          ) : (m.pendingStatus === 'pending') ? (
+                            <Badge variant="secondary" className="text-[10px] h-4 px-2 text-sky-700">Pending Update</Badge>
                           ) : (
-                            <Badge variant="secondary" className="text-[10px] h-4 px-2 text-amber-600">Pending</Badge>
+                            <Badge variant="secondary" className="text-[10px] h-4 px-2 text-destructive">Update Rejected</Badge>
                           )}
                         </div>
                         <div className="text-[11px] text-muted-foreground truncate">
@@ -2088,7 +2243,7 @@ export function CheckerMenuReview() {
                       </div>
                       <div className="flex items-center gap-2">
                         {(m.pendingStatus === 'pending' || m.pendingStatus === 'rejected') && (
-                          <Badge variant="secondary" className="text-[10px] h-4 px-2 shrink-0 text-sky-700">Edit</Badge>
+                          <Badge variant="secondary" className="text-[10px] h-4 px-2 shrink-0 text-sky-700">Edit Request</Badge>
                         )}
                         <Button variant="ghost" size="sm" onClick={() => openDetails(m)} className="h-8">
                           <Eye size={14} className="mr-2" /> View
@@ -2156,7 +2311,11 @@ export function CheckerMenuReview() {
                       </div>
                       <div className="p-3 rounded-lg border bg-white">
                         <div className="text-[10px] uppercase font-bold text-muted-foreground">Status</div>
-                        <div className="text-sm font-medium">{hasPendingUpdate ? (selected.pendingStatus || '-') : (selected.approvalStatus || 'approved')}</div>
+                        <div className="text-sm font-medium">
+                          {hasPendingUpdate
+                            ? (selected.pendingStatus === 'pending' ? 'Pending Update' : selected.pendingStatus === 'rejected' ? 'Update Rejected' : (selected.pendingStatus || '-'))
+                            : ((selected.approvalStatus || 'approved') === 'pending' ? 'Pending Approval' : (selected.approvalStatus || 'approved') === 'rejected' ? 'Rejected' : 'Approved')}
+                        </div>
                       </div>
                       <div className="p-3 rounded-lg border bg-white">
                         <div className="text-[10px] uppercase font-bold text-muted-foreground">{hasPendingUpdate ? 'Edited By' : 'Created By'}</div>

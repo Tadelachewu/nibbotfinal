@@ -198,9 +198,13 @@ export function ChatInterface() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const fetchRuntimeConfig = useCallback(async () => {
+    const isAdminPreview =
+      typeof window !== 'undefined' &&
+      new URLSearchParams(window.location.search).get('adminPreview') === '1';
+
     const [settingsRes, menusRes] = await Promise.all([
       fetch('/api/app-settings', { cache: 'no-store' }),
-      fetch('/api/menus', { cache: 'no-store' })
+      fetch(isAdminPreview ? '/api/menus?includeInactive=1' : '/api/menus', { cache: 'no-store' })
     ]);
     const [settingsJson, menusJson] = await Promise.all([
       settingsRes.json().catch(() => null),
@@ -208,7 +212,13 @@ export function ChatInterface() {
     ]);
 
     const settings = (settingsJson?.data as AppSettings | undefined) || { supportedLanguages: [] };
-    const data = Array.isArray(menusJson?.data) ? menusJson.data : [];
+    const raw = Array.isArray(menusJson?.data) ? menusJson.data : [];
+    const data = isAdminPreview
+      ? raw.map((m: any) => {
+        const pending = (m.pendingStatus === 'pending' || m.pendingStatus === 'rejected') && m.pendingUpdate && typeof m.pendingUpdate === 'object';
+        return pending ? { ...m, ...(m.pendingUpdate as any) } : m;
+      })
+      : raw;
 
     setAppSettings(settings);
     setLanguages(settings.supportedLanguages || []);
