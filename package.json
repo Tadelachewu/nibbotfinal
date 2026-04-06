@@ -7,7 +7,8 @@
     "dev:io": "tsx server.js",
     "genkit:dev": "genkit start -- tsx src/ai/dev.ts",
     "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
-    "build": "next build",
+    "postinstall": "node -e \"if(!process.env.DATABASE_URL){console.log('Skipping prisma generate (DATABASE_URL not set)');process.exit(0)};require('child_process').execSync('prisma generate',{stdio:'inherit'})\"",
+    "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit"
@@ -67,6 +68,7 @@
     "nodemailer": "^6.9.4",
     "patch-package": "^8.0.0",
     "pg": "^8.20.0",
+    "prisma": "^7.5.0",
     "react": "^19.2.1",
     "react-day-picker": "^9.11.3",
     "react-dom": "^19.2.1",
@@ -89,7 +91,6 @@
     "eslint-config-next": "16.2.1-canary.13",
     "genkit-cli": "^1.28.0",
     "postcss": "^8",
-    "prisma": "^7.5.0",
     "tailwindcss": "^3.4.1",
     "tsx": "^4.21.0",
     "typescript": "^5"
