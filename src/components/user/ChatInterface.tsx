@@ -321,7 +321,7 @@ export function ChatInterface() {
     if (!userData.id || typeof window === 'undefined') return;
 
     // Connects to the same origin server mapping the Custom Socket
-    const socket = io({ path: '/socket.io', transports: ['websocket'] });
+    const socket = io({ path: '/socket.io', transports: ['websocket', 'polling'] });
 
     // Initial announce
     socket.emit('user_active', { sessionId: userData.id });

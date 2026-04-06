@@ -3,10 +3,22 @@ import type { NextRequest } from 'next/server'
 
 export function middleware(request: NextRequest) {
   const nonce = btoa(crypto.randomUUID())
+  const host = request.headers.get('host') || request.nextUrl.host
+  const connectSrc = [
+    "'self'",
+    'https://www.google.com',
+    ...(host ? [`ws://${host}`, `wss://${host}`] : []),
+    'ws://localhost:9002',
+    'ws://localhost:9004',
+    'ws://127.0.0.1:9002',
+    'ws://127.0.0.1:9004',
+  ].join(' ')
+
   const cspHeader = `
       default-src 'self';
       script-src 'self' 'nonce-${nonce}' 'strict-dynamic';
-      style-src 'self' 'nonce-${nonce}';
+      style-src 'self' 'nonce-${nonce}' 'unsafe-inline';
+      style-src-elem 'self' 'nonce-${nonce}';
       style-src-attr 'unsafe-inline';
       img-src 'self' blob: data: https://placehold.co https://images.unsplash.com https://picsum.photos;
       font-src 'self' data:;
@@ -16,7 +28,7 @@ export function middleware(request: NextRequest) {
       frame-ancestors 'none';
       frame-src 'none';
       media-src 'self';
-      connect-src 'self' https://www.google.com ws://localhost:9002 ws://localhost:9004 ws://127.0.0.1:9002 ws://127.0.0.1:9004;
+      connect-src ${connectSrc};
       upgrade-insecure-requests;
     `.replace(/\s{2,}/g, ' ').trim()
 

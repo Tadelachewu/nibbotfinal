@@ -63,7 +63,7 @@ export function Dashboard() {
     load();
 
     // Real-Time Socket Connection for Online Counter
-    const socket = io({ transports: ['websocket'] });
+    const socket = io({ path: '/socket.io', transports: ['websocket', 'polling'] });
     socket.on('online_count_updated', (data) => {
       if (data && typeof data.count === 'number') {
         setOnlineNow(data.count);
