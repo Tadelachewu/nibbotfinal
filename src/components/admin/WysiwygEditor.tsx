@@ -839,7 +839,7 @@ export function WysiwygEditor({ value, onChange, title, readOnly }: WysiwygEdito
     editable: !readOnly,
     editorProps: {
       attributes: {
-        class: 'wysiwyg-content focus:outline-none min-h-[150px] max-h-[400px] overflow-y-auto p-4 bg-white',
+        class: 'wysiwyg-content focus:outline-none min-h-[150px] max-h-[400px] overflow-y-auto p-4 bg-white text-black',
       },
     },
   });
