@@ -60,37 +60,42 @@ export async function getValidatedAdminSession(): Promise<IronSession<AdminSessi
 }
 
 export function isSameOriginRequest(req: Request): boolean {
-  const requestOrigin = new URL(req.url).origin;
+  const requestUrl = new URL(req.url);
+  const requestOrigin = requestUrl.origin;
   const origin = req.headers.get('origin');
   const referer = req.headers.get('referer');
 
-  // Allow explicit ALLOWED_ORIGINS from environment (comma-separated)
-  const allowedOrigins = String(process.env.ALLOWED_ORIGINS || '')
+  const allowedOrigins = new Set<string>([requestOrigin]);
+
+  const envAllowed = String(process.env.ALLOWED_ORIGINS || '')
     .split(',')
     .map(s => s.trim())
     .filter(Boolean);
+  for (const o of envAllowed) allowedOrigins.add(o);
 
-  // If Origin header present, accept when it matches request origin or is in allowed list
-  if (origin) {
-    if (origin === requestOrigin) return true;
-    if (allowedOrigins.includes(origin)) return true;
-    return false;
+  const forwardedHost = req.headers.get('x-forwarded-host')?.split(',')[0]?.trim();
+  const forwardedProtoRaw = req.headers.get('x-forwarded-proto')?.split(',')[0]?.trim();
+  const forwardedProto = forwardedProtoRaw === 'https' || forwardedProtoRaw === 'http' ? forwardedProtoRaw : undefined;
+
+  const host = req.headers.get('host')?.split(',')[0]?.trim();
+  const fallbackProto = forwardedProto ?? requestUrl.protocol.replace(':', '');
+
+  if (forwardedHost) {
+    allowedOrigins.add(`${fallbackProto}://${forwardedHost}`);
+  }
+  if (host) {
+    allowedOrigins.add(`${fallbackProto}://${host}`);
   }
 
-  // If Referer header present, accept when it matches request origin or is in allowed list
+  if (origin) return allowedOrigins.has(origin);
+
   if (referer) {
     try {
-      const refererOrigin = new URL(referer).origin;
-      if (refererOrigin === requestOrigin) return true;
-      if (allowedOrigins.includes(refererOrigin)) return true;
+      return allowedOrigins.has(new URL(referer).origin);
     } catch {
-      // fall through
+      return false;
     }
-    return false;
   }
-
-  // No origin or referer provided (server-to-server or proxy). Allow if requestOrigin is in allowed list.
-  if (allowedOrigins.length > 0 && allowedOrigins.includes(requestOrigin)) return true;
 
   return false;
 }

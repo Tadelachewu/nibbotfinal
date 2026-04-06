@@ -215,29 +215,6 @@ export function MenuManagement() {
     await updateOrders(reordered.map((m, i) => ({ id: m.id, order: i })));
   };
 
-  const moveToPosition = async (menuId: string) => {
-    if (typeof window === 'undefined') return;
-    const effectiveMenus = menus.map(getEffectiveMenu);
-    const current = effectiveMenus.find(m => m.id === menuId);
-    if (!current) return;
-    const siblings = effectiveMenus
-      .filter(m => m.parentId === current.parentId)
-      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-    
-    const idx = siblings.findIndex(s => s.id === menuId);
-    if (idx < 0) return;
-
-    const raw = window.prompt(`Move to position (1-${siblings.length})`, String(idx + 1));
-    if (!raw) return;
-    const nextPos = Math.max(1, Math.min(siblings.length, parseInt(raw, 10) || (idx + 1)));
-    const targetIdx = nextPos - 1;
-    if (targetIdx === idx) return;
-
-    const reordered = siblings.slice();
-    const [removed] = reordered.splice(idx, 1);
-    reordered.splice(targetIdx, 0, removed);
-    await updateOrders(reordered.map((m, i) => ({ id: m.id, order: i })));
-  };
 
   const swapWithOther = async (menuId: string, otherId: string) => {
     const effectiveMenus = menus.map(getEffectiveMenu);
@@ -660,16 +637,6 @@ export function MenuManagement() {
                               </PopoverContent>
                           </Popover>
                         )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          disabled={isReordering}
-                          onClick={() => moveToPosition(item.id)}
-                          title="Move to position"
-                        >
-                          <Hash size={14} />
-                        </Button>
                       </div>
                     </>
                   )}
