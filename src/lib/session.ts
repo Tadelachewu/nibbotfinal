@@ -62,16 +62,35 @@ export async function getValidatedAdminSession(): Promise<IronSession<AdminSessi
 export function isSameOriginRequest(req: Request): boolean {
   const requestOrigin = new URL(req.url).origin;
   const origin = req.headers.get('origin');
-  if (origin) return origin === requestOrigin;
-
   const referer = req.headers.get('referer');
+
+  // Allow explicit ALLOWED_ORIGINS from environment (comma-separated)
+  const allowedOrigins = String(process.env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  // If Origin header present, accept when it matches request origin or is in allowed list
+  if (origin) {
+    if (origin === requestOrigin) return true;
+    if (allowedOrigins.includes(origin)) return true;
+    return false;
+  }
+
+  // If Referer header present, accept when it matches request origin or is in allowed list
   if (referer) {
     try {
-      return new URL(referer).origin === requestOrigin;
+      const refererOrigin = new URL(referer).origin;
+      if (refererOrigin === requestOrigin) return true;
+      if (allowedOrigins.includes(refererOrigin)) return true;
     } catch {
-      return false;
+      // fall through
     }
+    return false;
   }
+
+  // No origin or referer provided (server-to-server or proxy). Allow if requestOrigin is in allowed list.
+  if (allowedOrigins.length > 0 && allowedOrigins.includes(requestOrigin)) return true;
 
   return false;
 }
