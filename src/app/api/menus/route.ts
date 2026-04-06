@@ -196,11 +196,7 @@ export async function GET(req: Request) {
     }
   }
 
-  return NextResponse.json({ 
-    status: 'success', 
-    isAdmin,
-    data: menus.map(m => buildMenuResponse(m, isAdmin)) 
-  });
+  return NextResponse.json({ status: 'success', data: menus.map(m => buildMenuResponse(m, isAdmin)) });
 }
 
 export async function POST(req: Request) {

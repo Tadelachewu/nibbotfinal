@@ -212,15 +212,13 @@ export function ChatInterface() {
     ]);
 
     const settings = (settingsJson?.data as AppSettings | undefined) || { supportedLanguages: [] };
-    const menusData = Array.isArray(menusJson?.data) ? menusJson.data : [];
-    const isBackendAdmin = !!menusJson?.isAdmin;
-
-    const data = (isAdminPreview && isBackendAdmin)
-      ? menusData.map((m: any) => {
+    const raw = Array.isArray(menusJson?.data) ? menusJson.data : [];
+    const data = isAdminPreview
+      ? raw.map((m: any) => {
         const pending = (m.pendingStatus === 'pending' || m.pendingStatus === 'rejected') && m.pendingUpdate && typeof m.pendingUpdate === 'object';
         return pending ? { ...m, ...(m.pendingUpdate as any) } : m;
       })
-      : menusData;
+      : raw;
 
     setAppSettings(settings);
     setLanguages(settings.supportedLanguages || []);
