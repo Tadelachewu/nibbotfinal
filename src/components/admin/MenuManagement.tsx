@@ -775,7 +775,7 @@ export function MenuManagement() {
                     <SelectContent>
                       <SelectItem value="static">Static Response</SelectItem>
                       <SelectItem value="api">API Action</SelectItem>
-                      <SelectItem value="report">Internal Report</SelectItem>
+                      <SelectItem value="report">Internal Support</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1862,7 +1862,7 @@ export function CheckerMenuReview() {
               <SelectContent>
                 <SelectItem value="static">Static Response</SelectItem>
                 <SelectItem value="api">API Action</SelectItem>
-                <SelectItem value="report">Internal Report</SelectItem>
+                <SelectItem value="report">Internal Support</SelectItem>
               </SelectContent>
             </Select>
           </div>

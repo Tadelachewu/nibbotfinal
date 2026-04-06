@@ -685,7 +685,7 @@ export function ChatInterface() {
         userMessage: menu.name,
         botResponse: finalMsg || defaultSuccess,
         status: 'success',
-        endpoint: 'Internal:Report',
+        endpoint: 'Internal Support',
         tags: ['report', menu.name]
       });
     } catch {
@@ -696,7 +696,7 @@ export function ChatInterface() {
         userMessage: menu.name,
         botResponse: msg,
         status: 'error',
-        endpoint: 'Internal:Report',
+        endpoint: 'Internal Support',
         tags: ['report', 'error']
       });
     } finally {
