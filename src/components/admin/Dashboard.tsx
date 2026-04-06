@@ -37,23 +37,27 @@ export function Dashboard() {
   });
 
   const [onlineNow, setOnlineNow] = useState(0);
+  const [totalBotUsers, setTotalBotUsers] = useState(0);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
     const load = async () => {
-      const [menusRes, reportsRes] = await Promise.all([
+      const [menusRes, reportsRes, logsRes] = await Promise.all([
         fetch('/api/menus?includeInactive=1', { cache: 'no-store' }),
-        fetch('/api/reports', { cache: 'no-store' })
+        fetch('/api/reports', { cache: 'no-store' }),
+        fetch('/api/logs?summary=1', { cache: 'no-store' })
       ]);
-      const [menusJson, reportsJson] = await Promise.all([
+      const [menusJson, reportsJson, logsJson] = await Promise.all([
         menusRes.json().catch(() => null),
-        reportsRes.json().catch(() => null)
+        reportsRes.json().catch(() => null),
+        logsRes.json().catch(() => null)
       ]);
       setData({
         menus: Array.isArray(menusJson?.data) ? menusJson.data : [],
         reports: Array.isArray(reportsJson?.data) ? reportsJson.data : []
       });
+      setTotalBotUsers(typeof logsJson?.stats?.uniqueSessions === 'number' ? logsJson.stats.uniqueSessions : 0);
     };
 
     load();
@@ -85,8 +89,6 @@ export function Dashboard() {
     const resolvedReports = data.reports.filter(r => r.status === 'resolved').length;
     const pendingReports = data.reports.filter(r => r.status === 'pending').length;
     const urgentReports = data.reports.filter(r => r.priority === 'urgent' || r.priority === 'high').length;
-
-    const uniqueUsers = new Set(data.reports.map(r => r.userId)).size;
 
     // Chart: Reports by Status
     const statusData = [
@@ -122,7 +124,6 @@ export function Dashboard() {
       resolvedReports,
       pendingReports,
       urgentReports,
-      uniqueUsers,
       statusData,
       priorityData,
       topClickedData
@@ -158,7 +159,7 @@ export function Dashboard() {
             <Users className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{stats.uniqueUsers}</div>
+            <div className="text-3xl font-bold">{totalBotUsers}</div>
             <p className="text-[10px] text-muted-foreground mt-1">Unique session participants</p>
           </CardContent>
         </Card>

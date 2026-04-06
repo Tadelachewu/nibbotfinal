@@ -116,6 +116,7 @@ interface WysiwygEditorProps {
 
 const TEXT_COLORS = [
   { name: 'Default', value: '' },
+  { name: 'White', value: '#ffffff' },
   { name: 'Black', value: '#000000' },
   { name: 'Dark Gray', value: '#374151' },
   { name: 'Slate', value: '#475569' },
@@ -866,5 +867,4 @@ export function WysiwygEditor({ value, onChange, title, readOnly }: WysiwygEdito
     </div>
   );
 }
-
 

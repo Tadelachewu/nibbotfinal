@@ -16,9 +16,27 @@ function maskSensitiveInfo(text: string): string {
   return out;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   if (!(await getValidatedAdminSession())) {
     return NextResponse.json({ status: 'error', message: 'Unauthorized.' }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(req.url);
+  const summaryOnly = searchParams.get('summary') === '1' || searchParams.get('summary') === 'true';
+
+  const uniqueSessions = await prisma.interactionLog
+    .findMany({
+      distinct: ['sessionId'],
+      select: { sessionId: true },
+    })
+    .then(rows => rows.filter(r => typeof r.sessionId === 'string' && r.sessionId.trim()).length);
+
+  if (summaryOnly) {
+    return NextResponse.json({
+      status: 'success',
+      stats: { uniqueSessions },
+      data: [],
+    });
   }
 
   const logs = await prisma.interactionLog.findMany({
@@ -28,6 +46,7 @@ export async function GET() {
 
   return NextResponse.json({
     status: 'success',
+    stats: { uniqueSessions },
     data: logs.map(l => ({
       timestamp: l.timestamp.toISOString(),
       sessionId: l.sessionId,

@@ -301,6 +301,21 @@ export function ChatInterface() {
     }).catch(() => { });
   };
 
+  useEffect(() => {
+    if (!userData.id || typeof window === 'undefined') return;
+    const key = `nib_session_logged:${userData.id}`;
+    if (localStorage.getItem(key)) return;
+    localStorage.setItem(key, '1');
+    logInteraction({
+      sessionId: userData.id,
+      userMessage: 'SESSION_START',
+      botResponse: 'SESSION_START',
+      status: 'success',
+      endpoint: 'Internal:SessionStart',
+      tags: ['session_start']
+    });
+  }, [userData.id]);
+
   // Socket.io Real-Time Presence Heartbeat Engine
   useEffect(() => {
     if (!userData.id || typeof window === 'undefined') return;
