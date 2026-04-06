@@ -140,6 +140,8 @@ const TEXT_COLORS = [
 
 const HIGHLIGHT_COLORS = [
   { name: 'None', value: '' },
+  { name: 'Black', value: '#000000' },
+  { name: 'White', value: '#ffffff' },
   { name: 'Yellow', value: '#fef08a' },
   { name: 'Lime', value: '#d9f99d' },
   { name: 'Green', value: '#bbf7d0' },
@@ -867,4 +869,3 @@ export function WysiwygEditor({ value, onChange, title, readOnly }: WysiwygEdito
     </div>
   );
 }
-
