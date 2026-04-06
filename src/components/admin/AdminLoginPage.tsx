@@ -56,14 +56,14 @@ export function AdminLoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[hsl(25,51%,18%)] via-[hsl(25,40%,12%)] to-[hsl(25,50%,8%)] p-4">
+    <div className="min-h-screen flex items-center justify-center bg-muted/40 p-4">
       {/* Decorative background elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 -left-20 w-80 h-80 bg-[hsl(45,93%,47%)] opacity-[0.04] rounded-full blur-3xl" />
         <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-[hsl(45,93%,47%)] opacity-[0.03] rounded-full blur-3xl" />
       </div>
 
-      <Card className="w-full max-w-md relative z-10 border-[hsl(25,30%,20%)] bg-[hsl(25,30%,10%)]/95 backdrop-blur-sm shadow-2xl shadow-black/40">
+      <Card className="w-full max-w-md relative z-10 border-border bg-white/80 backdrop-blur-sm shadow-2xl shadow-black/10">
         <CardHeader className="text-center space-y-4 pb-2">
           <div className="flex justify-center">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[hsl(45,93%,47%)] to-[hsl(35,80%,40%)] flex items-center justify-center shadow-lg shadow-[hsl(45,93%,47%)]/20">
@@ -71,10 +71,10 @@ export function AdminLoginPage() {
             </div>
           </div>
           <div>
-            <CardTitle className="text-2xl font-bold text-[hsl(40,33%,95%)]">
+            <CardTitle className="text-2xl font-bold text-foreground">
               Admin Console
             </CardTitle>
-            <CardDescription className="text-[hsl(25,20%,55%)] mt-1">
+            <CardDescription className="text-muted-foreground mt-1">
               Nib International Bank · Secure Login
             </CardDescription>
           </div>
@@ -92,18 +92,18 @@ export function AdminLoginPage() {
 
             {/* Username */}
             <div className="space-y-2">
-              <Label htmlFor="admin-username" className="text-[hsl(25,20%,65%)] text-sm font-medium">
+              <Label htmlFor="admin-username" className="text-muted-foreground text-sm font-medium">
                 Username
               </Label>
               <div className="relative">
-                <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[hsl(25,20%,45%)]" />
+                <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   id="admin-username"
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="Enter your username"
-                  className="pl-10 h-11 bg-[hsl(25,30%,14%)] border-[hsl(25,30%,22%)] text-[hsl(40,33%,90%)] placeholder:text-[hsl(25,20%,35%)] focus:border-[hsl(45,93%,47%)] focus:ring-[hsl(45,93%,47%)]/20 transition-all"
+                  className="pl-10 h-11 bg-white/90 border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/20 transition-all"
                   autoComplete="username"
                   required
                 />
@@ -112,25 +112,25 @@ export function AdminLoginPage() {
 
             {/* Password */}
             <div className="space-y-2">
-              <Label htmlFor="admin-password" className="text-[hsl(25,20%,65%)] text-sm font-medium">
+              <Label htmlFor="admin-password" className="text-muted-foreground text-sm font-medium">
                 Password
               </Label>
               <div className="relative">
-                <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[hsl(25,20%,45%)]" />
+                <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   id="admin-password"
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
-                  className="pl-10 pr-10 h-11 bg-[hsl(25,30%,14%)] border-[hsl(25,30%,22%)] text-[hsl(40,33%,90%)] placeholder:text-[hsl(25,20%,35%)] focus:border-[hsl(45,93%,47%)] focus:ring-[hsl(45,93%,47%)]/20 transition-all"
+                  className="pl-10 pr-10 h-11 bg-white/90 border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/20 transition-all"
                   autoComplete="current-password"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[hsl(25,20%,45%)] hover:text-[hsl(25,20%,65%)] transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                   tabIndex={-1}
                 >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -144,10 +144,10 @@ export function AdminLoginPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-[hsl(25,20%,50%)]">Password Strength</span>
                   <span className={`text-xs font-semibold ${strength.score === 0 ? 'text-red-400' :
-                      strength.score === 1 ? 'text-orange-400' :
-                        strength.score === 2 ? 'text-yellow-400' :
-                          strength.score === 3 ? 'text-blue-400' :
-                            'text-green-400'
+                    strength.score === 1 ? 'text-orange-400' :
+                      strength.score === 2 ? 'text-yellow-400' :
+                        strength.score === 3 ? 'text-blue-400' :
+                          'text-green-400'
                     }`}>
                     {strength.label}
                   </span>
@@ -158,12 +158,12 @@ export function AdminLoginPage() {
                     <div
                       key={i}
                       className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${i <= strength.score
-                          ? strength.score === 0 ? 'bg-red-500' :
-                            strength.score === 1 ? 'bg-orange-500' :
-                              strength.score === 2 ? 'bg-yellow-500' :
-                                strength.score === 3 ? 'bg-blue-500' :
-                                  'bg-green-500'
-                          : 'bg-[hsl(25,30%,18%)]'
+                        ? strength.score === 0 ? 'bg-red-500' :
+                          strength.score === 1 ? 'bg-orange-500' :
+                            strength.score === 2 ? 'bg-yellow-500' :
+                              strength.score === 3 ? 'bg-blue-500' :
+                                'bg-green-500'
+                        : 'bg-[hsl(25,30%,18%)]'
                         }`}
                     />
                   ))}
@@ -180,8 +180,8 @@ export function AdminLoginPage() {
                     <span
                       key={key}
                       className={`text-[10px] flex items-center gap-1 transition-colors ${strength.checks[key as keyof typeof strength.checks]
-                          ? 'text-green-400'
-                          : 'text-[hsl(25,20%,35%)]'
+                        ? 'text-green-400'
+                        : 'text-[hsl(25,20%,35%)]'
                         }`}
                     >
                       {strength.checks[key as keyof typeof strength.checks] ? '✓' : '○'} {label}
@@ -212,7 +212,7 @@ export function AdminLoginPage() {
           </form>
 
           <div className="flex items-center justify-start mt-2">
-            <button className="text-sm text-[hsl(25,20%,45%)] hover:text-[hsl(45,93%,47%)]" onClick={() => setForgotOpen(true)}>
+            <button className="text-sm text-muted-foreground hover:text-primary" onClick={() => setForgotOpen(true)}>
               Forgot password?
             </button>
           </div>

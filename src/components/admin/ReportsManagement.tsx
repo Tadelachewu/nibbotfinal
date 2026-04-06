@@ -304,7 +304,7 @@ export function ReportsManagement() {
         <CardContent className="p-0">
           <ScrollArea className="h-[550px]">
             <Table>
-              <TableHeader className="bg-muted/30 sticky top-0 z-10">
+              <TableHeader className="bg-white/95 backdrop-blur-sm sticky top-0 z-20 border-b">
                 <TableRow>
                   <TableHead className="w-[100px] font-bold uppercase text-[10px]">Priority</TableHead>
                   <TableHead className="w-[100px] font-bold uppercase text-[10px]">Status</TableHead>

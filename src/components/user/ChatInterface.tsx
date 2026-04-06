@@ -45,6 +45,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
+import { defaultSystemTranslations } from '@/lib/store';
 
 interface Message {
   id: string;
@@ -82,13 +83,15 @@ function MessageOptionsList({
   relatedOptions,
   navigateTo,
   getLocalizedName,
-  currentLang
+  currentLang,
+  t
 }: {
   options?: MenuItem[];
   relatedOptions?: MenuItem[];
   navigateTo: (opt: MenuItem) => void;
   getLocalizedName: (opt: MenuItem) => string;
   currentLang: Language | null;
+  t: (key: string, fallback: string) => string;
 }) {
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 12;
@@ -122,7 +125,7 @@ function MessageOptionsList({
             className="text-[11px] font-bold uppercase rounded-full h-8 px-3"
           >
             <ChevronLeft size={14} className="mr-1" />
-            {currentLang?.code === 'am' ? 'ወደ ኋላ' : 'Prev'}
+            {t('ui_prev', 'Prev')}
           </Button>
           <span className="text-[10px] text-muted-foreground font-bold tracking-widest">
             {page + 1} / {totalPages}
@@ -134,7 +137,7 @@ function MessageOptionsList({
             disabled={page === totalPages - 1}
             className="text-[11px] font-bold uppercase rounded-full h-8 px-3"
           >
-            {currentLang?.code === 'am' ? 'ቀጣይ' : 'Next'}
+            {t('ui_next', 'Next')}
             <ChevronRight size={14} className="ml-1" />
           </Button>
         </div>
@@ -144,7 +147,7 @@ function MessageOptionsList({
         <div className="w-full flex items-center gap-2 py-2">
           <div className="h-px bg-muted flex-1" />
           <span className="text-[9px] font-bold uppercase text-muted-foreground">
-            {currentLang?.code === 'am' ? 'ተዛማጅ' : 'Related'}
+            {t('ui_related', 'Related')}
           </span>
           <div className="h-px bg-muted flex-1" />
         </div>
@@ -281,7 +284,15 @@ export function ChatInterface() {
 
   const t = (key: string, fallback: string) => {
     const langCode = currentLang?.code || 'en';
-    return appSettings?.systemTranslations?.[key]?.[langCode] || fallback;
+    const fromSettings = appSettings?.systemTranslations?.[key] as Record<string, string> | undefined;
+    const fromDefaults = defaultSystemTranslations[key] as Record<string, string> | undefined;
+    return (
+      fromSettings?.[langCode] ||
+      fromDefaults?.[langCode] ||
+      fromSettings?.en ||
+      fromDefaults?.en ||
+      fallback
+    );
   };
 
   const logInteraction = (entry: {
@@ -513,13 +524,13 @@ export function ChatInterface() {
         const validTruths = ['true', 'false'];
         return {
           isValid: validTruths.includes(value.toLowerCase().trim()),
-          error: currentLang?.code === 'am' ? 'እባክዎ "true" ወይም "false" ብቻ ያስገቡ' : 'Please enter "true" or "false" only'
+          error: t('ui_error_bool', 'Please enter "true" or "false" only')
         };
       case 'number':
         const cleanNum = value.replace(/,/g, '');
         return {
           isValid: /^\d+(\.\d+)?$/.test(cleanNum) && !isNaN(Number(cleanNum)),
-          error: currentLang?.code === 'am' ? 'እባክዎ ቁጥር ብቻ ያስገቡ' : 'Please enter a valid number'
+          error: t('ui_error_number', 'Please enter a valid number')
         };
       case 'tel':
         // Strict Ethiopian phone validation: starts with +251 or 0, followed by 9 or 7, plus 8 digits.
@@ -527,13 +538,13 @@ export function ChatInterface() {
         const stripped = value.replace(/[\s\-()]/g, '');
         return {
           isValid: ethioPhoneRegex.test(stripped),
-          error: currentLang?.code === 'am' ? 'እባክዎ ትክክለኛ የኢትዮጵያ ስልክ ቁጥር ያስገቡ' : 'Please enter a valid Ethiopian phone number (e.g., 0911... or +251...)'
+          error: t('ui_error_phone', 'Please enter a valid Ethiopian phone number (e.g., 0911... or +251...)')
         };
       case 'email':
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         return {
           isValid: emailRegex.test(value),
-          error: currentLang?.code === 'am' ? 'እባክዎ ትክክለኛ ኢሜል ያስገቡ' : 'Please enter a valid email address'
+          error: t('ui_error_email', 'Please enter a valid email address')
         };
       default:
         return { isValid: true };
@@ -594,8 +605,8 @@ export function ChatInterface() {
     if (currentField.required && !skip && !kycInput.trim()) {
       toast({
         variant: "destructive",
-        title: currentLang?.code === 'am' ? 'የግዴታ መስክ' : 'Required Field',
-        description: currentLang?.code === 'am' ? 'እባክዎ ይህንን መረጃ ያስገቡ' : 'Please provide this information to continue.'
+        title: t('ui_toast_required_title', 'Required Field'),
+        description: t('ui_toast_required_desc', 'Please provide this information to continue.')
       });
       return;
     }
@@ -604,7 +615,7 @@ export function ChatInterface() {
       if (!validation.isValid) {
         toast({
           variant: "destructive",
-          title: currentLang?.code === 'am' ? 'ትክክል ያልሆነ ግብዓት' : 'Invalid Input',
+          title: t('ui_toast_invalid_title', 'Invalid Input'),
           description: validation.error
         });
         return;
@@ -614,7 +625,7 @@ export function ChatInterface() {
     const newKYC = { ...userData.kyc, [currentField.name]: valueToSave };
     setUserData(prev => ({ ...prev, kyc: newKYC }));
     const displayValue = skip
-      ? (currentLang?.code === 'am' ? '[ዘለል]' : '[Skipped]')
+      ? t('ui_skipped', '[Skipped]')
       : (currentField.type === 'password' ? '********' : kycInput);
     setHistory(prev => [...prev, { id: `user-kyc-${Date.now()}`, sender: 'user', text: displayValue }]);
     setKycInput('');
@@ -636,7 +647,7 @@ export function ChatInterface() {
   };
 
   const handleInternalReport = async (menu: MenuItem, kycData: Record<string, any>) => {
-    setLoadingText(currentLang?.code === 'am' ? 'ሪፖርት እየላክን ነው...' : 'Submitting your report...');
+    setLoadingText(t('ui_loading_submitting_report', 'Submitting your report...'));
     setIsLoading(true);
     try {
       const reportPayload: Record<string, any> = {};
@@ -673,7 +684,7 @@ export function ChatInterface() {
       };
       const template = getLocalizedTemplate(menu);
       const finalMsg = template ? replacePlaceholders(template, responseContext) : "";
-      const defaultSuccess = currentLang?.code === 'am' ? 'ሪፖርትዎ በተሳካ ሁኔታ ቀርቧል። እናመሰግናለን።' : 'Your report has been submitted successfully. Thank you.';
+      const defaultSuccess = t('ui_report_submit_success', 'Your report has been submitted successfully. Thank you.');
       setHistory(prev => [...prev, {
         id: `bot-report-${Date.now()}`,
         sender: 'bot',
@@ -689,7 +700,7 @@ export function ChatInterface() {
         tags: ['report', menu.name]
       });
     } catch {
-      const msg = currentLang?.code === 'am' ? 'ይቅርታ፣ ሪፖርትዎን ማስገባት አልቻልንም።' : "Sorry, we couldn't submit your report.";
+      const msg = t('ui_report_submit_fail', "Sorry, we couldn't submit your report.");
       setHistory(prev => [...prev, { id: `bot-report-error-${Date.now()}`, sender: 'bot', text: msg }]);
       logInteraction({
         sessionId: userData.id,
@@ -708,7 +719,7 @@ export function ChatInterface() {
     if (!menu.apiConfig) return;
     const startTime = Date.now();
     const rootKey = menu.apiConfig.rootKey || 'data';
-    setLoadingText(currentLang?.code === 'am' ? 'ደህንነቱ ከተጠበቀ አገልጋይ ጋር በመገናኘት ላይ...' : 'Connecting to secure server...');
+    setLoadingText(t('ui_loading_connecting', 'Connecting to secure server...'));
     setIsLoading(true);
     let apiResponse: any;
     let success = false;
@@ -806,12 +817,12 @@ export function ChatInterface() {
     if (!success) {
       const fallbackMsg = getLocalizedErrorFallback(menu);
       const chosen = (fallbackMsg && fallbackMsg.trim()) ? fallbackMsg : apiResponse?.message;
-      botMsg.text = chosen ? replacePlaceholders(chosen, context) : (currentLang?.code === 'am' ? 'ይቅርታ፣ ጥያቄዎን ለማካሄድ ስህተት ተከስቷል።' : 'Sorry, an error occurred while processing your request.');
+      botMsg.text = chosen ? replacePlaceholders(chosen, context) : t('ui_error_processing', 'Sorry, an error occurred while processing your request.');
     } else {
       const template = getLocalizedTemplate(menu);
       const mappingType = mapping.type || 'message';
       if (mappingType === 'message') {
-        botMsg.text = template ? replacePlaceholders(template, context) : (currentLang?.code === 'am' ? 'ጥያቄዎ በተሳካ ሁኔታ ተከናውኗል።' : 'Your request was processed successfully.');
+        botMsg.text = template ? replacePlaceholders(template, context) : t('ui_request_success', 'Your request was processed successfully.');
       } else if (mappingType === 'table') {
         const isExactPath = mapping.tableMappingMode === 'exact_path';
         let validData = false;
@@ -839,10 +850,10 @@ export function ChatInterface() {
             rootKey
           };
           const tableIntro = getLocalizedTableIntro(menu);
-          botMsg.text = tableIntro ? replacePlaceholders(tableIntro, context) : (currentLang?.code === 'am' ? 'የተገኙ ውጤቶች የሚከተሉት ናቸው' : 'Here are the results:');
+          botMsg.text = tableIntro ? replacePlaceholders(tableIntro, context) : t('ui_results_intro', 'Here are the results:');
         } else {
           const errorMsg = getLocalizedErrorFallback(menu);
-          botMsg.text = errorMsg ? replacePlaceholders(errorMsg, context) : (currentLang?.code === 'am' ? 'ምንም መረጃ አልተገኘም።' : 'No data found.');
+          botMsg.text = errorMsg ? replacePlaceholders(errorMsg, context) : t('ui_no_data', 'No data found.');
         }
       }
     }
@@ -1065,8 +1076,15 @@ export function ChatInterface() {
         <div className="flex items-center gap-1">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="text-muted-foreground h-9 w-9 p-0 hover:bg-primary/10">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground h-9 px-2 hover:bg-primary/10 flex items-center gap-2"
+              >
                 <Globe size={18} className="text-primary" />
+                <span className="text-xs font-semibold text-primary max-w-24 truncate">
+                  {(currentLang?.code || 'EN').toUpperCase()}
+                </span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-40">
@@ -1142,7 +1160,7 @@ export function ChatInterface() {
                   {msg.reportStatus.adminResponse && (
                     <div className="mt-2 p-3 bg-white rounded-lg border border-primary/20">
                       <div className="text-[10px] uppercase font-bold text-primary flex items-center gap-1">
-                        <CornerDownRight size={10} /> Admin Feedback
+                        <CornerDownRight size={10} /> {t('ui_admin_feedback', 'Admin Feedback')}
                       </div>
                       <div className="text-sm italic text-muted-foreground">{msg.reportStatus.adminResponse}</div>
                     </div>
@@ -1183,6 +1201,7 @@ export function ChatInterface() {
                 navigateTo={navigateTo}
                 getLocalizedName={getLocalizedName}
                 currentLang={currentLang}
+                t={t}
               />
             </ChatBubble>
           ))}
@@ -1204,18 +1223,18 @@ export function ChatInterface() {
             type={getInputType()}
             value={kycInput}
             onChange={e => setKycInput(e.target.value)}
-            placeholder={statusFlow ? (currentLang?.code === 'am' ? 'የሪፖርት ቁጥር እዚህ ያስገቡ...' : 'Enter reference ID...') : (currentLang?.code === 'am' ? 'እዚህ ይጻፉ...' : 'Enter requested information...')}
+            placeholder={statusFlow ? t('ui_placeholder_report_id', 'Enter reference ID...') : t('ui_placeholder_input', 'Enter requested information...')}
             className="flex-1 shadow-inner"
           />
           <Button type="submit" size="icon" className="rounded-xl h-10 w-10 shrink-0"><Send size={18} /></Button>
           {kycFlow && !kycFlow.fields[kycFlow.fieldIndex].required && (
             <Button type="button" variant="ghost" size="sm" onClick={() => handleKycSubmit(true)} className="text-[10px] font-bold uppercase text-muted-foreground hover:text-primary h-10 px-3">
-              Skip
+              {t('ui_skip', 'Skip')}
             </Button>
           )}
           {statusFlow && (
             <Button type="button" variant="ghost" size="sm" onClick={() => setStatusFlow(false)} className="text-[10px] font-bold uppercase text-muted-foreground hover:text-destructive h-10 px-3">
-              Cancel
+              {t('ui_cancel', 'Cancel')}
             </Button>
           )}
         </form>

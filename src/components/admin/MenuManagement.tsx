@@ -750,7 +750,7 @@ export function MenuManagement() {
     <div className="w-full">
       {isEditDialogOpen ? (
         <div className="min-h-[100dvh] bg-background">
-          <div className="sticky top-0 z-40 bg-white border-b">
+          <div className="sticky top-16 z-40 bg-white border-b shadow-sm">
             <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
               <Button variant="ghost" onClick={closeEditor} className="shrink-0">
                 <ChevronRight size={16} className="mr-2 rotate-180" />
@@ -759,9 +759,6 @@ export function MenuManagement() {
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-bold truncate">Configure {editForm.name || 'Menu'}</div>
               </div>
-              <Button onClick={handleSaveEdit} disabled={isSaving} className="shrink-0">
-                {isSaving ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2" />} Save
-              </Button>
             </div>
           </div>
 
@@ -1455,7 +1452,7 @@ export function MenuManagement() {
                         </div>
                         <div className="grid gap-3">
                           {settings.supportedLanguages.map((lang, idx) => (
-                            <div key={lang.code} className="flex gap-3 items-center p-3 border rounded-lg bg-muted/5 group">
+                            <div key={idx} className="flex gap-3 items-center p-3 border rounded-lg bg-muted/5 group">
                               <div className="grid grid-cols-2 gap-3 flex-1">
                                 <div className="space-y-1">
                                   <Label className="text-[10px] uppercase font-bold">Language Name</Label>

@@ -1,4 +1,4 @@
- 'use client';
+'use client';
 
 import { MenuItem, AppSettings, Language, UserReport, ReportPriority, ReportIdConfig } from './types';
 import { generateReportId, getNextSequence } from './id-generator';
@@ -21,6 +21,30 @@ export const defaultSystemTranslations: Record<string, Record<string, string>> =
   ui_select_option: { en: 'Please select an option:', am: 'እባክዎ አማራጭ ይምረጡ፡' },
   ui_welcome_subtitle: { en: 'How can we assist you today?', am: 'ዛሬ እንዴት ልንረዳዎ እንችላለን?' },
   ui_enter_report_id: { en: 'Please enter your Report Reference ID:', am: 'እባክዎ የሪፖርት ቁጥርዎን ያስገቡ፡' },
+  ui_prev: { en: 'Prev', am: 'ወደ ኋላ' },
+  ui_next: { en: 'Next', am: 'ቀጣይ' },
+  ui_related: { en: 'Related', am: 'ተዛማጅ' },
+  ui_placeholder_report_id: { en: 'Enter reference ID...', am: 'የሪፖርት ቁጥር እዚህ ያስገቡ...' },
+  ui_placeholder_input: { en: 'Enter requested information...', am: 'እዚህ ይጻፉ...' },
+  ui_error_bool: { en: 'Please enter "true" or "false" only', am: 'እባክዎ "true" ወይም "false" ብቻ ያስገቡ' },
+  ui_error_number: { en: 'Please enter a valid number', am: 'እባክዎ ቁጥር ብቻ ያስገቡ' },
+  ui_error_phone: { en: 'Please enter a valid Ethiopian phone number (e.g., 0911... or +251...)', am: 'እባክዎ ትክክለኛ የኢትዮጵያ ስልክ ቁጥር ያስገቡ' },
+  ui_error_email: { en: 'Please enter a valid email address', am: 'እባክዎ ትክክለኛ ኢሜል ያስገቡ' },
+  ui_toast_required_title: { en: 'Required Field', am: 'የግዴታ መስክ' },
+  ui_toast_required_desc: { en: 'Please provide this information to continue.', am: 'እባክዎ ይህንን መረጃ ያስገቡ' },
+  ui_toast_invalid_title: { en: 'Invalid Input', am: 'ትክክል ያልሆነ ግብዓት' },
+  ui_skip: { en: 'Skip', am: 'ዘለል' },
+  ui_cancel: { en: 'Cancel', am: 'ሰርዝ' },
+  ui_skipped: { en: '[Skipped]', am: '[ዘለል]' },
+  ui_loading_submitting_report: { en: 'Submitting your report...', am: 'ሪፖርት እየላክን ነው...' },
+  ui_loading_connecting: { en: 'Connecting to secure server...', am: 'ደህንነቱ ከተጠበቀ አገልጋይ ጋር በመገናኘት ላይ...' },
+  ui_report_submit_success: { en: 'Your report has been submitted successfully. Thank you.', am: 'ሪፖርትዎ በተሳካ ሁኔታ ቀርቧል። እናመሰግናለን።' },
+  ui_report_submit_fail: { en: "Sorry, we couldn't submit your report.", am: 'ይቅርታ፣ ሪፖርትዎን ማስገባት አልቻልንም።' },
+  ui_results_intro: { en: 'Here are the results:', am: 'የተገኙ ውጤቶች የሚከተሉት ናቸው' },
+  ui_no_data: { en: 'No data found.', am: 'ምንም መረጃ አልተገኘም።' },
+  ui_error_processing: { en: 'Sorry, an error occurred while processing your request.', am: 'ይቅርታ፣ ጥያቄዎን ለማካሄድ ስህተት ተከስቷል።' },
+  ui_request_success: { en: 'Your request was processed successfully.', am: 'ጥያቄዎ በተሳካ ሁኔታ ተከናውኗል።' },
+  ui_admin_feedback: { en: 'Admin Feedback', am: 'የአስተዳዳሪ ምላሽ' },
   ui_status_resolved: { en: 'Resolved', am: 'ተፈትቷል' },
   ui_status_reviewed: { en: 'Reviewed', am: 'በመመርመር ላይ' },
   ui_status_pending: { en: 'Pending', am: 'በጥበቃ ላይ' },
@@ -34,13 +58,13 @@ export const defaultSystemTranslations: Record<string, Record<string, string>> =
 };
 
 const defaultMenus: MenuItem[] = [
-  { 
-    id: '1', 
-    parentId: null, 
-    name: 'Our Services', 
+  {
+    id: '1',
+    parentId: null,
+    name: 'Our Services',
     nameAm: 'የእኛ አገልግሎቶች',
     responseType: 'static',
-    order: 0, 
+    order: 0,
     content: '<p>Explore what we can do for you.</p>',
     contentAm: '<p>ለእርስዎ ምን ማድረግ እንደምንችል ይመርምሩ።</p>',
     attachedMenuIds: ['ex-rate', 'path-param-test', 'fraud-report-test'],
@@ -62,7 +86,7 @@ const defaultMenus: MenuItem[] = [
     sessionClickCount: 5,
     apiConfig: {
       name: 'Fraud Report Collection',
-      endpoint: '', 
+      endpoint: '',
       method: 'POST',
       headers: {},
       timeout: 0,
@@ -100,10 +124,10 @@ const defaultMenus: MenuItem[] = [
       }
     }
   },
-  { 
-    id: 'ex-rate', 
-    parentId: null, 
-    name: 'Exchange Rates', 
+  {
+    id: 'ex-rate',
+    parentId: null,
+    name: 'Exchange Rates',
     nameAm: 'የምንዛሬ ተመኖች',
     responseType: 'api',
     order: 2,
@@ -207,14 +231,14 @@ export function incrementMenuClick(id: string, sessionId: string) {
 
   const updatedMenus = [...menus];
   const menu = { ...updatedMenus[menuIndex] };
-  
+
   // 1. Always increment total click count
   menu.clickCount = (menu.clickCount || 0) + 1;
 
   // 2. Increment session click count only if this session hasn't clicked this menu yet
   const clickHistoryJson = localStorage.getItem(CLICK_LOG_KEY);
   const clickHistory: Record<string, string[]> = clickHistoryJson ? JSON.parse(clickHistoryJson) : {};
-  
+
   if (!clickHistory[id]) {
     clickHistory[id] = [];
   }
@@ -239,18 +263,18 @@ export const defaultReportIdConfig: ReportIdConfig = {
 };
 
 export function getAppSettings(): AppSettings {
-  if (typeof window === 'undefined') return { 
-    supportedLanguages: defaultLanguages, 
+  if (typeof window === 'undefined') return {
+    supportedLanguages: defaultLanguages,
     systemTranslations: defaultSystemTranslations,
     reportId: defaultReportIdConfig
   };
   const stored = localStorage.getItem(SETTINGS_KEY);
-  const settings: AppSettings = stored ? JSON.parse(stored) : { 
-    supportedLanguages: defaultLanguages, 
+  const settings: AppSettings = stored ? JSON.parse(stored) : {
+    supportedLanguages: defaultLanguages,
     systemTranslations: defaultSystemTranslations,
     reportId: defaultReportIdConfig
   };
-  
+
   // Ensure systemTranslations exists and has default keys
   if (!settings.systemTranslations) {
     settings.systemTranslations = defaultSystemTranslations;
@@ -267,7 +291,7 @@ export function getAppSettings(): AppSettings {
   if (!settings.reportId) {
     settings.reportId = defaultReportIdConfig;
   }
-  
+
   return settings;
 }
 
@@ -292,10 +316,10 @@ export function addReport(reportData: Omit<UserReport, 'id' | 'status' | 'timest
   const reports = getStoredReports();
   const settings = getAppSettings();
   const config = settings.reportId || defaultReportIdConfig;
-  
+
   const nextSequence = getNextSequence(config, reports);
   const newId = generateReportId(config, nextSequence);
-  
+
   // Ensure uniqueness (safety check)
   let finalId = newId;
   let counter = 1;
@@ -348,9 +372,9 @@ export function deleteReport(id: string) {
 // Menu Actions
 export function addMenu(menu: Omit<MenuItem, 'id'>): MenuItem {
   const menus = getStoredMenus();
-  const newItem = { 
-    ...menu, 
-    id: Math.random().toString(36).substr(2, 9), 
+  const newItem = {
+    ...menu,
+    id: Math.random().toString(36).substr(2, 9),
     attachedMenuIds: [],
     trackClicks: false,
     clickCount: 0,

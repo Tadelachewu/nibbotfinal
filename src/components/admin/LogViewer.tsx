@@ -94,7 +94,7 @@ export function LogViewer() {
         <CardContent>
           <div className="rounded-md border">
             <Table>
-              <TableHeader className="bg-muted/50">
+              <TableHeader className="bg-white/95 backdrop-blur-sm sticky top-16 z-10 border-b">
                 <TableRow>
                   <TableHead className="w-[180px]">Timestamp (UTC)</TableHead>
                   <TableHead>Session ID</TableHead>

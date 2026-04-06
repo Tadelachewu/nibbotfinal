@@ -20,6 +20,26 @@ export function LocalizationManagement() {
   const [translations, setTranslations] = useState<Record<string, Record<string, string>>>({});
   const [isSaving, setIsSaving] = useState(false);
 
+  const mergeSystemTranslations = (
+    current: Record<string, Record<string, string>> | undefined,
+    langs: Language[]
+  ) => {
+    const base = current && typeof current === 'object' ? current : {};
+    const result: Record<string, Record<string, string>> = { ...base };
+    const langCodes = (Array.isArray(langs) ? langs : []).map(l => l.code).filter(Boolean);
+
+    for (const key of Object.keys(defaultSystemTranslations)) {
+      const row = { ...(defaultSystemTranslations[key] || {}), ...(result[key] || {}) };
+      const enFallback = row.en || defaultSystemTranslations[key]?.en || '';
+      for (const code of langCodes) {
+        if (!row[code]) row[code] = enFallback;
+      }
+      result[key] = row;
+    }
+
+    return result;
+  };
+
   useEffect(() => {
     const load = async () => {
       const res = await fetch('/api/app-settings', { cache: 'no-store' });
@@ -27,11 +47,16 @@ export function LocalizationManagement() {
       const s = json?.data as AppSettings | undefined;
       if (s) {
         setSettings(s);
-        setTranslations(s.systemTranslations || defaultSystemTranslations);
+        setTranslations(mergeSystemTranslations(s.systemTranslations as any, s.supportedLanguages || []));
       }
     };
     load();
   }, []);
+
+  useEffect(() => {
+    if (!settings.supportedLanguages?.length) return;
+    setTranslations(prev => mergeSystemTranslations(prev, settings.supportedLanguages));
+  }, [settings.supportedLanguages]);
 
   const handleTranslationChange = (key: string, langCode: string, value: string) => {
     setTranslations(prev => ({
@@ -90,6 +115,30 @@ export function LocalizationManagement() {
     ui_welcome_am: { label: 'Welcome Message (Amharic context)', description: 'Amharic version of the main welcome banner' },
     ui_back: { label: 'Back Button', description: 'Label for the navigation back button' },
     ui_home: { label: 'Home Button', description: 'Label for returning to the main menu' },
+    ui_prev: { label: 'Prev Button', description: 'Label for pagination previous button' },
+    ui_next: { label: 'Next Button', description: 'Label for pagination next button' },
+    ui_related: { label: 'Related Label', description: 'Label shown above related menu options' },
+    ui_placeholder_report_id: { label: 'Report ID Placeholder', description: 'Input placeholder when asking for report reference id' },
+    ui_placeholder_input: { label: 'Input Placeholder', description: 'Generic input placeholder when asking for information' },
+    ui_error_bool: { label: 'Boolean Validation Error', description: 'Shown when boolean input is invalid' },
+    ui_error_number: { label: 'Number Validation Error', description: 'Shown when numeric input is invalid' },
+    ui_error_phone: { label: 'Phone Validation Error', description: 'Shown when phone input is invalid' },
+    ui_error_email: { label: 'Email Validation Error', description: 'Shown when email input is invalid' },
+    ui_toast_required_title: { label: 'Required Toast Title', description: 'Toast title when a required field is missing' },
+    ui_toast_required_desc: { label: 'Required Toast Description', description: 'Toast description when a required field is missing' },
+    ui_toast_invalid_title: { label: 'Invalid Toast Title', description: 'Toast title when input is invalid' },
+    ui_skip: { label: 'Skip Button', description: 'Label for skipping optional fields' },
+    ui_cancel: { label: 'Cancel Button', description: 'Label for canceling the report lookup flow' },
+    ui_skipped: { label: 'Skipped Label', description: 'Label shown when a field is skipped' },
+    ui_loading_submitting_report: { label: 'Submitting Report', description: 'Loading text while submitting a report' },
+    ui_loading_connecting: { label: 'Connecting Text', description: 'Loading text while connecting to server' },
+    ui_report_submit_success: { label: 'Report Success Message', description: 'Shown when report submission succeeds' },
+    ui_report_submit_fail: { label: 'Report Failure Message', description: 'Shown when report submission fails' },
+    ui_results_intro: { label: 'Results Intro', description: 'Intro shown before rendering table results' },
+    ui_no_data: { label: 'No Data Message', description: 'Shown when no data is found' },
+    ui_error_processing: { label: 'Processing Error', description: 'Generic message shown when request processing fails' },
+    ui_request_success: { label: 'Request Success', description: 'Generic message shown when request succeeds without a template' },
+    ui_admin_feedback: { label: 'Admin Feedback Label', description: 'Label for admin feedback section in report status card' },
     ui_status_label: { label: 'Report Status Title', description: 'Header for the status card' },
     ui_status_resolved: { label: 'Status: Resolved', description: 'Badge text for resolved tickets' },
     ui_status_reviewed: { label: 'Status: Reviewed', description: 'Badge text for reviewed tickets' },
@@ -145,22 +194,24 @@ export function LocalizationManagement() {
                       </h3>
                       <p className="text-xs text-muted-foreground">{info.description}</p>
                     </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {settings.supportedLanguages.map(lang => (
-                        <div key={lang.code} className="space-y-2">
-                          <Label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <span className="px-1 bg-muted rounded font-bold uppercase">{lang.code}</span>
-                            {lang.name}
-                          </Label>
-                          <Input 
-                            value={translations[key]?.[lang.code] || ''}
-                            onChange={(e) => handleTranslationChange(key, lang.code, e.target.value)}
-                            placeholder={`Enter ${lang.name} version...`}
-                            className="h-9 focus-visible:ring-emerald-500"
-                          />
-                        </div>
-                      ))}
+
+                    <div className="overflow-x-auto">
+                      <div className="flex gap-6 w-max pb-2">
+                        {settings.supportedLanguages.map((lang, idx) => (
+                          <div key={`lang-${lang.code}-${idx}`} className="space-y-2 w-64 shrink-0">
+                            <Label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <span className="px-1 bg-muted rounded font-bold uppercase">{lang.code}</span>
+                              {lang.name}
+                            </Label>
+                            <Input
+                              value={translations[key]?.[lang.code] || ''}
+                              onChange={(e) => handleTranslationChange(key, lang.code, e.target.value)}
+                              placeholder={`Enter ${lang.name} version...`}
+                              className="h-9 focus-visible:ring-emerald-500"
+                            />
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 );
