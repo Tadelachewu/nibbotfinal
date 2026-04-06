@@ -95,7 +95,25 @@ export function isSameOriginRequest(req: Request): boolean {
     allowedOrigins.add(`${fallbackProto}://${host}`);
   }
 
-  if (origin) return allowedOrigins.has(origin);
+  if (origin) {
+    const ok = allowedOrigins.has(origin);
+    if (!ok) {
+      try {
+        console.warn('[Auth] Same-origin check failed', {
+          origin,
+          requestOrigin,
+          referer,
+          forwardedHost,
+          forwardedProto,
+          host,
+          allowedOrigins: Array.from(allowedOrigins),
+        });
+      } catch (e) {
+        // ignore logging errors
+      }
+    }
+    return ok;
+  }
 
   if (referer) {
     try {
