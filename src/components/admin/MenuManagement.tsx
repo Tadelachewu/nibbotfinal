@@ -149,7 +149,7 @@ export function MenuManagement() {
     if (!updates.length) return;
     setIsReordering(true);
     try {
-      await Promise.all(updates.map(u => 
+      await Promise.all(updates.map(u =>
         csrfFetch(`/api/menus/${encodeURIComponent(u.id)}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -534,7 +534,7 @@ export function MenuManagement() {
           const approvalStatus = originalItem.approvalStatus || 'approved';
           const pendingStatus = originalItem.pendingStatus || null;
           const hasPendingUpdate = (pendingStatus === 'pending' || pendingStatus === 'rejected') && !!originalItem.pendingUpdate;
-          
+
           const siblings = items;
           const otherSiblings = siblings.filter(s => s.id !== item.id);
 
@@ -609,32 +609,32 @@ export function MenuManagement() {
                                 <ListTree size={14} />
                               </Button>
                             </PopoverTrigger>
-                              <PopoverContent className="w-64 p-1" align="end">
-                                <div className="text-[10px] font-bold px-2 py-1.5 text-muted-foreground uppercase border-b mb-1 flex items-center gap-2">
-                                  <ListTree size={12} />
-                                  <span>Swap "{item.name}" with:</span>
+                            <PopoverContent className="w-64 p-1" align="end">
+                              <div className="text-[10px] font-bold px-2 py-1.5 text-muted-foreground uppercase border-b mb-1 flex items-center gap-2">
+                                <ListTree size={12} />
+                                <span>Swap "{item.name}" with:</span>
+                              </div>
+                              <ScrollArea className="h-64">
+                                <div className="space-y-0.5 p-1">
+                                  {otherSiblings.map((sibling, sIdx) => (
+                                    <Button
+                                      key={sibling.id}
+                                      variant="ghost"
+                                      className="w-full justify-between h-auto py-2 px-3 text-xs group/item"
+                                      onClick={() => swapWithOther(item.id, sibling.id)}
+                                    >
+                                      <div className="flex flex-col items-start min-w-0 flex-1">
+                                        <span className="font-medium truncate w-full group-hover/item:text-primary transition-colors">{sibling.name}</span>
+                                        {sibling.nameAm && <span className="text-[10px] text-muted-foreground truncate w-full italic">{sibling.nameAm}</span>}
+                                      </div>
+                                      <Badge variant="outline" className="ml-2 shrink-0 text-[9px] h-5 px-1.5 bg-muted/30">
+                                        #{sibling.order + 1}
+                                      </Badge>
+                                    </Button>
+                                  ))}
                                 </div>
-                                <ScrollArea className="h-64">
-                                  <div className="space-y-0.5 p-1">
-                                    {otherSiblings.map((sibling, sIdx) => (
-                                      <Button
-                                        key={sibling.id}
-                                        variant="ghost"
-                                        className="w-full justify-between h-auto py-2 px-3 text-xs group/item"
-                                        onClick={() => swapWithOther(item.id, sibling.id)}
-                                      >
-                                        <div className="flex flex-col items-start min-w-0 flex-1">
-                                          <span className="font-medium truncate w-full group-hover/item:text-primary transition-colors">{sibling.name}</span>
-                                          {sibling.nameAm && <span className="text-[10px] text-muted-foreground truncate w-full italic">{sibling.nameAm}</span>}
-                                        </div>
-                                        <Badge variant="outline" className="ml-2 shrink-0 text-[9px] h-5 px-1.5 bg-muted/30">
-                                          #{sibling.order + 1}
-                                        </Badge>
-                                      </Button>
-                                    ))}
-                                  </div>
-                                </ScrollArea>
-                              </PopoverContent>
+                              </ScrollArea>
+                            </PopoverContent>
                           </Popover>
                         )}
                       </div>
@@ -1672,14 +1672,24 @@ export function CheckerMenuReview() {
     })();
   };
 
-  const pending = menus.filter(m =>
-    (m.approvalStatus || 'approved') === 'pending' ||
-    (m.pendingStatus || null) === 'pending' ||
-    (m.pendingStatus || null) === 'rejected'
-  );
+  const byId = new Map(menus.map(m => [m.id, m]));
+
+  const previewMenus = menus.map(m => {
+    const hasPendingUpdate = (m.pendingStatus === 'pending' || m.pendingStatus === 'rejected') && !!m.pendingUpdate;
+    return hasPendingUpdate ? mergeMenuWithUpdate(m, m.pendingUpdate) : m;
+  });
+  const previewById = new Map(previewMenus.map(m => [m.id, m]));
+
+  const pending = menus
+    .filter(m =>
+      (m.approvalStatus || 'approved') === 'pending' ||
+      (m.pendingStatus || null) === 'pending' ||
+      (m.pendingStatus || null) === 'rejected'
+    )
+    .map(m => previewById.get(m.id) || m);
   const isChecker = currentRole === 'checker';
 
-  const mergeMenuWithUpdate = (menu: MenuItem, update: any) => {
+  function mergeMenuWithUpdate(menu: MenuItem, update: any) {
     const merged: any = { ...(menu as any), ...(update || {}) };
     if (Object.prototype.hasOwnProperty.call(update || {}, 'apiConfig')) {
       merged.apiConfig = update?.apiConfig ?? undefined;
@@ -1703,7 +1713,7 @@ export function CheckerMenuReview() {
       merged.translations = update?.translations ?? undefined;
     }
     return merged as MenuItem;
-  };
+  }
 
   const getLanguages = () => {
     if (Array.isArray(settings.supportedLanguages) && settings.supportedLanguages.length) return settings.supportedLanguages;
@@ -1744,18 +1754,20 @@ export function CheckerMenuReview() {
     }
   };
 
-  const openDetails = (menu: MenuItem) => {
-    setSelected(menu);
+  const openDetails = (id: string) => {
+    const original = byId.get(id);
+    if (!original) return;
+    setSelected(original);
     setIsDetailsOpen(true);
   };
 
   const renderTree = (parentId: string | null = null, level = 0) => {
-    const items = menus.filter(m => m.parentId === parentId).sort((a, b) => a.order - b.order);
+    const items = previewMenus.filter(m => m.parentId === parentId).sort((a, b) => a.order - b.order);
     if (items.length === 0 && parentId !== null) return null;
     return (
       <div className={`space-y-1 ${level > 0 ? 'ml-4 border-l pl-2 mt-1' : ''}`}>
         {items.map(item => {
-          const hasChildren = menus.some(m => m.parentId === item.id);
+          const hasChildren = previewMenus.some(m => m.parentId === item.id);
           const isExpanded = expanded.has(item.id);
           const approvalStatus = item.approvalStatus || 'approved';
           const pendingStatus = item.pendingStatus || null;
@@ -1791,7 +1803,7 @@ export function CheckerMenuReview() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openDetails(item)}><Eye size={14} /></Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openDetails(item.id)}><Eye size={14} /></Button>
                 </div>
               </div>
               {isExpanded && renderTree(item.id, level + 1)}
@@ -2298,7 +2310,7 @@ export function CheckerMenuReview() {
                         {(m.pendingStatus === 'pending' || m.pendingStatus === 'rejected') && (
                           <Badge variant="secondary" className="text-[10px] h-4 px-2 shrink-0 text-sky-700">Edit Request</Badge>
                         )}
-                        <Button variant="ghost" size="sm" onClick={() => openDetails(m)} className="h-8">
+                        <Button variant="ghost" size="sm" onClick={() => openDetails(m.id)} className="h-8">
                           <Eye size={14} className="mr-2" /> View
                         </Button>
                         <Button

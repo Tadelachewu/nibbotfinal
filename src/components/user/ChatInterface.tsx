@@ -111,13 +111,13 @@ function MessageOptionsList({
           <span className="whitespace-normal break-words font-medium text-[13px] leading-snug">{getLocalizedName(opt)}</span>
         </Button>
       ))}
-      
+
       {totalPages > 1 && (
         <div className="w-full flex items-center justify-between gap-2 mt-2 px-1">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => setPage(p => Math.max(0, p - 1))} 
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setPage(p => Math.max(0, p - 1))}
             disabled={page === 0}
             className="text-[11px] font-bold uppercase rounded-full h-8 px-3"
           >
@@ -127,10 +127,10 @@ function MessageOptionsList({
           <span className="text-[10px] text-muted-foreground font-bold tracking-widest">
             {page + 1} / {totalPages}
           </span>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} 
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
             disabled={page === totalPages - 1}
             className="text-[11px] font-bold uppercase rounded-full h-8 px-3"
           >
@@ -149,7 +149,7 @@ function MessageOptionsList({
           <div className="h-px bg-muted flex-1" />
         </div>
       )}
-      
+
       {relatedOptions?.map(opt => (
         <Button
           key={opt.id}
@@ -266,7 +266,13 @@ export function ChatInterface() {
 
     (async () => {
       const runtime = await fetchRuntimeConfig().catch(() => ({ menus: [] as MenuItem[] }));
-      setHistory([{ id: 'welcome', sender: 'bot', options: runtime.menus.filter((m: MenuItem) => m.parentId === null) }]);
+      setHistory([{
+        id: 'welcome',
+        sender: 'bot',
+        options: runtime.menus
+          .filter((m: MenuItem) => m.parentId === null)
+          .sort((a, b) => a.order - b.order)
+      }]);
     })();
 
     const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -1156,8 +1162,8 @@ export function ChatInterface() {
                   </ScrollArea>
                 </div>
               )}
-              <MessageOptionsList 
-                options={msg.options} 
+              <MessageOptionsList
+                options={msg.options}
                 relatedOptions={msg.relatedOptions}
                 navigateTo={navigateTo}
                 getLocalizedName={getLocalizedName}
