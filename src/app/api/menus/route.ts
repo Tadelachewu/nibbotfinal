@@ -88,7 +88,7 @@ function validateEndpointTemplate(endpoint: string, kycFieldNames: string[]) {
   return { ok: invalid.length === 0 && missingKyc.length === 0, vars, invalid, missingKyc };
 }
 
-function buildMenuResponse(menu: any) {
+function buildMenuResponse(menu: any, isAdmin: boolean = false) {
   const attachedMenuIds = Array.isArray(menu.attachments)
     ? menu.attachments.map((a: any) => a.attachedMenuId)
     : [];
@@ -120,7 +120,7 @@ function buildMenuResponse(menu: any) {
     : undefined;
 
   const pendingUpdate =
-    menu.pendingUpdate && typeof menu.pendingUpdate === 'object'
+    isAdmin && menu.pendingUpdate && typeof menu.pendingUpdate === 'object'
       ? (menu.pendingUpdate as Record<string, any>)
       : undefined;
 
@@ -136,21 +136,23 @@ function buildMenuResponse(menu: any) {
     order: menu.order,
     isActive: typeof menu.isActive === 'boolean' ? menu.isActive : true,
     approvalStatus: menu.approvalStatus ?? 'approved',
-    createdBy: typeof menu.createdBy === 'string' ? menu.createdBy : undefined,
-    reviewedBy: typeof menu.reviewedBy === 'string' ? menu.reviewedBy : undefined,
-    reviewedAt: menu.reviewedAt ? new Date(menu.reviewedAt).toISOString() : undefined,
-    rejectionReason: typeof menu.rejectionReason === 'string' ? menu.rejectionReason : undefined,
-    pendingUpdate,
-    pendingStatus: typeof menu.pendingStatus === 'string' ? menu.pendingStatus : undefined,
-    pendingCreatedBy: typeof menu.pendingCreatedBy === 'string' ? menu.pendingCreatedBy : undefined,
-    pendingReviewedBy: typeof menu.pendingReviewedBy === 'string' ? menu.pendingReviewedBy : undefined,
-    pendingReviewedAt: menu.pendingReviewedAt ? new Date(menu.pendingReviewedAt).toISOString() : undefined,
-    pendingRejectionReason: typeof menu.pendingRejectionReason === 'string' ? menu.pendingRejectionReason : undefined,
     attachedMenuIds,
     trackClicks: Boolean(menu.trackClicks),
     clickCount: menu.clickCount ?? 0,
     sessionClickCount: menu.sessionClickCount ?? 0,
-    translations: (menu.translations as any) ?? undefined
+    translations: (menu.translations as any) ?? undefined,
+    ...(isAdmin ? {
+      createdBy: typeof menu.createdBy === 'string' ? menu.createdBy : undefined,
+      reviewedBy: typeof menu.reviewedBy === 'string' ? menu.reviewedBy : undefined,
+      reviewedAt: menu.reviewedAt ? new Date(menu.reviewedAt).toISOString() : undefined,
+      rejectionReason: typeof menu.rejectionReason === 'string' ? menu.rejectionReason : undefined,
+      pendingUpdate,
+      pendingStatus: typeof menu.pendingStatus === 'string' ? menu.pendingStatus : undefined,
+      pendingCreatedBy: typeof menu.pendingCreatedBy === 'string' ? menu.pendingCreatedBy : undefined,
+      pendingReviewedBy: typeof menu.pendingReviewedBy === 'string' ? menu.pendingReviewedBy : undefined,
+      pendingReviewedAt: menu.pendingReviewedAt ? new Date(menu.pendingReviewedAt).toISOString() : undefined,
+      pendingRejectionReason: typeof menu.pendingRejectionReason === 'string' ? menu.pendingRejectionReason : undefined,
+    } : {})
   };
 }
 
@@ -158,8 +160,11 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const includeInactiveRequested =
     searchParams.get('includeInactive') === '1' || searchParams.get('includeInactive') === 'true';
-  const adminSession = includeInactiveRequested ? await getValidatedAdminSession() : null;
+  const adminPreviewRequested =
+    searchParams.get('adminPreview') === '1' || searchParams.get('adminPreview') === 'true';
+  const adminSession = (includeInactiveRequested || adminPreviewRequested) ? await getValidatedAdminSession() : null;
   const includeAll = includeInactiveRequested && Boolean(adminSession);
+  const isAdmin = Boolean(adminSession);
 
   const menus = await prisma.menuItem.findMany({
     include: {
@@ -191,7 +196,11 @@ export async function GET(req: Request) {
     }
   }
 
-  return NextResponse.json({ status: 'success', data: menus.map(buildMenuResponse) });
+  return NextResponse.json({ 
+    status: 'success', 
+    isAdmin,
+    data: menus.map(m => buildMenuResponse(m, isAdmin)) 
+  });
 }
 
 export async function POST(req: Request) {
@@ -314,7 +323,7 @@ export async function POST(req: Request) {
   });
 
   const nextToken = await rotateCsrfToken(session);
-  const res = NextResponse.json({ status: 'success', data: created ? buildMenuResponse(created) : null });
+  const res = NextResponse.json({ status: 'success', data: created ? buildMenuResponse(created, true) : null });
   res.headers.set('x-csrf-token', nextToken);
   return res;
 }

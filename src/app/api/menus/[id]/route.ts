@@ -86,7 +86,7 @@ function validateEndpointTemplate(endpoint: string, kycFieldNames: string[]) {
   return { ok: invalid.length === 0 && missingKyc.length === 0, vars, invalid, missingKyc };
 }
 
-function buildMenuResponse(menu: any) {
+function buildMenuResponse(menu: any, isAdmin: boolean = false) {
   const attachedMenuIds = Array.isArray(menu.attachments)
     ? menu.attachments.map((a: any) => a.attachedMenuId)
     : [];
@@ -118,7 +118,7 @@ function buildMenuResponse(menu: any) {
     : undefined;
 
   const pendingUpdate =
-    menu.pendingUpdate && typeof menu.pendingUpdate === 'object'
+    isAdmin && menu.pendingUpdate && typeof menu.pendingUpdate === 'object'
       ? (menu.pendingUpdate as Record<string, any>)
       : undefined;
 
@@ -134,21 +134,23 @@ function buildMenuResponse(menu: any) {
     order: menu.order,
     isActive: typeof menu.isActive === 'boolean' ? menu.isActive : true,
     approvalStatus: menu.approvalStatus ?? 'approved',
-    createdBy: typeof menu.createdBy === 'string' ? menu.createdBy : undefined,
-    reviewedBy: typeof menu.reviewedBy === 'string' ? menu.reviewedBy : undefined,
-    reviewedAt: menu.reviewedAt ? new Date(menu.reviewedAt).toISOString() : undefined,
-    rejectionReason: typeof menu.rejectionReason === 'string' ? menu.rejectionReason : undefined,
-    pendingUpdate,
-    pendingStatus: typeof menu.pendingStatus === 'string' ? menu.pendingStatus : undefined,
-    pendingCreatedBy: typeof menu.pendingCreatedBy === 'string' ? menu.pendingCreatedBy : undefined,
-    pendingReviewedBy: typeof menu.pendingReviewedBy === 'string' ? menu.pendingReviewedBy : undefined,
-    pendingReviewedAt: menu.pendingReviewedAt ? new Date(menu.pendingReviewedAt).toISOString() : undefined,
-    pendingRejectionReason: typeof menu.pendingRejectionReason === 'string' ? menu.pendingRejectionReason : undefined,
     attachedMenuIds,
     trackClicks: Boolean(menu.trackClicks),
     clickCount: menu.clickCount ?? 0,
     sessionClickCount: menu.sessionClickCount ?? 0,
-    translations: (menu.translations as any) ?? undefined
+    translations: (menu.translations as any) ?? undefined,
+    ...(isAdmin ? {
+      createdBy: typeof menu.createdBy === 'string' ? menu.createdBy : undefined,
+      reviewedBy: typeof menu.reviewedBy === 'string' ? menu.reviewedBy : undefined,
+      reviewedAt: menu.reviewedAt ? new Date(menu.reviewedAt).toISOString() : undefined,
+      rejectionReason: typeof menu.rejectionReason === 'string' ? menu.rejectionReason : undefined,
+      pendingUpdate,
+      pendingStatus: typeof menu.pendingStatus === 'string' ? menu.pendingStatus : undefined,
+      pendingCreatedBy: typeof menu.pendingCreatedBy === 'string' ? menu.pendingCreatedBy : undefined,
+      pendingReviewedBy: typeof menu.pendingReviewedBy === 'string' ? menu.pendingReviewedBy : undefined,
+      pendingReviewedAt: menu.pendingReviewedAt ? new Date(menu.pendingReviewedAt).toISOString() : undefined,
+      pendingRejectionReason: typeof menu.pendingRejectionReason === 'string' ? menu.pendingRejectionReason : undefined,
+    } : {})
   };
 }
 
@@ -349,7 +351,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   });
 
   const nextToken = await rotateCsrfToken(session);
-  const res = NextResponse.json({ status: 'success', data: updated ? buildMenuResponse(updated) : null });
+  const res = NextResponse.json({ status: 'success', data: updated ? buildMenuResponse(updated, true) : null });
   res.headers.set('x-csrf-token', nextToken);
   return res;
 }
@@ -519,7 +521,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
   });
 
   const nextToken = await rotateCsrfToken(session);
-  const res = NextResponse.json({ status: 'success', data: updated ? buildMenuResponse(updated) : null });
+  const res = NextResponse.json({ status: 'success', data: updated ? buildMenuResponse(updated, true) : null });
   res.headers.set('x-csrf-token', nextToken);
   return res;
 }

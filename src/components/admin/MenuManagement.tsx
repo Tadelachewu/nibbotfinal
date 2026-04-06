@@ -149,15 +149,15 @@ export function MenuManagement() {
     if (!updates.length) return;
     setIsReordering(true);
     try {
-      for (const u of updates) {
-        await csrfFetch(`/api/menus/${encodeURIComponent(u.id)}`, {
+      await Promise.all(updates.map(u => 
+        csrfFetch(`/api/menus/${encodeURIComponent(u.id)}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ order: u.order })
-        });
-      }
+        })
+      ));
       refresh();
-      toast({ title: "Order updated", description: "Menu order updated successfully." });
+      toast({ title: "Order updated successfully." });
     } catch {
       toast({ title: "Error", description: "Could not update menu order.", variant: "destructive" });
     } finally {
@@ -165,16 +165,35 @@ export function MenuManagement() {
     }
   };
 
+  const getEffectiveMenu = (m: MenuItem): MenuItem => {
+    const hasPending = (m.pendingStatus === 'pending' || m.pendingStatus === 'rejected') && m.pendingUpdate && typeof m.pendingUpdate === 'object';
+    if (!hasPending) return m;
+    const update = m.pendingUpdate as any;
+    const merged = { ...m };
+    if ('name' in update) merged.name = update.name;
+    if ('nameAm' in update) merged.nameAm = update.nameAm;
+    if ('responseType' in update) merged.responseType = update.responseType;
+    if ('content' in update) merged.content = update.content;
+    if ('contentAm' in update) merged.contentAm = update.contentAm;
+    if ('order' in update) merged.order = update.order;
+    if ('isActive' in update) merged.isActive = update.isActive;
+    if ('trackClicks' in update) merged.trackClicks = update.trackClicks;
+    if ('parentId' in update) merged.parentId = update.parentId;
+    return merged;
+  };
+
   const normalizeSiblings = (parentId: string | null) => {
     return menus
+      .map(getEffectiveMenu)
       .filter(m => m.parentId === parentId)
       .slice()
       .sort((a, b) => ((a.order ?? 0) - (b.order ?? 0)) || String(a.name || '').localeCompare(String(b.name || '')));
   };
 
   const swapWithNeighbor = async (menuId: string, direction: -1 | 1) => {
-    const current = menus.find(m => m.id === menuId);
-    if (!current) return;
+    const original = menus.find(m => m.id === menuId);
+    if (!original) return;
+    const current = getEffectiveMenu(original);
     const siblings = normalizeSiblings(current.parentId ?? null);
     const idx = siblings.findIndex(s => s.id === menuId);
     const targetIdx = idx + direction;
@@ -198,9 +217,13 @@ export function MenuManagement() {
 
   const moveToPosition = async (menuId: string) => {
     if (typeof window === 'undefined') return;
-    const current = menus.find(m => m.id === menuId);
+    const effectiveMenus = menus.map(getEffectiveMenu);
+    const current = effectiveMenus.find(m => m.id === menuId);
     if (!current) return;
-    const siblings = normalizeSiblings(current.parentId ?? null);
+    const siblings = effectiveMenus
+      .filter(m => m.parentId === current.parentId)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    
     const idx = siblings.findIndex(s => s.id === menuId);
     if (idx < 0) return;
 
@@ -214,6 +237,18 @@ export function MenuManagement() {
     const [removed] = reordered.splice(idx, 1);
     reordered.splice(targetIdx, 0, removed);
     await updateOrders(reordered.map((m, i) => ({ id: m.id, order: i })));
+  };
+
+  const swapWithOther = async (menuId: string, otherId: string) => {
+    const effectiveMenus = menus.map(getEffectiveMenu);
+    const a = effectiveMenus.find(m => m.id === menuId);
+    const b = effectiveMenus.find(m => m.id === otherId);
+    if (!a || !b) return;
+
+    await updateOrders([
+      { id: a.id, order: b.order },
+      { id: b.id, order: a.order }
+    ]);
   };
 
   const handleApprove = async (id: string) => {
@@ -509,16 +544,23 @@ export function MenuManagement() {
   };
 
   const renderTree = (parentId: string | null = null, level = 0) => {
-    const items = menus.filter(m => m.parentId === parentId).sort((a, b) => a.order - b.order);
+    const effectiveMenus = menus.map(getEffectiveMenu);
+    const items = effectiveMenus.filter(m => m.parentId === parentId).sort((a, b) => a.order - b.order);
     if (items.length === 0 && parentId !== null) return null;
     const isChecker = currentRole === 'checker';
+
     return (
       <div className={`space-y-1 ${level > 0 ? 'ml-4 border-l pl-2 mt-1' : ''}`}>
         {items.map(item => {
-          const hasChildren = menus.some(m => m.parentId === item.id);
-          const approvalStatus = item.approvalStatus || 'approved';
-          const pendingStatus = item.pendingStatus || null;
-          const hasPendingUpdate = (pendingStatus === 'pending' || pendingStatus === 'rejected') && !!item.pendingUpdate;
+          const originalItem = menus.find(m => m.id === item.id)!;
+          const hasChildren = effectiveMenus.some(m => m.parentId === item.id);
+          const approvalStatus = originalItem.approvalStatus || 'approved';
+          const pendingStatus = originalItem.pendingStatus || null;
+          const hasPendingUpdate = (pendingStatus === 'pending' || pendingStatus === 'rejected') && !!originalItem.pendingUpdate;
+          
+          const siblings = items;
+          const otherSiblings = siblings.filter(s => s.id !== item.id);
+
           return (
             <div key={item.id} className="group">
               <div className={cn("flex items-center justify-between p-2 rounded-md hover:bg-muted/50 transition-colors", editingId === item.id && 'bg-primary/10 ring-1 ring-primary/30')}>
@@ -548,49 +590,92 @@ export function MenuManagement() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {isChecker && (approvalStatus === 'pending' || (approvalStatus === 'approved' && pendingStatus === 'pending')) && item.createdBy !== currentUsername && item.pendingCreatedBy !== currentUsername && (
+                  {isChecker && (approvalStatus === 'pending' || (approvalStatus === 'approved' && pendingStatus === 'pending')) && originalItem.createdBy !== currentUsername && originalItem.pendingCreatedBy !== currentUsername && (
                     <>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-emerald-600" onClick={() => handleApprove(item.id)}><ShieldCheck size={14} /></Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => { setRejectingId(item.id); setRejectReason(''); }}><ShieldAlert size={14} /></Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-emerald-600" onClick={() => handleApprove(item.id)} title="Approve Changes"><ShieldCheck size={14} /></Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => { setRejectingId(item.id); setRejectReason(''); }} title="Reject Changes"><ShieldAlert size={14} /></Button>
                     </>
                   )}
                   {!isChecker && (
                     <>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        disabled={isReordering}
-                        onClick={() => swapWithNeighbor(item.id, -1)}
-                        title="Move up"
-                      >
-                        <ArrowUp size={14} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        disabled={isReordering}
-                        onClick={() => swapWithNeighbor(item.id, 1)}
-                        title="Move down"
-                      >
-                        <ArrowDown size={14} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        disabled={isReordering}
-                        onClick={() => moveToPosition(item.id)}
-                        title="Move to position"
-                      >
-                        <Hash size={14} />
-                      </Button>
+                      <div className="flex items-center">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          disabled={isReordering}
+                          onClick={() => swapWithNeighbor(item.id, -1)}
+                          title="Move up"
+                        >
+                          <ArrowUp size={14} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          disabled={isReordering}
+                          onClick={() => swapWithNeighbor(item.id, 1)}
+                          title="Move down"
+                        >
+                          <ArrowDown size={14} />
+                        </Button>
+                        {otherSiblings.length > 0 && (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-muted-foreground"
+                                disabled={isReordering}
+                                title="Swap with..."
+                              >
+                                <ListTree size={14} />
+                              </Button>
+                            </PopoverTrigger>
+                              <PopoverContent className="w-64 p-1" align="end">
+                                <div className="text-[10px] font-bold px-2 py-1.5 text-muted-foreground uppercase border-b mb-1 flex items-center gap-2">
+                                  <ListTree size={12} />
+                                  <span>Swap "{item.name}" with:</span>
+                                </div>
+                                <ScrollArea className="h-64">
+                                  <div className="space-y-0.5 p-1">
+                                    {otherSiblings.map((sibling, sIdx) => (
+                                      <Button
+                                        key={sibling.id}
+                                        variant="ghost"
+                                        className="w-full justify-between h-auto py-2 px-3 text-xs group/item"
+                                        onClick={() => swapWithOther(item.id, sibling.id)}
+                                      >
+                                        <div className="flex flex-col items-start min-w-0 flex-1">
+                                          <span className="font-medium truncate w-full group-hover/item:text-primary transition-colors">{sibling.name}</span>
+                                          {sibling.nameAm && <span className="text-[10px] text-muted-foreground truncate w-full italic">{sibling.nameAm}</span>}
+                                        </div>
+                                        <Badge variant="outline" className="ml-2 shrink-0 text-[9px] h-5 px-1.5 bg-muted/30">
+                                          #{sibling.order + 1}
+                                        </Badge>
+                                      </Button>
+                                    ))}
+                                  </div>
+                                </ScrollArea>
+                              </PopoverContent>
+                          </Popover>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          disabled={isReordering}
+                          onClick={() => moveToPosition(item.id)}
+                          title="Move to position"
+                        >
+                          <Hash size={14} />
+                        </Button>
+                      </div>
                     </>
                   )}
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => handleAdd(item.id)}><FolderPlus size={14} /></Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleStartEdit(item)}><Edit2 size={14} /></Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setItemToDelete(item.id)}><Trash2 size={14} /></Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => handleAdd(item.id)} title="Add Sub-menu"><FolderPlus size={14} /></Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleStartEdit(originalItem)} title="Edit Configuration"><Edit2 size={14} /></Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setItemToDelete(item.id)} title="Delete Item"><Trash2 size={14} /></Button>
                 </div>
               </div>
               {expandedFolders.has(item.id) && renderTree(item.id, level + 1)}
@@ -602,7 +687,8 @@ export function MenuManagement() {
   };
 
   const renderBrowserTree = (parentId: string | null = null, level = 0) => {
-    const items = menus.filter(m => m.parentId === parentId && m.id !== editingId)
+    const effectiveMenus = menus.map(getEffectiveMenu);
+    const items = effectiveMenus.filter(m => m.parentId === parentId && m.id !== editingId)
       .filter(m => searchQuery === '' || m.name.toLowerCase().includes(searchQuery.toLowerCase()))
       .sort((a, b) => a.order - b.order);
 
@@ -613,7 +699,7 @@ export function MenuManagement() {
         {items.map(item => {
           const isSelected = editForm.attachedMenuIds?.includes(item.id);
           const isExpanded = expandedBrowserFolders.has(item.id);
-          const hasChildren = menus.some(m => m.parentId === item.id);
+          const hasChildren = effectiveMenus.some(m => m.parentId === item.id);
 
           return (
             <div key={item.id} className="space-y-1">
