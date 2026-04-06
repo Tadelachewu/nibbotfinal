@@ -863,7 +863,7 @@ export function WysiwygEditor({ value, onChange, title, readOnly }: WysiwygEdito
       <div className="flex items-center justify-between px-3 py-1.5 bg-muted/5 border-t text-[10px] text-muted-foreground">
         <span className="font-bold uppercase tracking-wider">{title} Editor</span>
         <div className="flex gap-2 font-mono">
-          <span>{editor?.getCharacterCount()} characters</span>
+          <span>{editor ? editor.getText().length : 0} characters</span>
         </div>
       </div>
     </div>

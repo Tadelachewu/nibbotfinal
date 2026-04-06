@@ -7,6 +7,7 @@ export function middleware(request: NextRequest) {
       default-src 'self';
       script-src 'self' 'nonce-${nonce}' 'strict-dynamic';
       style-src 'self' 'nonce-${nonce}';
+      style-src-attr 'unsafe-inline';
       img-src 'self' blob: data: https://placehold.co https://images.unsplash.com https://picsum.photos;
       font-src 'self' data:;
       object-src 'none';
