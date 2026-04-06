@@ -66,12 +66,20 @@ export function isSameOriginRequest(req: Request): boolean {
   const referer = req.headers.get('referer');
 
   const allowedOrigins = new Set<string>([requestOrigin]);
+  if (process.env.NEXT_PUBLIC_SITE_URL) allowedOrigins.add(new URL(process.env.NEXT_PUBLIC_SITE_URL).origin);
+  if (process.env.APP_ORIGIN) allowedOrigins.add(new URL(process.env.APP_ORIGIN).origin);
 
   const envAllowed = String(process.env.ALLOWED_ORIGINS || '')
     .split(',')
     .map(s => s.trim())
     .filter(Boolean);
-  for (const o of envAllowed) allowedOrigins.add(o);
+  for (const o of envAllowed) {
+    try {
+      allowedOrigins.add(new URL(o).origin);
+    } catch {
+      allowedOrigins.add(o);
+    }
+  }
 
   const forwardedHost = req.headers.get('x-forwarded-host')?.split(',')[0]?.trim();
   const forwardedProtoRaw = req.headers.get('x-forwarded-proto')?.split(',')[0]?.trim();
@@ -91,7 +99,8 @@ export function isSameOriginRequest(req: Request): boolean {
 
   if (referer) {
     try {
-      return allowedOrigins.has(new URL(referer).origin);
+      const refOrigin = new URL(referer).origin;
+      return allowedOrigins.has(refOrigin);
     } catch {
       return false;
     }

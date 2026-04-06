@@ -162,9 +162,29 @@ export async function GET(req: Request) {
     searchParams.get('includeInactive') === '1' || searchParams.get('includeInactive') === 'true';
   const adminPreviewRequested =
     searchParams.get('adminPreview') === '1' || searchParams.get('adminPreview') === 'true';
-  const adminSession = (includeInactiveRequested || adminPreviewRequested) ? await getValidatedAdminSession() : null;
-  const includeAll = includeInactiveRequested && Boolean(adminSession);
-  const isAdmin = Boolean(adminSession);
+  const wantsAdminData = includeInactiveRequested || adminPreviewRequested;
+  const adminSession = wantsAdminData ? await getValidatedAdminSession() : null;
+
+  if (wantsAdminData && !adminSession?.username) {
+    return NextResponse.json({ status: 'error', message: 'Unauthorized.' }, { status: 401 });
+  }
+
+  const actor = wantsAdminData && adminSession?.username
+    ? await prisma.adminCredential.findUnique({ where: { username: adminSession.username } })
+    : null;
+
+  const role = actor?.role ?? null;
+
+  if (includeInactiveRequested && role !== 'admin') {
+    return NextResponse.json({ status: 'error', message: 'Forbidden.' }, { status: 403 });
+  }
+
+  if (adminPreviewRequested && role !== 'admin' && role !== 'checker') {
+    return NextResponse.json({ status: 'error', message: 'Forbidden.' }, { status: 403 });
+  }
+
+  const includeAll = includeInactiveRequested || adminPreviewRequested;
+  const isAdmin = Boolean(role);
 
   const menus = await prisma.menuItem.findMany({
     include: {

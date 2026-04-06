@@ -198,14 +198,20 @@ export function ChatInterface() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const fetchRuntimeConfig = useCallback(async () => {
-    const isAdminPreview =
+    const previewRequested =
       typeof window !== 'undefined' &&
       new URLSearchParams(window.location.search).get('adminPreview') === '1';
 
-    const [settingsRes, menusRes] = await Promise.all([
-      fetch('/api/app-settings', { cache: 'no-store' }),
-      fetch(isAdminPreview ? '/api/menus?includeInactive=1' : '/api/menus', { cache: 'no-store' })
-    ]);
+    const settingsRes = await fetch('/api/app-settings', { cache: 'no-store' });
+
+    let usedPreview = false;
+    let menusRes = await fetch(previewRequested ? '/api/menus?adminPreview=1' : '/api/menus', { cache: 'no-store' });
+    if (previewRequested && !menusRes.ok) {
+      menusRes = await fetch('/api/menus', { cache: 'no-store' });
+    } else if (previewRequested && menusRes.ok) {
+      usedPreview = true;
+    }
+
     const [settingsJson, menusJson] = await Promise.all([
       settingsRes.json().catch(() => null),
       menusRes.json().catch(() => null)
@@ -213,7 +219,7 @@ export function ChatInterface() {
 
     const settings = (settingsJson?.data as AppSettings | undefined) || { supportedLanguages: [] };
     const raw = Array.isArray(menusJson?.data) ? menusJson.data : [];
-    const data = isAdminPreview
+    const data = usedPreview
       ? raw.map((m: any) => {
         const pending = (m.pendingStatus === 'pending' || m.pendingStatus === 'rejected') && m.pendingUpdate && typeof m.pendingUpdate === 'object';
         return pending ? { ...m, ...(m.pendingUpdate as any) } : m;
