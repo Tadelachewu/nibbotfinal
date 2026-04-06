@@ -60,14 +60,31 @@ export async function getValidatedAdminSession(): Promise<IronSession<AdminSessi
 }
 
 export function isSameOriginRequest(req: Request): boolean {
-  const requestOrigin = new URL(req.url).origin;
+  const urlOrigin = new URL(req.url).origin;
+  const host = req.headers.get('x-forwarded-host')?.split(',')[0]?.trim() || req.headers.get('host')?.trim();
+  const forwardedProto = req.headers.get('x-forwarded-proto')?.split(',')[0]?.trim();
+
+  const configuredOrigins = (process.env.ADMIN_ALLOWED_ORIGINS || '')
+    .split(',')
+    .map(v => v.trim())
+    .filter(Boolean);
+
+  const expectedOrigins = new Set<string>([urlOrigin, ...configuredOrigins]);
+  if (host) {
+    expectedOrigins.add(`https://${host}`);
+    expectedOrigins.add(`http://${host}`);
+    if (forwardedProto) {
+      expectedOrigins.add(`${forwardedProto}://${host}`);
+    }
+  }
+
   const origin = req.headers.get('origin');
-  if (origin) return origin === requestOrigin;
+  if (origin) return expectedOrigins.has(origin);
 
   const referer = req.headers.get('referer');
   if (referer) {
     try {
-      return new URL(referer).origin === requestOrigin;
+      return expectedOrigins.has(new URL(referer).origin);
     } catch {
       return false;
     }
