@@ -338,7 +338,15 @@ export function ChatInterface() {
     const connect = () => {
       if (!active) return;
 
-      socket = io({ path: '/socket.io', transports: ['polling', 'websocket'] });
+      const transports =
+        typeof window !== 'undefined' &&
+          window.location.protocol === 'https:' &&
+          window.location.hostname !== 'localhost' &&
+          window.location.hostname !== '127.0.0.1'
+          ? ['polling']
+          : ['polling', 'websocket'];
+
+      socket = io({ path: '/socket.io', transports });
       socket.emit('user_active', { sessionId: userData.id });
       pingInterval = setInterval(() => {
         socket?.emit('user_active', { sessionId: userData.id });

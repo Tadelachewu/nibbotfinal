@@ -69,7 +69,15 @@ export function Dashboard() {
 
     const connect = () => {
       if (!active) return;
-      socket = io({ path: '/socket.io', transports: ['polling', 'websocket'] });
+      const transports =
+        typeof window !== 'undefined' &&
+        window.location.protocol === 'https:' &&
+        window.location.hostname !== 'localhost' &&
+        window.location.hostname !== '127.0.0.1'
+          ? ['polling']
+          : ['polling', 'websocket'];
+
+      socket = io({ path: '/socket.io', transports });
       socket.on('online_count_updated', (data) => {
         if (data && typeof data.count === 'number') {
           setOnlineNow(data.count);
