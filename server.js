@@ -221,9 +221,17 @@ app.prepare().then(async () => {
         res.end('Not Found');
         return;
       }
-      if (origin && allowedOrigins.size && !allowedOrigins.has(origin)) {
-        res.statusCode = 403;
-        res.end('Forbidden');
+      if (origin) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Vary', 'Origin');
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', req.headers['access-control-request-headers'] || '*');
+        res.setHeader('Access-Control-Max-Age', '86400');
+      }
+      if (method === 'OPTIONS' && origin) {
+        res.statusCode = 204;
+        res.end();
         return;
       }
 
@@ -268,8 +276,7 @@ app.prepare().then(async () => {
 
       // req.nonce = nonce;
       if (pathname.startsWith('/_next/static/')) {
-        const defaultOrigin = `http://${hostname}:${port}`;
-        res.setHeader('Access-Control-Allow-Origin', origin && allowedOrigins.has(origin) ? origin : defaultOrigin);
+        res.setHeader('Access-Control-Allow-Origin', origin || '*');
         res.setHeader('Vary', 'Origin');
         // Prevent indexing of internal static assets (defense-in-depth)
         res.setHeader('X-Robots-Tag', 'noindex, nofollow');
@@ -295,9 +302,7 @@ app.prepare().then(async () => {
   const io = new Server(httpServer, {
     cors: {
       origin: (origin, callback) => {
-        if (!origin) return callback(null, true);
-        if (!allowedOrigins.size || allowedOrigins.has(origin)) return callback(null, true);
-        return callback(new Error('Forbidden'));
+        return callback(null, true);
       },
       methods: ['GET', 'POST'] // Specify allowed methods
     }

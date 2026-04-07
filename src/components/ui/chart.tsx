@@ -4,7 +4,7 @@ import * as React from "react"
 import * as RechartsPrimitive from "recharts"
 
 import { cn } from "@/lib/utils"
-import { useEffect, useRef } from "react"
+import { useRef } from "react"
 import { createClassWithRules, getCspNonce } from "@/lib/csp"
 
 // Format: { THEME_NAME: CSS_SELECTOR }
@@ -92,15 +92,26 @@ ${colorConfig
           })
           .join("\n")}
 }
+`
+    )
+    .join("\n")
+
+  return (
+    <style nonce={nonce ?? undefined} dangerouslySetInnerHTML={{ __html: css }} />
+  )
+}
 
 function ColorSwatch({ indicator, color, nestLabel }: { indicator: string; color?: string; nestLabel?: boolean }) {
-  const ref = useRef<{ map?: Map<string, string> }>({})
-  if (!ref.current.map) ref.current.map = new Map()
-  const cls = color ? (ref.current.map.get(color) ?? (() => {
-    const c = createClassWithRules(`--color - bg: ${ color }; --color - border: ${ color }; `)
-    ref.current.map!.set(color, c)
-    return c
-  })()) : undefined
+  const colorMapRef = useRef<Map<string, string>>(new Map())
+
+  const cls = (() => {
+    if (!color) return undefined
+    const existing = colorMapRef.current.get(color)
+    if (existing) return existing
+    const created = createClassWithRules(`--color-bg: ${color}; --color-border: ${color};`)
+    colorMapRef.current.set(color, created)
+    return created
+  })()
 
   return (
     <div
@@ -112,14 +123,6 @@ function ColorSwatch({ indicator, color, nestLabel }: { indicator: string; color
       )}
     />
   )
-}
-`
-    )
-    .join("\n")
-
-return (
-  <style nonce={nonce ?? undefined} dangerouslySetInnerHTML={{ __html: css }} />
-)
 }
 
 const ChartTooltip = RechartsPrimitive.Tooltip

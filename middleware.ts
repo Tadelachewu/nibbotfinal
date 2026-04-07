@@ -4,6 +4,9 @@ import type { NextRequest } from 'next/server'
 export function middleware(request: NextRequest) {
   const nonce = btoa(crypto.randomUUID())
   const host = request.headers.get('host') || request.nextUrl.host
+  const isProd = process.env.NODE_ENV === 'production'
+  const origin = request.headers.get('origin')
+  const isCorsRequest = Boolean(origin)
   const connectSrc = [
     "'self'",
     'https://www.google.com',
@@ -14,12 +17,22 @@ export function middleware(request: NextRequest) {
     'ws://127.0.0.1:9004',
   ].join(' ')
 
+  const styleSrc = isProd
+    ? `'self' 'nonce-${nonce}'`
+    : `'self' 'nonce-${nonce}' 'unsafe-inline'`
+
+  const styleSrcElem = isProd
+    ? `'self' 'nonce-${nonce}'`
+    : `'self' 'nonce-${nonce}' 'unsafe-inline'`
+
+  const styleSrcAttr = "'unsafe-inline'"
+
   const cspHeader = `
       default-src 'self';
       script-src 'self' 'nonce-${nonce}' 'strict-dynamic';
-      style-src 'self' 'nonce-${nonce}' 'unsafe-inline';
-      style-src-elem 'self' 'nonce-${nonce}' 'unsafe-inline';
-      style-src-attr 'unsafe-inline';
+      style-src ${styleSrc};
+      style-src-elem ${styleSrcElem};
+      style-src-attr ${styleSrcAttr};
       img-src 'self' blob: data: https://placehold.co https://images.unsplash.com https://picsum.photos;
       font-src 'self' data:;
       object-src 'none';
@@ -29,12 +42,29 @@ export function middleware(request: NextRequest) {
       frame-src 'none';
       media-src 'self';
       connect-src *;
-      upgrade-insecure-requests;
+      ${isProd ? 'upgrade-insecure-requests;' : ''}
     `.replace(/\s{2,}/g, ' ').trim()
 
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-nonce', nonce)
   requestHeaders.set('Content-Security-Policy', cspHeader)
+
+  const corsHeaders = new Headers()
+  if (isCorsRequest && origin) {
+    corsHeaders.set('Access-Control-Allow-Origin', origin)
+    corsHeaders.set('Vary', 'Origin')
+    corsHeaders.set('Access-Control-Allow-Credentials', 'true')
+    corsHeaders.set('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS')
+    corsHeaders.set(
+      'Access-Control-Allow-Headers',
+      request.headers.get('access-control-request-headers') || '*'
+    )
+    corsHeaders.set('Access-Control-Max-Age', '86400')
+  }
+
+  if (request.method === 'OPTIONS' && isCorsRequest) {
+    return new NextResponse(null, { status: 204, headers: corsHeaders })
+  }
 
   const response = NextResponse.next({
     request: {
@@ -42,6 +72,7 @@ export function middleware(request: NextRequest) {
     },
   })
   response.headers.set('Content-Security-Policy', cspHeader)
+  corsHeaders.forEach((value, key) => response.headers.set(key, value))
 
   const { pathname } = request.nextUrl
   if (pathname.startsWith('/api/')) {
@@ -53,15 +84,15 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    '/api/:path*',
     /*
      * Match all request paths except for the ones starting with:
-     * - api (API routes)
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      */
     {
-      source: '/((?!api|_next/static|_next/image|favicon.ico).*)',
+      source: '/((?!_next/static|_next/image|favicon.ico).*)',
       missing: [
         { type: 'header', key: 'next-router-prefetch' },
         { type: 'header', key: 'purpose', value: 'prefetch' },
