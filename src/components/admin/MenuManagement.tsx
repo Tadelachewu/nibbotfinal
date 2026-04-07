@@ -555,15 +555,40 @@ export function MenuManagement() {
                       <span className="truncate text-sm font-medium">{item.name}</span>
                       {item.isActive === false && <Badge variant="secondary" className="text-[10px] h-4 px-2 shrink-0">Suspended</Badge>}
                       {approvalStatus === 'pending' && <Badge variant="secondary" className="text-[10px] h-4 px-2 shrink-0 text-amber-600">Pending Approval</Badge>}
-                      {approvalStatus === 'rejected' && <Badge variant="secondary" className="text-[10px] h-4 px-2 shrink-0 text-destructive">Rejected</Badge>}
+                      {approvalStatus === 'rejected' && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Badge variant="secondary" className="text-[10px] h-4 px-2 shrink-0 text-destructive cursor-help">Rejected</Badge>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="max-w-xs text-xs">Reason: {originalItem.rejectionReason || 'No reason provided.'}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
                       {approvalStatus === 'approved' && hasPendingUpdate && pendingStatus === 'pending' && (
                         <Badge variant="secondary" className="text-[10px] h-4 px-2 shrink-0 text-sky-700">Pending Update</Badge>
                       )}
                       {approvalStatus === 'approved' && hasPendingUpdate && pendingStatus === 'rejected' && (
-                        <Badge variant="secondary" className="text-[10px] h-4 px-2 shrink-0 text-destructive">Update Rejected</Badge>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Badge variant="secondary" className="text-[10px] h-4 px-2 shrink-0 text-destructive cursor-help">Update Rejected</Badge>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="max-w-xs text-xs">Update Reason: {originalItem.pendingRejectionReason || 'No reason provided.'}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       )}
                     </div>
                     {item.nameAm && <span className="truncate text-[10px] text-muted-foreground">{item.nameAm}</span>}
+                    {(approvalStatus === 'rejected' || (approvalStatus === 'approved' && pendingStatus === 'rejected')) && (
+                      <span className="truncate text-[9px] text-destructive/80 italic font-mono block mt-0.5">
+                        REJECTED: {approvalStatus === 'rejected' ? originalItem.rejectionReason : originalItem.pendingRejectionReason}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -764,6 +789,30 @@ export function MenuManagement() {
 
           <div className="max-w-6xl mx-auto px-4 py-6">
             <div className="space-y-8 pb-24">
+              {(() => {
+                const item = menus.find(m => m.id === editingId);
+                const isItemRejected = item?.approvalStatus === 'rejected';
+                const isUpdateRejected = item?.approvalStatus === 'approved' && item?.pendingStatus === 'rejected';
+                const reason = isItemRejected ? item?.rejectionReason : (isUpdateRejected ? item?.pendingRejectionReason : null);
+
+                if (reason) {
+                  return (
+                    <div className="bg-destructive/10 border border-destructive/20 p-4 rounded-xl flex items-start gap-4 animate-in fade-in slide-in-from-top-2">
+                       <ShieldAlert className="text-destructive shrink-0 mt-0.5" size={20} />
+                       <div className="space-y-1">
+                          <div className="text-sm font-bold text-destructive">This configuration was rejected by a checker.</div>
+                          <div className="text-xs text-destructive/90 bg-white/50 p-3 rounded-lg border border-destructive/10 leading-relaxed">
+                            <strong>Reason:</strong> {reason}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground pt-1 italic font-medium">
+                            Review the reason above, make changes, and save to resubmit for approval.
+                          </div>
+                       </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
               <div className="grid gap-6 sm:grid-cols-4 bg-muted/10 p-4 rounded-xl border">
                 <div className="space-y-2">
                   <Label className="text-xs uppercase font-bold text-muted-foreground">Action Type</Label>

@@ -460,7 +460,9 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
         trackClicks: typeof body.trackClicks === 'boolean' ? body.trackClicks : undefined,
         clickCount: Number.isFinite(body.clickCount) ? body.clickCount : undefined,
         sessionClickCount: Number.isFinite(body.sessionClickCount) ? body.sessionClickCount : undefined,
-        translations: body.translations ?? null
+        translations: body.translations ?? null,
+        approvalStatus: 'pending',
+        rejectionReason: null
       }
     });
 

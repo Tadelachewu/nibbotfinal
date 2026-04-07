@@ -34,7 +34,7 @@ export function ChatBubble({ children, isBot = true }: ChatBubbleProps) {
           ? "bg-white text-foreground rounded-tl-none border border-border" 
           : "bg-accent text-white rounded-tr-none"
       )}>
-        <div className="wysiwyg-content">
+        <div className="wysiwyg-content break-words whitespace-pre-wrap [word-break:break-word] [overflow-wrap:anywhere]">
           {children}
         </div>
       </div>
