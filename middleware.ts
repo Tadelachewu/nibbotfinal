@@ -28,7 +28,7 @@ export function middleware(request: NextRequest) {
       frame-ancestors 'none';
       frame-src 'none';
       media-src 'self';
-      connect-src ${connectSrc};
+      connect-src *;
       upgrade-insecure-requests;
     `.replace(/\s{2,}/g, ' ').trim()
 

@@ -70,8 +70,13 @@ app.prepare().then(async () => {
       .map(s => s.trim())
       .filter(Boolean)
   );
+  allowedOrigins.add(`http://${hostname}:${port}`);
+  allowedOrigins.add(`http://localhost:${port}`);
+  allowedOrigins.add(`http://127.0.0.1:${port}`);
+  allowedOrigins.add(`https://${hostname}:${port}`);
+  allowedOrigins.add(`https://localhost:${port}`);
+  allowedOrigins.add(`https://127.0.0.1:${port}`);
   if (dev) {
-    allowedOrigins.add(`http://${hostname}:${port}`);
     allowedOrigins.add('http://localhost:9002');
     allowedOrigins.add('http://127.0.0.1:9002');
     allowedOrigins.add('http://localhost:3000');
@@ -138,7 +143,9 @@ app.prepare().then(async () => {
       if (origin.startsWith('https://')) explicitWsOrigins.push(origin.replace('https://', 'wss://'));
       else if (origin.startsWith('http://')) explicitWsOrigins.push(origin.replace('http://', 'ws://'));
     }
-    const connectSrc = Array.from(new Set([...combinedConnectSrc, ...explicitWsOrigins])).join(' ');
+    // Allow connections to any origin while keeping other directives strict.
+    // Using '*' for connect-src permits fetch/websocket to arbitrary origins.
+    const connectSrc = '*';
 
     const scriptSrc = nonce ? `'self' 'nonce-${nonce}'` : "'self'";
     const styleSrc = nonce ? `'self' 'nonce-${nonce}'` : "'self'";

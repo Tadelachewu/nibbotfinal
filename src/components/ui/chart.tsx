@@ -4,6 +4,8 @@ import * as React from "react"
 import * as RechartsPrimitive from "recharts"
 
 import { cn } from "@/lib/utils"
+import { useEffect, useRef } from "react"
+import { createClassWithRules, getCspNonce } from "@/lib/csp"
 
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: "", dark: ".dark" } as const
@@ -76,28 +78,48 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
     return null
   }
 
-  return (
-    <style
-      dangerouslySetInnerHTML={{
-        __html: Object.entries(THEMES)
-          .map(
-            ([theme, prefix]) => `
+  const nonce = getCspNonce()
+  const css = Object.entries(THEMES)
+    .map(
+      ([theme, prefix]) => `
 ${prefix} [data-chart=${id}] {
 ${colorConfig
-  .map(([key, itemConfig]) => {
-    const color =
-      itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
-      itemConfig.color
-    return color ? `  --color-${key}: ${color};` : null
-  })
-  .join("\n")}
+          .map(([key, itemConfig]) => {
+            const color =
+              itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
+              itemConfig.color
+            return color ? `  --color-${key}: ${color};` : null
+          })
+          .join("\n")}
 }
-`
-          )
-          .join("\n"),
-      }}
+
+function ColorSwatch({ indicator, color, nestLabel }: { indicator: string; color?: string; nestLabel?: boolean }) {
+  const ref = useRef<{ map?: Map<string, string> }>({})
+  if (!ref.current.map) ref.current.map = new Map()
+  const cls = color ? (ref.current.map.get(color) ?? (() => {
+    const c = createClassWithRules(`--color - bg: ${ color }; --color - border: ${ color }; `)
+    ref.current.map!.set(color, c)
+    return c
+  })()) : undefined
+
+  return (
+    <div
+      className={cn(
+        "shrink-0 rounded-[2px] border-[--color-border] bg-[--color-bg]",
+        indicator === "dot" ? "h-2.5 w-2.5" : indicator === "line" ? "w-1" : "w-0 border-[1.5px] border-dashed bg-transparent",
+        nestLabel && indicator === "dashed" ? "my-0.5" : "",
+        cls || undefined
+      )}
     />
   )
+}
+`
+    )
+    .join("\n")
+
+return (
+  <style nonce={nonce ?? undefined} dangerouslySetInnerHTML={{ __html: css }} />
+)
 }
 
 const ChartTooltip = RechartsPrimitive.Tooltip
@@ -105,13 +127,13 @@ const ChartTooltip = RechartsPrimitive.Tooltip
 const ChartTooltipContent = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<typeof RechartsPrimitive.Tooltip> &
-    React.ComponentProps<"div"> & {
-      hideLabel?: boolean
-      hideIndicator?: boolean
-      indicator?: "line" | "dot" | "dashed"
-      nameKey?: string
-      labelKey?: string
-    }
+  React.ComponentProps<"div"> & {
+    hideLabel?: boolean
+    hideIndicator?: boolean
+    indicator?: "line" | "dot" | "dashed"
+    nameKey?: string
+    labelKey?: string
+  }
 >(
   (
     {
@@ -206,24 +228,7 @@ const ChartTooltipContent = React.forwardRef<
                       <itemConfig.icon />
                     ) : (
                       !hideIndicator && (
-                        <div
-                          className={cn(
-                            "shrink-0 rounded-[2px] border-[--color-border] bg-[--color-bg]",
-                            {
-                              "h-2.5 w-2.5": indicator === "dot",
-                              "w-1": indicator === "line",
-                              "w-0 border-[1.5px] border-dashed bg-transparent":
-                                indicator === "dashed",
-                              "my-0.5": nestLabel && indicator === "dashed",
-                            }
-                          )}
-                          style={
-                            {
-                              "--color-bg": indicatorColor,
-                              "--color-border": indicatorColor,
-                            } as React.CSSProperties
-                          }
-                        />
+                        <ColorSwatch indicator={indicator} color={indicatorColor} nestLabel={nestLabel} />
                       )
                     )}
                     <div
@@ -261,16 +266,18 @@ const ChartLegend = RechartsPrimitive.Legend
 const ChartLegendContent = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div"> &
-    Pick<RechartsPrimitive.LegendProps, "payload" | "verticalAlign"> & {
-      hideIcon?: boolean
-      nameKey?: string
-    }
+  Pick<RechartsPrimitive.LegendProps, "payload" | "verticalAlign"> & {
+    hideIcon?: boolean
+    nameKey?: string
+  }
 >(
   (
     { className, hideIcon = false, payload, verticalAlign = "bottom", nameKey },
     ref
   ) => {
     const { config } = useChart()
+
+    const colorMapRef = useRef<Map<string, string>>(new Map())
 
     if (!payload?.length) {
       return null
@@ -299,12 +306,15 @@ const ChartLegendContent = React.forwardRef<
               {itemConfig?.icon && !hideIcon ? (
                 <itemConfig.icon />
               ) : (
-                <div
-                  className="h-2 w-2 shrink-0 rounded-[2px]"
-                  style={{
-                    backgroundColor: item.color,
-                  }}
-                />
+                (() => {
+                  const cls = item.color ? (colorMapRef.current.get(item.color) ?? (() => {
+                    const c = createClassWithRules(`background-color: ${item.color};`)
+                    colorMapRef.current.set(item.color, c)
+                    return c
+                  })()) : undefined
+
+                  return <div className={cn("h-2 w-2 shrink-0 rounded-[2px]", cls || undefined)} />
+                })()
               )}
               {itemConfig?.label}
             </div>
@@ -328,8 +338,8 @@ function getPayloadConfigFromPayload(
 
   const payloadPayload =
     "payload" in payload &&
-    typeof payload.payload === "object" &&
-    payload.payload !== null
+      typeof payload.payload === "object" &&
+      payload.payload !== null
       ? payload.payload
       : undefined
 

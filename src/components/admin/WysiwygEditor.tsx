@@ -93,6 +93,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createClassWithRules } from '@/lib/csp';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -193,6 +194,38 @@ function ColorPanel({ editor, mode, onClose }: ColorPanelProps) {
     }
   }, [customHex, applyColor]);
 
+  // Generate CSS classes for color buttons and current color display using nonce-protected styles
+  useEffect(() => {
+    const map = new Map()
+    // color buttons
+    colors.forEach((c) => {
+      const val = c.value || ''
+      if (map.has(val)) return
+      if (!val && mode === 'highlight') {
+        const rules = `background-color: transparent; background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%); background-size: 6px 6px; background-position: 0 0, 3px 3px;`
+        map.set(val, createClassWithRules(rules))
+      } else {
+        const bg = val || (mode === 'text' ? 'white' : 'transparent')
+        map.set(val, createClassWithRules(`background-color: ${bg};`))
+      }
+    })
+
+    // apply classes to elements
+    const buttons = Array.from(document.querySelectorAll('[data-color]')) as HTMLElement[]
+    buttons.forEach((btn) => {
+      const val = btn.getAttribute('data-color') || ''
+      const cls = map.get(val)
+      if (cls) btn.classList.add(cls)
+    })
+
+    const current = document.querySelector('[data-current-color]') as HTMLElement | null
+    if (current) {
+      const c = current.getAttribute('data-current-color') || ''
+      const cls = map.get(c) || createClassWithRules(`background-color: ${c};`)
+      current.classList.add(cls)
+    }
+  }, [colors, mode])
+
   // Close on click-outside (mousedown so it fires before focus shift)
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -253,14 +286,8 @@ function ColorPanel({ editor, mode, onClose }: ColorPanelProps) {
                     ? "ring-2 ring-primary ring-offset-1 border-primary shadow-sm"
                     : "border-muted-foreground/20 hover:border-muted-foreground/40"
                 )}
-                style={{
-                  backgroundColor: c.value || (mode === 'text' ? 'white' : 'transparent'),
-                  backgroundImage: !c.value && mode === 'highlight'
-                    ? 'linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%)'
-                    : undefined,
-                  backgroundSize: !c.value && mode === 'highlight' ? '6px 6px' : undefined,
-                  backgroundPosition: !c.value && mode === 'highlight' ? '0 0, 3px 3px' : undefined,
-                }}
+                // dynamic color classes are generated below
+                data-color={c.value || ''}
                 title={c.name}
               >
                 {!c.value && mode === 'text' && <Eraser size={10} className="text-muted-foreground" />}
@@ -343,7 +370,7 @@ function ColorPanel({ editor, mode, onClose }: ColorPanelProps) {
             <div className="flex items-center gap-2">
               <div
                 className="w-4 h-4 rounded-sm border border-muted-foreground/20"
-                style={{ backgroundColor: currentColor }}
+                data-current-color={currentColor}
               />
               <span className="text-[10px] font-mono text-muted-foreground uppercase">
                 {currentColor}

@@ -17,6 +17,7 @@ import {
   Legend
 } from 'recharts';
 import { MenuItem, UserReport } from '@/lib/types';
+import { createClassWithRules } from '@/lib/csp';
 import {
   Users,
   Zap,
@@ -80,6 +81,29 @@ export function Dashboard() {
       clearInterval(dataInterval);
     };
   }, []);
+
+  // Inject nonce-protected classes for dynamic colored elements
+  useEffect(() => {
+    if (!mounted) return
+    // status color dots
+    const statusDots = Array.from(document.querySelectorAll('[data-status-color]')) as HTMLElement[]
+    statusDots.forEach((el) => {
+      const color = el.getAttribute('data-status-color') || ''
+      if (!color) return
+      const cls = createClassWithRules(`background-color: ${color};`)
+      el.classList.add(cls)
+    })
+
+    // progress bars
+    const progressEls = Array.from(document.querySelectorAll('[data-progress-percentage]')) as HTMLElement[]
+    progressEls.forEach((el) => {
+      const pct = el.getAttribute('data-progress-percentage') || '0'
+      const color = el.getAttribute('data-progress-color') || ''
+      const rules = `width: ${pct}%; ${color ? `background-color: ${color};` : ''}`
+      const cls = createClassWithRules(rules)
+      el.classList.add(cls)
+    })
+  }, [mounted, data])
 
   const stats = useMemo(() => {
     const totalMenus = data.menus.length;
@@ -233,7 +257,7 @@ export function Dashboard() {
             <div className="flex justify-center gap-4 mt-2">
               {stats.statusData.map(s => (
                 <div key={s.name} className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
+                  <div className="w-2 h-2 rounded-full" data-status-color={s.color} />
                   <span className="text-[10px] text-muted-foreground uppercase">{s.name}</span>
                 </div>
               ))}
@@ -346,10 +370,8 @@ export function Dashboard() {
                   <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
                     <div
                       className="h-full bg-primary transition-all duration-1000"
-                      style={{
-                        width: `${stats.totalMenus > 0 ? (item.value / stats.totalMenus) * 100 : 0}%`,
-                        backgroundColor: COLORS[idx]
-                      }}
+                      data-progress-percentage={stats.totalMenus > 0 ? (item.value / stats.totalMenus) * 100 : 0}
+                      data-progress-color={COLORS[idx]}
                     />
                   </div>
                 </div>
