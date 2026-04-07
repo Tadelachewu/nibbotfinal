@@ -8,7 +8,7 @@ require('dotenv').config();
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = 'localhost';
-const port = process.env.PORT || 9002;
+const port = Number(process.env.PORT || (dev ? 9002 : 3024));
 
 // Initialize Next.js engine directly from our custom wrapper
 const app = next({ dev, hostname, port });
@@ -56,70 +56,11 @@ if (redisUrl) {
 } else {
   console.log('[Redis] REDIS_URL not set. Presence tracking disabled.');
 }
-const prisma = require('./src/lib/prisma').default;
-
 app.prepare().then(async () => {
   const defaultConnectSrc = ["'self'", "https://www.google.com"];
   if (dev) {
     defaultConnectSrc.push("http://localhost:3000", "http://localhost:3001");
   }
-  const dynamicConnectSrcs = new Set();
-  const allowedOrigins = new Set(
-    String(process.env.ALLOWED_ORIGINS || '')
-      .split(',')
-      .map(s => s.trim())
-      .filter(Boolean)
-  );
-  allowedOrigins.add(`http://${hostname}:${port}`);
-  allowedOrigins.add(`http://localhost:${port}`);
-  allowedOrigins.add(`http://127.0.0.1:${port}`);
-  allowedOrigins.add(`https://${hostname}:${port}`);
-  allowedOrigins.add(`https://localhost:${port}`);
-  allowedOrigins.add(`https://127.0.0.1:${port}`);
-  if (dev) {
-    allowedOrigins.add('http://localhost:9002');
-    allowedOrigins.add('http://127.0.0.1:9002');
-    allowedOrigins.add('http://localhost:3000');
-    allowedOrigins.add('http://localhost:3001');
-  }
-
-  try {
-    const menuItems = await prisma.menuItem.findMany({
-      select: {
-        apiConfig: true,
-      },
-      where: {
-        apiConfig: {
-          path: ["endpoint"],
-          not: null,
-        },
-      },
-    });
-
-    for (const item of menuItems) {
-      if (item.apiConfig && item.apiConfig.endpoint) {
-        // Resolve templates in the endpoint URL if any
-        let endpoint = item.apiConfig.endpoint;
-        // Basic template resolution for common placeholders. This might need to be more robust.
-        endpoint = endpoint.replace(/{{[^{}]+}}/g, "example"); // Replace {{...}} with 'example' to make it a valid URL for origin extraction
-
-        // Only add absolute URLs to the CSP connect-src
-        if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) {
-          try {
-            const url = new URL(endpoint);
-            dynamicConnectSrcs.add(url.origin);
-          } catch (error) {
-            console.warn(`Invalid API endpoint URL "${endpoint}" for CSP:`, error.message);
-          }
-        }
-        // Relative URLs (e.g., /api/...) are implicitly covered by 'self' in defaultConnectSrc
-      }
-    }
-  } catch (error) {
-    console.error("Error fetching menu items for CSP:", error);
-  }
-
-  const combinedConnectSrc = [...defaultConnectSrc, ...Array.from(dynamicConnectSrcs)];
 
   function isHttpsRequest(req) {
     if (req.socket && req.socket.encrypted) return true;
@@ -134,15 +75,6 @@ app.prepare().then(async () => {
   }
 
   function buildContentSecurityPolicy(nonce) {
-    const explicitWsOrigins = [];
-    if (dev) {
-      explicitWsOrigins.push(`ws://${hostname}:${port}`, `ws://localhost:${port}`, `ws://127.0.0.1:${port}`);
-    }
-    // Convert HTTP/HTTPS allowed origins to WS/WSS
-    for (const origin of allowedOrigins) {
-      if (origin.startsWith('https://')) explicitWsOrigins.push(origin.replace('https://', 'wss://'));
-      else if (origin.startsWith('http://')) explicitWsOrigins.push(origin.replace('http://', 'ws://'));
-    }
     // Allow connections to any origin while keeping other directives strict.
     // Using '*' for connect-src permits fetch/websocket to arbitrary origins.
     const connectSrc = '*';
@@ -377,6 +309,7 @@ app.prepare().then(async () => {
       process.exit(1);
     })
     .listen(port, () => {
-      console.log(`> Production-Grade Real-Time Engine Ready on http://${hostname}:${port}`);
+      const modeLabel = dev ? 'Development' : 'Production';
+      console.log(`> ${modeLabel} Real-Time Engine Ready on http://${hostname}:${port}`);
     });
 });

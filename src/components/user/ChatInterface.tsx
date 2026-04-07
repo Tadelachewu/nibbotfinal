@@ -331,20 +331,29 @@ export function ChatInterface() {
   useEffect(() => {
     if (!userData.id || typeof window === 'undefined') return;
 
-    // Connects to the same origin server mapping the Custom Socket
-    const socket = io({ path: '/socket.io', transports: ['websocket', 'polling'] });
+    let active = true;
+    let socket: ReturnType<typeof io> | null = null;
+    let pingInterval: ReturnType<typeof setInterval> | null = null;
 
-    // Initial announce
-    socket.emit('user_active', { sessionId: userData.id });
+    const connect = () => {
+      if (!active) return;
 
-    // Keep-alive heartbeat loop
-    const pingInterval = setInterval(() => {
+      socket = io({ path: '/socket.io', transports: ['polling', 'websocket'] });
       socket.emit('user_active', { sessionId: userData.id });
-    }, 15000);
+      pingInterval = setInterval(() => {
+        socket?.emit('user_active', { sessionId: userData.id });
+      }, 15000);
+    };
+
+    const shouldDelay = process.env.NODE_ENV !== 'production';
+    const connectTimeout = shouldDelay ? setTimeout(connect, 0) : null;
+    if (!shouldDelay) connect();
 
     return () => {
-      clearInterval(pingInterval);
-      socket.disconnect();
+      active = false;
+      if (connectTimeout) clearTimeout(connectTimeout);
+      if (pingInterval) clearInterval(pingInterval);
+      socket?.disconnect();
     };
   }, [userData.id]);
 

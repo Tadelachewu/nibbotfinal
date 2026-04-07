@@ -64,12 +64,22 @@ export function Dashboard() {
     load();
 
     // Real-Time Socket Connection for Online Counter
-    const socket = io({ path: '/socket.io', transports: ['websocket', 'polling'] });
-    socket.on('online_count_updated', (data) => {
-      if (data && typeof data.count === 'number') {
-        setOnlineNow(data.count);
-      }
-    });
+    let active = true;
+    let socket: ReturnType<typeof io> | null = null;
+
+    const connect = () => {
+      if (!active) return;
+      socket = io({ path: '/socket.io', transports: ['polling', 'websocket'] });
+      socket.on('online_count_updated', (data) => {
+        if (data && typeof data.count === 'number') {
+          setOnlineNow(data.count);
+        }
+      });
+    };
+
+    const shouldDelay = process.env.NODE_ENV !== 'production';
+    const connectTimeout = shouldDelay ? setTimeout(connect, 0) : null;
+    if (!shouldDelay) connect();
 
     // Refresh interval for dashboard data (simulating real-time updates)
     const dataInterval = setInterval(() => {
@@ -77,7 +87,9 @@ export function Dashboard() {
     }, 5000);
 
     return () => {
-      socket.disconnect();
+      active = false;
+      if (connectTimeout) clearTimeout(connectTimeout);
+      socket?.disconnect();
       clearInterval(dataInterval);
     };
   }, []);
