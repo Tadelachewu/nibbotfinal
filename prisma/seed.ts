@@ -1,6 +1,8 @@
-import 'dotenv/config';
+import { config } from 'dotenv';
+config({ override: true });
 import { PrismaClient, ResponseType } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { Pool } from 'pg';
 import { hashPassword } from '../src/lib/auth';
 
 const connectionString = process.env.DATABASE_URL;
@@ -8,7 +10,8 @@ if (!connectionString) {
     throw new Error('DATABASE_URL is required');
 }
 
-const adapter = new PrismaPg({ connectionString });
+const pool = new Pool({ connectionString });
+const adapter = new PrismaPg(pool);
 
 const prisma = new PrismaClient({
     log: ['warn', 'error'],
