@@ -652,18 +652,19 @@ export function ChatInterface() {
       setKycFlow({ ...kycFlow, fieldIndex: kycFlow.fieldIndex + 1 });
     } else {
       const menu = menus.find(m => m.id === kycFlow.menuId);
+      const relatedItems = menus.filter(m => menu?.attachedMenuIds?.includes(m.id));
       setKycFlow(null);
       if (menu) {
         if (menu.responseType === 'report') {
-          handleInternalReport(menu, newKYC);
+          handleInternalReport(menu, newKYC, relatedItems);
         } else {
-          executeApiCall(menu, newKYC);
+          executeApiCall(menu, newKYC, relatedItems);
         }
       }
     }
   };
 
-  const handleInternalReport = async (menu: MenuItem, kycData: Record<string, any>) => {
+  const handleInternalReport = async (menu: MenuItem, kycData: Record<string, any>, relatedMenus: MenuItem[] = []) => {
     setLoadingText(t('ui_loading_submitting_report', 'Submitting your report...'));
     setIsLoading(true);
     try {
@@ -702,11 +703,13 @@ export function ChatInterface() {
       const template = getLocalizedTemplate(menu);
       const finalMsg = template ? replacePlaceholders(template, responseContext) : "";
       const defaultSuccess = t('ui_report_submit_success', 'Your report has been submitted successfully. Thank you.');
+      const childMenus = menus.filter(m => m.parentId === menu.id);
       setHistory(prev => [...prev, {
         id: `bot-report-${Date.now()}`,
         sender: 'bot',
         text: finalMsg || defaultSuccess,
-        options: menus.filter(m => m.parentId === menu.id)
+        options: childMenus,
+        relatedOptions: relatedMenus.length > 0 ? relatedMenus : undefined
       }]);
       logInteraction({
         sessionId: userData.id,
@@ -732,7 +735,7 @@ export function ChatInterface() {
     }
   };
 
-  const executeApiCall = async (menu: MenuItem, kycData: Record<string, any>) => {
+  const executeApiCall = async (menu: MenuItem, kycData: Record<string, any>, relatedMenus: MenuItem[] = []) => {
     if (!menu.apiConfig) return;
     const startTime = Date.now();
     const rootKey = menu.apiConfig.rootKey || 'data';
@@ -875,6 +878,7 @@ export function ChatInterface() {
       }
     }
     botMsg.options = menus.filter(m => m.parentId === menu.id);
+    botMsg.relatedOptions = relatedMenus.length > 0 ? relatedMenus : undefined;
     const endTime = Date.now();
     logInteraction({
       sessionId: userData.id,
@@ -945,9 +949,9 @@ export function ChatInterface() {
       }
 
       if (effectiveMenu.responseType === 'report') {
-        handleInternalReport(effectiveMenu, userData.kyc);
+        handleInternalReport(effectiveMenu, userData.kyc, relatedItems);
       } else {
-        executeApiCall(effectiveMenu, userData.kyc);
+        executeApiCall(effectiveMenu, userData.kyc, relatedItems);
       }
       return;
     }
