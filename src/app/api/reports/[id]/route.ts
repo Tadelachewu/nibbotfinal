@@ -76,6 +76,10 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     return NextResponse.json({ status: 'error', message: 'Forbidden.' }, { status: 403 });
   }
 
+  if (role === 'support' && Object.prototype.hasOwnProperty.call(body, 'priority')) {
+    return NextResponse.json({ status: 'error', message: 'Forbidden.' }, { status: 403 });
+  }
+
   const nextSupportAssignee =
     role === 'admin' && Object.prototype.hasOwnProperty.call(body, 'supportAssignee')
       ? (typeof body.supportAssignee === 'string' && body.supportAssignee.trim() ? body.supportAssignee.trim() : null)

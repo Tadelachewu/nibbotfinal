@@ -141,7 +141,7 @@ export function ReportsManagement() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               status: finalStatus,
-              priority: editingPriority,
+              ...(currentRole === 'admin' ? { priority: editingPriority } : {}),
               adminResponse: editingResponse,
               internalNotes: editingNotes,
               ...(currentRole === 'admin' ? { supportAssignee: editingSupportAssignee === '__none__' ? null : editingSupportAssignee } : {})
@@ -444,8 +444,11 @@ export function ReportsManagement() {
                   <Separator orientation="vertical" className="h-4" />
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] font-bold uppercase text-muted-foreground">Set Priority</span>
-                    <Select value={editingPriority} onValueChange={(val: any) => setEditingPriority(val)}>
-                      <SelectTrigger className="h-7 w-28 text-[10px]"><SelectValue /></SelectTrigger>
+                    <Select
+                      value={editingPriority}
+                      onValueChange={(val: any) => setEditingPriority(val)}
+                    >
+                      <SelectTrigger disabled={currentRole === 'support'} className="h-7 w-28 text-[10px]"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="urgent">Urgent</SelectItem>
                         <SelectItem value="high">High</SelectItem>
