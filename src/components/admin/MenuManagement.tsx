@@ -94,6 +94,7 @@ export function MenuManagement() {
   const { csrfFetch, currentRole, currentUsername } = useAdminAuth();
   const [menus, setMenus] = useState<MenuItem[]>([]);
   const [settings, setSettings] = useState<AppSettings>({ supportedLanguages: [] });
+  const [supportUsers, setSupportUsers] = useState<Array<{ username: string; email?: string }>>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['root']));
   const [expandedBrowserFolders, setExpandedBrowserFolders] = useState<Set<string>>(new Set(['root']));
@@ -137,6 +138,26 @@ export function MenuManagement() {
     load();
   }, []);
 
+  useEffect(() => {
+    if (currentRole !== 'admin') return;
+    let active = true;
+    (async () => {
+      try {
+        const res = await csrfFetch('/api/admin/users', { cache: 'no-store' });
+        const json = await res.json().catch(() => null);
+        if (!active) return;
+        const list = Array.isArray(json?.data) ? json.data : [];
+        setSupportUsers(list.filter((u: any) => u?.role === 'support'));
+      } catch {
+        if (!active) return;
+        setSupportUsers([]);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [csrfFetch, currentRole]);
+
   const refresh = () => {
     (async () => {
       const res = await fetch('/api/menus?includeInactive=1', { cache: 'no-store' });
@@ -175,6 +196,7 @@ export function MenuManagement() {
     if ('responseType' in update) merged.responseType = update.responseType;
     if ('content' in update) merged.content = update.content;
     if ('contentAm' in update) merged.contentAm = update.contentAm;
+    if ('supportAssignee' in update) merged.supportAssignee = update.supportAssignee;
     if ('order' in update) merged.order = update.order;
     if ('isActive' in update) merged.isActive = update.isActive;
     if ('trackClicks' in update) merged.trackClicks = update.trackClicks;
@@ -798,16 +820,16 @@ export function MenuManagement() {
                 if (reason) {
                   return (
                     <div className="bg-destructive/10 border border-destructive/20 p-4 rounded-xl flex items-start gap-4 animate-in fade-in slide-in-from-top-2">
-                       <ShieldAlert className="text-destructive shrink-0 mt-0.5" size={20} />
-                       <div className="space-y-1">
-                          <div className="text-sm font-bold text-destructive">This configuration was rejected by a checker.</div>
-                          <div className="text-xs text-destructive/90 bg-white/50 p-3 rounded-lg border border-destructive/10 leading-relaxed">
-                            <strong>Reason:</strong> {reason}
-                          </div>
-                          <div className="text-[10px] text-muted-foreground pt-1 italic font-medium">
-                            Review the reason above, make changes, and save to resubmit for approval.
-                          </div>
-                       </div>
+                      <ShieldAlert className="text-destructive shrink-0 mt-0.5" size={20} />
+                      <div className="space-y-1">
+                        <div className="text-sm font-bold text-destructive">This configuration was rejected by a checker.</div>
+                        <div className="text-xs text-destructive/90 bg-white/50 p-3 rounded-lg border border-destructive/10 leading-relaxed">
+                          <strong>Reason:</strong> {reason}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground pt-1 italic font-medium">
+                          Review the reason above, make changes, and save to resubmit for approval.
+                        </div>
+                      </div>
                     </div>
                   );
                 }
@@ -1118,6 +1140,21 @@ export function MenuManagement() {
                                   <SelectItem value="medium">Medium</SelectItem>
                                   <SelectItem value="high">High</SelectItem>
                                   <SelectItem value="urgent">Urgent</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Support</Label>
+                              <Select
+                                value={typeof editForm.supportAssignee === 'string' && editForm.supportAssignee ? editForm.supportAssignee : '__none__'}
+                                onValueChange={v => deepUpdate(['supportAssignee'], v === '__none__' ? null : v)}
+                              >
+                                <SelectTrigger className="h-8 w-44 text-xs"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="__none__">Unassigned</SelectItem>
+                                  {supportUsers.map(u => (
+                                    <SelectItem key={u.username} value={u.username}>{u.username}</SelectItem>
+                                  ))}
                                 </SelectContent>
                               </Select>
                             </div>

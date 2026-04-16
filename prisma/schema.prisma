@@ -50,6 +50,7 @@ enum MenuApprovalStatus {
 enum AdminRole {
   admin
   checker
+  support
 }
 
 // Menu items (admin-created navigation/content entries)
@@ -64,6 +65,7 @@ model MenuItem {
   content           String?       @db.Text
   contentAm         String?       @db.Text
   apiConfig         Json?         @map("api_config")
+  supportAssignee   String?       @map("support_assignee")
   order             Int            @default(0)
   isActive          Boolean        @default(true)
   approvalStatus    MenuApprovalStatus @default(approved)
@@ -154,6 +156,7 @@ model UserReport {
   priority      ReportPriority @default(medium)
   adminResponse String?        @db.Text
   internalNotes String?        @db.Text
+  supportAssignee String?      @map("support_assignee")
   // timestamp and creation
   timestamp     DateTime       @default(now())
   createdAt     DateTime       @default(now())
@@ -163,6 +166,7 @@ model UserReport {
 
   @@index([menuId])
   @@index([userId])
+  @@index([supportAssignee])
   @@map("user_reports")
 }
 

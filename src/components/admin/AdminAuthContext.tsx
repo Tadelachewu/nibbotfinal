@@ -45,7 +45,7 @@ export function isStrongPassword(password: string): boolean {
 interface AdminAuthContextType {
   isAuthenticated: boolean;
   currentUsername: string;
-  currentRole: 'admin' | 'checker' | '';
+  currentRole: 'admin' | 'checker' | 'support' | '';
   csrfFetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
   login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
@@ -58,7 +58,7 @@ const AdminAuthContext = createContext<AdminAuthContextType | null>(null);
 export function AdminAuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUsername, setCurrentUsername] = useState('');
-  const [currentRole, setCurrentRole] = useState<'admin' | 'checker' | ''>('');
+  const [currentRole, setCurrentRole] = useState<'admin' | 'checker' | 'support' | ''>('');
   const [csrfToken, setCsrfToken] = useState('');
   const [hydrated, setHydrated] = useState(false);
 
@@ -90,7 +90,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         if (json?.isAuthenticated) {
           setIsAuthenticated(true);
           setCurrentUsername(typeof json.username === 'string' ? json.username : '');
-          setCurrentRole(json?.role === 'checker' || json?.role === 'admin' ? json.role : '');
+          setCurrentRole(json?.role === 'checker' || json?.role === 'admin' || json?.role === 'support' ? json.role : '');
           setCsrfToken(typeof json.csrfToken === 'string' ? json.csrfToken : '');
         } else {
           setIsAuthenticated(false);
@@ -133,7 +133,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     if (response.ok && json?.success) {
       setIsAuthenticated(true);
       setCurrentUsername(typeof json.username === 'string' ? json.username : trimmedUsername);
-      setCurrentRole(json?.role === 'checker' || json?.role === 'admin' ? json.role : '');
+      setCurrentRole(json?.role === 'checker' || json?.role === 'admin' || json?.role === 'support' ? json.role : '');
       setCsrfToken(typeof json.csrfToken === 'string' ? json.csrfToken : '');
       return { success: true };
     }

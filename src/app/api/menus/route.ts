@@ -133,6 +133,7 @@ function buildMenuResponse(menu: any, isAdmin: boolean = false) {
     content: menu.content ?? undefined,
     contentAm: menu.contentAm ?? undefined,
     apiConfig,
+    supportAssignee: Object.prototype.hasOwnProperty.call(menu, 'supportAssignee') ? (menu.supportAssignee ?? null) : null,
     order: menu.order,
     isActive: typeof menu.isActive === 'boolean' ? menu.isActive : true,
     approvalStatus: menu.approvalStatus ?? 'approved',
@@ -244,6 +245,10 @@ export async function POST(req: Request) {
 
   const id = typeof body.id === 'string' && body.id.trim() ? body.id.trim() : crypto.randomUUID();
   const parentId = typeof body.parentId === 'string' && body.parentId.trim() ? body.parentId.trim() : null;
+  const supportAssignee =
+    Object.prototype.hasOwnProperty.call(body, 'supportAssignee')
+      ? (typeof body.supportAssignee === 'string' && body.supportAssignee.trim() ? body.supportAssignee.trim() : null)
+      : undefined;
   const attachedMenuIds: string[] = Array.isArray(body.attachedMenuIds) ? body.attachedMenuIds : [];
   const kycFields: any[] = body.apiConfig?.kycFields && Array.isArray(body.apiConfig.kycFields) ? body.apiConfig.kycFields : [];
   const apiConfig = body.apiConfig && typeof body.apiConfig === 'object'
@@ -253,6 +258,13 @@ export async function POST(req: Request) {
       return normalizeApiConfig({ ...rest, rootKey: normalizedRootKey });
     })()
     : undefined;
+
+  if (typeof supportAssignee === 'string') {
+    const supportUser = await prisma.adminCredential.findUnique({ where: { username: supportAssignee } });
+    if (!supportUser || supportUser.role !== 'support') {
+      return NextResponse.json({ status: 'error', message: 'Support assignee must be a Support user.' }, { status: 400 });
+    }
+  }
 
   if (apiConfig?.endpoint && body.responseType === 'api') {
     const kycNames = Array.isArray(kycFields) ? kycFields.map(f => f?.name).filter(Boolean) : [];
@@ -275,6 +287,7 @@ export async function POST(req: Request) {
       content: body.content ?? null,
       contentAm: body.contentAm ?? null,
       apiConfig: apiConfig ?? null,
+      supportAssignee,
       order: Number.isFinite(body.order) ? body.order : 0,
       isActive: typeof body.isActive === 'boolean' ? body.isActive : true,
       approvalStatus: 'pending',

@@ -131,6 +131,7 @@ function buildMenuResponse(menu: any, isAdmin: boolean = false) {
     content: menu.content ?? undefined,
     contentAm: menu.contentAm ?? undefined,
     apiConfig,
+    supportAssignee: Object.prototype.hasOwnProperty.call(menu, 'supportAssignee') ? (menu.supportAssignee ?? null) : null,
     order: menu.order,
     isActive: typeof menu.isActive === 'boolean' ? menu.isActive : true,
     approvalStatus: menu.approvalStatus ?? 'approved',
@@ -266,6 +267,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
           apiConfig: Object.prototype.hasOwnProperty.call(pendingUpdate, 'apiConfig')
             ? (pendingApiConfig ?? null)
             : undefined,
+          supportAssignee: Object.prototype.hasOwnProperty.call(pendingUpdate, 'supportAssignee') ? (pendingUpdate.supportAssignee ?? null) : undefined,
           order: Number.isFinite(pendingUpdate.order) ? pendingUpdate.order : undefined,
           isActive: typeof pendingUpdate.isActive === 'boolean' ? pendingUpdate.isActive : undefined,
           trackClicks: typeof pendingUpdate.trackClicks === 'boolean' ? pendingUpdate.trackClicks : undefined,
@@ -388,6 +390,18 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
     return NextResponse.json({ status: 'error', message: 'Not found.' }, { status: 404 });
   }
 
+  const supportAssignee =
+    Object.prototype.hasOwnProperty.call(body, 'supportAssignee')
+      ? (typeof body.supportAssignee === 'string' && body.supportAssignee.trim() ? body.supportAssignee.trim() : null)
+      : undefined;
+
+  if (typeof supportAssignee === 'string') {
+    const supportUser = await prisma.adminCredential.findUnique({ where: { username: supportAssignee } });
+    if (!supportUser || supportUser.role !== 'support') {
+      return NextResponse.json({ status: 'error', message: 'Support assignee must be a Support user.' }, { status: 400 });
+    }
+  }
+
   const attachedMenuIds: string[] = Array.isArray(body.attachedMenuIds) ? body.attachedMenuIds : [];
   const kycFields: any[] = body.apiConfig?.kycFields && Array.isArray(body.apiConfig.kycFields) ? body.apiConfig.kycFields : [];
   const apiConfig = body.apiConfig && typeof body.apiConfig === 'object'
@@ -420,6 +434,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
       content: Object.prototype.hasOwnProperty.call(body, 'content') ? (body.content ?? null) : undefined,
       contentAm: Object.prototype.hasOwnProperty.call(body, 'contentAm') ? (body.contentAm ?? null) : undefined,
       apiConfig: Object.prototype.hasOwnProperty.call(body, 'apiConfig') ? (apiConfig ? { ...(apiConfig as any), kycFields } : null) : undefined,
+      supportAssignee,
       order: Number.isFinite(body.order) ? body.order : undefined,
       isActive: typeof body.isActive === 'boolean' ? body.isActive : undefined,
       trackClicks: typeof body.trackClicks === 'boolean' ? body.trackClicks : undefined,
@@ -455,6 +470,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
         content: body.content ?? null,
         contentAm: body.contentAm ?? null,
         apiConfig: apiConfig ?? null,
+        supportAssignee,
         order: Number.isFinite(body.order) ? body.order : undefined,
         isActive: typeof body.isActive === 'boolean' ? body.isActive : undefined,
         trackClicks: typeof body.trackClicks === 'boolean' ? body.trackClicks : undefined,

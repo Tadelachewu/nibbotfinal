@@ -1,31 +1,31 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { 
-  Search, 
-  User, 
-  FileText, 
-  ChevronRight, 
-  ClipboardList, 
-  Loader2, 
-  Calendar, 
-  CheckCircle2, 
-  Clock, 
-  AlertCircle, 
-  Trash2, 
-  Database, 
-  RefreshCw, 
+import {
+  Search,
+  User,
+  FileText,
+  ChevronRight,
+  ClipboardList,
+  Loader2,
+  Calendar,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  Trash2,
+  Database,
+  RefreshCw,
   MessageSquare,
   ShieldAlert,
   Download,
@@ -39,14 +39,14 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { 
+import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -62,25 +62,23 @@ import { Separator } from '@/components/ui/separator';
 import { useAdminAuth } from './AdminAuthContext';
 
 export function ReportsManagement() {
-  const { csrfFetch } = useAdminAuth();
+  const { csrfFetch, currentRole, currentUsername } = useAdminAuth();
   const [reports, setReports] = useState<UserReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
-  
+  const [supportUsers, setSupportUsers] = useState<Array<{ username: string }>>([]);
+
   const [editingResponse, setEditingResponse] = useState<string>('');
   const [editingNotes, setEditingNotes] = useState<string>('');
   const [editingStatus, setEditingStatus] = useState<UserReport['status']>('pending');
   const [editingPriority, setEditingPriority] = useState<ReportPriority>('medium');
+  const [editingSupportAssignee, setEditingSupportAssignee] = useState<string>('__none__');
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   const [isInspectOpen, setIsInspectOpen] = useState(false);
 
-  useEffect(() => {
-    refreshReports();
-  }, []);
-
-  const refreshReports = () => {
+  const refreshReports = useCallback(() => {
     setLoading(true);
     (async () => {
       try {
@@ -91,16 +89,40 @@ export function ReportsManagement() {
         setLoading(false);
       }
     })();
-  };
+  }, []);
+
+  useEffect(() => {
+    refreshReports();
+  }, [refreshReports]);
+
+  useEffect(() => {
+    if (currentRole !== 'admin') return;
+    let active = true;
+    (async () => {
+      try {
+        const res = await csrfFetch('/api/admin/users', { cache: 'no-store' });
+        const json = await res.json().catch(() => null);
+        if (!active) return;
+        const list = Array.isArray(json?.data) ? json.data : [];
+        setSupportUsers(list.filter((u: any) => u?.role === 'support'));
+      } catch {
+        if (!active) return;
+        setSupportUsers([]);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [csrfFetch, currentRole]);
 
   const filteredReports = useMemo(() => {
     return reports.filter(r => {
-      const matchesSearch = 
+      const matchesSearch =
         r.menuName?.toLowerCase().includes(search.toLowerCase()) ||
         r.userId?.toLowerCase().includes(search.toLowerCase()) ||
         r.id.toLowerCase().includes(search.toLowerCase()) ||
         Object.values(r.data || {}).some(val => String(val).toLowerCase().includes(search.toLowerCase()));
-      
+
       const matchesStatus = statusFilter === 'all' || r.status === statusFilter;
       const matchesPriority = priorityFilter === 'all' || r.priority === priorityFilter;
 
@@ -121,7 +143,8 @@ export function ReportsManagement() {
               status: finalStatus,
               priority: editingPriority,
               adminResponse: editingResponse,
-              internalNotes: editingNotes
+              internalNotes: editingNotes,
+              ...(currentRole === 'admin' ? { supportAssignee: editingSupportAssignee === '__none__' ? null : editingSupportAssignee } : {})
             })
           });
           const json = await res.json().catch(() => null);
@@ -132,9 +155,9 @@ export function ReportsManagement() {
           setEditingStatus(finalStatus);
           setReports(prev => prev.map(r => (r.id === selectedReportId ? json.data : r)));
 
-          toast({ 
-            title: overrideStatus ? `Marked as ${overrideStatus}` : "Changes Saved", 
-            description: "Submission has been updated successfully." 
+          toast({
+            title: overrideStatus ? `Marked as ${overrideStatus}` : "Changes Saved",
+            description: "Submission has been updated successfully."
           });
 
           if (overrideStatus === 'resolved') {
@@ -166,7 +189,7 @@ export function ReportsManagement() {
   const downloadJson = (report: UserReport) => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(report, null, 2));
     const downloadAnchorNode = document.createElement('a');
-    downloadAnchorNode.setAttribute("href",     dataStr);
+    downloadAnchorNode.setAttribute("href", dataStr);
     downloadAnchorNode.setAttribute("download", `report_${report.id}.json`);
     document.body.appendChild(downloadAnchorNode);
     downloadAnchorNode.click();
@@ -199,9 +222,9 @@ export function ReportsManagement() {
       .trim();
   };
 
-  const selectedReport = useMemo(() => 
-    reports.find(r => r.id === selectedReportId), 
-  [reports, selectedReportId]);
+  const selectedReport = useMemo(() =>
+    reports.find(r => r.id === selectedReportId),
+    [reports, selectedReportId]);
 
   if (loading) {
     return (
@@ -266,9 +289,9 @@ export function ReportsManagement() {
             <div className="flex flex-wrap items-center gap-3">
               <div className="relative flex-1 min-w-[200px]">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input 
-                  placeholder="Search submissions..." 
-                  className="pl-10 bg-white" 
+                <Input
+                  placeholder="Search submissions..."
+                  className="pl-10 bg-white"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
@@ -354,6 +377,7 @@ export function ReportsManagement() {
                         setEditingNotes(report.internalNotes || '');
                         setEditingStatus(report.status);
                         setEditingPriority(report.priority || 'medium');
+                        setEditingSupportAssignee(report.supportAssignee || '__none__');
                         setIsInspectOpen(true);
                       }}>
                         Inspect <ChevronRight size={14} className="ml-1" />
@@ -396,21 +420,23 @@ export function ReportsManagement() {
                     <Button variant="outline" size="sm" onClick={() => downloadJson(selectedReport)}>
                       <Download size={14} className="mr-2" /> Export JSON
                     </Button>
-                    <Button variant="ghost" size="icon" className="text-destructive" onClick={() => { handleDeleteReport(selectedReport.id); setIsInspectOpen(false); }}>
-                      <Trash2 size={18} />
-                    </Button>
+                    {currentRole === 'admin' && (
+                      <Button variant="ghost" size="icon" className="text-destructive" onClick={() => { handleDeleteReport(selectedReport.id); setIsInspectOpen(false); }}>
+                        <Trash2 size={18} />
+                      </Button>
+                    )}
                   </div>
                 </div>
               </DialogHeader>
-              
+
               {/* ADMIN ACTION BAR: Resolve, Review, and Metadata Management */}
               <div className="bg-amber-50/50 border-b p-4 flex flex-wrap items-center gap-4 justify-between">
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] font-bold uppercase text-muted-foreground">Status</span>
-                    <Badge className={cn("text-[10px] capitalize", 
-                      editingStatus === 'resolved' ? 'bg-emerald-100 text-emerald-800' : 
-                      editingStatus === 'reviewed' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
+                    <Badge className={cn("text-[10px] capitalize",
+                      editingStatus === 'resolved' ? 'bg-emerald-100 text-emerald-800' :
+                        editingStatus === 'reviewed' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
                     )}>
                       {editingStatus}
                     </Badge>
@@ -428,19 +454,38 @@ export function ReportsManagement() {
                       </SelectContent>
                     </Select>
                   </div>
+                  <Separator orientation="vertical" className="h-4" />
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase text-muted-foreground">Support</span>
+                    {currentRole === 'admin' ? (
+                      <Select value={editingSupportAssignee} onValueChange={setEditingSupportAssignee}>
+                        <SelectTrigger className="h-7 w-44 text-[10px]"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Unassigned</SelectItem>
+                          {supportUsers.map(u => (
+                            <SelectItem key={u.username} value={u.username}>{u.username}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Badge variant="outline" className="text-[10px]">
+                        {editingSupportAssignee === '__none__' ? 'Unassigned' : (editingSupportAssignee === currentUsername ? 'Assigned to you' : editingSupportAssignee)}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
+                  <Button
+                    size="sm"
+                    variant="outline"
                     className={cn("h-8 text-[11px] font-bold", editingStatus === 'reviewed' && "bg-blue-50 border-blue-200")}
                     onClick={() => handleSaveAdminData('reviewed')}
                   >
                     <Clock size={14} className="mr-2 text-blue-500" /> Mark Reviewed
                   </Button>
-                  <Button 
-                    size="sm" 
+                  <Button
+                    size="sm"
                     className="h-8 text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
                     onClick={() => handleSaveAdminData('resolved')}
                   >
@@ -463,7 +508,7 @@ export function ReportsManagement() {
                         <NotebookPen size={14} /> Internal Notes
                       </TabsTrigger>
                     </TabsList>
-                    
+
                     <TabsContent value="response" className="pt-6 space-y-4">
                       <div className="space-y-4 bg-muted/20 p-6 rounded-xl border border-dashed border-primary/20">
                         <div className="flex items-center justify-between">
@@ -478,9 +523,9 @@ export function ReportsManagement() {
                             <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700">Message Active</Badge>
                           )}
                         </div>
-                        <Textarea 
-                          value={editingResponse} 
-                          onChange={(e) => setEditingResponse(e.target.value)} 
+                        <Textarea
+                          value={editingResponse}
+                          onChange={(e) => setEditingResponse(e.target.value)}
                           placeholder="Type your official message to the user here... (e.g., 'We have received your report and blocked your card.')"
                           className="min-h-[150px] text-sm bg-white shadow-inner"
                         />
@@ -509,9 +554,9 @@ export function ReportsManagement() {
                           </Label>
                           <p className="text-[11px] text-amber-700 italic">These notes are strictly for admin review and are NEVER shared with the user.</p>
                         </div>
-                        <Textarea 
-                          value={editingNotes} 
-                          onChange={(e) => setEditingNotes(e.target.value)} 
+                        <Textarea
+                          value={editingNotes}
+                          onChange={(e) => setEditingNotes(e.target.value)}
                           placeholder="Add internal investigation notes, next steps, or agent observations..."
                           className="min-h-[150px] text-sm border-amber-200 focus-visible:ring-amber-500 bg-white"
                         />
@@ -520,7 +565,7 @@ export function ReportsManagement() {
                   </Tabs>
                 </div>
               </ScrollArea>
-              
+
               <DialogFooter className="p-6 border-t bg-muted/5 sticky bottom-0 z-50 flex items-center justify-between sm:justify-between w-full">
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <User size={14} />

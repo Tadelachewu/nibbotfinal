@@ -46,11 +46,19 @@ async function getReportConfig() {
 }
 
 export async function GET() {
-  if (!(await getValidatedAdminSession())) {
+  const session = await getValidatedAdminSession();
+  if (!session?.username) {
     return NextResponse.json({ status: 'error', message: 'Unauthorized.' }, { status: 401 });
   }
 
+  const actor = await prisma.adminCredential.findUnique({ where: { username: session.username } });
+  const role = actor?.role ?? null;
+  if (role !== 'admin' && role !== 'support') {
+    return NextResponse.json({ status: 'error', message: 'Forbidden.' }, { status: 403 });
+  }
+
   const reports = await prisma.userReport.findMany({
+    where: role === 'support' ? { supportAssignee: session.username } : undefined,
     orderBy: { timestamp: 'desc' }
   });
 
@@ -59,12 +67,14 @@ export async function GET() {
     data: reports.map(r => ({
       id: r.id,
       userId: r.userId ?? '',
+      menuId: r.menuId ?? undefined,
       menuName: r.menuName,
       data: (r.data as any) ?? {},
       status: r.status,
       priority: r.priority,
       adminResponse: r.adminResponse ?? undefined,
       internalNotes: r.internalNotes ?? undefined,
+      supportAssignee: r.supportAssignee ?? undefined,
       timestamp: r.timestamp.toISOString()
     }))
   });
@@ -79,6 +89,9 @@ export async function POST(req: Request) {
   if (!body || typeof body !== 'object') {
     return NextResponse.json({ status: 'error', message: 'Invalid request body.' }, { status: 400 });
   }
+
+  const menuId = typeof body.menuId === 'string' && body.menuId.trim() ? body.menuId.trim() : null;
+  const menu = menuId ? await prisma.menuItem.findUnique({ where: { id: menuId }, select: { supportAssignee: true } }) : null;
 
   const config = await getReportConfig();
   const year = new Date().getFullYear();
@@ -114,13 +127,14 @@ export async function POST(req: Request) {
     data: {
       id,
       userId: body.userId ?? null,
-      menuId: body.menuId ?? null,
+      menuId,
       menuName: body.menuName ?? 'Unknown',
       data: body.data ?? {},
       status: 'pending',
       priority: body.priority ?? 'medium',
       adminResponse: null,
-      internalNotes: null
+      internalNotes: null,
+      supportAssignee: menu?.supportAssignee ?? null
     }
   });
 
@@ -129,12 +143,14 @@ export async function POST(req: Request) {
     data: {
       id: created.id,
       userId: created.userId ?? '',
+      menuId: created.menuId ?? undefined,
       menuName: created.menuName,
       data: (created.data as any) ?? {},
       status: created.status,
       priority: created.priority,
       adminResponse: created.adminResponse ?? undefined,
       internalNotes: created.internalNotes ?? undefined,
+      supportAssignee: created.supportAssignee ?? undefined,
       timestamp: created.timestamp.toISOString()
     }
   });

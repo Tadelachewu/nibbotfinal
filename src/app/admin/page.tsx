@@ -7,11 +7,12 @@ import { ReportsManagement } from '@/components/admin/ReportsManagement';
 import { Dashboard } from '@/components/admin/Dashboard';
 import { Toaster } from '@/components/ui/toaster';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ListTree, ClipboardList, LayoutDashboard, Globe, Activity } from 'lucide-react';
+import { ListTree, ClipboardList, LayoutDashboard, Globe, Activity, Users } from 'lucide-react';
 import { LocalizationManagement } from '@/components/admin/LocalizationManagement';
 import { LogViewer } from '@/components/admin/LogViewer';
 import { AdminAuthProvider, useAdminAuth } from '@/components/admin/AdminAuthContext';
 import { AdminLoginPage } from '@/components/admin/AdminLoginPage';
+import { UsersManagement } from '@/components/admin/UsersManagement';
 
 function CheckerConsole() {
   return (
@@ -29,6 +30,22 @@ function CheckerConsole() {
   );
 }
 
+function SupportConsole() {
+  return (
+    <div className="min-h-screen bg-background flex flex-col">
+      <AdminHeader />
+      <main className="flex-1 container mx-auto p-4 md:p-8 space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Support Console</h2>
+          <p className="text-muted-foreground">Respond to assigned submissions.</p>
+        </div>
+        <ReportsManagement />
+      </main>
+      <Toaster />
+    </div>
+  );
+}
+
 function AdminConsole() {
   const { isAuthenticated, currentRole } = useAdminAuth();
 
@@ -38,6 +55,10 @@ function AdminConsole() {
 
   if (currentRole === 'checker') {
     return <CheckerConsole />;
+  }
+
+  if (currentRole === 'support') {
+    return <SupportConsole />;
   }
 
   return (
@@ -50,7 +71,7 @@ function AdminConsole() {
               <h2 className="text-2xl font-bold tracking-tight">System Console</h2>
               <p className="text-muted-foreground">Monitor performance and manage your conversational platform.</p>
             </div>
-            <TabsList className="grid grid-cols-5 w-full md:w-[750px] bg-muted/20 p-1 border shadow-sm">
+            <TabsList className="grid grid-cols-6 w-full md:w-[900px] bg-muted/20 p-1 border shadow-sm">
               <TabsTrigger value="dashboard" className="flex items-center gap-2 text-xs md:text-sm">
                 <LayoutDashboard size={14} />
                 Dashboard
@@ -62,6 +83,10 @@ function AdminConsole() {
               <TabsTrigger value="reports" className="flex items-center gap-2 text-xs md:text-sm">
                 <ClipboardList size={14} />
                 Submissions
+              </TabsTrigger>
+              <TabsTrigger value="users" className="flex items-center gap-2 text-xs md:text-sm">
+                <Users size={14} />
+                Users
               </TabsTrigger>
               <TabsTrigger value="localization" className="flex items-center gap-2 text-xs md:text-sm">
                 <Globe size={14} />
@@ -84,6 +109,10 @@ function AdminConsole() {
 
           <TabsContent value="reports" className="m-0 border-none p-0 outline-none">
             <ReportsManagement />
+          </TabsContent>
+
+          <TabsContent value="users" className="m-0 border-none p-0 outline-none">
+            <UsersManagement />
           </TabsContent>
 
           <TabsContent value="localization" className="m-0 border-none p-0 outline-none">

@@ -92,6 +92,8 @@ export interface AppSettings {
 
 export type MenuApprovalStatus = 'pending' | 'approved' | 'rejected';
 
+export type AdminRole = 'admin' | 'checker' | 'support';
+
 export type MenuUpdatePayload = {
   parentId?: string | null;
   name?: string;
@@ -100,6 +102,7 @@ export type MenuUpdatePayload = {
   content?: string | null;
   contentAm?: string | null;
   apiConfig?: ApiConfig | null;
+  supportAssignee?: string | null;
   order?: number;
   isActive?: boolean;
   trackClicks?: boolean;
@@ -116,6 +119,7 @@ export interface MenuItem {
   content?: string; // For static or report success
   contentAm?: string; // For static or report success
   apiConfig?: ApiConfig; // For API or Report fields
+  supportAssignee?: string | null;
   order: number;
   isActive?: boolean;
   approvalStatus?: MenuApprovalStatus;
@@ -148,12 +152,14 @@ export type ReportPriority = 'low' | 'medium' | 'high' | 'urgent';
 export interface UserReport {
   id: string;
   userId: string;
+  menuId?: string;
   menuName: string;
   data: Record<string, any>;
   status: 'pending' | 'reviewed' | 'resolved';
   priority?: ReportPriority;
   adminResponse?: string;
   internalNotes?: string;
+  supportAssignee?: string;
   timestamp: string;
 }
 

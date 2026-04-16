@@ -7,9 +7,9 @@ if (!databaseUrl) {
     throw new Error('DATABASE_URL is required');
 }
 
-const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient; prismaPool?: Pool };
 
-const pool = new Pool({ connectionString: databaseUrl });
+const pool = globalForPrisma.prismaPool ?? new Pool({ connectionString: databaseUrl });
 const adapter = new PrismaPg(pool);
 
 const prismaClient =
@@ -21,6 +21,7 @@ const prismaClient =
 
 if (process.env.NODE_ENV !== 'production') {
     globalForPrisma.prisma = prismaClient;
+    globalForPrisma.prismaPool = pool;
 }
 
 export const prisma = prismaClient;
