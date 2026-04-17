@@ -75,6 +75,8 @@ export function ReportsManagement() {
   const [editingStatus, setEditingStatus] = useState<UserReport['status']>('pending');
   const [editingPriority, setEditingPriority] = useState<ReportPriority>('medium');
   const [editingSupportAssignee, setEditingSupportAssignee] = useState<string>('__none__');
+  const [editingSupportAssignmentType, setEditingSupportAssignmentType] = useState<'first_assignment' | 'escalation'>('first_assignment');
+  const [editingSupportAssignmentReason, setEditingSupportAssignmentReason] = useState<string>('');
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   const [isInspectOpen, setIsInspectOpen] = useState(false);
 
@@ -136,6 +138,31 @@ export function ReportsManagement() {
 
       (async () => {
         try {
+          const existing = reports.find(r => r.id === selectedReportId);
+          const previousSupportAssignee =
+            typeof existing?.supportAssignee === 'string' && existing.supportAssignee.trim()
+              ? existing.supportAssignee.trim()
+              : null;
+          const nextSupportAssignee =
+            editingSupportAssignee === '__none__'
+              ? null
+              : (typeof editingSupportAssignee === 'string' && editingSupportAssignee.trim() ? editingSupportAssignee.trim() : null);
+          const isSupportAssignmentChange =
+            currentRole === 'admin' && Object.is(previousSupportAssignee, nextSupportAssignee) === false;
+
+          if (isSupportAssignmentChange && typeof nextSupportAssignee === 'string') {
+            const reason = editingSupportAssignmentReason.trim();
+            const expectedType = previousSupportAssignee ? 'escalation' : 'first_assignment';
+            if (editingSupportAssignmentType !== expectedType) {
+              toast({ title: 'Assignment Type Required', description: `Select "${expectedType === 'first_assignment' ? 'First Assigned' : 'Escalation'}".`, variant: 'destructive' });
+              return;
+            }
+            if (!reason) {
+              toast({ title: 'Reason Required', description: 'Provide a reason for assigning Support.', variant: 'destructive' });
+              return;
+            }
+          }
+
           const res = await csrfFetch(`/api/reports/${encodeURIComponent(selectedReportId)}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
@@ -144,7 +171,12 @@ export function ReportsManagement() {
               ...(currentRole === 'admin' ? { priority: editingPriority } : {}),
               adminResponse: editingResponse,
               internalNotes: editingNotes,
-              ...(currentRole === 'admin' ? { supportAssignee: editingSupportAssignee === '__none__' ? null : editingSupportAssignee } : {})
+              ...(currentRole === 'admin'
+                ? {
+                  supportAssignee: editingSupportAssignee === '__none__' ? null : editingSupportAssignee,
+                  ...(editingSupportAssignee !== '__none__' ? { supportAssignmentType: editingSupportAssignmentType, supportAssignmentReason: editingSupportAssignmentReason } : {})
+                }
+                : {})
             })
           });
           const json = await res.json().catch(() => null);
@@ -378,6 +410,8 @@ export function ReportsManagement() {
                         setEditingStatus(report.status);
                         setEditingPriority(report.priority || 'medium');
                         setEditingSupportAssignee(report.supportAssignee || '__none__');
+                        setEditingSupportAssignmentType(report.supportAssignee ? 'escalation' : 'first_assignment');
+                        setEditingSupportAssignmentReason('');
                         setIsInspectOpen(true);
                       }}>
                         Inspect <ChevronRight size={14} className="ml-1" />
@@ -431,7 +465,7 @@ export function ReportsManagement() {
 
               {/* ADMIN ACTION BAR: Resolve, Review, and Metadata Management */}
               <div className="bg-amber-50/50 border-b p-4 flex flex-wrap items-center gap-4 justify-between">
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] font-bold uppercase text-muted-foreground">Status</span>
                     <Badge className={cn("text-[10px] capitalize",
@@ -461,7 +495,18 @@ export function ReportsManagement() {
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] font-bold uppercase text-muted-foreground">Support</span>
                     {currentRole === 'admin' ? (
-                      <Select value={editingSupportAssignee} onValueChange={setEditingSupportAssignee}>
+                      <Select value={editingSupportAssignee} onValueChange={(val) => {
+                        setEditingSupportAssignee(val);
+                        const existing = selectedReport?.supportAssignee;
+                        const hadAssignee = typeof existing === 'string' && existing.trim().length > 0;
+                        if (val === '__none__') {
+                          setEditingSupportAssignmentType('first_assignment');
+                          setEditingSupportAssignmentReason('');
+                          return;
+                        }
+                        setEditingSupportAssignmentType(hadAssignee ? 'escalation' : 'first_assignment');
+                        setEditingSupportAssignmentReason('');
+                      }}>
                         <SelectTrigger className="h-7 w-44 text-[10px]"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="__none__">Unassigned</SelectItem>
@@ -476,6 +521,30 @@ export function ReportsManagement() {
                       </Badge>
                     )}
                   </div>
+                  {currentRole === 'admin' && editingSupportAssignee !== '__none__' && (
+                    <>
+                      <Separator orientation="vertical" className="h-4" />
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold uppercase text-muted-foreground">Type</span>
+                        <Select value={editingSupportAssignmentType} onValueChange={(val: any) => setEditingSupportAssignmentType(val)}>
+                          <SelectTrigger className="h-7 w-36 text-[10px]"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="first_assignment">First Assigned</SelectItem>
+                            <SelectItem value="escalation">Escalation</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex items-center gap-2 basis-full sm:basis-auto">
+                        <span className="text-[10px] font-bold uppercase text-muted-foreground">Reason</span>
+                        <Input
+                          value={editingSupportAssignmentReason}
+                          onChange={(e) => setEditingSupportAssignmentReason(e.target.value)}
+                          placeholder="Reason for assignment..."
+                          className="h-7 w-full sm:w-56 text-[11px] bg-white"
+                        />
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2">

@@ -67,7 +67,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     return NextResponse.json({ status: 'error', message: 'Invalid request body.' }, { status: 400 });
   }
 
-  const existing = await prisma.userReport.findUnique({ where: { id }, select: { supportAssignee: true } });
+  const existing = await prisma.userReport.findUnique({ where: { id }, select: { supportAssignee: true, internalNotes: true } });
   if (!existing) {
     return NextResponse.json({ status: 'error', message: 'Report not found.' }, { status: 404 });
   }
@@ -85,11 +85,41 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       ? (typeof body.supportAssignee === 'string' && body.supportAssignee.trim() ? body.supportAssignee.trim() : null)
       : undefined;
 
+  const isSupportAssignmentChange =
+    role === 'admin' &&
+    typeof nextSupportAssignee !== 'undefined' &&
+    Object.is(existing.supportAssignee ?? null, nextSupportAssignee) === false;
+
+  if (isSupportAssignmentChange && typeof nextSupportAssignee === 'string') {
+    const assignmentTypeRaw = typeof body.supportAssignmentType === 'string' ? body.supportAssignmentType.trim() : '';
+    const assignmentReason = typeof body.supportAssignmentReason === 'string' ? body.supportAssignmentReason.trim() : '';
+    const expectedType = existing.supportAssignee ? 'escalation' : 'first_assignment';
+    if (assignmentTypeRaw !== expectedType) {
+      return NextResponse.json({ status: 'error', message: 'Invalid assignment type.' }, { status: 400 });
+    }
+    if (!assignmentReason) {
+      return NextResponse.json({ status: 'error', message: 'Assignment reason is required.' }, { status: 400 });
+    }
+  }
+
   if (typeof nextSupportAssignee === 'string') {
     const supportUser = await prisma.adminCredential.findUnique({ where: { username: nextSupportAssignee } });
     if (!supportUser || supportUser.role !== 'support') {
       return NextResponse.json({ status: 'error', message: 'Support assignee must be a Support user.' }, { status: 400 });
     }
+  }
+
+  const existingNotes = typeof existing.internalNotes === 'string' ? existing.internalNotes : '';
+  const requestedNotes = typeof body.internalNotes === 'string' ? body.internalNotes : undefined;
+  let nextInternalNotes = requestedNotes;
+
+  if (isSupportAssignmentChange && typeof nextSupportAssignee === 'string') {
+    const assignmentType = typeof body.supportAssignmentType === 'string' ? body.supportAssignmentType.trim() : '';
+    const assignmentReason = typeof body.supportAssignmentReason === 'string' ? body.supportAssignmentReason.trim() : '';
+    const base = typeof requestedNotes === 'string' ? requestedNotes : existingNotes;
+    const timestamp = new Date().toISOString();
+    const line = `[Support Assignment] type=${assignmentType} to=${nextSupportAssignee} by=${session.username} at=${timestamp} reason=${assignmentReason}`;
+    nextInternalNotes = base ? `${base}\n${line}` : line;
   }
 
   const updated = await prisma.userReport.update({
@@ -98,7 +128,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       status: body.status ?? undefined,
       priority: body.priority ?? undefined,
       adminResponse: typeof body.adminResponse === 'string' ? body.adminResponse : undefined,
-      internalNotes: typeof body.internalNotes === 'string' ? body.internalNotes : undefined,
+      internalNotes: typeof nextInternalNotes === 'string' ? nextInternalNotes : undefined,
       supportAssignee: nextSupportAssignee
     }
   });
