@@ -23,7 +23,9 @@ export const sessionOptions: SessionOptions = {
   cookieOptions: {
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
-    sameSite: 'strict',
+    // Use a more permissive SameSite in non-development and allow None in production
+    // so cookies are sent for cross-site requests when behind a proxy/CDN.
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     maxAge: idleSeconds,
   },
 };
@@ -113,7 +115,7 @@ export function isSameOriginRequest(req: Request): boolean {
           referer,
           allowedOrigins: Array.from(allowedOrigins),
         });
-      } catch {}
+      } catch { }
       return true;
     }
 

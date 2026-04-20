@@ -66,11 +66,12 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     async (input: RequestInfo | URL, init?: RequestInit) => {
       const method = String(init?.method || 'GET').toUpperCase();
       const needsToken = !['GET', 'HEAD', 'OPTIONS'].includes(method);
-      if (!needsToken || !csrfToken) return fetch(input, init);
+      // Always include credentials so cookies are sent/received on cross-site requests
+      if (!needsToken || !csrfToken) return fetch(input, { ...init, credentials: 'include' });
 
       const headers = new Headers(init?.headers || {});
       headers.set('x-csrf-token', csrfToken);
-      const res = await fetch(input, { ...init, headers });
+      const res = await fetch(input, { ...init, headers, credentials: 'include' });
       const nextToken = res.headers.get('x-csrf-token');
       if (typeof nextToken === 'string' && nextToken) {
         setCsrfToken(nextToken);
@@ -84,7 +85,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     let active = true;
     (async () => {
       try {
-        const res = await fetch('/api/admin/auth/session', { cache: 'no-store' });
+        const res = await fetch('/api/admin/auth/session', { cache: 'no-store', credentials: 'include' });
         const json = await res.json().catch(() => null);
         if (!active) return;
         if (json?.isAuthenticated) {
@@ -124,6 +125,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
 
     const response = await fetch('/api/admin/auth/login', {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: trimmedUsername, password: trimmedPassword }),
     });
