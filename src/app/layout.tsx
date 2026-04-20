@@ -32,7 +32,7 @@ export default async function RootLayout({
   const initialTheme = match ? match[1] : 'system';
 
   return (
-    <html lang="en">
+    <html lang="en" className={initialTheme === 'dark' ? 'dark' : initialTheme === 'light' ? 'light' : ''}>
       <head>
         {/* Next.js internal scripts should now automatically use this nonce if set in headers */}
         {nonce && <meta property="csp-nonce" content={nonce} />}
