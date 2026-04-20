@@ -9,6 +9,7 @@ import { ChatBubble } from './ChatBubble';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Logo } from '@/components/Logo';
+import ThemeToggle from '@/components/ui/ThemeToggle';
 import {
   ChevronRight,
   Home as HomeIcon,
@@ -176,7 +177,11 @@ export function ChatInterface() {
   const [currentMenuId, setCurrentMenuId] = useState<string | null>(null);
   const [menuHistory, setMenuHistory] = useState<string[]>([]);
   const [currentLang, setCurrentLang] = useState<Language | null>(null);
-  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('light');
+  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => {
+    if (typeof window === 'undefined') return 'system';
+    const match = document.cookie.match(/(?:^|; )nib_theme=([^;]+)/);
+    return match ? (match[1] as 'light' | 'dark' | 'system') : (localStorage.getItem('nib_theme') as 'light' | 'dark' | 'system') || 'system';
+  });
   const userAvatarUrl = makeAvatarDataUri('ME', '#763717');
 
   const [userData, setUserData] = useState<UserData>({
@@ -278,8 +283,7 @@ export function ChatInterface() {
       }]);
     })();
 
-    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    setTheme(isDark ? 'dark' : 'light');
+    // theme now restored from cookie/localStorage on init
   }, [fetchRuntimeConfig]);
 
   const t = (key: string, fallback: string) => {
@@ -1095,6 +1099,7 @@ export function ChatInterface() {
           </div>
         </div>
         <div className="flex items-center gap-1">
+          <ThemeToggle />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button

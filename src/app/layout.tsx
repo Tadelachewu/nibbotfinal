@@ -26,12 +26,20 @@ export default async function RootLayout({
   const headersList = await headers();
   // We extract the nonce from the custom header we set in middleware.ts
   const nonce = headersList.get('x-nonce') || undefined;
+  // read theme cookie server-side so we can set it before hydration
+  const cookieHeader = headersList.get('cookie') || '';
+  const match = cookieHeader.match(/(?:^|; )nib_theme=([^;]+)/);
+  const initialTheme = match ? match[1] : 'system';
 
   return (
     <html lang="en">
       <head>
         {/* Next.js internal scripts should now automatically use this nonce if set in headers */}
         {nonce && <meta property="csp-nonce" content={nonce} />}
+        <script
+          {...(nonce ? { nonce } : {})}
+          dangerouslySetInnerHTML={{ __html: `(function(){try{const t=${JSON.stringify(initialTheme)};const r=document.documentElement;function apply(theme){if(theme==='dark')r.classList.add('dark');else if(theme==='light')r.classList.remove('dark');else{const p=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;if(p)r.classList.add('dark');else r.classList.remove('dark');}};apply(t);}catch(e){}})();` }}
+        />
       </head>
       <body className={`${inter.className} antialiased`}>
         <FirebaseClientProvider>

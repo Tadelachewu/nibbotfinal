@@ -4,6 +4,7 @@
 import Link from 'next/link';
 import { MessageSquare, LogOut } from 'lucide-react';
 import { Logo } from '@/components/Logo';
+import ThemeToggle from '@/components/ui/ThemeToggle';
 import { useAdminAuth } from './AdminAuthContext';
 import { AdminChangePassword } from './AdminChangePassword';
 
@@ -18,6 +19,7 @@ export function AdminHeader() {
         <h1 className="text-lg font-extrabold text-[#763717] sm:hidden">Nib Admin</h1>
       </div>
       <nav className="flex items-center gap-4">
+        <ThemeToggle />
         <span className="text-xs text-muted-foreground hidden md:inline-block">
           Signed in as <strong className="text-foreground">{currentUsername}</strong>
         </span>
