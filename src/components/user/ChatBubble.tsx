@@ -27,11 +27,11 @@ export function ChatBubble({ children, isBot = true }: ChatBubbleProps) {
           <AvatarFallback className="bg-primary text-white text-[10px]">TT</AvatarFallback>
         </Avatar>
       )}
-      
+
       <div className={cn(
         "max-w-[85%] rounded-2xl p-4 shadow-sm transition-all hover:shadow-md",
-        isBot 
-          ? "bg-white text-foreground rounded-tl-none border border-border" 
+        isBot
+          ? "bg-card text-foreground rounded-tl-none border border-border"
           : "bg-accent text-white rounded-tr-none"
       )}>
         <div className="wysiwyg-content break-words whitespace-pre-wrap [word-break:break-word] [overflow-wrap:anywhere]">

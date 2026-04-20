@@ -323,13 +323,13 @@ export function ReportsManagement() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search submissions..."
-                  className="pl-10 bg-white"
+                  className="pl-10 bg-card"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[140px] h-10 bg-white">
+                <SelectTrigger className="w-[140px] h-10 bg-card">
                   <Filter size={14} className="mr-2" />
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
@@ -341,7 +341,7 @@ export function ReportsManagement() {
                 </SelectContent>
               </Select>
               <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                <SelectTrigger className="w-[140px] h-10 bg-white">
+                <SelectTrigger className="w-[140px] h-10 bg-card">
                   <ShieldAlert size={14} className="mr-2" />
                   <SelectValue placeholder="Priority" />
                 </SelectTrigger>
@@ -359,7 +359,7 @@ export function ReportsManagement() {
         <CardContent className="p-0">
           <ScrollArea className="h-[550px]">
             <Table>
-              <TableHeader className="bg-white/95 backdrop-blur-sm sticky top-0 z-20 border-b">
+              <TableHeader className="bg-card/95 backdrop-blur-sm sticky top-0 z-20 border-b">
                 <TableRow>
                   <TableHead className="w-[100px] font-bold uppercase text-[10px]">Priority</TableHead>
                   <TableHead className="w-[100px] font-bold uppercase text-[10px]">Status</TableHead>
@@ -540,7 +540,7 @@ export function ReportsManagement() {
                           value={editingSupportAssignmentReason}
                           onChange={(e) => setEditingSupportAssignmentReason(e.target.value)}
                           placeholder="Reason for assignment..."
-                          className="h-7 w-full sm:w-56 text-[11px] bg-white"
+                          className="h-7 w-full sm:w-56 text-[11px] bg-card"
                         />
                       </div>
                     </>
@@ -599,7 +599,7 @@ export function ReportsManagement() {
                           value={editingResponse}
                           onChange={(e) => setEditingResponse(e.target.value)}
                           placeholder="Type your official message to the user here... (e.g., 'We have received your report and blocked your card.')"
-                          className="min-h-[150px] text-sm bg-white shadow-inner"
+                          className="min-h-[150px] text-sm bg-card shadow-inner"
                         />
                       </div>
                     </TabsContent>
@@ -607,7 +607,7 @@ export function ReportsManagement() {
                     <TabsContent value="data" className="pt-6">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {Object.entries(selectedReport.data || {}).map(([key, value]) => (
-                          <div key={key} className="p-4 border rounded-xl bg-slate-50/50 hover:bg-white transition-all shadow-sm group">
+                          <div key={key} className="p-4 border rounded-xl bg-slate-50/50 hover:bg-card transition-all shadow-sm group">
                             <div className="flex items-center justify-between mb-1">
                               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-tight">{prettifyKey(key)}</span>
                             </div>
@@ -630,7 +630,7 @@ export function ReportsManagement() {
                           value={editingNotes}
                           onChange={(e) => setEditingNotes(e.target.value)}
                           placeholder="Add internal investigation notes, next steps, or agent observations..."
-                          className="min-h-[150px] text-sm border-amber-200 focus-visible:ring-amber-500 bg-white"
+                          className="min-h-[150px] text-sm border-amber-200 focus-visible:ring-amber-500 bg-card"
                         />
                       </div>
                     </TabsContent>

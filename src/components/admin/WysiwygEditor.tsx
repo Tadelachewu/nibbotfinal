@@ -866,7 +866,7 @@ export function WysiwygEditor({ value, onChange, title, readOnly }: WysiwygEdito
     editable: !readOnly,
     editorProps: {
       attributes: {
-        class: 'wysiwyg-content focus:outline-none min-h-[150px] max-h-[400px] overflow-y-auto p-4 bg-white text-black',
+        class: 'wysiwyg-content focus:outline-none min-h-[150px] max-h-[400px] overflow-y-auto p-4 bg-card text-foreground',
       },
     },
   });
@@ -884,7 +884,7 @@ export function WysiwygEditor({ value, onChange, title, readOnly }: WysiwygEdito
   }, [value, editor]);
 
   return (
-    <div className="border rounded-xl overflow-hidden bg-white shadow-sm ring-1 ring-border mt-1 transition-all focus-within:ring-primary/50 focus-within:border-primary">
+    <div className="border rounded-xl overflow-hidden bg-card shadow-sm ring-1 ring-border mt-1 transition-all focus-within:ring-primary/50 focus-within:border-primary">
       {!readOnly && <MenuBar editor={editor} />}
       <EditorContent editor={editor} />
       <div className="flex items-center justify-between px-3 py-1.5 bg-muted/5 border-t text-[10px] text-muted-foreground">

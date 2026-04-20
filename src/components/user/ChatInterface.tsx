@@ -1045,14 +1045,14 @@ export function ChatInterface() {
   const connectivity = useConnectivity();
 
   return (
-    <div className="flex flex-col h-full bg-white max-w-2xl mx-auto border-x shadow-2xl relative">
+    <div className="flex flex-col h-full bg-card max-w-2xl mx-auto border-x shadow-2xl relative">
       {(currentMenuId || menuHistory.length > 0) && (
         <div className="absolute top-20 right-4 z-40 flex flex-col gap-2">
           <Button
             onClick={handleHome}
             size="sm"
             variant="secondary"
-            className="rounded-full shadow-lg border bg-white/80 backdrop-blur-sm h-10 w-10 p-0 text-primary hover:bg-primary/10"
+            className="rounded-full shadow-lg border bg-card/80 backdrop-blur-sm h-10 w-10 p-0 text-primary hover:bg-primary/10"
           >
             <HomeIcon size={18} />
           </Button>
@@ -1061,13 +1061,13 @@ export function ChatInterface() {
             onClick={handleBack}
             size="sm"
             variant="secondary"
-            className="rounded-full shadow-lg border bg-white/80 backdrop-blur-sm h-10 w-10 p-0 text-[#763717] hover:bg-primary/10 disabled:opacity-30"
+            className="rounded-full shadow-lg border bg-card/80 backdrop-blur-sm h-10 w-10 p-0 text-[#763717] hover:bg-primary/10 disabled:opacity-30"
           >
             <ChevronLeft size={22} />
           </Button>
         </div>
       )}
-      <header className="bg-white border-b p-4 flex items-center justify-between sticky top-0 z-50 shadow-sm">
+      <header className="bg-card border-b p-4 flex items-center justify-between sticky top-0 z-50 shadow-sm">
         <div className="flex items-center gap-3">
           <Logo className="w-10 h-10" />
           <div>
@@ -1150,7 +1150,7 @@ export function ChatInterface() {
             <ChatBubble key={msg.id} isBot={msg.sender === 'bot'}>
               {msg.id === 'welcome' && (
                 <div className="flex flex-col items-center justify-center pt-4 pb-6 space-y-4">
-                  <div className="w-28 h-28 rounded-full border-4 border-[#f4a61b] shadow-xl flex items-center justify-center bg-white p-1 overflow-hidden">
+                  <div className="w-28 h-28 rounded-full border-4 border-[#f4a61b] shadow-xl flex items-center justify-center bg-card p-1 overflow-hidden">
                     <Logo className="w-full h-full scale-110" />
                   </div>
                   <h2 className="text-xl font-extrabold text-center text-[#763717] px-2">
@@ -1179,7 +1179,7 @@ export function ChatInterface() {
                     <div className="text-sm font-semibold">{msg.reportStatus.menuName}</div>
                   </div>
                   {msg.reportStatus.adminResponse && (
-                    <div className="mt-2 p-3 bg-white rounded-lg border border-primary/20">
+                    <div className="mt-2 p-3 bg-card rounded-lg border border-primary/20">
                       <div className="text-[10px] uppercase font-bold text-primary flex items-center gap-1">
                         <CornerDownRight size={10} /> {t('ui_admin_feedback', 'Admin Feedback')}
                       </div>
@@ -1189,7 +1189,7 @@ export function ChatInterface() {
                 </div>
               )}
               {msg.tableData && (
-                <div className="mt-4 border rounded-xl overflow-hidden bg-white shadow-md">
+                <div className="mt-4 border rounded-xl overflow-hidden bg-card shadow-md">
                   <ScrollArea className="w-full">
                     <Table>
                       <TableHeader className="bg-muted/30">
@@ -1228,7 +1228,7 @@ export function ChatInterface() {
           ))}
           {isLoading && (
             <div className="flex justify-start">
-              <div className="bg-white border rounded-2xl p-4 shadow-sm flex items-center gap-2 animate-in fade-in">
+              <div className="bg-card border rounded-2xl p-4 shadow-sm flex items-center gap-2 animate-in fade-in">
                 <Loader2 size={16} className="animate-spin text-primary" />
                 <span className="text-sm italic font-medium">{loadingText}</span>
               </div>
@@ -1237,7 +1237,7 @@ export function ChatInterface() {
           <div ref={messagesEndRef} className="h-4" />
         </div>
       </ScrollArea>
-      {(kycFlow || statusFlow) && <div className="p-4 bg-white border-t flex flex-col gap-2 sticky bottom-0 z-50 animate-in slide-in-from-bottom-2 duration-300">
+      {(kycFlow || statusFlow) && <div className="p-4 bg-card border-t flex flex-col gap-2 sticky bottom-0 z-50 animate-in slide-in-from-bottom-2 duration-300">
         <form onSubmit={handleUserInput} className="flex gap-2">
           <Input
             autoFocus
@@ -1260,7 +1260,7 @@ export function ChatInterface() {
           )}
         </form>
       </div>}
-      <footer className="bg-white border-t p-4 flex justify-between gap-4 sticky bottom-0 z-40 shadow-[0_-1px_3px_rgba(0,0,0,0.05)]">
+      <footer className="bg-card border-t p-4 flex justify-between gap-4 sticky bottom-0 z-40 shadow-[0_-1px_3px_rgba(0,0,0,0.05)]">
         <Button
           variant="ghost"
           size="sm"

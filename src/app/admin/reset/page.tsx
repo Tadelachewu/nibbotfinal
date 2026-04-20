@@ -47,7 +47,7 @@ export default function ResetPage() {
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-muted/40 p-4">
-            <Card className="w-full max-w-md relative z-10 border-border bg-white/80 backdrop-blur-sm shadow-2xl shadow-black/10">
+            <Card className="w-full max-w-md relative z-10 border-border bg-card/80 backdrop-blur-sm shadow-2xl shadow-black/10">
                 <CardHeader className="text-center space-y-2">
                     <CardTitle className="text-2xl font-bold">Reset Password</CardTitle>
                     <CardDescription className="text-muted-foreground">Enter a new password for your account.</CardDescription>

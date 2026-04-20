@@ -797,7 +797,7 @@ export function MenuManagement() {
     <div className="w-full">
       {isEditDialogOpen ? (
         <div className="min-h-[100dvh] bg-background">
-          <div className="sticky top-16 z-40 bg-white border-b shadow-sm">
+          <div className="sticky top-16 z-40 bg-card border-b shadow-sm">
             <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
               <Button variant="ghost" onClick={closeEditor} className="shrink-0">
                 <ChevronRight size={16} className="mr-2 rotate-180" />
@@ -823,7 +823,7 @@ export function MenuManagement() {
                       <ShieldAlert className="text-destructive shrink-0 mt-0.5" size={20} />
                       <div className="space-y-1">
                         <div className="text-sm font-bold text-destructive">This configuration was rejected by a checker.</div>
-                        <div className="text-xs text-destructive/90 bg-white/50 p-3 rounded-lg border border-destructive/10 leading-relaxed">
+                        <div className="text-xs text-destructive/90 bg-card/50 p-3 rounded-lg border border-destructive/10 leading-relaxed">
                           <strong>Reason:</strong> {reason}
                         </div>
                         <div className="text-[10px] text-muted-foreground pt-1 italic font-medium">
@@ -883,10 +883,10 @@ export function MenuManagement() {
 
               <div className="space-y-4">
                 <Label className="text-sm font-bold flex items-center gap-2"><Languages size={16} className="text-primary" /> Localization & Label</Label>
-                <Tabs value={activeLangTab} onValueChange={setActiveLangTab} className="w-full border rounded-xl overflow-hidden bg-white shadow-sm">
+                <Tabs value={activeLangTab} onValueChange={setActiveLangTab} className="w-full border rounded-xl overflow-hidden bg-card shadow-sm">
                   <TabsList className="w-full justify-start rounded-none border-b h-12 bg-muted/20 px-4 gap-2">
                     {settings.supportedLanguages.map(lang => (
-                      <TabsTrigger key={lang.code} value={lang.code} className="data-[state=active]:bg-white rounded-none border-b-2 border-transparent data-[state=active]:border-primary px-4 text-xs">
+                      <TabsTrigger key={lang.code} value={lang.code} className="data-[state=active]:bg-card rounded-none border-b-2 border-transparent data-[state=active]:border-primary px-4 text-xs">
                         {lang.name}
                       </TabsTrigger>
                     ))}
@@ -1201,7 +1201,7 @@ export function MenuManagement() {
                                   }} />
                                 </div>
                               </div>
-                              <Button variant="ghost" size="icon" className="absolute -right-2 -top-2 h-7 w-7 rounded-full bg-white border text-destructive opacity-0 group-hover:opacity-100" onClick={() => { const fields = editForm.apiConfig!.kycFields.filter((_, i) => i !== idx); deepUpdate(['apiConfig', 'kycFields'], fields); }}><Trash2 size={12} /></Button>
+                              <Button variant="ghost" size="icon" className="absolute -right-2 -top-2 h-7 w-7 rounded-full bg-card border text-destructive opacity-0 group-hover:opacity-100" onClick={() => { const fields = editForm.apiConfig!.kycFields.filter((_, i) => i !== idx); deepUpdate(['apiConfig', 'kycFields'], fields); }}><Trash2 size={12} /></Button>
                             </div>
                           );
                         })}
@@ -1238,8 +1238,8 @@ export function MenuManagement() {
                     <CardContent className="p-0">
                       <Tabs value={editForm.apiConfig?.responseMapping?.type || 'message'} onValueChange={v => deepUpdate(['apiConfig', 'responseMapping', 'type'], v)}>
                         <TabsList className="grid w-full grid-cols-2 rounded-none border-b bg-muted/50 h-10">
-                          <TabsTrigger value="message" className="data-[state=active]:bg-white rounded-none border-r"><Type size={14} className="mr-2" /> Message Template</TabsTrigger>
-                          <TabsTrigger value="table" disabled={editForm.responseType === 'report'} className="data-[state=active]:bg-white rounded-none"><TableIcon size={14} className="mr-2" /> Result Table</TabsTrigger>
+                          <TabsTrigger value="message" className="data-[state=active]:bg-card rounded-none border-r"><Type size={14} className="mr-2" /> Message Template</TabsTrigger>
+                          <TabsTrigger value="table" disabled={editForm.responseType === 'report'} className="data-[state=active]:bg-card rounded-none"><TableIcon size={14} className="mr-2" /> Result Table</TabsTrigger>
                         </TabsList>
 
                         <TabsContent value="message" className="p-4 space-y-4 mt-0">
@@ -1379,7 +1379,7 @@ export function MenuManagement() {
                                     value={editForm.apiConfig?.responseMapping?.tableMappingMode || 'array_path'}
                                     onValueChange={v => deepUpdate(['apiConfig', 'responseMapping', 'tableMappingMode'], v)}
                                   >
-                                    <SelectTrigger className="h-8 text-xs bg-white"><SelectValue /></SelectTrigger>
+                                    <SelectTrigger className="h-8 text-xs bg-card"><SelectValue /></SelectTrigger>
                                     <SelectContent>
                                       <SelectItem value="array_path">Array Path (Legacy Engine)</SelectItem>
                                       <SelectItem value="exact_path">Exact Path (Unified Engine)</SelectItem>
@@ -1427,7 +1427,7 @@ export function MenuManagement() {
                                     const headerVal = isDefault ? (col.header || '') : (lang.code === 'am' ? (col.headerAm || '') : (editForm.translations?.[lang.code]?.tableHeaders?.[col.key] || ''));
 
                                     return (
-                                      <div key={idx} className="flex gap-3 p-3 border rounded-md bg-white group relative shadow-sm items-end">
+                                      <div key={idx} className="flex gap-3 p-3 border rounded-md bg-card group relative shadow-sm items-end">
                                         <div className="flex-1 space-y-1">
                                           <Label className="text-[9px] uppercase font-bold text-muted-foreground">Header ({lang.name})</Label>
                                           <Input className="h-8 text-xs" value={headerVal} onChange={e => {
@@ -1476,7 +1476,7 @@ export function MenuManagement() {
 
               <div className="pt-8">
                 <Label className="text-sm font-bold flex items-center gap-2 mb-4"><ListTree size={16} /> Attach Related Menus</Label>
-                <div className="bg-white rounded-xl border p-4 shadow-sm">
+                <div className="bg-card rounded-xl border p-4 shadow-sm">
                   <div className="relative mb-4">
                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input placeholder="Search menus..." value={searchQuery || ''} onChange={e => setSearchQuery(e.target.value)} className="pl-8 h-9 text-sm" />
@@ -1487,7 +1487,7 @@ export function MenuManagement() {
             </div>
           </div>
 
-          <div className="sticky bottom-0 z-40 bg-white border-t">
+          <div className="sticky bottom-0 z-40 bg-card border-t">
             <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
               <Button variant="ghost" onClick={closeEditor}>Back</Button>
               <Button onClick={handleSaveEdit} disabled={isSaving}>
@@ -1979,10 +1979,10 @@ export function CheckerMenuReview() {
 
         <div className="space-y-4">
           <Label className="text-sm font-bold flex items-center gap-2"><Languages size={16} className="text-primary" /> Localization & Label</Label>
-          <Tabs value={activeLangTab} onValueChange={setActiveLangTab} className="w-full border rounded-xl overflow-hidden bg-white shadow-sm">
+          <Tabs value={activeLangTab} onValueChange={setActiveLangTab} className="w-full border rounded-xl overflow-hidden bg-card shadow-sm">
             <TabsList className="w-full justify-start rounded-none border-b h-12 bg-muted/20 px-4 gap-2">
               {langs.map(lang => (
-                <TabsTrigger key={lang.code} value={lang.code} className="data-[state=active]:bg-white rounded-none border-b-2 border-transparent data-[state=active]:border-primary px-4 text-xs">
+                <TabsTrigger key={lang.code} value={lang.code} className="data-[state=active]:bg-card rounded-none border-b-2 border-transparent data-[state=active]:border-primary px-4 text-xs">
                   {lang.name}
                 </TabsTrigger>
               ))}
@@ -2226,8 +2226,8 @@ export function CheckerMenuReview() {
                   <Label className="text-xs font-bold uppercase">Response Mapping</Label>
                   <Tabs defaultValue={menu.apiConfig?.responseMapping?.type || 'message'}>
                     <TabsList className="grid w-full grid-cols-2 rounded-none border bg-muted/50 h-10">
-                      <TabsTrigger value="message" className="data-[state=active]:bg-white rounded-none border-r"><Type size={14} className="mr-2" /> Message Template</TabsTrigger>
-                      <TabsTrigger value="table" disabled={menu.responseType === 'report'} className="data-[state=active]:bg-white rounded-none"><TableIcon size={14} className="mr-2" /> Result Table</TabsTrigger>
+                      <TabsTrigger value="message" className="data-[state=active]:bg-card rounded-none border-r"><Type size={14} className="mr-2" /> Message Template</TabsTrigger>
+                      <TabsTrigger value="table" disabled={menu.responseType === 'report'} className="data-[state=active]:bg-card rounded-none"><TableIcon size={14} className="mr-2" /> Result Table</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="message" className="p-4 space-y-4 mt-0 border border-t-0">
@@ -2266,7 +2266,7 @@ export function CheckerMenuReview() {
                       <div className="space-y-3 p-4 border rounded-xl bg-muted/5">
                         <Label className="text-[10px] uppercase font-bold text-muted-foreground border-b pb-2 flex items-center gap-2">Table Mapping Mode</Label>
                         <Select value={menu.apiConfig?.responseMapping?.tableMappingMode || 'array_path'} onValueChange={() => { }}>
-                          <SelectTrigger disabled className="h-8 text-xs bg-white"><SelectValue /></SelectTrigger>
+                          <SelectTrigger disabled className="h-8 text-xs bg-card"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="array_path">Array Path (Legacy Engine)</SelectItem>
                             <SelectItem value="exact_path">Exact Path (Unified Engine)</SelectItem>
@@ -2297,7 +2297,7 @@ export function CheckerMenuReview() {
                                   : (menu.translations?.[lang.code]?.tableHeaders?.[col.key] || ''));
 
                               return (
-                                <div key={idx} className="flex gap-3 p-3 border rounded-md bg-white shadow-sm items-end">
+                                <div key={idx} className="flex gap-3 p-3 border rounded-md bg-card shadow-sm items-end">
                                   <div className="flex-1 space-y-1">
                                     <Label className="text-[9px] uppercase font-bold text-muted-foreground">Header ({lang.name})</Label>
                                     <Input className="h-8 text-xs" value={headerVal} disabled />
@@ -2322,7 +2322,7 @@ export function CheckerMenuReview() {
 
         <div className="space-y-3">
           <Label className="text-sm font-bold flex items-center gap-2"><ListTree size={16} /> Attach Related Menus</Label>
-          <div className="bg-white rounded-xl border p-4 shadow-sm">
+          <div className="bg-card rounded-xl border p-4 shadow-sm">
             <div className="relative mb-4">
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Search menus..." value="" disabled className="pl-8 h-9 text-sm" />
@@ -2373,7 +2373,7 @@ export function CheckerMenuReview() {
                   .slice()
                   .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
                   .map(m => (
-                    <div key={m.id} className="flex items-center justify-between p-3 rounded-lg border bg-white">
+                    <div key={m.id} className="flex items-center justify-between p-3 rounded-lg border bg-card">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="font-medium truncate">{((m.pendingStatus === 'pending' || m.pendingStatus === 'rejected') && m.pendingUpdate?.name) ? m.pendingUpdate.name : m.name}</span>
@@ -2434,7 +2434,7 @@ export function CheckerMenuReview() {
 
       <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
         <DialogContent className="sm:max-w-5xl h-[95vh] flex flex-col p-0 overflow-hidden">
-          <DialogHeader className="p-6 border-b bg-white">
+          <DialogHeader className="p-6 border-b bg-card">
             <DialogTitle className="flex items-center gap-2"><Eye size={18} /> Menu Details</DialogTitle>
           </DialogHeader>
           <ScrollArea className="flex-1">
@@ -2453,11 +2453,11 @@ export function CheckerMenuReview() {
                 return (
                   <>
                     <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="p-3 rounded-lg border bg-white">
+                      <div className="p-3 rounded-lg border bg-card">
                         <div className="text-[10px] uppercase font-bold text-muted-foreground">Type</div>
                         <div className="text-sm font-medium">{hasPendingUpdate ? 'Edit Request' : 'Menu'}</div>
                       </div>
-                      <div className="p-3 rounded-lg border bg-white">
+                      <div className="p-3 rounded-lg border bg-card">
                         <div className="text-[10px] uppercase font-bold text-muted-foreground">Status</div>
                         <div className="text-sm font-medium">
                           {hasPendingUpdate
@@ -2465,18 +2465,18 @@ export function CheckerMenuReview() {
                             : ((selected.approvalStatus || 'approved') === 'pending' ? 'Pending Approval' : (selected.approvalStatus || 'approved') === 'rejected' ? 'Rejected' : 'Approved')}
                         </div>
                       </div>
-                      <div className="p-3 rounded-lg border bg-white">
+                      <div className="p-3 rounded-lg border bg-card">
                         <div className="text-[10px] uppercase font-bold text-muted-foreground">{hasPendingUpdate ? 'Edited By' : 'Created By'}</div>
                         <div className="text-sm font-medium">{hasPendingUpdate ? pendingMaker : newMenuMaker}</div>
                       </div>
-                      <div className="p-3 rounded-lg border bg-white">
+                      <div className="p-3 rounded-lg border bg-card">
                         <div className="text-[10px] uppercase font-bold text-muted-foreground">Reviewed By</div>
                         <div className="text-sm font-medium">{hasPendingUpdate ? pendingReviewer : newMenuReviewer}</div>
                       </div>
                     </div>
 
                     {(hasPendingUpdate ? pendingReason : newMenuReason) ? (
-                      <div className="p-3 rounded-lg border bg-white">
+                      <div className="p-3 rounded-lg border bg-card">
                         <div className="text-[10px] uppercase font-bold text-muted-foreground">Rejection Reason</div>
                         <div className="text-sm">{hasPendingUpdate ? pendingReason : newMenuReason}</div>
                       </div>
@@ -2505,7 +2505,7 @@ export function CheckerMenuReview() {
               )}
             </div>
           </ScrollArea>
-          <DialogFooter className="p-4 border-t bg-white sticky bottom-0 z-50">
+          <DialogFooter className="p-4 border-t bg-card sticky bottom-0 z-50">
             <Button onClick={() => setIsDetailsOpen(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>

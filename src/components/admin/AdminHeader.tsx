@@ -11,7 +11,7 @@ export function AdminHeader() {
   const { logout, currentUsername } = useAdminAuth();
 
   return (
-    <header className="border-b bg-white px-6 py-4 flex items-center justify-between sticky top-0 z-50 h-16">
+    <header className="border-b bg-card px-6 py-4 flex items-center justify-between sticky top-0 z-50 h-16">
       <div className="flex items-center gap-3">
         <Logo className="w-8 h-8" />
         <h1 className="text-lg font-extrabold text-[#763717] hidden sm:block">Nib International Bank Admin</h1>
@@ -21,7 +21,7 @@ export function AdminHeader() {
         <span className="text-xs text-muted-foreground hidden md:inline-block">
           Signed in as <strong className="text-foreground">{currentUsername}</strong>
         </span>
-        <Link 
+        <Link
           href="/?adminPreview=1"
           className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
         >
