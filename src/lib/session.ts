@@ -97,22 +97,40 @@ export function isSameOriginRequest(req: Request): boolean {
 
   if (origin) {
     const ok = allowedOrigins.has(origin);
-    if (!ok) {
+    if (ok) return true;
+
+    // Sometimes proxies or CDNs strip/replace the Origin header while preserving Host/X-Forwarded-Host.
+    // Accept the request if the Host or X-Forwarded-Host (assembled as an origin) matches our allowed origins.
+    const hostOrigin = host ? `${fallbackProto}://${host}` : undefined;
+    const fwdOrigin = forwardedHost ? `${fallbackProto}://${forwardedHost}` : undefined;
+    if ((hostOrigin && allowedOrigins.has(hostOrigin)) || (fwdOrigin && allowedOrigins.has(fwdOrigin))) {
       try {
-        console.warn('[Auth] Same-origin check failed', {
+        console.warn('[Auth] Origin header mismatch but host/forwarded-host matches allowed origins', {
           origin,
+          hostOrigin,
+          fwdOrigin,
           requestOrigin,
           referer,
-          forwardedHost,
-          forwardedProto,
-          host,
           allowedOrigins: Array.from(allowedOrigins),
         });
-      } catch (e) {
-        // ignore logging errors
-      }
+      } catch {}
+      return true;
     }
-    return ok;
+
+    try {
+      console.warn('[Auth] Same-origin check failed', {
+        origin,
+        requestOrigin,
+        referer,
+        forwardedHost,
+        forwardedProto,
+        host,
+        allowedOrigins: Array.from(allowedOrigins),
+      });
+    } catch (e) {
+      // ignore logging errors
+    }
+    return false;
   }
 
   if (referer) {
