@@ -112,7 +112,7 @@ function MessageOptionsList({
         <Button
           key={opt.id}
           variant="outline"
-          className="rounded-[1.25rem] bg-white hover:bg-primary/5 border-primary/30 text-primary/90 h-auto py-3 px-4 flex items-center justify-start text-left w-fit max-w-full shadow-sm"
+          className="rounded-[1.25rem] bg-white hover:bg-primary/5 border-primary/30 text-primary/90 hover:text-primary h-auto py-3 px-4 flex items-center justify-start text-left w-fit max-w-full shadow-sm"
           onClick={() => navigateTo(opt)}
         >
           <span className="whitespace-normal break-words font-medium text-[13px] leading-snug">{getLocalizedName(opt)}</span>
@@ -161,7 +161,7 @@ function MessageOptionsList({
         <Button
           key={opt.id}
           variant="secondary"
-          className="rounded-[1.25rem] shadow-sm flex items-center justify-start text-left w-fit max-w-full h-auto py-3 px-4 gap-2 bg-primary/5 hover:bg-primary/10 text-primary/90"
+          className="rounded-[1.25rem] shadow-sm flex items-center justify-start text-left w-fit max-w-full h-auto py-3 px-4 gap-2 bg-primary/5 hover:bg-primary/10 text-primary/90 hover:text-primary"
           onClick={() => navigateTo(opt)}
         >
           <ClipboardCheck size={16} className="shrink-0 opacity-70" />
