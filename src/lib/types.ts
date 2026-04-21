@@ -145,6 +145,7 @@ export interface MenuItem {
     errorFallback?: string;
     tableHeaders?: Record<string, string>; // Map of column key -> translated header
   }>;
+  attachmentDescription?: string;
 }
 
 export type ReportPriority = 'low' | 'medium' | 'high' | 'urgent';

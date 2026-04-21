@@ -272,6 +272,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
           isActive: typeof pendingUpdate.isActive === 'boolean' ? pendingUpdate.isActive : undefined,
           trackClicks: typeof pendingUpdate.trackClicks === 'boolean' ? pendingUpdate.trackClicks : undefined,
           translations: Object.prototype.hasOwnProperty.call(pendingUpdate, 'translations') ? (pendingUpdate.translations ?? null) : undefined,
+          attachmentDescription: Object.prototype.hasOwnProperty.call(pendingUpdate, 'attachmentDescription') ? (pendingUpdate.attachmentDescription ?? null) : undefined,
           pendingUpdate: Prisma.DbNull,
           pendingStatus: null,
           pendingCreatedBy: null,
@@ -439,7 +440,8 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
       isActive: typeof body.isActive === 'boolean' ? body.isActive : undefined,
       trackClicks: typeof body.trackClicks === 'boolean' ? body.trackClicks : undefined,
       translations: Object.prototype.hasOwnProperty.call(body, 'translations') ? (body.translations ?? null) : undefined,
-      attachedMenuIds: Object.prototype.hasOwnProperty.call(body, 'attachedMenuIds') ? attachedMenuIds : undefined
+      attachedMenuIds: Object.prototype.hasOwnProperty.call(body, 'attachedMenuIds') ? attachedMenuIds : undefined,
+      attachmentDescription: Object.prototype.hasOwnProperty.call(body, 'attachmentDescription') ? (typeof body.attachmentDescription === 'string' ? body.attachmentDescription : null) : undefined
     };
 
     await prisma.menuItem.update({
@@ -477,6 +479,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
         clickCount: Number.isFinite(body.clickCount) ? body.clickCount : undefined,
         sessionClickCount: Number.isFinite(body.sessionClickCount) ? body.sessionClickCount : undefined,
         translations: body.translations ?? null,
+        attachmentDescription: Object.prototype.hasOwnProperty.call(body, 'attachmentDescription') ? (typeof body.attachmentDescription === 'string' ? body.attachmentDescription : null) : undefined,
         approvalStatus: 'pending',
         rejectionReason: null
       }

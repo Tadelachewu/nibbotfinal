@@ -83,6 +83,7 @@ model MenuItem {
   clickCount        Int            @default(0)
   sessionClickCount Int            @default(0)
   translations      Json?
+  attachmentDescription String? @map("attachment_description")
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 

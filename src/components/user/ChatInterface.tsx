@@ -55,6 +55,7 @@ interface Message {
   content?: string;
   options?: MenuItem[];
   relatedOptions?: MenuItem[];
+  relatedDescription?: string;
   isKYC?: boolean;
   tableData?: {
     columns: (TableColumn & { localizedHeader: string })[];
@@ -82,6 +83,7 @@ function makeAvatarDataUri(text: string, background: string) {
 function MessageOptionsList({
   options,
   relatedOptions,
+  relatedDescription,
   navigateTo,
   getLocalizedName,
   currentLang,
@@ -89,6 +91,7 @@ function MessageOptionsList({
 }: {
   options?: MenuItem[];
   relatedOptions?: MenuItem[];
+  relatedDescription?: string;
   navigateTo: (opt: MenuItem) => void;
   getLocalizedName: (opt: MenuItem) => string;
   currentLang: Language | null;
@@ -148,7 +151,7 @@ function MessageOptionsList({
         <div className="w-full flex items-center gap-2 py-2">
           <div className="h-px bg-muted flex-1" />
           <span className="text-[9px] font-bold uppercase text-muted-foreground">
-            {t('ui_related', 'Related')}
+            {relatedDescription || t('ui_related', 'Related')}
           </span>
           <div className="h-px bg-muted flex-1" />
         </div>
@@ -713,7 +716,8 @@ export function ChatInterface() {
         sender: 'bot',
         text: finalMsg || defaultSuccess,
         options: childMenus,
-        relatedOptions: relatedMenus.length > 0 ? relatedMenus : undefined
+        relatedOptions: relatedMenus.length > 0 ? relatedMenus : undefined,
+        relatedDescription: menu.attachmentDescription || undefined
       }]);
       logInteraction({
         sessionId: userData.id,
@@ -883,6 +887,7 @@ export function ChatInterface() {
     }
     botMsg.options = menus.filter(m => m.parentId === menu.id);
     botMsg.relatedOptions = relatedMenus.length > 0 ? relatedMenus : undefined;
+    botMsg.relatedDescription = menu.attachmentDescription || undefined;
     const endTime = Date.now();
     logInteraction({
       sessionId: userData.id,
@@ -966,6 +971,7 @@ export function ChatInterface() {
       content: replacePlaceholders(getLocalizedContent(effectiveMenu), { rootKey }) || (childMenus.length > 0 ? t('ui_select_option', 'Please select an option:') : ''),
       options: childMenus.length > 0 ? childMenus : undefined,
       relatedOptions: relatedItems.length > 0 ? relatedItems : undefined,
+      relatedDescription: effectiveMenu.attachmentDescription || undefined,
     }]);
 
     logInteraction({
@@ -1224,6 +1230,7 @@ export function ChatInterface() {
               <MessageOptionsList
                 options={msg.options}
                 relatedOptions={msg.relatedOptions}
+                relatedDescription={msg.relatedDescription}
                 navigateTo={navigateTo}
                 getLocalizedName={getLocalizedName}
                 currentLang={currentLang}

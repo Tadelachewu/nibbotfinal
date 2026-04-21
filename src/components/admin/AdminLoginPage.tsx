@@ -66,16 +66,14 @@ export function AdminLoginPage() {
       <Card className="w-full max-w-md relative z-10 border-border bg-card/80 backdrop-blur-sm shadow-2xl shadow-black/10">
         <CardHeader className="text-center space-y-4 pb-2">
           <div className="flex justify-center">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[hsl(45,93%,47%)] to-[hsl(35,80%,40%)] flex items-center justify-center shadow-lg shadow-[hsl(45,93%,47%)]/20">
-              <Logo className="w-10 h-10" />
-            </div>
+            <Logo className="w-16 h-16" />
           </div>
           <div>
             <CardTitle className="text-2xl font-bold text-foreground">
-              Admin Console
+              Nib International Bank
             </CardTitle>
             <CardDescription className="text-muted-foreground mt-1">
-              Nib International Bank · Secure Login
+              Secure Login
             </CardDescription>
           </div>
         </CardHeader>

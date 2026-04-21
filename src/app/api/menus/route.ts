@@ -142,6 +142,7 @@ function buildMenuResponse(menu: any, isAdmin: boolean = false) {
     clickCount: menu.clickCount ?? 0,
     sessionClickCount: menu.sessionClickCount ?? 0,
     translations: (menu.translations as any) ?? undefined,
+    attachmentDescription: typeof menu.attachmentDescription === 'string' ? menu.attachmentDescription : undefined,
     ...(isAdmin ? {
       createdBy: typeof menu.createdBy === 'string' ? menu.createdBy : undefined,
       reviewedBy: typeof menu.reviewedBy === 'string' ? menu.reviewedBy : undefined,
@@ -295,7 +296,8 @@ export async function POST(req: Request) {
       trackClicks: Boolean(body.trackClicks),
       clickCount: Number.isFinite(body.clickCount) ? body.clickCount : 0,
       sessionClickCount: Number.isFinite(body.sessionClickCount) ? body.sessionClickCount : 0,
-      translations: body.translations ?? null
+      translations: body.translations ?? null,
+      attachmentDescription: typeof body.attachmentDescription === 'string' ? body.attachmentDescription : null
     }
   });
 

@@ -82,9 +82,9 @@ export async function sendEmail(opts: MailOptions) {
 export async function sendRecoveryEmail(to: string, token: string, username: string) {
     const host = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || 'https://your-site.example';
     const resetLink = `${host.replace(/\/$/, '')}/admin/reset?token=${encodeURIComponent(token)}`;
-    const subject = 'Admin console password reset';
-    const text = `Hello ${username},\n\nWe received a request to reset your admin console password. Use the link below to reset your password. This link expires soon.\n\n${resetLink}\n\nIf you did not request this, ignore this message.`;
-    const html = `<p>Hello ${username},</p><p>We received a request to reset your admin console password. Click the link below to reset your password. This link expires soon.</p><p><a href="${resetLink}">${resetLink}</a></p><p>If you did not request this, ignore this message.</p>`;
+    const subject = 'Users Login password reset';
+    const text = `Hello ${username},\n\nWe received a request to reset your Users Login password. Use the link below to reset your password. This link expires soon.\n\n${resetLink}\n\nIf you did not request this, ignore this message and report suspicious activity.`;
+    const html = `<p>Hello ${username},</p><p>We received a request to reset your Users Login password. Click the link below to reset your password. This link expires soon.</p><p><a href="${resetLink}">${resetLink}</a></p><p>If you did not request this, ignore this message and report suspicious activity.</p>`;
 
     return sendEmail({ to, subject, text, html });
 }

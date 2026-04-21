@@ -114,6 +114,78 @@ If the token is invalid you'll receive a 401 and an error message.
 
 ---
 
+## 🔁 Exchange Rate API (Port 3003 - exchangerate.js)
+
+The Exchange Rate microservice runs independently on port `3003` and provides currency rates and conversion endpoints.
+
+### ⚙️ Setup & Run
+```bash
+cd banking-api
+npm install
+node exchangerate.js   # Exchange Rate API (Port 3003)
+```
+
+### 🔐 Authentication
+- **Header Name:** `x-api-key` (also accepts `api-key` as fallback)
+- **Key Value:** `my-secret-api-key`
+
+If the header is missing or invalid the API returns a 401/403 JSON error.
+
+### Endpoints
+
+- `GET http://localhost:3003/api/rates?base=USD`
+    - Returns all rates for `base` currency.
+    - Required query param: `base` (e.g. `USD`, `EUR`, `ETB`).
+
+- `GET http://localhost:3003/api/convert-all?base=USD&amount=10`
+    - Convert a given `amount` from `base` into all supported target currencies.
+    - Query params: `base` (required), `amount` (optional, defaults to 1).
+
+- `POST http://localhost:3003/api/convert`
+    - Body JSON: `{ "from": "USD", "to": "ETB", "amount": 10 }`
+    - Auth: `x-api-key` header required.
+
+### Quick tests (curl)
+
+Get rates for USD:
+```bash
+curl -s "http://localhost:3003/api/rates?base=USD" \
+    -H "x-api-key: my-secret-api-key"
+```
+
+Convert 10 USD to all supported currencies:
+```bash
+curl -s "http://localhost:3003/api/convert-all?base=USD&amount=10" \
+    -H "x-api-key: my-secret-api-key"
+```
+
+Convert single pair (POST):
+```bash
+curl -s -X POST http://localhost:3003/api/convert \
+    -H "x-api-key: my-secret-api-key" \
+    -H "Content-Type: application/json" \
+    -d '{"from":"USD","to":"ETB","amount":5}'
+```
+
+### Admin Console / Connectivity Configuration
+
+When configuring an Admin Console connectivity entry for exchange rates:
+
+- **Method:** `GET` (for `/api/rates` and `/api/convert-all`) or `POST` for `/api/convert`.
+- **Endpoint URL:** `http://localhost:3003/api/rates?base={{base}}` (use query param templating as supported by your admin UI).
+- **Auth Type:** `API Key` with header `x-api-key` and value `my-secret-api-key`.
+- **Response Root:** use `data` for rate responses and `data` for convert responses.
+
+Example mapping for `GET /api/rates`:
+- Map `base` -> KYC or static field.
+- Read `data.rates` as the rates object.
+
+Example mapping for `POST /api/convert`:
+- Request body mapping: `from` -> KYC/base, `to` -> KYC/target, `amount` -> KYC/amount.
+- Response root: `data.converted` (numeric) and `data.rate`.
+
+---
+
 ## 🛠️ 2. Local Test APIs (Internal)
 **Base URL:** `/api/test/...` (Use relative paths)
 **Auth:** Bearer (`nib_static_token_778899`)

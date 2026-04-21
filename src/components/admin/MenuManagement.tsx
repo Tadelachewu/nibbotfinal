@@ -1477,6 +1477,10 @@ export function MenuManagement() {
               <div className="pt-8">
                 <Label className="text-sm font-bold flex items-center gap-2 mb-4"><ListTree size={16} /> Attach Related Menus</Label>
                 <div className="bg-card rounded-xl border p-4 shadow-sm">
+                  <div className="mb-4">
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Attachments Description (displayed above related items)</Label>
+                    <Input value={editForm.attachmentDescription || ''} onChange={(e) => setEditForm({ ...editForm, attachmentDescription: e.target.value })} placeholder="e.g. Related" />
+                  </div>
                   <div className="relative mb-4">
                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input placeholder="Search menus..." value={searchQuery || ''} onChange={e => setSearchQuery(e.target.value)} className="pl-8 h-9 text-sm" />
@@ -1794,6 +1798,9 @@ export function CheckerMenuReview() {
     }
     if (Object.prototype.hasOwnProperty.call(update || {}, 'translations')) {
       merged.translations = update?.translations ?? undefined;
+    }
+    if (Object.prototype.hasOwnProperty.call(update || {}, 'attachmentDescription')) {
+      merged.attachmentDescription = update?.attachmentDescription ?? undefined;
     }
     return merged as MenuItem;
   }
