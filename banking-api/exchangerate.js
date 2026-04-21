@@ -17,10 +17,11 @@ app.use(cors());
    🔑 API KEY AUTH MIDDLEWARE
 ========================= */
 
-const API_KEY = "my-secret-key-123"; // change this in production
+const API_KEY = "my-secret-api-key"; // align with banking-api
 
 function authenticate(req, res, next) {
-    const clientKey = req.headers["api-key"];
+    // Use the same header as other banking-api endpoints
+    const clientKey = req.headers["x-api-key"] || req.headers["api-key"];
 
     if (!clientKey) {
         return res.status(401).json({
@@ -60,8 +61,16 @@ function isValidCurrency(code) {
 /* =========================
    🏦 1. GET ALL RATES
 ========================= */
-app.get("/api/rates/:base", authenticate, (req, res) => {
-    const base = req.params.base.toUpperCase();
+// GET /api/rates?base=USD
+app.get("/api/rates", authenticate, (req, res) => {
+    const base = (req.query.base || '').toUpperCase();
+
+    if (!base) {
+        return res.status(400).json({
+            status: "ERROR",
+            message: "Query param 'base' is required"
+        });
+    }
 
     if (!isValidCurrency(base)) {
         return res.status(404).json({
@@ -126,9 +135,17 @@ app.post("/api/convert", authenticate, (req, res) => {
 /* =========================
    🔁 3. CONVERT ALL
 ========================= */
-app.get("/api/convert-all/:base", authenticate, (req, res) => {
-    const base = req.params.base.toUpperCase();
+// GET /api/convert-all?base=USD&amount=10
+app.get("/api/convert-all", authenticate, (req, res) => {
+    const base = (req.query.base || '').toUpperCase();
     const amount = Number(req.query.amount || 1);
+
+    if (!base) {
+        return res.status(400).json({
+            status: "ERROR",
+            message: "Query param 'base' is required"
+        });
+    }
 
     if (!isValidCurrency(base)) {
         return res.status(404).json({
