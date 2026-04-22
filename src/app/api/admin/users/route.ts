@@ -34,6 +34,7 @@ export async function GET() {
       id: true,
       username: true,
       email: true,
+      groupName: true,
       role: true,
       createdAt: true,
     },
@@ -46,6 +47,7 @@ export async function GET() {
       id: u.id,
       username: u.username,
       email: u.email,
+      groupName: u.groupName ?? '',
       role: u.role,
       createdAt: u.createdAt.toISOString(),
     })),
@@ -69,6 +71,7 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const username = typeof body?.username === 'string' ? body.username.trim() : '';
   const email = normalizeEmail(body?.email);
+  const groupName = typeof body?.groupName === 'string' ? body.groupName.trim().slice(0, 80) : '';
   const role = body?.role === 'checker' || body?.role === 'admin' || body?.role === 'support' ? body.role : '';
   const password = typeof body?.password === 'string' ? body.password : '';
 
@@ -98,11 +101,13 @@ export async function POST(req: Request) {
         email,
         passwordHash,
         role,
+        groupName: groupName || null,
       },
       select: {
         id: true,
         username: true,
         email: true,
+        groupName: true,
         role: true,
         createdAt: true,
       },
@@ -115,6 +120,7 @@ export async function POST(req: Request) {
         id: created.id,
         username: created.username,
         email: created.email,
+        groupName: created.groupName ?? '',
         role: created.role,
         createdAt: created.createdAt.toISOString(),
       },
@@ -166,7 +172,7 @@ export async function PATCH(req: Request) {
     );
   }
 
-  const data: { username?: string; email?: string; role?: 'admin' | 'checker' | 'support'; passwordHash?: string } = {};
+  const data: { username?: string; email?: string; role?: 'admin' | 'checker' | 'support'; passwordHash?: string; groupName?: string | null } = {};
 
   if ('username' in (body || {})) {
     const nextUsername = typeof body?.username === 'string' ? body.username.trim() : '';
@@ -195,6 +201,11 @@ export async function PATCH(req: Request) {
     data.role = role;
   }
 
+  if ('groupName' in (body || {})) {
+    const nextGroup = typeof body?.groupName === 'string' ? body.groupName.trim().slice(0, 80) : '';
+    data.groupName = nextGroup ? nextGroup : null;
+  }
+
   const password = typeof body?.password === 'string' ? body.password : '';
   if (password) {
     if (!isStrongPassword(password)) {
@@ -214,7 +225,7 @@ export async function PATCH(req: Request) {
     const updated = await prisma.adminCredential.update({
       where: { id },
       data,
-      select: { id: true, username: true, email: true, role: true, createdAt: true },
+      select: { id: true, username: true, email: true, groupName: true, role: true, createdAt: true },
     });
 
     const nextToken = await rotateCsrfToken(session);
@@ -224,6 +235,7 @@ export async function PATCH(req: Request) {
         id: updated.id,
         username: updated.username,
         email: updated.email,
+        groupName: updated.groupName ?? '',
         role: updated.role,
         createdAt: updated.createdAt.toISOString(),
       },

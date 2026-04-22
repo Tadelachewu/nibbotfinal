@@ -1,8 +1,20 @@
 // Client-side CSP helpers: read server-provided nonce and inject nonce-protected <style> rules.
 export function getCspNonce(): string | null {
     if (typeof document === 'undefined') return null
+    // Prefer explicit meta tag if present
     const meta = document.querySelector('meta[property="csp-nonce"]') as HTMLMetaElement | null
-    return meta?.content ?? null
+    if (meta?.content) return meta.content
+
+    // Fallback: some pages (or client-side navigations) may not include the meta
+    // but scripts rendered server-side often carry the nonce attribute. Read
+    // the first script element with a nonce and return it.
+    const scriptWithNonce = document.querySelector('script[nonce]') as HTMLScriptElement | null
+    if (scriptWithNonce) {
+        const n = scriptWithNonce.getAttribute('nonce')
+        if (n) return n
+    }
+
+    return null
 }
 
 let styleCounter = 0

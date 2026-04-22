@@ -134,7 +134,22 @@ export async function POST(req: Request) {
       priority: body.priority ?? 'medium',
       adminResponse: null,
       internalNotes: null,
-      supportAssignee: menu?.supportAssignee ?? null
+      supportAssignee: menu?.supportAssignee ?? null,
+      activities: {
+        create: [
+          {
+            type: 'creation',
+            actor: body.userId ?? 'system',
+            content: `New ${body.menuName ?? 'report'} submitted`
+          },
+          ...(menu?.supportAssignee ? [{
+            type: 'assignment',
+            actor: 'system',
+            target: menu.supportAssignee,
+            content: 'Auto-assigned from menu configuration'
+          }] : [])
+        ]
+      }
     }
   });
 

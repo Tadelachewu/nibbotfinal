@@ -20,12 +20,13 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
 import { useAdminAuth, evaluatePasswordStrength, isStrongPassword } from './AdminAuthContext';
-import { Edit2, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { Edit2, Eye, EyeOff, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
 
 type AdminUser = {
   id: number;
   username: string;
   email: string;
+  groupName: string;
   role: 'admin' | 'checker' | 'support';
   createdAt: string;
 };
@@ -38,28 +39,33 @@ export function UsersManagement() {
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const [form, setForm] = useState<{ username: string; email: string; role: 'admin' | 'checker' | 'support'; password: string }>({
+  const [form, setForm] = useState<{ username: string; email: string; groupName: string; role: 'admin' | 'checker' | 'support'; password: string }>({
     username: '',
     email: '',
+    groupName: '',
     role: 'checker',
     password: '',
   });
+  const [showCreatePassword, setShowCreatePassword] = useState(false);
 
   const strength = useMemo(() => evaluatePasswordStrength(form.password), [form.password]);
 
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [editForm, setEditForm] = useState<{ id: number | null; username: string; email: string; role: 'admin' | 'checker' | 'support'; password: string }>({
+  const [editForm, setEditForm] = useState<{ id: number | null; username: string; email: string; groupName: string; role: 'admin' | 'checker' | 'support'; password: string }>({
     id: null,
     username: '',
     email: '',
+    groupName: '',
     role: 'checker',
     password: '',
   });
+  const [showEditPassword, setShowEditPassword] = useState(false);
   const editStrength = useMemo(() => evaluatePasswordStrength(editForm.password), [editForm.password]);
 
   const [userToDelete, setUserToDelete] = useState<AdminUser | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [query, setQuery] = useState('');
 
   const loadUsers = useCallback(async (mode: 'initial' | 'refresh') => {
     try {
@@ -100,6 +106,7 @@ export function UsersManagement() {
         body: JSON.stringify({
           username: form.username.trim(),
           email: form.email.trim(),
+          groupName: form.groupName.trim(),
           role: form.role,
           password: form.password,
         }),
@@ -112,7 +119,8 @@ export function UsersManagement() {
 
       toast({ title: 'Created', description: `User "${json.data?.username || form.username.trim()}" created.` });
       setIsCreateOpen(false);
-      setForm({ username: '', email: '', role: 'checker', password: '' });
+      setForm({ username: '', email: '', groupName: '', role: 'checker', password: '' });
+      setShowCreatePassword(false);
       await loadUsers('refresh');
     } catch (e: any) {
       toast({ title: 'Error', description: e?.message || 'Could not create user.', variant: 'destructive' });
@@ -133,9 +141,11 @@ export function UsersManagement() {
       id: u.id,
       username: u.username,
       email: u.email,
+      groupName: u.groupName || '',
       role: u.role,
       password: '',
     });
+    setShowEditPassword(false);
     setIsEditOpen(true);
   };
 
@@ -147,6 +157,7 @@ export function UsersManagement() {
         id: editForm.id,
         username: editForm.username.trim(),
         email: editForm.email.trim(),
+        groupName: editForm.groupName.trim(),
         role: editForm.role,
       };
       if (editForm.password) body.password = editForm.password;
@@ -162,7 +173,7 @@ export function UsersManagement() {
       }
       toast({ title: 'Updated', description: `User "${json.data?.username || editForm.username.trim()}" updated.` });
       setIsEditOpen(false);
-      setEditForm({ id: null, username: '', email: '', role: 'checker', password: '' });
+      setEditForm({ id: null, username: '', email: '', groupName: '', role: 'checker', password: '' });
       await loadUsers('refresh');
     } catch (e: any) {
       toast({ title: 'Error', description: e?.message || 'Could not update user.', variant: 'destructive' });
@@ -170,6 +181,15 @@ export function UsersManagement() {
       setIsUpdating(false);
     }
   };
+
+  const filteredUsers = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return users;
+    return users.filter(u => {
+      const haystack = `${u.username} ${u.email} ${u.groupName || ''}`.toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [users, query]);
 
   const confirmDelete = async () => {
     if (!userToDelete) return;
@@ -200,7 +220,7 @@ export function UsersManagement() {
         <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/10">
           <div className="space-y-1">
             <CardTitle>Admin Users</CardTitle>
-            <div className="text-[11px] text-muted-foreground">{users.length} users</div>
+            <div className="text-[11px] text-muted-foreground">{filteredUsers.length} users</div>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => loadUsers('refresh')} disabled={isLoading || isRefreshing}>
@@ -216,28 +236,42 @@ export function UsersManagement() {
             <div className="p-6 text-sm text-muted-foreground">Loading users...</div>
           ) : (
             <div className="p-6">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="relative flex-1">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={query}
+                    onChange={e => setQuery(e.target.value)}
+                    placeholder="Search by username, email, or group name..."
+                    className="pl-9"
+                    autoComplete="off"
+                  />
+                </div>
+              </div>
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Username</TableHead>
                     <TableHead>Email</TableHead>
+                    <TableHead>Group</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {users.length === 0 ? (
+                  {filteredUsers.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-sm text-muted-foreground">
-                        No users found.
+                      <TableCell colSpan={6} className="text-sm text-muted-foreground">
+                        {query.trim() ? 'No users match your search.' : 'No users found.'}
                       </TableCell>
                     </TableRow>
                   ) : (
-                    users.map(u => (
+                    filteredUsers.map(u => (
                       <TableRow key={u.id}>
                         <TableCell className="font-medium">{u.username}</TableCell>
                         <TableCell>{u.email}</TableCell>
+                        <TableCell className="max-w-[200px] truncate">{u.groupName || '-'}</TableCell>
                         <TableCell className="capitalize">{u.role}</TableCell>
                         <TableCell>{new Date(u.createdAt).toLocaleString()}</TableCell>
                         <TableCell className="text-right">
@@ -298,6 +332,15 @@ export function UsersManagement() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
+                <Label>Group Name</Label>
+                <Input
+                  value={form.groupName}
+                  onChange={e => setForm(prev => ({ ...prev, groupName: e.target.value }))}
+                  autoComplete="off"
+                  placeholder="e.g. Customer Support Team A"
+                />
+              </div>
+              <div className="space-y-2">
                 <Label>Role</Label>
                 <Select value={form.role} onValueChange={v => setForm(prev => ({ ...prev, role: v as any }))}>
                   <SelectTrigger>
@@ -310,15 +353,26 @@ export function UsersManagement() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
 
-              <div className="space-y-2">
-                <Label>Password</Label>
+            <div className="space-y-2">
+              <Label>Password</Label>
+              <div className="relative">
                 <Input
-                  type="password"
+                  type={showCreatePassword ? 'text' : 'password'}
                   value={form.password}
                   onChange={e => setForm(prev => ({ ...prev, password: e.target.value }))}
                   autoComplete="new-password"
+                  className="pr-10"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowCreatePassword(v => !v)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  aria-label={showCreatePassword ? 'Hide password' : 'Show password'}
+                >
+                  {showCreatePassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
               </div>
             </div>
 
@@ -370,6 +424,15 @@ export function UsersManagement() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
+                <Label>Group Name</Label>
+                <Input
+                  value={editForm.groupName}
+                  onChange={e => setEditForm(prev => ({ ...prev, groupName: e.target.value }))}
+                  autoComplete="off"
+                  placeholder="e.g. Customer Support Team A"
+                />
+              </div>
+              <div className="space-y-2">
                 <Label>Role</Label>
                 <Select value={editForm.role} onValueChange={v => setEditForm(prev => ({ ...prev, role: v as any }))}>
                   <SelectTrigger>
@@ -382,15 +445,26 @@ export function UsersManagement() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
 
-              <div className="space-y-2">
-                <Label>New Password (optional)</Label>
+            <div className="space-y-2">
+              <Label>New Password (optional)</Label>
+              <div className="relative">
                 <Input
-                  type="password"
+                  type={showEditPassword ? 'text' : 'password'}
                   value={editForm.password}
                   onChange={e => setEditForm(prev => ({ ...prev, password: e.target.value }))}
                   autoComplete="new-password"
+                  className="pr-10"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowEditPassword(v => !v)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  aria-label={showEditPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showEditPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
               </div>
             </div>
 

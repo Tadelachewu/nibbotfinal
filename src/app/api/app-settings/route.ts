@@ -2,9 +2,14 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
 import { getValidatedAdminSession, rotateCsrfToken, verifyCsrfToken } from '@/lib/session';
+import { promises as fs } from 'fs';
+import path from 'path';
+import crypto from 'crypto';
+import { Prisma } from '@prisma/client';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+export const runtime = 'nodejs';
 
 const defaultReportIdConfig = {
   prefix: 'NIB',
@@ -13,6 +18,59 @@ const defaultReportIdConfig = {
   startValue: 100000,
   resetEveryYear: true
 };
+
+const defaultAvatarSettings = {
+  botAvatarType: 'text' as const,
+  botAvatarText: 'TT',
+  botAvatarImage: '',
+  userAvatarType: 'text' as const,
+  userAvatarText: 'ME',
+  userAvatarImage: '',
+};
+
+function isHttpUrl(value: string) {
+  return /^https?:\/\//i.test(value);
+}
+
+async function persistDataUrlImage(dataUrl: string, prefix: 'bot' | 'user' | 'logo') {
+  const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
+  if (!match) return null;
+
+  const mime = match[1].toLowerCase();
+  const base64 = match[2];
+
+  const allowed = new Map<string, string>([
+    ['image/png', 'png'],
+    ['image/jpeg', 'jpg'],
+    ['image/jpg', 'jpg'],
+    ['image/webp', 'webp'],
+    ['image/gif', 'gif'],
+    ['image/svg+xml', 'svg'],
+  ]);
+
+  const ext = allowed.get(mime);
+  if (!ext) return null;
+
+  const approxBytes = Math.floor((base64.length * 3) / 4);
+  const maxBytes = 600 * 1024;
+  if (approxBytes > maxBytes) {
+    throw new Error('Avatar image too large. Please upload an image under 600KB.');
+  }
+
+  const bytes = Buffer.from(base64, 'base64');
+  if (!bytes.length || bytes.length > maxBytes) {
+    throw new Error('Avatar image too large. Please upload an image under 600KB.');
+  }
+
+  const dirFs = path.join(process.cwd(), 'public', 'uploads', prefix === 'logo' ? 'branding' : 'avatars');
+  await fs.mkdir(dirFs, { recursive: true });
+
+  const fileName = `${prefix}-${Date.now()}-${crypto.randomBytes(6).toString('hex')}.${ext}`;
+  const fileFs = path.join(dirFs, fileName);
+  await fs.writeFile(fileFs, bytes);
+
+  return `/uploads/${prefix === 'logo' ? 'branding' : 'avatars'}/${fileName}`;
+}
 
 export async function GET() {
   const settings = await prisma.appSettings.findUnique({
@@ -23,7 +81,13 @@ export async function GET() {
   if (!settings) {
     return NextResponse.json({
       status: 'success',
-      data: { supportedLanguages: [], systemTranslations: {}, reportId: defaultReportIdConfig }
+      data: {
+        supportedLanguages: [],
+        systemTranslations: {},
+        reportId: defaultReportIdConfig,
+        ...defaultAvatarSettings,
+        appLogo: '',
+      }
     });
   }
 
@@ -32,6 +96,13 @@ export async function GET() {
     data: {
       supportedLanguages: (settings.supportedLanguages as any) ?? [],
       systemTranslations: (settings.systemTranslations as any) ?? {},
+      botAvatarType: settings.botAvatarType ?? defaultAvatarSettings.botAvatarType,
+      botAvatarText: settings.botAvatarText ?? defaultAvatarSettings.botAvatarText,
+      botAvatarImage: settings.botAvatarImage ?? defaultAvatarSettings.botAvatarImage,
+      userAvatarType: settings.userAvatarType ?? defaultAvatarSettings.userAvatarType,
+      userAvatarText: settings.userAvatarText ?? defaultAvatarSettings.userAvatarText,
+      userAvatarImage: settings.userAvatarImage ?? defaultAvatarSettings.userAvatarImage,
+      appLogo: settings.appLogo ?? '',
       reportId: settings.reportId
         ? {
           prefix: settings.reportId.prefix,
@@ -59,72 +130,144 @@ export async function PUT(req: Request) {
     return NextResponse.json({ status: 'error', message: 'Invalid request body.' }, { status: 400 });
   }
 
-  const supportedLanguages = Array.isArray(body.supportedLanguages) ? body.supportedLanguages : [];
-  const systemTranslations = body.systemTranslations && typeof body.systemTranslations === 'object' ? body.systemTranslations : {};
-  const reportId = body.reportId && typeof body.reportId === 'object' ? body.reportId : null;
+  try {
+    const supportedLanguages = Array.isArray(body.supportedLanguages) ? body.supportedLanguages : [];
+    const systemTranslations = body.systemTranslations && typeof body.systemTranslations === 'object' ? body.systemTranslations : {};
+    const reportId = body.reportId && typeof body.reportId === 'object' ? body.reportId : null;
+    const botAvatarType = body.botAvatarType === 'image' ? 'image' : 'text';
+    const userAvatarType = body.userAvatarType === 'image' ? 'image' : 'text';
+    const botAvatarText = typeof body.botAvatarText === 'string' ? body.botAvatarText.trim().slice(0, 6) : null;
+    const userAvatarText = typeof body.userAvatarText === 'string' ? body.userAvatarText.trim().slice(0, 6) : null;
+    const botAvatarImageRaw = typeof body.botAvatarImage === 'string' ? body.botAvatarImage.trim() : '';
+    const userAvatarImageRaw = typeof body.userAvatarImage === 'string' ? body.userAvatarImage.trim() : '';
+    const appLogoRaw = typeof body.appLogo === 'string' ? body.appLogo.trim() : '';
 
-  const existing = await prisma.appSettings.findUnique({ where: { id: 1 } });
+    let botAvatarImage: string | null = null;
+    let userAvatarImage: string | null = null;
+    let appLogo: string | null = null;
+    try {
+      botAvatarImage = botAvatarType !== 'image'
+        ? null
+        : botAvatarImageRaw.startsWith('data:image/')
+          ? await persistDataUrlImage(botAvatarImageRaw, 'bot')
+          : (isHttpUrl(botAvatarImageRaw) || botAvatarImageRaw.startsWith('/uploads/')) ? botAvatarImageRaw : null;
 
-  let reportIdId: number | null | undefined = existing?.reportIdId ?? null;
-  if (reportId) {
-    if (reportIdId) {
-      await prisma.reportIdConfig.update({
-        where: { id: reportIdId },
-        data: {
-          prefix: reportId.prefix ?? defaultReportIdConfig.prefix,
-          yearEnabled: typeof reportId.yearEnabled === 'boolean' ? reportId.yearEnabled : defaultReportIdConfig.yearEnabled,
-          numberLength: Number.isFinite(reportId.numberLength) ? reportId.numberLength : defaultReportIdConfig.numberLength,
-          startValue: Number.isFinite(reportId.startValue) ? reportId.startValue : defaultReportIdConfig.startValue,
-          resetEveryYear: typeof reportId.resetEveryYear === 'boolean' ? reportId.resetEveryYear : defaultReportIdConfig.resetEveryYear
-        }
-      });
-    } else {
-      const created = await prisma.reportIdConfig.create({
-        data: {
-          prefix: reportId.prefix ?? defaultReportIdConfig.prefix,
-          yearEnabled: typeof reportId.yearEnabled === 'boolean' ? reportId.yearEnabled : defaultReportIdConfig.yearEnabled,
-          numberLength: Number.isFinite(reportId.numberLength) ? reportId.numberLength : defaultReportIdConfig.numberLength,
-          startValue: Number.isFinite(reportId.startValue) ? reportId.startValue : defaultReportIdConfig.startValue,
-          resetEveryYear: typeof reportId.resetEveryYear === 'boolean' ? reportId.resetEveryYear : defaultReportIdConfig.resetEveryYear
-        }
-      });
-      reportIdId = created.id;
+      userAvatarImage = userAvatarType !== 'image'
+        ? null
+        : userAvatarImageRaw.startsWith('data:image/')
+          ? await persistDataUrlImage(userAvatarImageRaw, 'user')
+          : (isHttpUrl(userAvatarImageRaw) || userAvatarImageRaw.startsWith('/uploads/')) ? userAvatarImageRaw : null;
+
+      appLogo = appLogoRaw.startsWith('data:image/')
+        ? await persistDataUrlImage(appLogoRaw, 'logo')
+        : (isHttpUrl(appLogoRaw) || appLogoRaw.startsWith('/uploads/') || appLogoRaw === '') ? appLogoRaw : null;
+    } catch (err: any) {
+      return NextResponse.json(
+        { status: 'error', message: err?.message || 'Invalid avatar image.' },
+        { status: 400 }
+      );
     }
+
+    const existing = await prisma.appSettings.findUnique({ where: { id: 1 } });
+
+    let reportIdId: number | null | undefined = existing?.reportIdId ?? null;
+    if (reportId) {
+      if (reportIdId) {
+        await prisma.reportIdConfig.update({
+          where: { id: reportIdId },
+          data: {
+            prefix: reportId.prefix ?? defaultReportIdConfig.prefix,
+            yearEnabled: typeof reportId.yearEnabled === 'boolean' ? reportId.yearEnabled : defaultReportIdConfig.yearEnabled,
+            numberLength: Number.isFinite(reportId.numberLength) ? reportId.numberLength : defaultReportIdConfig.numberLength,
+            startValue: Number.isFinite(reportId.startValue) ? reportId.startValue : defaultReportIdConfig.startValue,
+            resetEveryYear: typeof reportId.resetEveryYear === 'boolean' ? reportId.resetEveryYear : defaultReportIdConfig.resetEveryYear
+          }
+        });
+      } else {
+        const created = await prisma.reportIdConfig.create({
+          data: {
+            prefix: reportId.prefix ?? defaultReportIdConfig.prefix,
+            yearEnabled: typeof reportId.yearEnabled === 'boolean' ? reportId.yearEnabled : defaultReportIdConfig.yearEnabled,
+            numberLength: Number.isFinite(reportId.numberLength) ? reportId.numberLength : defaultReportIdConfig.numberLength,
+            startValue: Number.isFinite(reportId.startValue) ? reportId.startValue : defaultReportIdConfig.startValue,
+            resetEveryYear: typeof reportId.resetEveryYear === 'boolean' ? reportId.resetEveryYear : defaultReportIdConfig.resetEveryYear
+          }
+        });
+        reportIdId = created.id;
+      }
+    }
+    const saved = await prisma.appSettings.upsert({
+      where: { id: 1 },
+      create: {
+        id: 1,
+        supportedLanguages,
+        systemTranslations,
+        reportIdId: reportIdId ?? null,
+        botAvatarType,
+        botAvatarText,
+        botAvatarImage,
+        userAvatarType,
+        userAvatarText,
+        userAvatarImage,
+        appLogo
+      },
+      update: {
+        supportedLanguages,
+        systemTranslations,
+        reportIdId: reportIdId ?? null,
+        botAvatarType,
+        botAvatarText,
+        botAvatarImage,
+        userAvatarType,
+        userAvatarText,
+        userAvatarImage,
+        appLogo
+      },
+      include: { reportId: true }
+    });
+
+    const nextToken = await rotateCsrfToken(session);
+    const res = NextResponse.json({
+      status: 'success',
+      data: {
+        supportedLanguages: (saved.supportedLanguages as any) ?? [],
+        systemTranslations: (saved.systemTranslations as any) ?? {},
+        botAvatarType: saved.botAvatarType ?? defaultAvatarSettings.botAvatarType,
+        botAvatarText: saved.botAvatarText ?? defaultAvatarSettings.botAvatarText,
+        botAvatarImage: saved.botAvatarImage ?? defaultAvatarSettings.botAvatarImage,
+        userAvatarType: saved.userAvatarType ?? defaultAvatarSettings.userAvatarType,
+        userAvatarText: saved.userAvatarText ?? defaultAvatarSettings.userAvatarText,
+        userAvatarImage: saved.userAvatarImage ?? defaultAvatarSettings.userAvatarImage,
+        appLogo: saved.appLogo ?? '',
+        reportId: saved.reportId
+          ? {
+            prefix: saved.reportId.prefix,
+            yearEnabled: saved.reportId.yearEnabled,
+            numberLength: saved.reportId.numberLength,
+            startValue: saved.reportId.startValue,
+            resetEveryYear: saved.reportId.resetEveryYear
+          }
+          : defaultReportIdConfig
+      }
+    });
+    res.headers.set('x-csrf-token', nextToken);
+    return res;
+  } catch (err: any) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError) {
+      if (err.code === 'P2022') {
+        return NextResponse.json(
+          { status: 'error', message: 'Database schema is out of date. Run `npx prisma db push` then restart the app.' },
+          { status: 500 }
+        );
+      }
+      return NextResponse.json(
+        { status: 'error', message: `Database error (${err.code}).` },
+        { status: 500 }
+      );
+    }
+    return NextResponse.json(
+      { status: 'error', message: err?.message || 'Failed to save settings.' },
+      { status: 500 }
+    );
   }
-
-  const saved = await prisma.appSettings.upsert({
-    where: { id: 1 },
-    create: {
-      id: 1,
-      supportedLanguages,
-      systemTranslations,
-      reportIdId: reportIdId ?? null
-    },
-    update: {
-      supportedLanguages,
-      systemTranslations,
-      reportIdId: reportIdId ?? null
-    },
-    include: { reportId: true }
-  });
-
-  const nextToken = await rotateCsrfToken(session);
-  const res = NextResponse.json({
-    status: 'success',
-    data: {
-      supportedLanguages: (saved.supportedLanguages as any) ?? [],
-      systemTranslations: (saved.systemTranslations as any) ?? {},
-      reportId: saved.reportId
-        ? {
-          prefix: saved.reportId.prefix,
-          yearEnabled: saved.reportId.yearEnabled,
-          numberLength: saved.reportId.numberLength,
-          startValue: saved.reportId.startValue,
-          resetEveryYear: saved.reportId.resetEveryYear
-        }
-        : defaultReportIdConfig
-    }
-  });
-  res.headers.set('x-csrf-token', nextToken);
-  return res;
 }

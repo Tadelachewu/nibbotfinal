@@ -37,6 +37,16 @@ export function AdminLoginPage() {
   const [resetPassword, setResetPassword] = useState('');
   const [resetConfirm, setResetConfirm] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
+  const [logo, setLogo] = useState<string | undefined>(undefined);
+
+  React.useEffect(() => {
+    fetch('/api/app-settings', { cache: 'no-store' })
+      .then(res => res.json())
+      .then(json => {
+        if (json?.data?.appLogo) setLogo(json.data.appLogo);
+      })
+      .catch(() => { });
+  }, []);
 
   const strength = useMemo(() => evaluatePasswordStrength(password), [password]);
 
@@ -66,7 +76,7 @@ export function AdminLoginPage() {
       <Card className="w-full max-w-md relative z-10 border-border bg-card/80 backdrop-blur-sm shadow-2xl shadow-black/10">
         <CardHeader className="text-center space-y-4 pb-2">
           <div className="flex justify-center">
-            <Logo className="w-16 h-16" />
+            <Logo className="w-16 h-16" src={logo} />
           </div>
           <div>
             <CardTitle className="text-2xl font-bold text-foreground">

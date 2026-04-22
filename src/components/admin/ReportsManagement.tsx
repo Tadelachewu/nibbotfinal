@@ -60,6 +60,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import { useAdminAuth } from './AdminAuthContext';
+import { Activity, History } from 'lucide-react';
 
 export function ReportsManagement() {
   const { csrfFetch, currentRole, currentUsername } = useAdminAuth();
@@ -77,8 +78,10 @@ export function ReportsManagement() {
   const [editingSupportAssignee, setEditingSupportAssignee] = useState<string>('__none__');
   const [editingSupportAssignmentType, setEditingSupportAssignmentType] = useState<'first_assignment' | 'escalation'>('first_assignment');
   const [editingSupportAssignmentReason, setEditingSupportAssignmentReason] = useState<string>('');
-  const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   const [isInspectOpen, setIsInspectOpen] = useState(false);
+  const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
+  const [activityLogs, setActivityLogs] = useState<any[]>([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
 
   const refreshReports = useCallback(() => {
     setLoading(true);
@@ -93,9 +96,23 @@ export function ReportsManagement() {
     })();
   }, []);
 
+  const refreshLogs = useCallback(() => {
+    setLoadingLogs(true);
+    (async () => {
+      try {
+        const res = await fetch('/api/reports/activities', { cache: 'no-store' });
+        const json = await res.json().catch(() => null);
+        setActivityLogs(Array.isArray(json?.data) ? json.data : []);
+      } finally {
+        setLoadingLogs(false);
+      }
+    })();
+  }, []);
+
   useEffect(() => {
     refreshReports();
-  }, [refreshReports]);
+    refreshLogs();
+  }, [refreshReports, refreshLogs]);
 
   useEffect(() => {
     if (currentRole !== 'admin') return;
@@ -195,6 +212,7 @@ export function ReportsManagement() {
           if (overrideStatus === 'resolved') {
             setIsInspectOpen(false);
           }
+          refreshLogs();
         } catch {
           toast({ title: "Error", description: "Failed to save changes.", variant: "destructive" });
         }
@@ -212,6 +230,7 @@ export function ReportsManagement() {
         }
         setReports(prev => prev.filter(r => r.id !== reportId));
         toast({ title: "Report Deleted" });
+        refreshLogs();
       } catch {
         toast({ title: "Error", description: "Failed to delete report.", variant: "destructive" });
       }
@@ -238,11 +257,11 @@ export function ReportsManagement() {
 
   const getPriorityColor = (priority?: string) => {
     switch (priority) {
-      case 'urgent': return 'bg-red-100 text-red-700 border-red-200';
-      case 'high': return 'bg-orange-100 text-orange-700 border-orange-200';
-      case 'medium': return 'bg-blue-100 text-blue-700 border-blue-200';
-      case 'low': return 'bg-slate-100 text-slate-700 border-slate-200';
-      default: return 'bg-slate-100 text-slate-700 border-slate-200';
+      case 'urgent': return 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800';
+      case 'high': return 'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-800';
+      case 'medium': return 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800';
+      case 'low': return 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800/50 dark:text-slate-400 dark:border-slate-800';
+      default: return 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800/50 dark:text-slate-400 dark:border-slate-800';
     }
   };
 
@@ -277,163 +296,274 @@ export function ReportsManagement() {
           </div>
           <p className="text-2xl font-bold mt-1">{reports.filter(r => r.status === 'pending').length}</p>
         </Card>
-        <Card className="p-4 bg-blue-50 border-blue-200">
+        <Card className="p-4 bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase text-blue-700">Reviewed</span>
-            <Clock size={16} className="text-blue-700" />
+            <span className="text-xs font-bold uppercase text-blue-700 dark:text-blue-400">Reviewed</span>
+            <Clock size={16} className="text-blue-700 dark:text-blue-400" />
           </div>
           <p className="text-2xl font-bold mt-1">{reports.filter(r => r.status === 'reviewed').length}</p>
         </Card>
-        <Card className="p-4 bg-amber-50 border-amber-200">
+        <Card className="p-4 bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase text-amber-700">High/Urgent</span>
-            <ShieldAlert size={16} className="text-amber-700" />
+            <span className="text-xs font-bold uppercase text-amber-700 dark:text-amber-400">High/Urgent</span>
+            <ShieldAlert size={16} className="text-amber-700 dark:text-amber-400" />
           </div>
           <p className="text-2xl font-bold mt-1">{reports.filter(r => r.priority === 'high' || r.priority === 'urgent').length}</p>
         </Card>
-        <Card className="p-4 bg-emerald-50 border-emerald-200">
+        <Card className="p-4 bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase text-emerald-700">Resolved Total</span>
-            <CheckCircle2 size={16} className="text-emerald-700" />
+            <span className="text-xs font-bold uppercase text-emerald-700 dark:text-emerald-400">Resolved Total</span>
+            <CheckCircle2 size={16} className="text-emerald-700 dark:text-emerald-400" />
           </div>
           <p className="text-2xl font-bold mt-1">{reports.filter(r => r.status === 'resolved').length}</p>
         </Card>
       </div>
 
-      <Card className="border-none shadow-md overflow-hidden">
-        <CardHeader className="border-b bg-muted/5 p-6">
-          <div className="flex flex-col space-y-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <CardTitle className="text-xl font-bold flex items-center gap-2">
-                  <ClipboardList className="text-primary" size={20} />
-                  Operational Console
-                </CardTitle>
-                <p className="text-xs text-muted-foreground mt-1">Manage, triage, and respond to user-submitted reports.</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={refreshReports}>
-                  <RefreshCw size={14} className="mr-2" /> Refresh
-                </Button>
-              </div>
-            </div>
+      <Tabs defaultValue="submissions" className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="submissions" className="gap-2">
+            <ClipboardList size={14} /> Submissions
+          </TabsTrigger>
+          <TabsTrigger value="logs" className="gap-2">
+            <Activity size={14} /> Activity Log
+          </TabsTrigger>
+        </TabsList>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="relative flex-1 min-w-[200px]">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search submissions..."
-                  className="pl-10 bg-card"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
+        <TabsContent value="submissions">
+          <Card className="border-none shadow-md overflow-hidden">
+            <CardHeader className="border-b bg-muted/5 p-6">
+              <div className="flex flex-col space-y-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-xl font-bold flex items-center gap-2">
+                      <ClipboardList className="text-primary" size={20} />
+                      Operational Console
+                    </CardTitle>
+                    <p className="text-xs text-muted-foreground mt-1">Manage, triage, and respond to user-submitted reports.</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={refreshReports}>
+                      <RefreshCw size={14} className="mr-2" /> Refresh
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="relative flex-1 min-w-[200px]">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search submissions..."
+                      className="pl-10 bg-card"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                    />
+                  </div>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-[140px] h-10 bg-card">
+                      <Filter size={14} className="mr-2" />
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="reviewed">Reviewed</SelectItem>
+                      <SelectItem value="resolved">Resolved</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                    <SelectTrigger className="w-[140px] h-10 bg-card">
+                      <ShieldAlert size={14} className="mr-2" />
+                      <SelectValue placeholder="Priority" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Priority</SelectItem>
+                      <SelectItem value="urgent">Urgent</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="low">Low</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[140px] h-10 bg-card">
-                  <Filter size={14} className="mr-2" />
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="reviewed">Reviewed</SelectItem>
-                  <SelectItem value="resolved">Resolved</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                <SelectTrigger className="w-[140px] h-10 bg-card">
-                  <ShieldAlert size={14} className="mr-2" />
-                  <SelectValue placeholder="Priority" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Priority</SelectItem>
-                  <SelectItem value="urgent">Urgent</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="low">Low</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <ScrollArea className="h-[550px]">
-            <Table>
-              <TableHeader className="bg-card/95 backdrop-blur-sm sticky top-0 z-20 border-b">
-                <TableRow>
-                  <TableHead className="w-[100px] font-bold uppercase text-[10px]">Priority</TableHead>
-                  <TableHead className="w-[100px] font-bold uppercase text-[10px]">Status</TableHead>
-                  <TableHead className="font-bold uppercase text-[10px]">Type</TableHead>
-                  <TableHead className="font-bold uppercase text-[10px]">Submitter</TableHead>
-                  <TableHead className="font-bold uppercase text-[10px]">Data Preview</TableHead>
-                  <TableHead className="font-bold uppercase text-[10px]">Timestamp</TableHead>
-                  <TableHead className="text-right font-bold uppercase text-[10px]">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredReports.map((report) => (
-                  <TableRow key={report.id} className="group hover:bg-muted/20 transition-colors">
-                    <TableCell>
-                      <Badge variant="outline" className={cn("capitalize text-[9px] px-2", getPriorityColor(report.priority))}>
-                        {report.priority || 'medium'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {getStatusIcon(report.status)}
-                        <span className="capitalize text-[10px] font-medium text-muted-foreground">{report.status}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="font-semibold text-xs">{report.menuName}</div>
-                      <div className="text-[9px] text-muted-foreground font-mono">#{report.id.split('_')[1] || report.id}</div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <User size={12} className="text-muted-foreground" />
-                        <span className="text-[11px] font-mono">{report.userId}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-[10px] text-muted-foreground truncate max-w-[200px] italic">
-                        {Object.entries(report.data || {}).map(([k, v]) => `${k}:${v}`).join(', ')}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-[10px]">
-                      {format(new Date(report.timestamp), 'MMM dd, HH:mm')}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" className="h-8 text-xs hover:text-primary" onClick={() => {
-                        setSelectedReportId(report.id);
-                        setEditingResponse(report.adminResponse || '');
-                        setEditingNotes(report.internalNotes || '');
-                        setEditingStatus(report.status);
-                        setEditingPriority(report.priority || 'medium');
-                        setEditingSupportAssignee(report.supportAssignee || '__none__');
-                        setEditingSupportAssignmentType(report.supportAssignee ? 'escalation' : 'first_assignment');
-                        setEditingSupportAssignmentReason('');
-                        setIsInspectOpen(true);
-                      }}>
-                        Inspect <ChevronRight size={14} className="ml-1" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {filteredReports.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={7} className="h-64 text-center">
-                      <div className="flex flex-col items-center justify-center space-y-2 opacity-40">
-                        <ClipboardList size={48} />
-                        <p className="italic text-sm">No submissions matching current filters.</p>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </ScrollArea>
-        </CardContent>
-      </Card>
+            </CardHeader>
+            <CardContent className="p-0">
+              <ScrollArea className="h-[550px]">
+                <Table>
+                  <TableHeader className="bg-card/95 backdrop-blur-sm sticky top-0 z-20 border-b">
+                    <TableRow>
+                      <TableHead className="w-[100px] font-bold uppercase text-[10px]">Priority</TableHead>
+                      <TableHead className="w-[100px] font-bold uppercase text-[10px]">Status</TableHead>
+                      <TableHead className="font-bold uppercase text-[10px]">Type</TableHead>
+                      <TableHead className="font-bold uppercase text-[10px]">Submitter</TableHead>
+                      <TableHead className="font-bold uppercase text-[10px]">Data Preview</TableHead>
+                      <TableHead className="font-bold uppercase text-[10px]">Timestamp</TableHead>
+                      <TableHead className="text-right font-bold uppercase text-[10px]">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredReports.map((report) => (
+                      <TableRow key={report.id} className="group hover:bg-muted/20 transition-colors">
+                        <TableCell>
+                          <Badge variant="outline" className={cn("capitalize text-[9px] px-2", getPriorityColor(report.priority))}>
+                            {report.priority || 'medium'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {getStatusIcon(report.status)}
+                            <span className="capitalize text-[10px] font-medium text-muted-foreground">{report.status}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-semibold text-xs">{report.menuName}</div>
+                          <div className="text-[9px] text-muted-foreground font-mono">#{report.id.split('_')[1] || report.id}</div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <User size={12} className="text-muted-foreground" />
+                            <span className="text-[11px] font-mono">{report.userId}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-[10px] text-muted-foreground truncate max-w-[200px] italic">
+                            {Object.entries(report.data || {}).map(([k, v]) => `${k}:${v}`).join(', ')}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-[10px]">
+                          {format(new Date(report.timestamp), 'MMM dd, HH:mm')}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="sm" className="h-8 text-xs hover:text-primary" onClick={() => {
+                            setSelectedReportId(report.id);
+                            setEditingResponse(report.adminResponse || '');
+                            setEditingNotes(report.internalNotes || '');
+                            setEditingStatus(report.status);
+                            setEditingPriority(report.priority || 'medium');
+                            setEditingSupportAssignee(report.supportAssignee || '__none__');
+                            setEditingSupportAssignmentType(report.supportAssignee ? 'escalation' : 'first_assignment');
+                            setEditingSupportAssignmentReason('');
+                            setIsInspectOpen(true);
+                          }}>
+                            Inspect <ChevronRight size={14} className="ml-1" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {filteredReports.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={7} className="h-64 text-center">
+                          <div className="flex flex-col items-center justify-center space-y-2 opacity-40">
+                            <ClipboardList size={48} />
+                            <p className="italic text-sm">No submissions matching current filters.</p>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="logs">
+          <Card className="border-none shadow-md overflow-hidden">
+            <CardHeader className="border-b bg-muted/5 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-xl font-bold flex items-center gap-2">
+                    <Activity className="text-primary" size={20} />
+                    Support Activity Stream
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground mt-1">Audit trail for assignments, escalations, and official responses.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={refreshLogs} disabled={loadingLogs}>
+                    <RefreshCw size={12} className={cn("mr-2", loadingLogs && "animate-spin")} /> Refresh Log
+                  </Button>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/20 px-3 py-1.5 rounded-full font-medium">
+                    <Clock size={12} /> Database tracking
+                  </div>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <ScrollArea className="h-[600px]">
+                <div className="p-0">
+                  <Table>
+                    <TableHeader className="bg-card/95 backdrop-blur-sm sticky top-0 z-20 border-b">
+                      <TableRow>
+                        <TableHead className="w-[180px] font-bold uppercase text-[10px]">Timestamp</TableHead>
+                        <TableHead className="w-[140px] font-bold uppercase text-[10px]">Event</TableHead>
+                        <TableHead className="font-bold uppercase text-[10px]">Description</TableHead>
+                        <TableHead className="w-[120px] font-bold uppercase text-[10px]">Report Ref</TableHead>
+                        <TableHead className="text-right font-bold uppercase text-[10px]">Actor/Target</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {activityLogs.map((log) => (
+                        <TableRow key={log.id} className="group hover:bg-muted/10 transition-colors">
+                          <TableCell className="text-[10px] text-muted-foreground font-mono">
+                            {format(new Date(log.timestamp), 'MMM dd, HH:mm:ss')}
+                          </TableCell>
+                          <TableCell>
+                            {log.type === 'assignment' ? (
+                              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-[9px] uppercase">Assignment</Badge>
+                            ) : log.type === 'response' ? (
+                              <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[9px] uppercase">Response</Badge>
+                            ) : log.type === 'resolution' ? (
+                              <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200 text-[9px] uppercase">Resolved</Badge>
+                            ) : (
+                              <Badge variant="outline" className="bg-primary/5 text-primary/70 border-primary/10 text-[9px] uppercase">Submission</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="space-y-1">
+                              <p className="text-xs font-medium">{log.content || 'Activity recorded'}</p>
+                              {log.type === 'assignment' && log.target && (
+                                <p className="text-[9px] text-muted-foreground italic">Assigned to {log.target}</p>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-[10px] font-mono text-primary cursor-pointer hover:underline" onClick={() => {
+                              setSelectedReportId(log.reportId);
+                              const r = reports.find(x => x.id === log.reportId);
+                              if (r) {
+                                setEditingResponse(r.adminResponse || '');
+                                setEditingNotes(r.internalNotes || '');
+                                setEditingStatus(r.status);
+                                setEditingPriority(r.priority || 'medium');
+                                setEditingSupportAssignee(r.supportAssignee || '__none__');
+                                setEditingSupportAssignmentType(r.supportAssignee ? 'escalation' : 'first_assignment');
+                                setIsInspectOpen(true);
+                              }
+                            }}>
+                              #{log.reportId.split('_')[1] || log.reportId}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex flex-col items-end">
+                              <span className="text-[10px] font-bold">{log.actor}</span>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {activityLogs.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={5} className="h-48 text-center text-muted-foreground italic text-sm">
+                            No activities recorded yet.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       <Dialog open={isInspectOpen} onOpenChange={setIsInspectOpen}>
         <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
@@ -464,13 +594,13 @@ export function ReportsManagement() {
               </DialogHeader>
 
               {/* ADMIN ACTION BAR: Resolve, Review, and Metadata Management */}
-              <div className="bg-amber-50/50 border-b p-4 flex flex-wrap items-center gap-4 justify-between">
+              <div className="bg-amber-50/50 dark:bg-amber-950/20 border-b p-4 flex flex-wrap items-center gap-4 justify-between">
                 <div className="flex flex-wrap items-center gap-3 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] font-bold uppercase text-muted-foreground">Status</span>
                     <Badge className={cn("text-[10px] capitalize",
-                      editingStatus === 'resolved' ? 'bg-emerald-100 text-emerald-800' :
-                        editingStatus === 'reviewed' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
+                      editingStatus === 'resolved' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-400' :
+                        editingStatus === 'reviewed' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-400' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-400'
                     )}>
                       {editingStatus}
                     </Badge>
@@ -551,7 +681,7 @@ export function ReportsManagement() {
                   <Button
                     size="sm"
                     variant="outline"
-                    className={cn("h-8 text-[11px] font-bold", editingStatus === 'reviewed' && "bg-blue-50 border-blue-200")}
+                    className={cn("h-8 text-[11px] font-bold", editingStatus === 'reviewed' && "bg-blue-50 border-blue-200 dark:bg-blue-900/30 dark:border-blue-800")}
                     onClick={() => handleSaveAdminData('reviewed')}
                   >
                     <Clock size={14} className="mr-2 text-blue-500" /> Mark Reviewed
@@ -607,30 +737,30 @@ export function ReportsManagement() {
                     <TabsContent value="data" className="pt-6">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {Object.entries(selectedReport.data || {}).map(([key, value]) => (
-                          <div key={key} className="p-4 border rounded-xl bg-slate-50/50 hover:bg-card transition-all shadow-sm group">
+                          <div key={key} className="p-4 border rounded-xl bg-slate-50/50 dark:bg-muted/20 hover:bg-card transition-all shadow-sm group">
                             <div className="flex items-center justify-between mb-1">
                               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-tight">{prettifyKey(key)}</span>
                             </div>
-                            <span className="text-sm font-semibold text-slate-900 font-mono break-all">{String(value || 'N/A')}</span>
+                            <span className="text-sm font-semibold text-foreground font-mono break-all">{String(value || 'N/A')}</span>
                           </div>
                         ))}
                       </div>
                     </TabsContent>
 
                     <TabsContent value="notes" className="pt-6 space-y-4">
-                      <div className="space-y-3 p-6 border rounded-xl bg-amber-50/30 border-amber-200">
+                      <div className="space-y-3 p-6 border rounded-xl bg-amber-50/30 dark:bg-amber-950/10 border-amber-200 dark:border-amber-900/50">
                         <div className="space-y-1">
-                          <Label className="text-sm font-bold flex items-center gap-2 text-amber-900">
+                          <Label className="text-sm font-bold flex items-center gap-2 text-amber-900 dark:text-amber-400">
                             <NotebookPen size={16} />
                             Private Internal Notes
                           </Label>
-                          <p className="text-[11px] text-amber-700 italic">These notes are strictly for admin review and are NEVER shared with the user.</p>
+                          <p className="text-[11px] text-amber-700 dark:text-amber-500/70 italic">These notes are strictly for admin review and are NEVER shared with the user.</p>
                         </div>
                         <Textarea
                           value={editingNotes}
                           onChange={(e) => setEditingNotes(e.target.value)}
                           placeholder="Add internal investigation notes, next steps, or agent observations..."
-                          className="min-h-[150px] text-sm border-amber-200 focus-visible:ring-amber-500 bg-card"
+                          className="min-h-[150px] text-sm border-amber-200 dark:border-amber-900/50 focus-visible:ring-amber-500 bg-card"
                         />
                       </div>
                     </TabsContent>

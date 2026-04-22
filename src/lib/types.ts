@@ -88,6 +88,13 @@ export interface AppSettings {
   supportedLanguages: Language[];
   systemTranslations?: Record<string, Record<string, string>>; // key -> langCode -> translation
   reportId?: ReportIdConfig;
+  botAvatarType?: 'text' | 'image';
+  botAvatarText?: string;
+  botAvatarImage?: string;
+  userAvatarType?: 'text' | 'image';
+  userAvatarText?: string;
+  userAvatarImage?: string;
+  appLogo?: string;
 }
 
 export type MenuApprovalStatus = 'pending' | 'approved' | 'rejected';

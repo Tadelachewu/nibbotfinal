@@ -14,12 +14,13 @@ interface LogoProps {
 
 export function Logo({ className, src = '/logo.png', alt = 'Logo', priority = true }: LogoProps) {
   const [imageError, setImageError] = useState(false);
+  const finalSrc = (src && src.trim() !== '') ? src : '/logo.png';
 
   return (
-    <div className={cn("relative flex items-center justify-center", className)}>
+    <div className={cn("relative flex items-center justify-center rounded-full overflow-hidden bg-transparent", className)}>
       {!imageError ? (
         <Image
-          src={src}
+          src={finalSrc}
           alt={alt}
           fill
           sizes="256px"

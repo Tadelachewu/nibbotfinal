@@ -8,13 +8,25 @@ import ThemeToggle from '@/components/ui/ThemeToggle';
 import { useAdminAuth } from './AdminAuthContext';
 import { AdminChangePassword } from './AdminChangePassword';
 
+import { useState, useEffect } from 'react';
+
 export function AdminHeader() {
   const { logout, currentUsername } = useAdminAuth();
+  const [logo, setLogo] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    fetch('/api/app-settings', { cache: 'no-store' })
+      .then(res => res.json())
+      .then(json => {
+        if (json?.data?.appLogo) setLogo(json.data.appLogo);
+      })
+      .catch(() => { });
+  }, []);
 
   return (
     <header className="border-b bg-card px-6 py-4 flex items-center justify-between sticky top-0 z-50 h-16">
       <div className="flex items-center gap-3">
-        <Logo className="w-8 h-8" />
+        <Logo className="w-8 h-8" src={logo} />
         <h1 className="text-lg font-extrabold text-[#763717] hidden sm:block">Nib International Bank Admin</h1>
         <h1 className="text-lg font-extrabold text-[#763717] sm:hidden">Nib Admin</h1>
       </div>

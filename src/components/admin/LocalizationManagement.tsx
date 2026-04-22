@@ -13,6 +13,7 @@ import { toast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAdminAuth } from './AdminAuthContext';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export function LocalizationManagement() {
   const { csrfFetch } = useAdminAuth();
@@ -68,6 +69,7 @@ export function LocalizationManagement() {
     }));
   };
 
+
   const handleSave = () => {
     setIsSaving(true);
     (async () => {
@@ -105,6 +107,7 @@ export function LocalizationManagement() {
   };
 
   const stringLabels: Record<string, { label: string, description: string }> = {
+    ui_bank_name: { label: 'Bank Name', description: 'The official name of the bank shown in the header' },
     ui_online: { label: 'Online Status', description: 'Label shown when browser has internet' },
     ui_offline: { label: 'Offline Status', description: 'Label shown when browser is offline' },
     ui_checking: { label: 'Connectivity Checking', description: 'Shown during initial probe' },

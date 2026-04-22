@@ -75,8 +75,9 @@ interface UserData {
 }
 
 function makeAvatarDataUri(text: string, background: string) {
-  const safeText = String(text || '').slice(0, 2).toUpperCase();
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="${background}"/><text x="50" y="58" text-anchor="middle" font-family="Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial" font-size="36" font-weight="700" fill="#ffffff">${safeText}</text></svg>`;
+  const safeText = String(text || '').toUpperCase();
+  const fontSize = Math.max(14, 36 - Math.max(0, safeText.length - 2) * 6);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="${background}"/><text x="50" y="58" text-anchor="middle" font-family="Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial" font-size="${fontSize}" font-weight="700" fill="#ffffff">${safeText}</text></svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
@@ -185,7 +186,10 @@ export function ChatInterface() {
     const match = document.cookie.match(/(?:^|; )nib_theme=([^;]+)/);
     return match ? (match[1] as 'light' | 'dark' | 'system') : (localStorage.getItem('nib_theme') as 'light' | 'dark' | 'system') || 'system';
   });
-  const userAvatarUrl = makeAvatarDataUri('ME', '#763717');
+  const userAvatarFallback = appSettings?.userAvatarText || 'ME';
+  const userAvatarUrl = appSettings?.userAvatarType === 'image' && appSettings?.userAvatarImage
+    ? appSettings.userAvatarImage
+    : makeAvatarDataUri(userAvatarFallback, '#763717');
 
   const [userData, setUserData] = useState<UserData>({
     id: 'anonymous',
@@ -258,6 +262,15 @@ export function ChatInterface() {
   useEffect(() => {
     scrollToBottom();
   }, [history, isLoading, kycFlow, statusFlow]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const imgs = Array.from(document.querySelectorAll('.wysiwyg-content img')) as HTMLImageElement[];
+    imgs.forEach((img) => {
+      if (!img.getAttribute('loading')) img.setAttribute('loading', 'lazy');
+      if (!img.getAttribute('decoding')) img.setAttribute('decoding', 'async');
+    });
+  }, [history]);
 
   useEffect(() => {
     const STORAGE_KEY = 'nib_user_session';
@@ -1079,9 +1092,9 @@ export function ChatInterface() {
       )}
       <header className="bg-card border-b p-4 flex items-center justify-between sticky top-0 z-50 shadow-sm">
         <div className="flex items-center gap-3">
-          <Logo className="w-10 h-10" />
+          <Logo className="w-10 h-10" src={appSettings?.appLogo} />
           <div>
-            <h1 className="font-bold text-lg text-[#763717]">Nib International Bank</h1>
+            <h1 className="font-bold text-lg text-[#763717]">{t('ui_bank_name', 'Nib International Bank')}</h1>
             <div className="flex items-center gap-1.5">
               {connectivity === 'checking' && (
                 <>
@@ -1136,8 +1149,8 @@ export function ChatInterface() {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 p-0 border shadow-sm">
                 <Avatar className="h-full w-full">
-                  <AvatarImage src={userAvatarUrl} />
-                  <AvatarFallback className="bg-primary text-white"><UserIcon size={16} /></AvatarFallback>
+                  <AvatarImage src={userAvatarUrl} loading="eager" decoding="async" fetchPriority="high" />
+                  <AvatarFallback className="bg-primary text-white text-xs">{userAvatarFallback}</AvatarFallback>
                 </Avatar>
               </Button>
             </DropdownMenuTrigger>
@@ -1158,11 +1171,16 @@ export function ChatInterface() {
       <ScrollArea ref={scrollRef} className="flex-1 overflow-x-hidden p-4 md:p-6 space-y-4">
         <div className="flex flex-col min-h-full">
           {history.map(msg => (
-            <ChatBubble key={msg.id} isBot={msg.sender === 'bot'}>
+            <ChatBubble
+              key={msg.id}
+              isBot={msg.sender === 'bot'}
+              botAvatar={{ type: appSettings?.botAvatarType, text: appSettings?.botAvatarText, image: appSettings?.botAvatarImage }}
+              userAvatar={{ type: appSettings?.userAvatarType, text: appSettings?.userAvatarText, image: appSettings?.userAvatarImage }}
+            >
               {msg.id === 'welcome' && (
                 <div className="flex flex-col items-center justify-center pt-4 pb-6 space-y-4">
                   <div className="w-28 h-28 rounded-full border-4 border-[#f4a61b] shadow-xl flex items-center justify-center bg-card p-1 overflow-hidden">
-                    <Logo className="w-full h-full scale-110" />
+                    <Logo className="w-full h-full scale-110" src={appSettings?.appLogo} />
                   </div>
                   <h2 className="text-xl font-extrabold text-center text-[#763717] px-2">
                     {currentLang?.code === 'am' ? t('ui_welcome_am', 'Welcome to Nib International Bank') : t('ui_welcome_en', 'Welcome to Nib International Bank')}

@@ -163,12 +163,29 @@ model UserReport {
   createdAt     DateTime       @default(now())
 
   // relations
-  menu          MenuItem?      @relation("Menu_reports", fields: [menuId], references: [id], onDelete: Cascade)
+  menu          MenuItem?        @relation("Menu_reports", fields: [menuId], references: [id], onDelete: Cascade)
+  activities    ReportActivity[] @relation("ReportToActivities")
 
   @@index([menuId])
   @@index([userId])
   @@index([supportAssignee])
   @@map("user_reports")
+}
+
+model ReportActivity {
+  id        Int      @id @default(autoincrement())
+  reportId  String
+  type      String   // 'creation', 'assignment', 'response', 'resolution', 'escalation'
+  actor     String
+  target    String?
+  content   String?  @db.Text
+  timestamp DateTime @default(now())
+
+  // relation
+  report    UserReport @relation("ReportToActivities", fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@map("report_activities")
 }
 
 // Application-level settings (singleton row expected)
@@ -178,6 +195,13 @@ model AppSettings {
   systemTranslations Json?
   reportIdId         Int?     @unique
   reportId           ReportIdConfig? @relation(fields: [reportIdId], references: [id], onDelete: SetNull)
+  botAvatarType      String   @default("text")
+  botAvatarText      String?
+  botAvatarImage     String?  @db.Text
+  userAvatarType     String   @default("text")
+  userAvatarText     String?
+  userAvatarImage    String?  @db.Text
+  appLogo            String?  @db.Text
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
@@ -233,8 +257,10 @@ model AdminCredential {
 
   passwordHash String
   role         AdminRole @default(admin)
+  groupName    String?  @map("group_name")
   createdAt    DateTime @default(now())
 
+  @@index([groupName])
   @@map("admin_credentials")
 }
 

@@ -29,6 +29,8 @@ import {
   ShieldCheck,
   Eye,
   FileCode,
+  FileText,
+  Hash,
   ChevronRight,
   Wand2,
   Sparkles,
@@ -38,10 +40,9 @@ import {
   ClipboardList,
   ShieldAlert,
   Fingerprint,
-  Info,
-  FileText,
-  Hash,
-  Calendar
+  Calendar,
+  UserCircle,
+  Info
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -112,6 +113,9 @@ export function MenuManagement() {
   const [sentHeaders, setSentHeaders] = useState<Record<string, string> | null>(null);
   const [sentBody, setSentBody] = useState<any>(null);
   const [isReordering, setIsReordering] = useState(false);
+  const [botAvatarImageSource, setBotAvatarImageSource] = useState<'upload' | 'url'>('upload');
+  const [userAvatarImageSource, setUserAvatarImageSource] = useState<'upload' | 'url'>('upload');
+  const [appLogoSource, setAppLogoSource] = useState<'upload' | 'url'>('upload');
 
   useEffect(() => {
     const load = async () => {
@@ -130,6 +134,11 @@ export function MenuManagement() {
       setMenus(loadedMenus);
       if (loadedSettings) {
         setSettings(loadedSettings);
+        const resolveSource = (img?: string) =>
+          typeof img === 'string' && /^https?:\/\//i.test(img) ? 'url' : 'upload';
+        setBotAvatarImageSource(resolveSource(loadedSettings.botAvatarImage));
+        setUserAvatarImageSource(resolveSource(loadedSettings.userAvatarImage));
+        setAppLogoSource(resolveSource(loadedSettings.appLogo));
         const defaultLang = loadedSettings.supportedLanguages.find(l => l.isDefault)?.code || 'en';
         setActiveLangTab(defaultLang);
       }
@@ -378,14 +387,28 @@ export function MenuManagement() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(settings)
         });
-        const json = await res.json().catch(() => null);
-        if (!res.ok || json?.status === 'error') {
-          throw new Error(json?.message || 'Failed to save settings.');
+        const contentType = res.headers.get('content-type') || '';
+        const payload = contentType.includes('application/json')
+          ? await res.json().catch(() => null)
+          : null;
+        const text = payload ? '' : await res.text().catch(() => '');
+
+        if (!res.ok || payload?.status === 'error') {
+          const msg = payload?.message || payload?.error || text || `Failed to save settings (HTTP ${res.status}).`;
+          throw new Error(msg);
         }
-        setSettings(json.data);
+        if (!payload?.data) {
+          throw new Error('Failed to save settings.');
+        }
+        setSettings(payload.data);
+        const resolveSource = (img?: string) =>
+          typeof img === 'string' && /^https?:\/\//i.test(img) ? 'url' : 'upload';
+        setBotAvatarImageSource(resolveSource(payload.data?.botAvatarImage));
+        setUserAvatarImageSource(resolveSource(payload.data?.userAvatarImage));
+        setAppLogoSource(resolveSource(payload.data?.appLogo));
         toast({ title: "Settings Saved", description: "Languages and app settings updated." });
-      } catch {
-        toast({ title: "Error", description: "Failed to save settings.", variant: "destructive" });
+      } catch (err: any) {
+        toast({ title: "Error", description: err?.message || "Failed to save settings.", variant: "destructive" });
       }
     })();
   };
@@ -409,6 +432,20 @@ export function MenuManagement() {
         [key]: value
       }
     }));
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, field: 'botAvatarImage' | 'userAvatarImage' | 'appLogo') => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSettings(prev => ({ ...prev, [field]: reader.result as string }));
+        if (field === 'botAvatarImage') setBotAvatarImageSource('upload');
+        if (field === 'userAvatarImage') setUserAvatarImageSource('upload');
+        if (field === 'appLogo') setAppLogoSource('upload');
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const removeLanguage = (index: number) => {
@@ -1520,12 +1557,18 @@ export function MenuManagement() {
 
             <TabsContent value="settings">
               <Tabs defaultValue="languages">
-                <TabsList className="grid grid-cols-2 mb-6">
+                <TabsList className="grid grid-cols-4 mb-6">
                   <TabsTrigger value="languages" className="flex items-center gap-2">
                     <Languages size={14} /> Languages
                   </TabsTrigger>
                   <TabsTrigger value="report-id" className="flex items-center gap-2">
                     <Hash size={14} /> Report ID
+                  </TabsTrigger>
+                  <TabsTrigger value="avatars" className="flex items-center gap-2">
+                    <UserCircle size={14} /> Avatars
+                  </TabsTrigger>
+                  <TabsTrigger value="logos" className="flex items-center gap-2">
+                    <LinkIcon size={14} /> Logos
                   </TabsTrigger>
                 </TabsList>
 
@@ -1646,6 +1689,278 @@ export function MenuManagement() {
                           </div>
                         </div>
                         <Info size={24} className="text-primary/20" />
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="avatars" className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Bot Avatar Config */}
+                    <div className="space-y-4 border p-4 rounded-lg bg-card shadow-sm">
+                      <h3 className="font-semibold text-lg flex items-center gap-2">
+                        <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">Bot</Badge>
+                        Bot Avatar
+                      </h3>
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold uppercase text-muted-foreground">Avatar Type</Label>
+                        <Select
+                          value={settings.botAvatarType || 'text'}
+                          onValueChange={(val: any) => setSettings({ ...settings, botAvatarType: val })}
+                        >
+                          <SelectTrigger className="bg-muted/5">
+                            <SelectValue placeholder="Select type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="text">Text (Initials)</SelectItem>
+                            <SelectItem value="image">Image / Local Upload</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {settings.botAvatarType === 'image' ? (
+                        <div className="space-y-4 pt-2">
+                          <div className="space-y-2">
+                            <Label className="text-xs font-bold uppercase text-muted-foreground">Image Source</Label>
+                            <Select
+                              value={botAvatarImageSource}
+                              onValueChange={(val: any) => {
+                                const next = val === 'url' ? 'url' : 'upload';
+                                setBotAvatarImageSource(next);
+                                setSettings(prev => ({
+                                  ...prev,
+                                  botAvatarImage: next === 'url'
+                                    ? (typeof prev.botAvatarImage === 'string' && /^https?:\/\//i.test(prev.botAvatarImage) ? prev.botAvatarImage : '')
+                                    : (typeof prev.botAvatarImage === 'string' && (prev.botAvatarImage.startsWith('data:image/') || prev.botAvatarImage.startsWith('/uploads/')) ? prev.botAvatarImage : '')
+                                }));
+                              }}
+                            >
+                              <SelectTrigger className="bg-muted/5">
+                                <SelectValue placeholder="Select source" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="upload">Local Upload</SelectItem>
+                                <SelectItem value="url">Image URL</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {botAvatarImageSource === 'upload' ? (
+                            <div className="space-y-2">
+                              <Label className="text-xs font-bold uppercase text-muted-foreground">Local Image Upload</Label>
+                              <Input
+                                key="bot-avatar-upload"
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => handleImageUpload(e, 'botAvatarImage')}
+                                className="text-xs h-9 bg-muted/5 border-dashed"
+                              />
+                              {typeof settings.botAvatarImage === 'string' && settings.botAvatarImage.startsWith('/uploads/') ? (
+                                <div className="text-[10px] text-muted-foreground font-mono truncate">Saved: {settings.botAvatarImage}</div>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              <Label className="text-xs font-bold uppercase text-muted-foreground">Image URL</Label>
+                              <Input
+                                key="bot-avatar-url"
+                                placeholder="https://example.com/bot-avatar.png"
+                                value={(typeof settings.botAvatarImage === 'string' && /^https?:\/\//i.test(settings.botAvatarImage)) ? settings.botAvatarImage : ''}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  setBotAvatarImageSource('url');
+                                  setSettings(prev => ({ ...prev, botAvatarImage: v }));
+                                }}
+                                className="text-xs h-9 font-mono bg-muted/5"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="space-y-2 pt-2">
+                          <Label className="text-xs font-bold uppercase text-muted-foreground">Initials Text</Label>
+                          <Input
+                            placeholder="TT"
+                            value={settings.botAvatarText || ''}
+                            onChange={(e) => setSettings({ ...settings, botAvatarText: e.target.value })}
+                            className="bg-muted/5 font-bold uppercase tracking-widest h-10"
+                          />
+                          <p className="text-[10px] text-muted-foreground italic">Will fallback to 'TT' if not provided.</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* User Avatar Config */}
+                    <div className="space-y-4 border p-4 rounded-lg bg-card shadow-sm">
+                      <h3 className="font-semibold text-lg flex items-center gap-2">
+                        <Badge variant="outline" className="bg-accent/10 text-accent border-accent/20">User</Badge>
+                        User Avatar
+                      </h3>
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold uppercase text-muted-foreground">Avatar Type</Label>
+                        <Select
+                          value={settings.userAvatarType || 'text'}
+                          onValueChange={(val: any) => setSettings({ ...settings, userAvatarType: val })}
+                        >
+                          <SelectTrigger className="bg-muted/5">
+                            <SelectValue placeholder="Select type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="text">Text (Initials)</SelectItem>
+                            <SelectItem value="image">Image / Local Upload</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {settings.userAvatarType === 'image' ? (
+                        <div className="space-y-4 pt-2">
+                          <div className="space-y-2">
+                            <Label className="text-xs font-bold uppercase text-muted-foreground">Image Source</Label>
+                            <Select
+                              value={userAvatarImageSource}
+                              onValueChange={(val: any) => {
+                                const next = val === 'url' ? 'url' : 'upload';
+                                setUserAvatarImageSource(next);
+                                setSettings(prev => ({
+                                  ...prev,
+                                  userAvatarImage: next === 'url'
+                                    ? (typeof prev.userAvatarImage === 'string' && /^https?:\/\//i.test(prev.userAvatarImage) ? prev.userAvatarImage : '')
+                                    : (typeof prev.userAvatarImage === 'string' && (prev.userAvatarImage.startsWith('data:image/') || prev.userAvatarImage.startsWith('/uploads/')) ? prev.userAvatarImage : '')
+                                }));
+                              }}
+                            >
+                              <SelectTrigger className="bg-muted/5">
+                                <SelectValue placeholder="Select source" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="upload">Local Upload</SelectItem>
+                                <SelectItem value="url">Image URL</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {userAvatarImageSource === 'upload' ? (
+                            <div className="space-y-2">
+                              <Label className="text-xs font-bold uppercase text-muted-foreground">Local Image Upload</Label>
+                              <Input
+                                key="user-avatar-upload"
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => handleImageUpload(e, 'userAvatarImage')}
+                                className="text-xs h-9 bg-muted/5 border-dashed"
+                              />
+                              {typeof settings.userAvatarImage === 'string' && settings.userAvatarImage.startsWith('/uploads/') ? (
+                                <div className="text-[10px] text-muted-foreground font-mono truncate">Saved: {settings.userAvatarImage}</div>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              <Label className="text-xs font-bold uppercase text-muted-foreground">Image URL</Label>
+                              <Input
+                                key="user-avatar-url"
+                                placeholder="https://example.com/user-avatar.png"
+                                value={(typeof settings.userAvatarImage === 'string' && /^https?:\/\//i.test(settings.userAvatarImage)) ? settings.userAvatarImage : ''}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  setUserAvatarImageSource('url');
+                                  setSettings(prev => ({ ...prev, userAvatarImage: v }));
+                                }}
+                                className="text-xs h-9 font-mono bg-muted/5"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="space-y-2 pt-2">
+                          <Label className="text-xs font-bold uppercase text-muted-foreground">Initials Text</Label>
+                          <Input
+                            placeholder="ME"
+                            value={settings.userAvatarText || ''}
+                            onChange={(e) => setSettings({ ...settings, userAvatarText: e.target.value })}
+                            className="bg-muted/5 font-bold uppercase tracking-widest h-10"
+                          />
+                          <p className="text-[10px] text-muted-foreground italic">Will fallback to 'ME' if not provided.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="logos" className="space-y-6">
+                  <div className="space-y-6">
+                    <div className="space-y-4 border p-4 rounded-lg bg-card shadow-sm">
+                      <h3 className="font-semibold text-lg flex items-center gap-2">
+                        <LinkIcon className="text-primary" size={18} />
+                        Branding Logo
+                      </h3>
+                      <p className="text-xs text-muted-foreground italic">Update the official bank logo used across the application header and welcome screen.</p>
+
+                      <div className="space-y-4 pt-2">
+                        <div className="space-y-2">
+                          <Label className="text-xs font-bold uppercase text-muted-foreground">Logo Source</Label>
+                          <Select
+                            value={appLogoSource}
+                            onValueChange={(val: any) => {
+                              const next = val === 'url' ? 'url' : 'upload';
+                              setAppLogoSource(next);
+                              setSettings(prev => ({
+                                ...prev,
+                                appLogo: next === 'url'
+                                  ? (typeof prev.appLogo === 'string' && /^https?:\/\//i.test(prev.appLogo) ? prev.appLogo : '')
+                                  : (typeof prev.appLogo === 'string' && (prev.appLogo.startsWith('data:image/') || prev.appLogo.startsWith('/uploads/')) ? prev.appLogo : '')
+                              }));
+                            }}
+                          >
+                            <SelectTrigger className="bg-muted/5">
+                              <SelectValue placeholder="Select source" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="upload">Local Upload</SelectItem>
+                              <SelectItem value="url">Image URL</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {appLogoSource === 'upload' ? (
+                          <div className="space-y-2">
+                            <Label className="text-xs font-bold uppercase text-muted-foreground">Local Logo Upload</Label>
+                            <Input
+                              key="app-logo-upload"
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => handleImageUpload(e, 'appLogo')}
+                              className="text-xs h-9 bg-muted/5 border-dashed"
+                            />
+                            {typeof settings.appLogo === 'string' && settings.appLogo.startsWith('/uploads/') ? (
+                              <div className="text-[10px] text-muted-foreground font-mono truncate">Saved: {settings.appLogo}</div>
+                            ) : null}
+                            <p className="text-[10px] text-muted-foreground italic">Recommended: Transparent PNG, 512x512px.</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <Label className="text-xs font-bold uppercase text-muted-foreground">Logo URL</Label>
+                            <Input
+                              key="app-logo-url"
+                              placeholder="https://example.com/logo.png"
+                              value={(typeof settings.appLogo === 'string' && /^https?:\/\//i.test(settings.appLogo)) ? settings.appLogo : ''}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setAppLogoSource('url');
+                                setSettings(prev => ({ ...prev, appLogo: v }));
+                              }}
+                              className="text-xs h-9 font-mono bg-muted/5"
+                            />
+                          </div>
+                        )}
+
+                        {settings.appLogo && (
+                          <div className="pt-4 border-t">
+                            <Label className="text-[10px] uppercase font-bold text-muted-foreground block mb-2">Logo Preview</Label>
+                            <div className="w-24 h-24 rounded-lg border bg-muted/5 flex items-center justify-center p-2 overflow-hidden shadow-inner">
+                              <img src={settings.appLogo} alt="Logo Preview" className="max-w-full max-h-full object-contain" />
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

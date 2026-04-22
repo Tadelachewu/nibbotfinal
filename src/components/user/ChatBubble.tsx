@@ -7,15 +7,21 @@ import { cn } from '@/lib/utils';
 interface ChatBubbleProps {
   children: ReactNode;
   isBot?: boolean;
+  botAvatar?: { type?: 'text' | 'image', image?: string, text?: string };
+  userAvatar?: { type?: 'text' | 'image', image?: string, text?: string };
 }
 
 function makeAvatarDataUri(text: string, background: string) {
-  const safeText = String(text || '').slice(0, 2).toUpperCase();
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="${background}"/><text x="50" y="58" text-anchor="middle" font-family="Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial" font-size="36" font-weight="700" fill="#ffffff">${safeText}</text></svg>`;
+  const safeText = String(text || '').toUpperCase();
+  const fontSize = Math.max(14, 36 - Math.max(0, safeText.length - 2) * 6);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="${background}"/><text x="50" y="58" text-anchor="middle" font-family="Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial" font-size="${fontSize}" font-weight="700" fill="#ffffff">${safeText}</text></svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
-export function ChatBubble({ children, isBot = true }: ChatBubbleProps) {
+export function ChatBubble({ children, isBot = true, botAvatar, userAvatar }: ChatBubbleProps) {
+  const defaultBotAvatar = botAvatar?.type === 'image' && botAvatar.image ? botAvatar.image : makeAvatarDataUri(botAvatar?.text || 'TT', '#763717');
+  const defaultUserAvatar = userAvatar?.type === 'image' && userAvatar.image ? userAvatar.image : makeAvatarDataUri(userAvatar?.text || 'ME', '#F4A61B');
+
   return (
     <div className={cn(
       "flex gap-3 w-full mb-6 animate-in fade-in slide-in-from-bottom-2 duration-500",
@@ -23,8 +29,8 @@ export function ChatBubble({ children, isBot = true }: ChatBubbleProps) {
     )}>
       {isBot && (
         <Avatar className="h-8 w-8 border-2 border-primary/20 shrink-0">
-          <AvatarImage src={makeAvatarDataUri('TT', '#763717')} />
-          <AvatarFallback className="bg-primary text-white text-[10px]">TT</AvatarFallback>
+          <AvatarImage src={defaultBotAvatar} />
+          <AvatarFallback className="bg-primary text-white text-[10px]">{botAvatar?.text || 'TT'}</AvatarFallback>
         </Avatar>
       )}
 
@@ -41,8 +47,8 @@ export function ChatBubble({ children, isBot = true }: ChatBubbleProps) {
 
       {!isBot && (
         <Avatar className="h-8 w-8 border-2 border-accent/20 shrink-0">
-          <AvatarImage src={makeAvatarDataUri('ME', '#F4A61B')} />
-          <AvatarFallback className="bg-accent text-white text-[10px]">ME</AvatarFallback>
+          <AvatarImage src={defaultUserAvatar} />
+          <AvatarFallback className="bg-accent text-white text-[10px]">{userAvatar?.text || 'ME'}</AvatarFallback>
         </Avatar>
       )}
     </div>

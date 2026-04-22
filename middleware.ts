@@ -22,7 +22,7 @@ export function middleware(request: NextRequest) {
     : `'self' 'nonce-${nonce}' 'unsafe-inline'`
 
   const styleSrcElem = isProd
-    ? `'self' 'nonce-${nonce}'`
+    ? `'self' 'nonce-${nonce}' 'unsafe-inline'`
     : `'self' 'nonce-${nonce}' 'unsafe-inline'`
 
   const styleSrcAttr = "'unsafe-inline'"

@@ -14,6 +14,7 @@ const defaultLanguages: Language[] = [
 ];
 
 export const defaultSystemTranslations: Record<string, Record<string, string>> = {
+  ui_bank_name: { en: 'Nib International Bank', am: 'ንብ ኢንተርናሽናል ባንክ' },
   ui_online: { en: 'Online', am: 'አየር ላይ' },
   ui_offline: { en: 'Offline', am: 'ከመስመር ውጭ' },
   ui_checking: { en: 'Checking...', am: 'በመፈተሽ ላይ...' },

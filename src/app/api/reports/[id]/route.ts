@@ -67,7 +67,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     return NextResponse.json({ status: 'error', message: 'Invalid request body.' }, { status: 400 });
   }
 
-  const existing = await prisma.userReport.findUnique({ where: { id }, select: { supportAssignee: true, internalNotes: true } });
+  const existing = await prisma.userReport.findUnique({ where: { id }, select: { status: true, supportAssignee: true, internalNotes: true } });
   if (!existing) {
     return NextResponse.json({ status: 'error', message: 'Report not found.' }, { status: 404 });
   }
@@ -122,6 +122,33 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     nextInternalNotes = base ? `${base}\n${line}` : line;
   }
 
+  const activitiesToCreate: any[] = [];
+
+  if (isSupportAssignmentChange && typeof nextSupportAssignee === 'string') {
+    activitiesToCreate.push({
+      type: 'assignment',
+      actor: session.username,
+      target: nextSupportAssignee,
+      content: typeof body.supportAssignmentReason === 'string' ? body.supportAssignmentReason.trim() : 'Manual assignment'
+    });
+  }
+
+  if (body.status === 'resolved' && existing.status !== 'resolved') {
+    activitiesToCreate.push({
+      type: 'resolution',
+      actor: session.username,
+      content: 'Report marked as resolved'
+    });
+  }
+
+  if (typeof body.adminResponse === 'string' && body.adminResponse.trim().length > 0) {
+    activitiesToCreate.push({
+      type: 'response',
+      actor: session.username,
+      content: body.adminResponse.trim()
+    });
+  }
+
   const updated = await prisma.userReport.update({
     where: { id },
     data: {
@@ -129,7 +156,10 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       priority: body.priority ?? undefined,
       adminResponse: typeof body.adminResponse === 'string' ? body.adminResponse : undefined,
       internalNotes: typeof nextInternalNotes === 'string' ? nextInternalNotes : undefined,
-      supportAssignee: nextSupportAssignee
+      supportAssignee: nextSupportAssignee,
+      activities: activitiesToCreate.length > 0 ? {
+        create: activitiesToCreate
+      } : undefined
     }
   });
 
