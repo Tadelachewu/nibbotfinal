@@ -37,52 +37,60 @@ function authenticate(req, res, next) {
 }
 
 /* =========================
-   💱 MOCK DATABASE
+   💱 ETB BASED RATES
 ========================= */
 
 const rates = {
-    USD: { EUR: 0.92, ETB: 56.2, GBP: 0.78, KES: 150 },
-    EUR: { USD: 1.09, ETB: 61.3, GBP: 0.85, KES: 163 },
-    ETB: { USD: 0.017, EUR: 0.016, GBP: 0.014, KES: 2.7 }
+    ETB: {
+        USD: 0.017,
+        EUR: 0.016,
+        GBP: 0.014,
+        KES: 2.7
+    }
 };
 
 /* =========================
-   🧠 UTIL
+   🧠 UTIL FUNCTIONS
 ========================= */
 
-function isValidCurrency(code) {
-    return rates.hasOwnProperty(code);
+function isSupported(currency) {
+    return currency === "ETB" || rates.ETB.hasOwnProperty(currency);
+}
+
+function getRate(from, to) {
+    from = from.toUpperCase();
+    to = to.toUpperCase();
+
+    if (from === to) return 1;
+
+    // ETB → Other
+    if (from === "ETB" && rates.ETB[to]) {
+        return rates.ETB[to];
+    }
+
+    // Other → ETB
+    if (to === "ETB" && rates.ETB[from]) {
+        return 1 / rates.ETB[from];
+    }
+
+    // Other → Other via ETB
+    if (rates.ETB[from] && rates.ETB[to]) {
+        return (1 / rates.ETB[from]) * rates.ETB[to];
+    }
+
+    return null;
 }
 
 /* =========================
-   🏦 1. GET RATES
-   Supports:
-   - /api/rates?base=USD
-   - /api/rates/USD (optional)
+   🏦 1. GET ALL RATES (ETB BASE)
 ========================= */
 
-app.get("/api/rates/:base?", authenticate, (req, res) => {
-    const base = (req.query.base || req.params.base)?.toUpperCase();
-
-    if (!base) {
-        return res.status(400).json({
-            status: "ERROR",
-            message: "base currency is required (query or path)"
-        });
-    }
-
-    if (!isValidCurrency(base)) {
-        return res.status(404).json({
-            status: "ERROR",
-            message: "Currency not supported"
-        });
-    }
-
+app.get("/api/rates", authenticate, (req, res) => {
     res.json({
         status: "SUCCESS",
         data: {
-            baseCurrency: base,
-            rates: rates[base]
+            baseCurrency: "ETB",
+            rates: rates.ETB
         },
         meta: {
             timestamp: new Date().toISOString()
@@ -91,7 +99,7 @@ app.get("/api/rates/:base?", authenticate, (req, res) => {
 });
 
 /* =========================
-   💱 2. CONVERT CURRENCY
+   💱 2. CONVERT
 ========================= */
 
 app.post("/api/convert", authenticate, (req, res) => {
@@ -104,29 +112,29 @@ app.post("/api/convert", authenticate, (req, res) => {
         });
     }
 
-    if (isNaN(amount)) {
+    if (isNaN(amount) || Number(amount) <= 0) {
         return res.status(400).json({
             status: "ERROR",
-            message: "amount must be a number"
+            message: "amount must be a positive number"
         });
     }
 
-    const base = from.toUpperCase();
-    const target = to.toUpperCase();
+    from = from.toUpperCase();
+    to = to.toUpperCase();
 
-    let rate;
-
-    // direct rate
-    if (rates[base] && rates[base][target]) {
-        rate = rates[base][target];
-    }
-    // reverse rate support
-    else if (rates[target] && rates[target][base]) {
-        rate = 1 / rates[target][base];
-    } else {
+    if (!isSupported(from) || !isSupported(to)) {
         return res.status(404).json({
             status: "ERROR",
-            message: "Currency pair not supported"
+            message: "Currency not supported"
+        });
+    }
+
+    const rate = getRate(from, to);
+
+    if (!rate) {
+        return res.status(404).json({
+            status: "ERROR",
+            message: "Conversion not available"
         });
     }
 
@@ -135,13 +143,14 @@ app.post("/api/convert", authenticate, (req, res) => {
     res.json({
         status: "SUCCESS",
         data: {
-            from: base,
-            to: target,
+            from,
+            to,
             amount: Number(amount),
             rate,
             converted: Number(converted.toFixed(2))
         },
         meta: {
+            systemBase: "ETB",
             timestamp: new Date().toISOString()
         }
     });
@@ -149,14 +158,11 @@ app.post("/api/convert", authenticate, (req, res) => {
 
 /* =========================
    🔁 3. CONVERT ALL
-   Supports:
-   - /api/convert-all?base=USD&amount=100
-   - /api/convert-all/USD?amount=100
 ========================= */
 
-app.get("/api/convert-all/:base?", authenticate, (req, res) => {
-    const base = (req.query.base || req.params.base)?.toUpperCase();
-    const amount = Number(req.query.amount || 1);
+app.get("/api/convert-all", authenticate, (req, res) => {
+    let base = req.query.base?.toUpperCase();
+    let amount = Number(req.query.amount || 1);
 
     if (!base) {
         return res.status(400).json({
@@ -165,37 +171,58 @@ app.get("/api/convert-all/:base?", authenticate, (req, res) => {
         });
     }
 
-    if (!isValidCurrency(base)) {
+    if (!isSupported(base)) {
         return res.status(404).json({
             status: "ERROR",
             message: "Currency not supported"
         });
     }
 
-    if (isNaN(amount)) {
+    if (isNaN(amount) || amount <= 0) {
         return res.status(400).json({
             status: "ERROR",
-            message: "amount must be a number"
+            message: "amount must be a positive number"
         });
     }
 
-    const result = Object.entries(rates[base]).map(([currency, rate]) => ({
-        currency,
-        rate,
-        converted: Number((rate * amount).toFixed(2))
-    }));
+    const currencies = ["ETB", ...Object.keys(rates.ETB)];
+
+    const result = currencies
+        .filter(c => c !== base)
+        .map(currency => {
+            const rate = getRate(base, currency);
+
+            return {
+                currency,
+                rate,
+                converted: Number((rate * amount).toFixed(2))
+            };
+        });
 
     res.json({
         status: "SUCCESS",
         data: {
             baseCurrency: base,
+            systemBase: "ETB",
             amount,
-            result
+            conversions: result
         },
         meta: {
             total: result.length,
             timestamp: new Date().toISOString()
         }
+    });
+});
+
+/* =========================
+   ❤️ HEALTH CHECK
+========================= */
+
+app.get("/api/health", (req, res) => {
+    res.json({
+        status: "OK",
+        message: "Exchange API is running",
+        time: new Date().toISOString()
     });
 });
 
@@ -206,5 +233,5 @@ app.get("/api/convert-all/:base?", authenticate, (req, res) => {
 const PORT = 3003;
 
 app.listen(PORT, () => {
-    console.log(`🏦 Secure Exchange API running on http://localhost:${PORT}`);
+    console.log(`🏦 ETB Exchange API running on http://localhost:${PORT}`);
 });
