@@ -181,11 +181,6 @@ export function ChatInterface() {
   const [currentMenuId, setCurrentMenuId] = useState<string | null>(null);
   const [menuHistory, setMenuHistory] = useState<string[]>([]);
   const [currentLang, setCurrentLang] = useState<Language | null>(null);
-  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => {
-    if (typeof window === 'undefined') return 'system';
-    const match = document.cookie.match(/(?:^|; )nib_theme=([^;]+)/);
-    return match ? (match[1] as 'light' | 'dark' | 'system') : (localStorage.getItem('nib_theme') as 'light' | 'dark' | 'system') || 'system';
-  });
   const userAvatarFallback = appSettings?.userAvatarText || 'ME';
   const userAvatarUrl = appSettings?.userAvatarType === 'image' && appSettings?.userAvatarImage
     ? appSettings.userAvatarImage
@@ -385,16 +380,6 @@ export function ChatInterface() {
     };
   }, [userData.id]);
 
-  useEffect(() => {
-    const root = window.document.documentElement;
-    root.classList.remove('light', 'dark');
-    if (theme === 'system') {
-      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-      root.classList.add(systemTheme);
-    } else {
-      root.classList.add(theme);
-    }
-  }, [theme]);
 
   const getLocalizedName = (menu: MenuItem) => {
     if (!currentLang) return menu.name;

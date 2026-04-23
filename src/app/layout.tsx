@@ -26,9 +26,15 @@ export default async function RootLayout({
   const headersList = await headers();
   // We extract the nonce from the custom header we set in middleware.ts
   const nonce = headersList.get('x-nonce') || undefined;
+  const pathname = headersList.get('x-pathname') || '/';
+
+  // decide which cookie to read based on route
+  const isAdmin = pathname.startsWith('/admin');
+  const cookieName = isAdmin ? 'nib_admin_theme' : 'nib_theme';
+
   // read theme cookie server-side so we can set it before hydration
   const cookieHeader = headersList.get('cookie') || '';
-  const match = cookieHeader.match(/(?:^|; )nib_theme=([^;]+)/);
+  const match = cookieHeader.match(new RegExp(`(?:^|; )${cookieName}=([^;]+)`));
   const initialTheme = match ? match[1] : 'system';
 
   return (

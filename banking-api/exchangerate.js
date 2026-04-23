@@ -7,17 +7,14 @@ const app = express();
    🔐 MIDDLEWARE
 ========================= */
 
-// Enable JSON body parsing
 app.use(express.json());
-
-// Enable CORS (allow all origins for testing)
 app.use(cors());
 
 /* =========================
-   🔑 API KEY AUTH MIDDLEWARE
+   🔑 API KEY AUTH
 ========================= */
 
-const API_KEY = "my-secret-key-123"; // change this in production
+const API_KEY = "my-secret-key-123";
 
 function authenticate(req, res, next) {
     const clientKey = req.headers["api-key"];
@@ -58,10 +55,21 @@ function isValidCurrency(code) {
 }
 
 /* =========================
-   🏦 1. GET ALL RATES
+   🏦 1. GET RATES
+   Supports:
+   - /api/rates?base=USD
+   - /api/rates/USD (optional)
 ========================= */
-app.get("/api/rates/:base", authenticate, (req, res) => {
-    const base = req.params.base.toUpperCase();
+
+app.get("/api/rates/:base?", authenticate, (req, res) => {
+    const base = (req.query.base || req.params.base)?.toUpperCase();
+
+    if (!base) {
+        return res.status(400).json({
+            status: "ERROR",
+            message: "base currency is required (query or path)"
+        });
+    }
 
     if (!isValidCurrency(base)) {
         return res.status(404).json({
@@ -83,29 +91,45 @@ app.get("/api/rates/:base", authenticate, (req, res) => {
 });
 
 /* =========================
-   💱 2. CONVERT CURRENCY (POST JSON BODY)
+   💱 2. CONVERT CURRENCY
 ========================= */
-app.post("/api/convert", authenticate, (req, res) => {
-    const { from, to, amount } = req.body;
 
-    if (!from || !to || !amount) {
+app.post("/api/convert", authenticate, (req, res) => {
+    let { from, to, amount } = req.body;
+
+    if (!from || !to || amount === undefined) {
         return res.status(400).json({
             status: "ERROR",
             message: "from, to, amount are required"
         });
     }
 
+    if (isNaN(amount)) {
+        return res.status(400).json({
+            status: "ERROR",
+            message: "amount must be a number"
+        });
+    }
+
     const base = from.toUpperCase();
     const target = to.toUpperCase();
 
-    if (!isValidCurrency(base) || !rates[base][target]) {
+    let rate;
+
+    // direct rate
+    if (rates[base] && rates[base][target]) {
+        rate = rates[base][target];
+    }
+    // reverse rate support
+    else if (rates[target] && rates[target][base]) {
+        rate = 1 / rates[target][base];
+    } else {
         return res.status(404).json({
             status: "ERROR",
             message: "Currency pair not supported"
         });
     }
 
-    const rate = rates[base][target];
     const converted = amount * rate;
 
     res.json({
@@ -113,7 +137,7 @@ app.post("/api/convert", authenticate, (req, res) => {
         data: {
             from: base,
             to: target,
-            amount,
+            amount: Number(amount),
             rate,
             converted: Number(converted.toFixed(2))
         },
@@ -125,15 +149,33 @@ app.post("/api/convert", authenticate, (req, res) => {
 
 /* =========================
    🔁 3. CONVERT ALL
+   Supports:
+   - /api/convert-all?base=USD&amount=100
+   - /api/convert-all/USD?amount=100
 ========================= */
-app.get("/api/convert-all/:base", authenticate, (req, res) => {
-    const base = req.params.base.toUpperCase();
+
+app.get("/api/convert-all/:base?", authenticate, (req, res) => {
+    const base = (req.query.base || req.params.base)?.toUpperCase();
     const amount = Number(req.query.amount || 1);
+
+    if (!base) {
+        return res.status(400).json({
+            status: "ERROR",
+            message: "base currency is required"
+        });
+    }
 
     if (!isValidCurrency(base)) {
         return res.status(404).json({
             status: "ERROR",
             message: "Currency not supported"
+        });
+    }
+
+    if (isNaN(amount)) {
+        return res.status(400).json({
+            status: "ERROR",
+            message: "amount must be a number"
         });
     }
 
@@ -160,6 +202,7 @@ app.get("/api/convert-all/:base", authenticate, (req, res) => {
 /* =========================
    🚀 START SERVER
 ========================= */
+
 const PORT = 3003;
 
 app.listen(PORT, () => {

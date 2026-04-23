@@ -31,7 +31,7 @@ export function AdminHeader() {
         <h1 className="text-lg font-extrabold text-[#763717] sm:hidden">Nib Admin</h1>
       </div>
       <nav className="flex items-center gap-4">
-        <ThemeToggle />
+        <ThemeToggle cookieName="nib_admin_theme" />
         <span className="text-xs text-muted-foreground hidden md:inline-block">
           Signed in as <strong className="text-foreground">{currentUsername}</strong>
         </span>

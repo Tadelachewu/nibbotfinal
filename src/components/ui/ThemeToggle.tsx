@@ -16,10 +16,14 @@ function readCookie(name: string) {
     return match ? match[2] : null;
 }
 
-export default function ThemeToggle() {
+interface ThemeToggleProps {
+    cookieName?: string;
+}
+
+export default function ThemeToggle({ cookieName = 'nib_theme' }: ThemeToggleProps) {
     const [theme, setTheme] = useState<string>(() => {
         if (typeof window === 'undefined') return 'system';
-        return readCookie(THEME_COOKIE) || (localStorage.getItem(THEME_COOKIE) || 'system');
+        return readCookie(cookieName) || (localStorage.getItem(cookieName) || 'system');
     });
 
     useEffect(() => {
@@ -37,11 +41,11 @@ export default function ThemeToggle() {
 
         if (theme === 'system') {
             // persist choice but allow system-driven toggles
-            localStorage.removeItem(THEME_COOKIE);
-            setCookie(THEME_COOKIE, 'system');
+            localStorage.removeItem(cookieName);
+            setCookie(cookieName, 'system');
         } else {
-            localStorage.setItem(THEME_COOKIE, theme);
-            setCookie(THEME_COOKIE, theme);
+            localStorage.setItem(cookieName, theme);
+            setCookie(cookieName, theme);
         }
 
         const mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
@@ -53,7 +57,7 @@ export default function ThemeToggle() {
             if (mq && mq.removeEventListener) mq.removeEventListener('change', onChange);
             else if (mq && (mq as any).removeListener) (mq as any).removeListener(onChange);
         };
-    }, [theme]);
+    }, [theme, cookieName]);
 
     return (
         <select
