@@ -1246,22 +1246,132 @@ export function MenuManagement() {
 
                       {editForm.responseType === 'api' && (
                         <div className="space-y-4">
-                          <div className="flex items-center justify-between"><Label className="text-xs font-bold uppercase">2. API Request Mapping</Label><Button variant="ghost" size="sm" onClick={() => { const params = editForm.apiConfig?.requestParameters || []; deepUpdate(['apiConfig', 'requestParameters'], [...params, { apiKey: '', sourceType: 'kyc', sourceValue: '' }]); }}><Link2 className="mr-1" /> Map Parameter</Button></div>
-                          <div className="space-y-2">
+                          <div className="flex items-center justify-between"><Label className="text-xs font-bold uppercase">2. API Request Mapping</Label><Button variant="ghost" size="sm" onClick={() => { const params = editForm.apiConfig?.requestParameters || []; deepUpdate(['apiConfig', 'requestParameters'], [...params, { apiKey: '', sourceType: 'kyc', sourceValue: '', isEnabled: true, isUserConfigurable: true }]); }}><Link2 className="mr-1" /> Map Parameter</Button></div>
+                          <div className="space-y-3">
                             {editForm.apiConfig?.requestParameters?.map((param, idx) => (
-                              <div key={idx} className="flex gap-2 items-center group">
-                                <Input placeholder="API Param Key" value={param.apiKey} onChange={e => { const params = [...editForm.apiConfig!.requestParameters]; params[idx].apiKey = e.target.value; deepUpdate(['apiConfig', 'requestParameters'], params); }} className="flex-1" />
-                                <Select value={param.sourceValue} onValueChange={v => {
-                                  const params = [...editForm.apiConfig!.requestParameters];
-                                  params[idx].sourceValue = v;
-                                  if (v === 'user.id' || v === 'user.token') params[idx].sourceType = 'user_profile';
-                                  else params[idx].sourceType = 'kyc';
-                                  deepUpdate(['apiConfig', 'requestParameters'], params);
-                                }}>
-                                  <SelectTrigger className="flex-1"><SelectValue placeholder="Source Field" /></SelectTrigger>
-                                  <SelectContent>{kycFieldsList.map(f => <SelectItem key={f.id} value={f.name}>KYC: {f.name}</SelectItem>)}<SelectItem value="user.id">User ID (System)</SelectItem><SelectItem value="user.token">User Token (System)</SelectItem></SelectContent>
-                                </Select>
-                                <Button variant="ghost" size="icon" className="text-destructive h-8 w-8 shrink-0" onClick={() => { const params = editForm.apiConfig!.requestParameters.filter((_, i) => i !== idx); deepUpdate(['apiConfig', 'requestParameters'], params); }}><Trash2 size={14} /></Button>
+                              <div key={idx} className="p-3 border rounded-lg space-y-3 bg-muted/30">
+                                <div className="flex items-center gap-2">
+                                  <Switch
+                                    checked={param.isEnabled !== false}
+                                    onCheckedChange={(checked) => {
+                                      const params = [...editForm.apiConfig!.requestParameters];
+                                      params[idx].isEnabled = checked;
+                                      deepUpdate(['apiConfig', 'requestParameters'], params);
+                                    }}
+                                  />
+                                  <Label className="text-sm font-medium">Enabled</Label>
+                                  {param.sourceType === 'admin_default' && (
+                                    <Badge variant="outline" className="ml-auto">Admin Default</Badge>
+                                  )}
+                                </div>
+
+                                <div className="flex gap-2 items-center">
+                                  <Input
+                                    placeholder="API Param Key"
+                                    value={param.apiKey}
+                                    onChange={e => {
+                                      const params = [...editForm.apiConfig!.requestParameters];
+                                      params[idx].apiKey = e.target.value;
+                                      deepUpdate(['apiConfig', 'requestParameters'], params);
+                                    }}
+                                    className="flex-1"
+                                    disabled={param.isEnabled === false}
+                                  />
+
+                                  <Select
+                                    value={param.sourceType}
+                                    onValueChange={v => {
+                                      const params = [...editForm.apiConfig!.requestParameters];
+                                      params[idx].sourceType = v as any;
+                                      if (v === 'user_profile') {
+                                        params[idx].sourceValue = 'user.id';
+                                      } else if (v === 'admin_default') {
+                                        params[idx].sourceValue = '';
+                                        params[idx].isUserConfigurable = false;
+                                      } else if (v === 'kyc') {
+                                        params[idx].sourceValue = kycFieldsList[0]?.name || '';
+                                        params[idx].isUserConfigurable = true;
+                                      }
+                                      deepUpdate(['apiConfig', 'requestParameters'], params);
+                                    }}
+                                    disabled={param.isEnabled === false}
+                                  >
+                                    <SelectTrigger className="w-40"><SelectValue placeholder="Source Type" /></SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="kyc">KYC Field</SelectItem>
+                                      <SelectItem value="static">Static Value</SelectItem>
+                                      <SelectItem value="user_profile">User Profile</SelectItem>
+                                      <SelectItem value="admin_default">Admin Default</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="text-destructive h-8 w-8 shrink-0"
+                                    onClick={() => {
+                                      const params = editForm.apiConfig!.requestParameters.filter((_, i) => i !== idx);
+                                      deepUpdate(['apiConfig', 'requestParameters'], params);
+                                    }}
+                                  >
+                                    <Trash2 size={14} />
+                                  </Button>
+                                </div>
+
+                                {param.sourceType === 'kyc' && (
+                                  <Select
+                                    value={param.sourceValue}
+                                    onValueChange={v => {
+                                      const params = [...editForm.apiConfig!.requestParameters];
+                                      params[idx].sourceValue = v;
+                                      deepUpdate(['apiConfig', 'requestParameters'], params);
+                                    }}
+                                    disabled={param.isEnabled === false}
+                                  >
+                                    <SelectTrigger className="w-full"><SelectValue placeholder="Select KYC Field" /></SelectTrigger>
+                                    <SelectContent>{kycFieldsList.map(f => <SelectItem key={f.id} value={f.name}>KYC: {f.name}</SelectItem>)}</SelectContent>
+                                  </Select>
+                                )}
+
+                                {param.sourceType === 'static' && (
+                                  <Input
+                                    placeholder="Static Value"
+                                    value={param.sourceValue}
+                                    onChange={e => {
+                                      const params = [...editForm.apiConfig!.requestParameters];
+                                      params[idx].sourceValue = e.target.value;
+                                      deepUpdate(['apiConfig', 'requestParameters'], params);
+                                    }}
+                                    disabled={param.isEnabled === false}
+                                  />
+                                )}
+
+                                {param.sourceType === 'admin_default' && (
+                                  <div className="space-y-2">
+                                    <Input
+                                      placeholder="Default Value (Admin Configured)"
+                                      value={param.sourceValue}
+                                      onChange={e => {
+                                        const params = [...editForm.apiConfig!.requestParameters];
+                                        params[idx].sourceValue = e.target.value;
+                                        deepUpdate(['apiConfig', 'requestParameters'], params);
+                                      }}
+                                      disabled={param.isEnabled === false}
+                                    />
+                                    <div className="flex items-center gap-2">
+                                      <Switch
+                                        checked={param.isUserConfigurable !== false}
+                                        onCheckedChange={(checked) => {
+                                          const params = [...editForm.apiConfig!.requestParameters];
+                                          params[idx].isUserConfigurable = checked;
+                                          deepUpdate(['apiConfig', 'requestParameters'], params);
+                                        }}
+                                        disabled={param.isEnabled === false}
+                                      />
+                                      <Label className="text-xs text-muted-foreground">Allow user override</Label>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -2530,10 +2640,31 @@ export function CheckerMenuReview() {
                           <div className="text-xs text-muted-foreground">No request parameters.</div>
                         ) : (
                           (menu.apiConfig?.requestParameters || []).map((param, idx) => (
-                            <div key={idx} className="flex gap-2 items-center">
-                              <Input value={param.apiKey || ''} disabled className="flex-1" />
-                              <Input value={param.sourceValue || ''} disabled className="flex-1 font-mono text-xs" />
-                              <Input value={param.sourceType || ''} disabled className="w-32 font-mono text-xs" />
+                            <div key={idx} className={`p-3 border rounded-lg space-y-2 ${param.isEnabled === false ? 'opacity-50' : ''}`}>
+                              <div className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${param.isEnabled === false ? 'bg-gray-400' : param.sourceType === 'admin_default' ? 'bg-blue-500' : 'bg-green-500'}`} />
+                                <span className="text-xs font-medium">{param.apiKey}</span>
+                                <Badge variant="outline" className="ml-auto text-xs">
+                                  {param.sourceType === 'admin_default' ? 'Admin Default' :
+                                    param.sourceType === 'kyc' ? 'KYC Field' :
+                                      param.sourceType === 'static' ? 'Static' : 'User Profile'}
+                                </Badge>
+                                {param.isEnabled === false && <Badge variant="secondary" className="text-xs">Disabled</Badge>}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {param.sourceType === 'admin_default' ? (
+                                  <>
+                                    Default: "{param.sourceValue}"
+                                    {param.isUserConfigurable !== false && <span className="text-blue-600"> • User can override</span>}
+                                  </>
+                                ) : param.sourceType === 'kyc' ? (
+                                  `Maps to: ${param.sourceValue}`
+                                ) : param.sourceType === 'static' ? (
+                                  `Value: "${param.sourceValue}"`
+                                ) : (
+                                  `System: ${param.sourceValue}`
+                                )}
+                              </div>
                             </div>
                           ))
                         )}

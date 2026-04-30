@@ -756,6 +756,9 @@ export function ChatInterface() {
       assertNoUnresolvedTemplate(url, 'endpoint URL');
       const requestPayload: Record<string, any> = {};
       menu.apiConfig.requestParameters?.forEach(param => {
+        // Skip disabled parameters
+        if (param.isEnabled === false) return;
+        
         const key = param.apiKey.trim();
         let val: any = null;
 
@@ -763,6 +766,16 @@ export function ChatInterface() {
         else if (param.sourceValue === 'user.token') val = userData.token;
         else if (param.sourceType === 'static') {
           val = replacePlaceholders(param.sourceValue, { kyc: kycData, rootKey });
+        }
+        else if (param.sourceType === 'admin_default') {
+          // Admin default values are used as-is, but can be overridden by user if isUserConfigurable is true
+          if (param.isUserConfigurable && kycData[param.apiKey] !== undefined) {
+            // User provided a value, use it instead of admin default
+            val = kycData[param.apiKey];
+          } else {
+            // Use admin default value
+            val = param.sourceValue;
+          }
         }
         else if (kycData[param.sourceValue] !== undefined) val = kycData[param.sourceValue];
 

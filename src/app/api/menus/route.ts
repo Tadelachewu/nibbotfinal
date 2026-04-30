@@ -46,10 +46,22 @@ function normalizeApiConfig(apiConfig: any) {
     })()
     : undefined;
 
+  // Normalize request parameters
+  const requestParameters = Array.isArray(apiConfig.requestParameters) 
+    ? apiConfig.requestParameters.map((param: any) => ({
+        apiKey: String(param.apiKey || ''),
+        sourceType: ['kyc', 'static', 'user_profile', 'admin_default'].includes(param.sourceType) ? param.sourceType : 'kyc',
+        sourceValue: String(param.sourceValue || ''),
+        isEnabled: param.isEnabled !== false, // Default to true
+        isUserConfigurable: param.isUserConfigurable !== false // Default to true
+      }))
+    : [];
+
   return {
     ...apiConfig,
     rootKey,
-    ...(normalizedResponseMapping ? { responseMapping: normalizedResponseMapping } : {})
+    ...(normalizedResponseMapping ? { responseMapping: normalizedResponseMapping } : {}),
+    ...(requestParameters.length > 0 ? { requestParameters } : {})
   };
 }
 

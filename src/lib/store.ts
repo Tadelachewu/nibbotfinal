@@ -210,6 +210,72 @@ const defaultMenus: MenuItem[] = [
         authRequiredMessage: 'Auth Required.'
       }
     }
+  },
+  {
+    id: 'admin-default-example',
+    parentId: null,
+    name: 'API Key Example (Admin Defaults)',
+    nameAm: 'API ቁልፍ ምሳሌ (አስተዳዳሪ ነባሪዎች)',
+    responseType: 'api',
+    order: 4,
+    isActive: true,
+    trackClicks: false,
+    clickCount: 0,
+    sessionClickCount: 0,
+    apiConfig: {
+      name: 'API Key with Admin Defaults',
+      endpoint: '/api/test/orders',
+      method: 'GET',
+      rootKey: 'data',
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 5000,
+      retry: 0,
+      loginRequired: false,
+      requiredKYC: [],
+      authConfig: {
+        type: 'apiKey',
+        apiKey: { header: 'x-api-key', value: 'mysecretapikey123' }
+      },
+      kycFields: [
+        {
+          id: 'kyc-limit',
+          name: 'limit',
+          prompt: 'Enter limit (optional, defaults to 10)',
+          promptAm: 'ድህረ መጨረሻ ያስገቡ (አማራጭ፣ ነባሪ 10 ነው)',
+          type: 'number',
+          order: 0,
+          required: false
+        }
+      ],
+      requestParameters: [
+        {
+          apiKey: 'limit',
+          sourceType: 'admin_default',
+          sourceValue: '10',
+          isEnabled: true,
+          isUserConfigurable: true
+        },
+        {
+          apiKey: 'api_key',
+          sourceType: 'admin_default',
+          sourceValue: 'mysecretapikey123',
+          isEnabled: true,
+          isUserConfigurable: false
+        }
+      ],
+      responseMapping: {
+        type: 'table',
+        template: 'Here are the orders:',
+        tableDataKey: 'data',
+        tableColumns: [
+          { header: 'ID', key: 'id' },
+          { header: 'Total', key: 'total' }
+        ],
+        errorFallback: 'Could not retrieve orders.',
+        timeoutMessage: 'Request timed out.',
+        authRequiredMessage: 'Authentication required.'
+      }
+    }
   }
 ];
 

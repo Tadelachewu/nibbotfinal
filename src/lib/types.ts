@@ -19,8 +19,10 @@ export interface TableColumn {
 
 export interface RequestParameter {
   apiKey: string;
-  sourceType: 'kyc' | 'static' | 'user_profile';
+  sourceType: 'kyc' | 'static' | 'user_profile' | 'admin_default';
   sourceValue: string; // The ID/Name of the KYC field or a static value
+  isEnabled?: boolean; // Toggle to enable/disable this parameter mapping
+  isUserConfigurable?: boolean; // Whether user can override the default value
 }
 
 export type AuthType = 'none' | 'apiKey' | 'basic' | 'bearer';
