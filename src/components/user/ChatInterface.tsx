@@ -1080,7 +1080,7 @@ export function ChatInterface() {
             onClick={handleHome}
             size="sm"
             variant="secondary"
-            className="rounded-full shadow-lg border bg-card/80 backdrop-blur-sm h-9 w-9 p-0 text-primary hover:bg-transparent transition-colors"
+            className="rounded-full shadow-lg border bg-card/80 backdrop-blur-sm h-9 w-9 p-0 text-[#763717] hover:bg-transparent transition-colors"
           >
             <HomeIcon size={16} />
           </Button>
@@ -1299,24 +1299,26 @@ export function ChatInterface() {
         <Button
           variant="ghost"
           size="sm"
-          className="hover:bg-transparent hover:text-primary hover:opacity-70 rounded-full px-3 text-primary font-medium text-sm transition-opacity"
+          className="hover:bg-transparent hover:text-[#763717] hover:opacity-70 rounded-full px-3 text-[#763717] font-medium text-sm transition-opacity justify-self-start"
           onClick={handleHome}
         >
           <HomeIcon className="mr-1.5" size={15} />
           {t('ui_home', 'Home')}
         </Button>
-        {appSettings?.showAdminPanelIcon === true && (
+        {appSettings?.showAdminPanelIcon === true ? (
           <Button
             variant="ghost"
             size="icon"
-            className="justify-self-center hover:bg-transparent hover:text-muted-foreground rounded-full h-9 w-9 p-0 text-muted-foreground transition-colors"
+            className="justify-self-center hover:bg-transparent hover:text-[#763717] rounded-full h-9 w-9 p-0 text-[#763717] transition-colors"
             onClick={handleAdminPanel}
             title="Settings"
           >
             <Settings size={16} />
           </Button>
+        ) : (
+          <div />
         )}
-        {(currentMenuId || menuHistory.length > 0) && (
+        {(currentMenuId || menuHistory.length > 0) ? (
           <Button
             variant="ghost"
             size="sm"
@@ -1326,6 +1328,8 @@ export function ChatInterface() {
             <ChevronLeft className="mr-1" size={16} />
             {t('ui_back', 'Back')}
           </Button>
+        ) : (
+          <div />
         )}
       </footer>
     </div>
