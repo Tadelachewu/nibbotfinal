@@ -1239,7 +1239,7 @@ export function ChatInterface() {
                         {msg.tableData.rows.map((row, i) => (
                           <TableRow key={i} className="hover:bg-muted/5 transition-colors">
                             {msg.tableData!.columns.map((col, j) => (
-                              <TableCell key={j} className="text-xs py-2.5 font-medium px-3 whitespace-nowrap max-w-[140px] truncate" title={String(resolveTableCell(col.key, row, msg.tableData!.rootData, msg.tableData!.arrayPath, msg.tableData!.rootKey) ?? '')}>
+                              <TableCell key={j} className="text-xs py-2.5 font-medium px-3 whitespace-normal break-words min-w-[80px]" title={String(resolveTableCell(col.key, row, msg.tableData!.rootData, msg.tableData!.arrayPath, msg.tableData!.rootKey) ?? '')}>
                                 {String(resolveTableCell(col.key, row, msg.tableData!.rootData, msg.tableData!.arrayPath, msg.tableData!.rootKey) ?? '')}
                               </TableCell>
                             ))}
