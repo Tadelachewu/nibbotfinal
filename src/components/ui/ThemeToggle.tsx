@@ -59,16 +59,31 @@ export default function ThemeToggle({ cookieName = 'nib_theme' }: ThemeTogglePro
         };
     }, [theme, cookieName]);
 
+    const ICONS: Record<string, string> = { light: '☀️', dark: '🌙', system: '💻' };
+    const CYCLE: Record<string, string> = { light: 'dark', dark: 'system', system: 'light' };
+
     return (
-        <select
-            aria-label="Theme"
-            className="h-8 px-2 rounded-md bg-card border text-sm"
-            value={theme}
-            onChange={e => setTheme(e.target.value)}
-        >
-            <option value="system">System</option>
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-        </select>
+        <>
+            {/* Compact icon button — visible only on small screens */}
+            <button
+                aria-label={`Theme: ${theme}`}
+                title={`Theme: ${theme} (click to switch)`}
+                className="sm:hidden h-9 w-9 rounded-lg border bg-card flex items-center justify-center text-base hover:bg-muted transition-colors shrink-0"
+                onClick={() => setTheme(CYCLE[theme] || 'light')}
+            >
+                {ICONS[theme] || '☀️'}
+            </button>
+            {/* Full select — visible on sm+ */}
+            <select
+                aria-label="Theme"
+                className="hidden sm:block h-8 px-2 rounded-md bg-card border text-sm"
+                value={theme}
+                onChange={e => setTheme(e.target.value)}
+            >
+                <option value="system">System</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+            </select>
+        </>
     );
 }

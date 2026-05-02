@@ -1,10 +1,11 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { FirebaseClientProvider } from '@/firebase';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
 import { Toaster } from '@/components/ui/toaster';
 import { headers } from 'next/headers';
+import Script from 'next/script';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +17,13 @@ export const metadata: Metadata = {
   icons: {
     icon: '/favicon.ico',
   },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default async function RootLayout({
@@ -42,8 +50,10 @@ export default async function RootLayout({
       <head>
         {/* Next.js internal scripts should now automatically use this nonce if set in headers */}
         {nonce && <meta property="csp-nonce" content={nonce} />}
-        <script
+        <Script
+          id="theme-initializer"
           {...(nonce ? { nonce } : {})}
+          strategy="afterInteractive"
           dangerouslySetInnerHTML={{ __html: `(function(){try{const t=${JSON.stringify(initialTheme)};const r=document.documentElement;function apply(theme){if(theme==='dark')r.classList.add('dark');else if(theme==='light')r.classList.remove('dark');else{const p=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;if(p)r.classList.add('dark');else r.classList.remove('dark');}};apply(t);}catch(e){}})();` }}
         />
       </head>

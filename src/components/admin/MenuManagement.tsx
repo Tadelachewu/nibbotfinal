@@ -1667,7 +1667,10 @@ export function MenuManagement() {
 
             <TabsContent value="settings">
               <Tabs defaultValue="languages">
-                <TabsList className="grid grid-cols-4 mb-6">
+                <TabsList className="grid grid-cols-5 mb-6">
+                  <TabsTrigger value="general" className="flex items-center gap-2">
+                    <Settings2 size={14} /> General
+                  </TabsTrigger>
                   <TabsTrigger value="languages" className="flex items-center gap-2">
                     <Languages size={14} /> Languages
                   </TabsTrigger>
@@ -1681,6 +1684,25 @@ export function MenuManagement() {
                     <LinkIcon size={14} /> Logos
                   </TabsTrigger>
                 </TabsList>
+
+                <TabsContent value="general" className="space-y-6">
+                  <div className="space-y-4 border p-4 rounded-lg bg-card shadow-sm">
+                    <h3 className="font-semibold text-lg flex items-center gap-2">
+                      <Settings2 className="text-primary" size={18} />
+                      General Settings
+                    </h3>
+                    <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/5">
+                      <div className="space-y-0.5">
+                        <Label className="text-xs font-bold">Show Admin Settings Icon (User UI)</Label>
+                        <p className="text-[10px] text-muted-foreground italic">Controls whether the settings icon appears between Home and Back for users.</p>
+                      </div>
+                      <Switch
+                        checked={settings.showAdminPanelIcon ?? true}
+                        onCheckedChange={(val) => setSettings(prev => ({ ...prev, showAdminPanelIcon: val }))}
+                      />
+                    </div>
+                  </div>
+                </TabsContent>
 
                 <TabsContent value="languages">
                   <Card className="border-none shadow-none">

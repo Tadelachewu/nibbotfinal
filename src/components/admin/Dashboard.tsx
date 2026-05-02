@@ -64,6 +64,15 @@ export function Dashboard() {
     load();
 
     // Real-Time Socket Connection for Online Counter
+    if (process.env.NODE_ENV !== 'production' && process.env.NEXT_PUBLIC_ENABLE_SOCKET_IO !== 'true') {
+      const dataInterval = setInterval(() => {
+        load();
+      }, 5000);
+      return () => {
+        clearInterval(dataInterval);
+      };
+    }
+
     let active = true;
     let socket: ReturnType<typeof io> | null = null;
 

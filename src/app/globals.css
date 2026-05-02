@@ -99,4 +99,47 @@
 /* Highlight mark — let the inline color attribute take priority */
 .wysiwyg-content mark[data-color] {
   background-color: var(--highlight-color, inherit);
+}
+
+/* Mobile image overflow fix */
+.wysiwyg-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+}
+
+/* Prevent horizontal overflow in chat */
+.wysiwyg-content pre,
+.wysiwyg-content code {
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Smooth scrollable tables on touch devices */
+.table-scroll-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--primary) / 0.3) transparent;
+}
+
+.table-scroll-container::-webkit-scrollbar {
+  height: 4px;
+}
+
+.table-scroll-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.table-scroll-container::-webkit-scrollbar-thumb {
+  background: hsl(var(--primary) / 0.3);
+  border-radius: 99px;
+}
+
+/* Prevent zoom on input focus on iOS */
+@media (max-width: 640px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
 }

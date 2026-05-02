@@ -22,6 +22,7 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
+  Settings,
   User as UserIcon,
   Check
 } from 'lucide-react';
@@ -345,6 +346,7 @@ export function ChatInterface() {
   // Socket.io Real-Time Presence Heartbeat Engine
   useEffect(() => {
     if (!userData.id || typeof window === 'undefined') return;
+    if (process.env.NODE_ENV !== 'production' && process.env.NEXT_PUBLIC_ENABLE_SOCKET_IO !== 'true') return;
 
     let active = true;
     let socket: ReturnType<typeof io> | null = null;
@@ -758,7 +760,7 @@ export function ChatInterface() {
       menu.apiConfig.requestParameters?.forEach(param => {
         // Skip disabled parameters
         if (param.isEnabled === false) return;
-        
+
         const key = param.apiKey.trim();
         let val: any = null;
 
@@ -1035,6 +1037,11 @@ export function ChatInterface() {
     }]);
   };
 
+  const handleAdminPanel = () => {
+    if (typeof window === 'undefined') return;
+    window.location.href = '/admin';
+  };
+
   const startStatusFlow = () => {
     setStatusFlow(true);
     setHistory(prev => [...prev, {
@@ -1066,66 +1073,66 @@ export function ChatInterface() {
   const connectivity = useConnectivity();
 
   return (
-    <div className="flex flex-col h-full bg-card max-w-2xl mx-auto border-x shadow-2xl relative">
+    <div className="flex flex-col h-full bg-card w-full max-w-2xl mx-auto sm:border-x shadow-2xl relative overflow-x-hidden">
       {(currentMenuId || menuHistory.length > 0) && (
-        <div className="absolute top-20 right-4 z-40 flex flex-col gap-2">
+        <div className="absolute top-[4.5rem] right-2 z-40 flex flex-col gap-2">
           <Button
             onClick={handleHome}
             size="sm"
             variant="secondary"
-            className="rounded-full shadow-lg border bg-card/80 backdrop-blur-sm h-10 w-10 p-0 text-primary hover:bg-primary/10"
+            className="rounded-full shadow-lg border bg-card/80 backdrop-blur-sm h-9 w-9 p-0 text-primary hover:bg-transparent transition-colors"
           >
-            <HomeIcon size={18} />
+            <HomeIcon size={16} />
           </Button>
           <Button
             disabled={menuHistory.length === 0}
             onClick={handleBack}
             size="sm"
             variant="secondary"
-            className="rounded-full shadow-lg border bg-card/80 backdrop-blur-sm h-10 w-10 p-0 text-[#763717] hover:bg-primary/10 disabled:opacity-30"
+            className="rounded-full shadow-lg border bg-card/80 backdrop-blur-sm h-9 w-9 p-0 text-[#763717] hover:bg-transparent transition-colors disabled:opacity-30"
           >
-            <ChevronLeft size={22} />
+            <ChevronLeft size={18} />
           </Button>
         </div>
       )}
-      <header className="bg-card border-b p-4 flex items-center justify-between sticky top-0 z-50 shadow-sm">
-        <div className="flex items-center gap-3">
-          <Logo className="w-10 h-10" src={appSettings?.appLogo} />
-          <div>
-            <h1 className="font-bold text-lg text-[#763717]">{t('ui_bank_name', 'Nib International Bank')}</h1>
-            <div className="flex items-center gap-1.5">
+      <header className="bg-card border-b px-3 py-3 flex items-center justify-between sticky top-0 z-50 shadow-sm min-w-0">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <Logo className="w-9 h-9 shrink-0" src={appSettings?.appLogo} />
+          <div className="min-w-0">
+            <h1 className="font-bold text-sm sm:text-base md:text-lg text-[#763717] truncate leading-tight">{t('ui_bank_name', 'Nib International Bank')}</h1>
+            <div className="flex items-center gap-1">
               {connectivity === 'checking' && (
                 <>
-                  <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                  <span className="text-[10px] uppercase tracking-wider font-bold text-amber-500">{t('ui_checking', 'Checking...')}</span>
+                  <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" />
+                  <span className="text-[9px] uppercase tracking-wider font-bold text-amber-500 truncate">{t('ui_checking', 'Checking...')}</span>
                 </>
               )}
               {connectivity === 'online' && (
                 <>
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-[10px] uppercase tracking-wider font-bold text-emerald-600">{t('ui_online', 'Online')}</span>
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                  <span className="text-[9px] uppercase tracking-wider font-bold text-emerald-600">{t('ui_online', 'Online')}</span>
                 </>
               )}
               {connectivity === 'offline' && (
                 <>
-                  <div className="w-2 h-2 rounded-full bg-red-500" />
-                  <span className="text-[10px] uppercase tracking-wider font-bold text-red-500">{t('ui_offline', 'Offline')}</span>
+                  <div className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+                  <span className="text-[9px] uppercase tracking-wider font-bold text-red-500">{t('ui_offline', 'Offline')}</span>
                 </>
               )}
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5 shrink-0">
           <ThemeToggle />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-muted-foreground h-9 px-2 hover:bg-primary/10 flex items-center gap-2"
+                className="text-muted-foreground h-9 px-1.5 hover:bg-primary/10 flex items-center gap-1"
               >
-                <Globe size={18} className="text-primary" />
-                <span className="text-xs font-semibold text-primary max-w-24 truncate">
+                <Globe size={16} className="text-primary shrink-0" />
+                <span className="text-xs font-semibold text-primary">
                   {(currentLang?.code || 'EN').toUpperCase()}
                 </span>
               </Button>
@@ -1145,17 +1152,17 @@ export function ChatInterface() {
           </DropdownMenu>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 p-0 border shadow-sm">
+              <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 p-0 border shadow-sm shrink-0">
                 <Avatar className="h-full w-full">
                   <AvatarImage src={userAvatarUrl} loading="eager" decoding="async" fetchPriority="high" />
-                  <AvatarFallback className="bg-primary text-white text-xs">{userAvatarFallback}</AvatarFallback>
+                  <AvatarFallback className="bg-primary text-white text-[10px]">{userAvatarFallback}</AvatarFallback>
                 </Avatar>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64">
+            <DropdownMenuContent align="end" className="w-56 max-w-[calc(100vw-1rem)]">
               <DropdownMenuLabel className="flex flex-col">
                 <span className="text-xs font-bold">User Profile</span>
-                <span className="text-[10px] text-muted-foreground font-mono">{userData.id}</span>
+                <span className="text-[10px] text-muted-foreground font-mono truncate">{userData.id}</span>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={startStatusFlow} className="flex items-center gap-2 cursor-pointer">
@@ -1166,7 +1173,7 @@ export function ChatInterface() {
           </DropdownMenu>
         </div>
       </header>
-      <ScrollArea ref={scrollRef} className="flex-1 overflow-x-hidden p-4 md:p-6 space-y-4">
+      <ScrollArea ref={scrollRef} className="flex-1 overflow-x-hidden p-3 sm:p-4 md:p-6 space-y-4">
         <div className="flex flex-col min-h-full">
           {history.map(msg => (
             <ChatBubble
@@ -1217,12 +1224,12 @@ export function ChatInterface() {
               )}
               {msg.tableData && (
                 <div className="mt-4 border rounded-xl overflow-hidden bg-card shadow-md">
-                  <ScrollArea className="w-full">
-                    <Table>
+                  <div className="table-scroll-container w-full" style={{ WebkitOverflowScrolling: 'touch' }}>
+                    <Table className="min-w-[400px]">
                       <TableHeader className="bg-muted/30">
                         <TableRow>
                           {msg.tableData.columns.map((col, i) => (
-                            <TableHead key={i} className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">
+                            <TableHead key={i} className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap px-3">
                               {col.localizedHeader}
                             </TableHead>
                           ))}
@@ -1232,7 +1239,7 @@ export function ChatInterface() {
                         {msg.tableData.rows.map((row, i) => (
                           <TableRow key={i} className="hover:bg-muted/5 transition-colors">
                             {msg.tableData!.columns.map((col, j) => (
-                              <TableCell key={j} className="text-xs py-3 font-medium">
+                              <TableCell key={j} className="text-xs py-2.5 font-medium px-3 whitespace-nowrap max-w-[140px] truncate" title={String(resolveTableCell(col.key, row, msg.tableData!.rootData, msg.tableData!.arrayPath, msg.tableData!.rootKey) ?? '')}>
                                 {String(resolveTableCell(col.key, row, msg.tableData!.rootData, msg.tableData!.arrayPath, msg.tableData!.rootKey) ?? '')}
                               </TableCell>
                             ))}
@@ -1240,7 +1247,7 @@ export function ChatInterface() {
                         ))}
                       </TableBody>
                     </Table>
-                  </ScrollArea>
+                  </div>
                 </div>
               )}
               <MessageOptionsList
@@ -1265,47 +1272,58 @@ export function ChatInterface() {
           <div ref={messagesEndRef} className="h-4" />
         </div>
       </ScrollArea>
-      {(kycFlow || statusFlow) && <div className="p-4 bg-card border-t flex flex-col gap-2 sticky bottom-0 z-50 animate-in slide-in-from-bottom-2 duration-300">
-        <form onSubmit={handleUserInput} className="flex gap-2">
+      {(kycFlow || statusFlow) && <div className="px-3 py-3 bg-card border-t flex flex-col gap-2 sticky bottom-0 z-50 animate-in slide-in-from-bottom-2 duration-300">
+        <form onSubmit={handleUserInput} className="flex gap-2 w-full">
           <Input
             autoFocus
             type={getInputType()}
             value={kycInput}
             onChange={e => setKycInput(e.target.value)}
             placeholder={statusFlow ? t('ui_placeholder_report_id', 'Enter reference ID...') : t('ui_placeholder_input', 'Enter requested information...')}
-            className="flex-1 shadow-inner"
+            className="flex-1 min-w-0 shadow-inner text-sm"
           />
           <Button type="submit" size="icon" className="rounded-xl h-10 w-10 shrink-0"><Send size={18} /></Button>
           {kycFlow && !kycFlow.fields[kycFlow.fieldIndex].required && (
-            <Button type="button" variant="ghost" size="sm" onClick={() => handleKycSubmit(true)} className="text-[10px] font-bold uppercase text-muted-foreground hover:text-primary h-10 px-3">
+            <Button type="button" variant="ghost" size="sm" onClick={() => handleKycSubmit(true)} className="text-[10px] font-bold uppercase text-muted-foreground hover:text-primary h-10 px-2 shrink-0">
               {t('ui_skip', 'Skip')}
             </Button>
           )}
           {statusFlow && (
-            <Button type="button" variant="ghost" size="sm" onClick={() => setStatusFlow(false)} className="text-[10px] font-bold uppercase text-muted-foreground hover:text-destructive h-10 px-3">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setStatusFlow(false)} className="text-[10px] font-bold uppercase text-muted-foreground hover:text-destructive h-10 px-2 shrink-0">
               {t('ui_cancel', 'Cancel')}
             </Button>
           )}
         </form>
       </div>}
-      <footer className="bg-card border-t p-4 flex justify-between gap-4 sticky bottom-0 z-40 shadow-[0_-1px_3px_rgba(0,0,0,0.05)]">
+      <footer className="bg-card border-t px-3 py-2.5 grid grid-cols-3 items-center gap-2 sticky bottom-0 z-40 shadow-[0_-1px_3px_rgba(0,0,0,0.05)]">
         <Button
           variant="ghost"
           size="sm"
-          className="hover:bg-primary/5 rounded-full px-4 text-primary font-medium"
+          className="hover:bg-transparent hover:text-primary hover:opacity-70 rounded-full px-3 text-primary font-medium text-sm transition-opacity"
           onClick={handleHome}
         >
-          <HomeIcon className="mr-2" size={16} />
+          <HomeIcon className="mr-1.5" size={15} />
           {t('ui_home', 'Home')}
         </Button>
+        {appSettings?.showAdminPanelIcon === true && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="justify-self-center hover:bg-transparent hover:text-muted-foreground rounded-full h-9 w-9 p-0 text-muted-foreground transition-colors"
+            onClick={handleAdminPanel}
+            title="Settings"
+          >
+            <Settings size={16} />
+          </Button>
+        )}
         {(currentMenuId || menuHistory.length > 0) && (
           <Button
             variant="ghost"
             size="sm"
-            className="hover:bg-primary/5 rounded-full px-4 text-[#763717] font-medium"
+            className="justify-self-end hover:bg-transparent hover:text-[#763717] hover:opacity-70 rounded-full px-3 text-[#763717] font-medium text-sm transition-opacity"
             onClick={handleBack}
           >
-            <ChevronLeft className="mr-2" size={18} />
+            <ChevronLeft className="mr-1" size={16} />
             {t('ui_back', 'Back')}
           </Button>
         )}

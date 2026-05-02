@@ -97,6 +97,7 @@ export interface AppSettings {
   userAvatarText?: string;
   userAvatarImage?: string;
   appLogo?: string;
+  showAdminPanelIcon?: boolean;
 }
 
 export type MenuApprovalStatus = 'pending' | 'approved' | 'rejected';

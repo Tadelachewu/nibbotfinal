@@ -87,6 +87,7 @@ export async function GET() {
         reportId: defaultReportIdConfig,
         ...defaultAvatarSettings,
         appLogo: '',
+        showAdminPanelIcon: true,
       }
     });
   }
@@ -103,6 +104,7 @@ export async function GET() {
       userAvatarText: settings.userAvatarText ?? defaultAvatarSettings.userAvatarText,
       userAvatarImage: settings.userAvatarImage ?? defaultAvatarSettings.userAvatarImage,
       appLogo: settings.appLogo ?? '',
+      showAdminPanelIcon: settings.showAdminPanelIcon ?? true,
       reportId: settings.reportId
         ? {
           prefix: settings.reportId.prefix,
@@ -141,6 +143,7 @@ export async function PUT(req: Request) {
     const botAvatarImageRaw = typeof body.botAvatarImage === 'string' ? body.botAvatarImage.trim() : '';
     const userAvatarImageRaw = typeof body.userAvatarImage === 'string' ? body.userAvatarImage.trim() : '';
     const appLogoRaw = typeof body.appLogo === 'string' ? body.appLogo.trim() : '';
+    const showAdminPanelIcon = typeof body.showAdminPanelIcon === 'boolean' ? body.showAdminPanelIcon : true;
 
     let botAvatarImage: string | null = null;
     let userAvatarImage: string | null = null;
@@ -209,7 +212,8 @@ export async function PUT(req: Request) {
         userAvatarType,
         userAvatarText,
         userAvatarImage,
-        appLogo
+        appLogo,
+        ...({ showAdminPanelIcon } as any)
       },
       update: {
         supportedLanguages,
@@ -221,7 +225,8 @@ export async function PUT(req: Request) {
         userAvatarType,
         userAvatarText,
         userAvatarImage,
-        appLogo
+        appLogo,
+        ...({ showAdminPanelIcon } as any)
       },
       include: { reportId: true }
     });
@@ -239,6 +244,7 @@ export async function PUT(req: Request) {
         userAvatarText: saved.userAvatarText ?? defaultAvatarSettings.userAvatarText,
         userAvatarImage: saved.userAvatarImage ?? defaultAvatarSettings.userAvatarImage,
         appLogo: saved.appLogo ?? '',
+        showAdminPanelIcon: (saved as any).showAdminPanelIcon ?? true,
         reportId: saved.reportId
           ? {
             prefix: saved.reportId.prefix,
