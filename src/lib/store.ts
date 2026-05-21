@@ -41,11 +41,22 @@ export const defaultSystemTranslations: Record<string, Record<string, string>> =
   ui_loading_connecting: { en: 'Connecting to secure server...', am: 'ደህንነቱ ከተጠበቀ አገልጋይ ጋር በመገናኘት ላይ...' },
   ui_report_submit_success: { en: 'Your report has been submitted successfully. Thank you.', am: 'ሪፖርትዎ በተሳካ ሁኔታ ቀርቧል። እናመሰግናለን።' },
   ui_report_submit_fail: { en: "Sorry, we couldn't submit your report.", am: 'ይቅርታ፣ ሪፖርትዎን ማስገባት አልቻልንም።' },
+  ui_report_found: { en: 'Report {{id}} found:', am: 'ሪፖርት ቁጥር {{id}} ተገኝቷል፡' },
+  ui_report_not_found: { en: "Sorry, we couldn't find a report with reference {{id}}.", am: 'ይቅርታ፣ ሪፖርት ቁጥር {{id}} ማግኘት አልቻልንም።' },
   ui_results_intro: { en: 'Here are the results:', am: 'የተገኙ ውጤቶች የሚከተሉት ናቸው' },
   ui_no_data: { en: 'No data found.', am: 'ምንም መረጃ አልተገኘም።' },
   ui_error_processing: { en: 'Sorry, an error occurred while processing your request.', am: 'ይቅርታ፣ ጥያቄዎን ለማካሄድ ስህተት ተከስቷል።' },
   ui_request_success: { en: 'Your request was processed successfully.', am: 'ጥያቄዎ በተሳካ ሁኔታ ተከናውኗል።' },
   ui_admin_feedback: { en: 'Admin Feedback', am: 'የአስተዳዳሪ ምላሽ' },
+  ui_rate_service: { en: 'Rate the service', am: 'አገልግሎቱን ደረጃ ይስጡ' },
+  ui_rate_hint: { en: 'Your feedback helps us improve support service quality.', am: 'አስተያየትዎ የድጋፍ አገልግሎት ጥራት ለማሻሻል ይረዳል።' },
+  ui_rating_label: { en: 'Rating', am: 'ደረጃ' },
+  ui_rating_comment_prompt: { en: 'Thank you. Please type any feedback (optional), or click Skip.', am: 'እናመሰግናለን። አስተያየት ካለ ያስገቡ (አማራጭ) ወይም ዘለልን ይጫኑ።' },
+  ui_placeholder_feedback: { en: 'Enter feedback (optional)...', am: 'አስተያየት ያስገቡ (አማራጭ)...' },
+  ui_rating_submitting: { en: 'Submitting your rating...', am: 'ደረጃዎን እየላክን ነው...' },
+  ui_rating_thanks: { en: 'Thanks for your feedback.', am: 'አስተያየትዎን እናመሰግናለን።' },
+  ui_rating_error: { en: 'Sorry, we could not save your rating.', am: 'ይቅርታ፣ ደረጃዎን ማስቀመጥ አልቻልንም።' },
+  ui_rating_received: { en: 'Rating Received', am: 'ደረጃ ተቀብለናል' },
   ui_status_resolved: { en: 'Resolved', am: 'ተፈትቷል' },
   ui_status_reviewed: { en: 'Reviewed', am: 'በመመርመር ላይ' },
   ui_status_pending: { en: 'Pending', am: 'በጥበቃ ላይ' },
@@ -55,7 +66,9 @@ export const defaultSystemTranslations: Record<string, Record<string, string>> =
   ui_welcome_am: { en: 'Welcome to Nib International Bank', am: 'እንኳን ወደ ንብ ኢንተርናሽናል ባንክ በደህና መጡ!' },
   ui_welcome_en: { en: 'Welcome to Nib International Bank', am: 'Welcome to Nib International Bank' },
   ui_back: { en: 'Back', am: 'ተመለስ' },
-  ui_home: { en: 'Home', am: 'ዋና ገጽ' }
+  ui_home: { en: 'Home', am: 'ዋና ገጽ' },
+  ui_settings: { en: 'Settings', am: 'ቅንብሮች' },
+  ui_user_profile: { en: 'User Profile', am: 'የተጠቃሚ መገለጫ' }
 };
 
 const defaultMenus: MenuItem[] = [

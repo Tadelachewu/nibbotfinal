@@ -171,6 +171,10 @@ export interface UserReport {
   adminResponse?: string;
   internalNotes?: string;
   supportAssignee?: string;
+  serviceRating?: number;
+  serviceFeedback?: string;
+  serviceRatedAt?: string;
+  serviceRatedSupportAssignee?: string;
   timestamp: string;
 }
 

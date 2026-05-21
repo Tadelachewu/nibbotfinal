@@ -4,6 +4,9 @@ type NextConfigCompat = NextConfig & {
   typescript?: {
     ignoreBuildErrors?: boolean;
   };
+  turbopack?: {
+    root?: string;
+  };
 };
 
 const appOrigin = process.env.APP_ORIGIN || 'http://localhost:9002';
@@ -40,6 +43,9 @@ const nextConfig: NextConfigCompat = {
   poweredByHeader: false,
   typescript: {
     ignoreBuildErrors: true,
+  },
+  turbopack: {
+    root: __dirname,
   },
   async headers() {
     return [

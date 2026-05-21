@@ -24,7 +24,8 @@ import {
   AlertCircle,
   Settings,
   User as UserIcon,
-  Check
+  Check,
+  Star
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -58,6 +59,12 @@ interface Message {
   relatedOptions?: MenuItem[];
   relatedDescription?: string;
   isKYC?: boolean;
+  sourceType?: 'menu' | 'menu_intro' | 'menu_back' | 'menu_click' | 'home' | 'status_prompt' | 'status_result' | 'kyc_prompt' | 'api_table';
+  sourceMenuId?: string;
+  sourceRootKey?: string;
+  statusLookupId?: string;
+  statusLookupFound?: boolean;
+  kycFieldId?: string;
   tableData?: {
     columns: (TableColumn & { localizedHeader: string })[];
     rows: any[];
@@ -202,6 +209,7 @@ export function ChatInterface() {
   } | null>(null);
 
   const [statusFlow, setStatusFlow] = useState<boolean>(false);
+  const [ratingFlow, setRatingFlow] = useState<{ reportId: string; rating: number } | null>(null);
   const [kycInput, setKycInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [loadingText, setLoadingText] = useState('');
@@ -390,6 +398,15 @@ export function ChatInterface() {
     return menu.translations?.[currentLang.code]?.name || menu.name;
   };
 
+  const getLocalizedReportMenuName = (report: UserReport) => {
+    const menuId = report.menuId;
+    if (menuId) {
+      const menu = menus.find(m => m.id === menuId);
+      if (menu) return getLocalizedName(menu);
+    }
+    return report.menuName;
+  };
+
   const getLocalizedContent = (menu: MenuItem) => {
     if (!currentLang) return menu.content || '';
     if (currentLang.isDefault) return menu.content || '';
@@ -485,6 +502,104 @@ export function ChatInterface() {
       return match;
     });
   };
+
+  const isHtmlEffectivelyEmpty = (html: string) => {
+    const raw = String(html || '');
+    if (!raw.trim()) return true;
+    const text = raw.replace(/<[^>]*>?/gm, '').trim();
+    return text.length === 0;
+  };
+
+  useEffect(() => {
+    if (!currentLang) return;
+    setHistory(prev => prev.map((msg) => {
+      let nextText = msg.text;
+      let nextContent = msg.content;
+      let nextColumns = msg.tableData?.columns;
+
+      if (msg.sender === 'user' && msg.sourceType === 'menu_click' && msg.sourceMenuId) {
+        const menu = menus.find(m => m.id === msg.sourceMenuId);
+        if (menu) nextText = getLocalizedName(menu);
+      }
+
+      if (msg.sender !== 'bot') {
+        const textSame = nextText === msg.text;
+        if (textSame) return msg;
+        return { ...msg, text: nextText };
+      }
+
+      if (msg.sourceType === 'home') {
+        nextText = t('ui_home', 'Home');
+        nextContent = t('ui_welcome_subtitle', 'How can we assist you today?');
+      }
+
+      if (msg.sourceType === 'status_prompt') {
+        nextText = t('ui_enter_report_id', 'Please enter your Report Reference ID:');
+      }
+
+      if (msg.sourceType === 'status_result' && msg.statusLookupId) {
+        const key = msg.statusLookupFound ? 'ui_report_found' : 'ui_report_not_found';
+        const fallback = msg.statusLookupFound
+          ? 'Report {{id}} found:'
+          : "Sorry, we couldn't find a report with reference {{id}}.";
+        nextText = replacePlaceholders(t(key, fallback), { id: msg.statusLookupId });
+      }
+
+      if ((msg.sourceType === 'menu' || msg.sourceType === 'menu_intro' || msg.sourceType === 'menu_back' || msg.sourceType === 'kyc_prompt' || msg.sourceType === 'api_table') && msg.sourceMenuId) {
+        const menu = menus.find(m => m.id === msg.sourceMenuId);
+        if (menu) {
+          const rootKey = msg.sourceRootKey || menu.apiConfig?.rootKey || 'data';
+          if (msg.sourceType === 'menu_intro') {
+            const rawIntro = getLocalizedContent(menu);
+            const isDefault = rawIntro === '<p>Enter your response message here...</p>';
+            const introContent = (isDefault || isHtmlEffectivelyEmpty(rawIntro)) ? '' : rawIntro;
+            nextContent = introContent ? replacePlaceholders(introContent, { rootKey }) : '';
+          } else if (msg.sourceType === 'menu' || msg.sourceType === 'menu_back') {
+            const localized = replacePlaceholders(getLocalizedContent(menu), { rootKey });
+            nextContent = (isHtmlEffectivelyEmpty(localized) && (msg.options?.length || 0) > 0)
+              ? t('ui_select_option', 'Please select an option:')
+              : localized;
+            if (msg.sourceType === 'menu_back') {
+              nextText = t('ui_back', 'Back');
+            }
+          } else if (msg.sourceType === 'kyc_prompt' && msg.kycFieldId) {
+            const field = menu.apiConfig?.kycFields?.find(f => f.id === msg.kycFieldId);
+            if (field) nextText = getLocalizedKYCPrompt(field);
+          } else if (msg.sourceType === 'api_table' && msg.tableData) {
+            nextColumns = (msg.tableData.columns || []).map((col) => ({
+              ...col,
+              localizedHeader: getLocalizedTableHeader(menu, col)
+            }));
+            const tableIntro = getLocalizedTableIntro(menu);
+            if (tableIntro) {
+              const apiResponse = msg.tableData.rootData;
+              const context = {
+                ...(apiResponse && typeof apiResponse === 'object' ? apiResponse : {}),
+                [msg.tableData.rootKey]: apiResponse,
+                rootKey: msg.tableData.rootKey,
+                response: apiResponse
+              };
+              nextText = replacePlaceholders(tableIntro, context);
+            } else if (nextText) {
+              nextText = t('ui_results_intro', 'Here are the results:');
+            }
+          }
+        }
+      }
+
+      const contentSame = nextContent === msg.content;
+      const textSame = nextText === msg.text;
+      const columnsSame = nextColumns === msg.tableData?.columns;
+      if (contentSame && textSame && columnsSame) return msg;
+
+      return {
+        ...msg,
+        text: nextText,
+        content: nextContent,
+        tableData: msg.tableData ? { ...msg.tableData, columns: nextColumns || msg.tableData.columns } : undefined
+      };
+    }));
+  }, [currentLang, menus, appSettings?.systemTranslations]);
 
   const hasUnresolvedTemplate = (value: any) => {
     const str = String(value ?? '');
@@ -582,9 +697,71 @@ export function ChatInterface() {
       handleStatusLookup(kycInput);
       return;
     }
+    if (ratingFlow) {
+      handleRatingFeedbackSubmit();
+      return;
+    }
     if (kycFlow) {
       handleKycSubmit();
       return;
+    }
+  };
+
+  const updateReportInHistory = (reportId: string, patch: Partial<UserReport>) => {
+    setHistory(prev => prev.map(msg => {
+      if (!msg.reportStatus || msg.reportStatus.id !== reportId) return msg;
+      return { ...msg, reportStatus: { ...msg.reportStatus, ...patch } };
+    }));
+  };
+
+  const handleRatingStart = (reportId: string, rating: number) => {
+    setStatusFlow(false);
+    setKycInput('');
+    setRatingFlow({ reportId, rating });
+    setHistory(prev => [...prev,
+    { id: `user-rating-${Date.now()}`, sender: 'user', text: `${t('ui_rating_label', 'Rating')}: ${rating}/5` },
+    { id: `bot-rating-prompt-${Date.now()}`, sender: 'bot', text: t('ui_rating_comment_prompt', 'Thank you. Please type any feedback (optional), or click Skip.') }
+    ]);
+  };
+
+  const submitRating = async (reportId: string, rating: number, feedback?: string) => {
+    const res = await fetch(`/api/reports/${encodeURIComponent(reportId)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rating, feedback: feedback || '', sessionId: userData.id }),
+      cache: 'no-store'
+    });
+    const json = await res.json().catch(() => null);
+    if (!res.ok || json?.status === 'error') {
+      throw new Error(json?.message || 'Failed to submit rating.');
+    }
+    return json?.data as { serviceRating?: number; serviceFeedback?: string; serviceRatedAt?: string; serviceRatedSupportAssignee?: string };
+  };
+
+  const handleRatingFeedbackSubmit = async (skip: boolean = false) => {
+    if (!ratingFlow) return;
+    const feedback = skip ? '' : kycInput.trim();
+    const display = skip ? t('ui_skipped', '[Skipped]') : feedback;
+    setHistory(prev => [...prev, { id: `user-rating-feedback-${Date.now()}`, sender: 'user', text: display }]);
+    setKycInput('');
+    setIsLoading(true);
+    setLoadingText(t('ui_rating_submitting', 'Submitting your rating...'));
+    try {
+      const data = await submitRating(ratingFlow.reportId, ratingFlow.rating, feedback);
+      updateReportInHistory(ratingFlow.reportId, {
+        serviceRating: typeof data?.serviceRating === 'number' ? data.serviceRating : ratingFlow.rating,
+        serviceFeedback: data?.serviceFeedback,
+        serviceRatedAt: data?.serviceRatedAt,
+        serviceRatedSupportAssignee: data?.serviceRatedSupportAssignee
+      });
+      setHistory(prev => [...prev, { id: `bot-rating-thanks-${Date.now()}`, sender: 'bot', text: t('ui_rating_thanks', 'Thanks for your feedback.') }]);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast({ title: t('ui_toast_error_title', 'Error'), description: msg, variant: 'destructive' });
+      setHistory(prev => [...prev, { id: `bot-rating-error-${Date.now()}`, sender: 'bot', text: t('ui_rating_error', 'Sorry, we could not save your rating.') }]);
+    } finally {
+      setIsLoading(false);
+      setRatingFlow(null);
     }
   };
 
@@ -596,24 +773,38 @@ export function ChatInterface() {
       const json = await res.json().catch(() => null);
       if (res.ok && json?.data) found = json.data;
     } catch { }
+    const foundMsg = replacePlaceholders(
+      t('ui_report_found', 'Report {{id}} found:'),
+      { id }
+    );
+    const notFoundMsg = replacePlaceholders(
+      t('ui_report_not_found', "Sorry, we couldn't find a report with reference {{id}}."),
+      { id }
+    );
     if (found) {
       setHistory(prev => [...prev, {
         id: `bot-status-${Date.now()}`,
         sender: 'bot',
-        text: currentLang?.code === 'am' ? `ሪፖርት ቁጥር ${id} ተገኝቷል` : `Report ${id} found:`,
-        reportStatus: found
+        text: foundMsg,
+        reportStatus: found,
+        sourceType: 'status_result',
+        statusLookupId: id,
+        statusLookupFound: true
       }]);
     } else {
       setHistory(prev => [...prev, {
         id: `bot-notfound-${Date.now()}`,
         sender: 'bot',
-        text: currentLang?.code === 'am' ? `ይቅርታ፣ ሪፖርት ቁጥር ${id} ማግኘት አልቻልንም።` : `Sorry, we couldn't find a report with reference ${id}.`
+        text: notFoundMsg,
+        sourceType: 'status_result',
+        statusLookupId: id,
+        statusLookupFound: false
       }]);
     }
     logInteraction({
       sessionId: userData.id,
       userMessage: id,
-      botResponse: found ? (currentLang?.code === 'am' ? `ሪፖርት ቁጥር ${id} ተገኝቷል` : `Report ${id} found:`) : (currentLang?.code === 'am' ? `ይቅርታ፣ ሪፖርት ቁጥር ${id} ማግኘት አልቻልንም።` : `Sorry, we couldn't find a report with reference ${id}.`),
+      botResponse: found ? foundMsg : notFoundMsg,
       status: found ? 'success' : 'failed',
       endpoint: 'Internal:StatusLookup',
       tags: ['status_lookup']
@@ -890,6 +1081,9 @@ export function ChatInterface() {
             arrayPath,
             rootKey
           };
+          botMsg.sourceType = 'api_table';
+          botMsg.sourceMenuId = menu.id;
+          botMsg.sourceRootKey = rootKey;
           const tableIntro = getLocalizedTableIntro(menu);
           botMsg.text = tableIntro ? replacePlaceholders(tableIntro, context) : t('ui_results_intro', 'Here are the results:');
         } else {
@@ -931,7 +1125,13 @@ export function ChatInterface() {
     }
     const childMenus = activeMenus.filter(m => m.parentId === effectiveMenu.id);
     const relatedItems = activeMenus.filter(m => effectiveMenu.attachedMenuIds?.includes(m.id));
-    setHistory(prev => [...prev, { id: `user-${Date.now()}`, sender: 'user', text: getLocalizedName(effectiveMenu) }]);
+    setHistory(prev => [...prev, {
+      id: `user-${Date.now()}`,
+      sender: 'user',
+      text: getLocalizedName(effectiveMenu),
+      sourceType: 'menu_click',
+      sourceMenuId: effectiveMenu.id
+    }]);
     const isAction = (effectiveMenu.responseType === 'api' || effectiveMenu.responseType === 'report') && effectiveMenu.apiConfig;
     const hasFields = effectiveMenu.apiConfig?.kycFields?.length || 0;
     const rootKey = effectiveMenu.apiConfig?.rootKey || 'data';
@@ -950,7 +1150,10 @@ export function ChatInterface() {
         historyUpdates.push({
           id: `bot-intro-${Date.now()}`,
           sender: 'bot',
-          content: replacePlaceholders(introContent, { rootKey })
+          content: replacePlaceholders(introContent, { rootKey }),
+          sourceType: 'menu_intro',
+          sourceMenuId: effectiveMenu.id,
+          sourceRootKey: rootKey
         });
       }
 
@@ -959,7 +1162,11 @@ export function ChatInterface() {
           id: `bot-kyc-start-${Date.now()}`,
           sender: 'bot',
           text: getLocalizedKYCPrompt(orderedFields[0]),
-          isKYC: true
+          isKYC: true,
+          sourceType: 'kyc_prompt',
+          sourceMenuId: effectiveMenu.id,
+          sourceRootKey: rootKey,
+          kycFieldId: orderedFields[0].id
         });
         setKycFlow({ active: true, menuId: effectiveMenu.id, fieldIndex: 0, fields: orderedFields });
         setHistory(prev => [...prev, ...historyUpdates]);
@@ -985,6 +1192,9 @@ export function ChatInterface() {
       options: childMenus.length > 0 ? childMenus : undefined,
       relatedOptions: relatedItems.length > 0 ? relatedItems : undefined,
       relatedDescription: effectiveMenu.attachmentDescription || undefined,
+      sourceType: 'menu',
+      sourceMenuId: effectiveMenu.id,
+      sourceRootKey: rootKey
     }]);
 
     logInteraction({
@@ -1020,7 +1230,10 @@ export function ChatInterface() {
         sender: 'bot',
         text: t('ui_back', 'Back'),
         content: getLocalizedContent(previousMenu),
-        options: childMenus
+        options: childMenus,
+        sourceType: 'menu_back',
+        sourceMenuId: previousId,
+        sourceRootKey: previousMenu.apiConfig?.rootKey || 'data'
       }]);
     }
   };
@@ -1033,7 +1246,8 @@ export function ChatInterface() {
       sender: 'bot',
       text: t('ui_home', 'Home'),
       content: t('ui_welcome_subtitle', 'How can we assist you today?'),
-      options: menus.filter(m => m.parentId === null).sort((a, b) => a.order - b.order)
+      options: menus.filter(m => m.parentId === null).sort((a, b) => a.order - b.order),
+      sourceType: 'home'
     }]);
   };
 
@@ -1044,10 +1258,12 @@ export function ChatInterface() {
 
   const startStatusFlow = () => {
     setStatusFlow(true);
+    setRatingFlow(null);
     setHistory(prev => [...prev, {
       id: `bot-status-prompt-${Date.now()}`,
       sender: 'bot',
-      text: t('ui_enter_report_id', 'Please enter your Report Reference ID:')
+      text: t('ui_enter_report_id', 'Please enter your Report Reference ID:'),
+      sourceType: 'status_prompt'
     }]);
   };
 
@@ -1161,7 +1377,7 @@ export function ChatInterface() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56 max-w-[calc(100vw-1rem)]">
               <DropdownMenuLabel className="flex flex-col">
-                <span className="text-xs font-bold">User Profile</span>
+                <span className="text-xs font-bold">{t('ui_user_profile', 'User Profile')}</span>
                 <span className="text-[10px] text-muted-foreground font-mono truncate">{userData.id}</span>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
@@ -1210,7 +1426,7 @@ export function ChatInterface() {
                   </div>
                   <div className="space-y-2">
                     <div className="text-[10px] uppercase font-bold text-muted-foreground">{t('ui_original_request', 'Original Request')}</div>
-                    <div className="text-sm font-semibold">{msg.reportStatus.menuName}</div>
+                    <div className="text-sm font-semibold">{getLocalizedReportMenuName(msg.reportStatus)}</div>
                   </div>
                   {msg.reportStatus.adminResponse && (
                     <div className="mt-2 p-3 bg-card rounded-lg border border-primary/20">
@@ -1218,6 +1434,53 @@ export function ChatInterface() {
                         <CornerDownRight size={10} /> {t('ui_admin_feedback', 'Admin Feedback')}
                       </div>
                       <div className="text-sm italic text-muted-foreground">{msg.reportStatus.adminResponse}</div>
+                    </div>
+                  )}
+                  {msg.reportStatus.status === 'resolved' && (
+                    <div className="mt-2 p-3 bg-card rounded-lg border border-primary/20">
+                      {typeof msg.reportStatus.serviceRating === 'number' ? (
+                        <div className="space-y-2">
+                          <div className="text-[10px] uppercase font-bold text-primary">{t('ui_rating_received', 'Rating Received')}</div>
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-1 text-amber-600">
+                              {Array.from({ length: 5 }).map((_, i) => (
+                                <Star key={i} size={14} className={i < msg.reportStatus.serviceRating! ? 'fill-amber-500 text-amber-500' : 'text-muted-foreground/40'} />
+                              ))}
+                            </div>
+                            <div className="text-xs font-semibold">{msg.reportStatus.serviceRating} / 5</div>
+                          </div>
+                          {msg.reportStatus.serviceFeedback && (
+                            <div className="text-sm italic text-muted-foreground break-words">{msg.reportStatus.serviceFeedback}</div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="text-[10px] uppercase font-bold text-primary">{t('ui_rate_service', 'Rate the service')}</div>
+                          <div className="flex items-center gap-1">
+                            {Array.from({ length: 5 }).map((_, i) => {
+                              const r = i + 1;
+                              const disabled = Boolean(ratingFlow && ratingFlow.reportId === msg.reportStatus!.id);
+                              return (
+                                <Button
+                                  key={r}
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  disabled={disabled}
+                                  className="h-9 w-9 rounded-full hover:bg-amber-50"
+                                  onClick={() => handleRatingStart(msg.reportStatus!.id, r)}
+                                  title={`${r}/5`}
+                                >
+                                  <Star size={18} className="text-amber-500" />
+                                </Button>
+                              );
+                            })}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground">
+                            {t('ui_rate_hint', 'Your feedback helps us improve support service quality.')}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1272,19 +1535,24 @@ export function ChatInterface() {
           <div ref={messagesEndRef} className="h-4" />
         </div>
       </ScrollArea>
-      {(kycFlow || statusFlow) && <div className="px-3 py-3 bg-card border-t flex flex-col gap-2 sticky bottom-0 z-50 animate-in slide-in-from-bottom-2 duration-300">
+      {(kycFlow || statusFlow || ratingFlow) && <div className="px-3 py-3 bg-card border-t flex flex-col gap-2 sticky bottom-0 z-50 animate-in slide-in-from-bottom-2 duration-300">
         <form onSubmit={handleUserInput} className="flex gap-2 w-full">
           <Input
             autoFocus
             type={getInputType()}
             value={kycInput}
             onChange={e => setKycInput(e.target.value)}
-            placeholder={statusFlow ? t('ui_placeholder_report_id', 'Enter reference ID...') : t('ui_placeholder_input', 'Enter requested information...')}
+            placeholder={statusFlow ? t('ui_placeholder_report_id', 'Enter reference ID...') : (ratingFlow ? t('ui_placeholder_feedback', 'Enter feedback (optional)...') : t('ui_placeholder_input', 'Enter requested information...'))}
             className="flex-1 min-w-0 shadow-inner text-sm"
           />
           <Button type="submit" size="icon" className="rounded-xl h-10 w-10 shrink-0"><Send size={18} /></Button>
           {kycFlow && !kycFlow.fields[kycFlow.fieldIndex].required && (
             <Button type="button" variant="ghost" size="sm" onClick={() => handleKycSubmit(true)} className="text-[10px] font-bold uppercase text-muted-foreground hover:text-primary h-10 px-2 shrink-0">
+              {t('ui_skip', 'Skip')}
+            </Button>
+          )}
+          {ratingFlow && (
+            <Button type="button" variant="ghost" size="sm" onClick={() => handleRatingFeedbackSubmit(true)} className="text-[10px] font-bold uppercase text-muted-foreground hover:text-primary h-10 px-2 shrink-0">
               {t('ui_skip', 'Skip')}
             </Button>
           )}
@@ -1311,7 +1579,7 @@ export function ChatInterface() {
             size="icon"
             className="justify-self-center hover:bg-transparent hover:text-[#763717] rounded-full h-9 w-9 p-0 text-[#763717] transition-colors"
             onClick={handleAdminPanel}
-            title="Settings"
+            title={t('ui_settings', 'Settings')}
           >
             <Settings size={16} />
           </Button>

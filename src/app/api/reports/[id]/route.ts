@@ -7,9 +7,49 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) {
+  const { id } = await ctx.params;
   const session = await getValidatedAdminSession();
+
   if (!session?.username) {
-    return NextResponse.json({ status: 'error', message: 'Unauthorized.' }, { status: 401 });
+    const report = await prisma.userReport.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        menuId: true,
+        menuName: true,
+        status: true,
+        priority: true,
+        adminResponse: true,
+        supportAssignee: true,
+        serviceRating: true,
+        serviceFeedback: true,
+        serviceRatedAt: true,
+        timestamp: true,
+      }
+    });
+
+    if (!report) {
+      return NextResponse.json({ status: 'error', message: 'Report not found.' }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      status: 'success',
+      data: {
+        id: report.id,
+        userId: '',
+        menuId: report.menuId ?? undefined,
+        menuName: report.menuName,
+        data: {},
+        status: report.status,
+        priority: report.priority,
+        adminResponse: report.adminResponse ?? undefined,
+        supportAssignee: report.supportAssignee ?? undefined,
+        serviceRating: typeof report.serviceRating === 'number' ? report.serviceRating : undefined,
+        serviceFeedback: report.serviceFeedback ?? undefined,
+        serviceRatedAt: report.serviceRatedAt ? report.serviceRatedAt.toISOString() : undefined,
+        timestamp: report.timestamp.toISOString()
+      }
+    });
   }
 
   const actor = await prisma.adminCredential.findUnique({ where: { username: session.username } });
@@ -18,7 +58,6 @@ export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) 
     return NextResponse.json({ status: 'error', message: 'Forbidden.' }, { status: 403 });
   }
 
-  const { id } = await ctx.params;
   const report = await prisma.userReport.findUnique({ where: { id } });
   if (!report) {
     return NextResponse.json({ status: 'error', message: 'Report not found.' }, { status: 404 });
@@ -41,7 +80,83 @@ export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) 
       adminResponse: report.adminResponse ?? undefined,
       internalNotes: report.internalNotes ?? undefined,
       supportAssignee: report.supportAssignee ?? undefined,
+      serviceRating: typeof report.serviceRating === 'number' ? report.serviceRating : undefined,
+      serviceFeedback: report.serviceFeedback ?? undefined,
+      serviceRatedAt: report.serviceRatedAt ? report.serviceRatedAt.toISOString() : undefined,
+      serviceRatedSupportAssignee: report.serviceRatedSupportAssignee ?? undefined,
       timestamp: report.timestamp.toISOString()
+    }
+  });
+}
+
+export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const { id } = await ctx.params;
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== 'object') {
+    return NextResponse.json({ status: 'error', message: 'Invalid request body.' }, { status: 400 });
+  }
+
+  const ratingRaw = (body as any).rating;
+  const rating = typeof ratingRaw === 'number' ? ratingRaw : parseInt(String(ratingRaw ?? ''), 10);
+  if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
+    return NextResponse.json({ status: 'error', message: 'Rating must be an integer from 1 to 5.' }, { status: 400 });
+  }
+
+  const feedbackRaw = typeof (body as any).feedback === 'string' ? (body as any).feedback : '';
+  const feedback = feedbackRaw.trim();
+  if (feedback.length > 500) {
+    return NextResponse.json({ status: 'error', message: 'Feedback is too long (max 500 characters).' }, { status: 400 });
+  }
+
+  const sessionIdRaw = typeof (body as any).sessionId === 'string' ? (body as any).sessionId : '';
+  const sessionId = sessionIdRaw.trim();
+
+  const existing = await prisma.userReport.findUnique({
+    where: { id },
+    select: { status: true, serviceRating: true, supportAssignee: true }
+  });
+  if (!existing) {
+    return NextResponse.json({ status: 'error', message: 'Report not found.' }, { status: 404 });
+  }
+  if (existing.status !== 'resolved') {
+    return NextResponse.json({ status: 'error', message: 'Ratings are available after the report is resolved.' }, { status: 400 });
+  }
+  if (typeof existing.serviceRating === 'number') {
+    return NextResponse.json({ status: 'error', message: 'This report has already been rated.' }, { status: 409 });
+  }
+
+  const ratedAt = new Date();
+  const supportSnapshot = typeof existing.supportAssignee === 'string' && existing.supportAssignee.trim()
+    ? existing.supportAssignee.trim()
+    : null;
+
+  const updated = await prisma.userReport.update({
+    where: { id },
+    data: {
+      serviceRating: rating,
+      serviceFeedback: feedback ? feedback : undefined,
+      serviceRatedAt: ratedAt,
+      serviceRatedBySessionId: sessionId ? sessionId : undefined,
+      serviceRatedSupportAssignee: supportSnapshot,
+      activities: {
+        create: {
+          type: 'rating',
+          actor: 'end_user',
+          target: supportSnapshot ?? undefined,
+          content: feedback ? `rating=${rating} feedback=${feedback}` : `rating=${rating}`
+        }
+      }
+    }
+  });
+
+  return NextResponse.json({
+    status: 'success',
+    data: {
+      id: updated.id,
+      serviceRating: typeof updated.serviceRating === 'number' ? updated.serviceRating : undefined,
+      serviceFeedback: updated.serviceFeedback ?? undefined,
+      serviceRatedAt: updated.serviceRatedAt ? updated.serviceRatedAt.toISOString() : undefined,
+      serviceRatedSupportAssignee: updated.serviceRatedSupportAssignee ?? undefined
     }
   });
 }
@@ -177,6 +292,10 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       adminResponse: updated.adminResponse ?? undefined,
       internalNotes: updated.internalNotes ?? undefined,
       supportAssignee: updated.supportAssignee ?? undefined,
+      serviceRating: typeof updated.serviceRating === 'number' ? updated.serviceRating : undefined,
+      serviceFeedback: updated.serviceFeedback ?? undefined,
+      serviceRatedAt: updated.serviceRatedAt ? updated.serviceRatedAt.toISOString() : undefined,
+      serviceRatedSupportAssignee: updated.serviceRatedSupportAssignee ?? undefined,
       timestamp: updated.timestamp.toISOString()
     }
   });

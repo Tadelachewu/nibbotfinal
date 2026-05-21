@@ -75,6 +75,10 @@ export async function GET() {
       adminResponse: r.adminResponse ?? undefined,
       internalNotes: r.internalNotes ?? undefined,
       supportAssignee: r.supportAssignee ?? undefined,
+      serviceRating: typeof r.serviceRating === 'number' ? r.serviceRating : undefined,
+      serviceFeedback: r.serviceFeedback ?? undefined,
+      serviceRatedAt: r.serviceRatedAt ? r.serviceRatedAt.toISOString() : undefined,
+      serviceRatedSupportAssignee: r.serviceRatedSupportAssignee ?? undefined,
       timestamp: r.timestamp.toISOString()
     }))
   });

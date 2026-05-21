@@ -158,6 +158,11 @@ model UserReport {
   adminResponse String?        @db.Text
   internalNotes String?        @db.Text
   supportAssignee String?      @map("support_assignee")
+  serviceRating Int?           @map("service_rating")
+  serviceFeedback String?      @db.Text @map("service_feedback")
+  serviceRatedAt DateTime?     @map("service_rated_at")
+  serviceRatedBySessionId String? @map("service_rated_by_session_id")
+  serviceRatedSupportAssignee String? @map("service_rated_support_assignee")
   // timestamp and creation
   timestamp     DateTime       @default(now())
   createdAt     DateTime       @default(now())
@@ -169,6 +174,7 @@ model UserReport {
   @@index([menuId])
   @@index([userId])
   @@index([supportAssignee])
+  @@index([serviceRatedSupportAssignee])
   @@map("user_reports")
 }
 
@@ -275,42 +281,4 @@ model AdminRecoveryToken {
 
   @@index([username])
   @@map("admin_recovery_tokens")
-}
-
-model Account {
-  id        Int      @id @default(autoincrement())
-  accountId String   @unique
-  name      String
-  balance   Float
-  currency  String
-  type      String
-  status    String
-  createdAt DateTime @default(now())
-
-  transactionsSent     Transaction[] @relation("Sender")
-  transactionsReceived Transaction[] @relation("Receiver")
-
-  @@map("accounts")
-}
-
-model Transaction {
-  id          Int      @id @default(autoincrement())
-  referenceId String   @unique
-  senderId    Int
-  receiverId  Int
-  amount      Float
-  currency    String
-  fee         Float
-  totalDebit  Float
-  remark      String?
-  status      String
-  type        String
-  createdAt   DateTime @default(now())
-
-  sender   Account @relation("Sender", fields: [senderId], references: [id])
-  receiver Account @relation("Receiver", fields: [receiverId], references: [id])
-
-  @@index([senderId])
-  @@index([receiverId])
-  @@map("transactions")
 }

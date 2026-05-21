@@ -33,7 +33,8 @@ import {
   Filter,
   CheckCircle,
   Eye,
-  Send
+  Send,
+  Star
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -70,6 +71,8 @@ export function ReportsManagement() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [supportUsers, setSupportUsers] = useState<Array<{ username: string }>>([]);
+  const [ratingSortKey, setRatingSortKey] = useState<'avg' | 'count' | 'lastRatedAt'>('avg');
+  const [ratingTopN, setRatingTopN] = useState<number>(10);
 
   const [editingResponse, setEditingResponse] = useState<string>('');
   const [editingNotes, setEditingNotes] = useState<string>('');
@@ -133,6 +136,66 @@ export function ReportsManagement() {
       active = false;
     };
   }, [csrfFetch, currentRole]);
+
+  const supportRatings = useMemo(() => {
+    const byUser = new Map<string, {
+      username: string;
+      total: number;
+      count: number;
+      feedbackCount: number;
+      lastRatedAt?: string;
+    }>();
+
+    for (const r of reports) {
+      if (typeof r.serviceRating !== 'number') continue;
+      const username =
+        (typeof r.serviceRatedSupportAssignee === 'string' && r.serviceRatedSupportAssignee.trim())
+          ? r.serviceRatedSupportAssignee.trim()
+          : (typeof r.supportAssignee === 'string' && r.supportAssignee.trim())
+            ? r.supportAssignee.trim()
+            : '__unassigned__';
+
+      const entry = byUser.get(username) || { username, total: 0, count: 0, feedbackCount: 0 };
+      entry.total += r.serviceRating;
+      entry.count += 1;
+      if (typeof r.serviceFeedback === 'string' && r.serviceFeedback.trim()) entry.feedbackCount += 1;
+      if (typeof r.serviceRatedAt === 'string' && r.serviceRatedAt) {
+        if (!entry.lastRatedAt || new Date(r.serviceRatedAt).getTime() > new Date(entry.lastRatedAt).getTime()) {
+          entry.lastRatedAt = r.serviceRatedAt;
+        }
+      }
+      byUser.set(username, entry);
+    }
+
+    if (currentRole === 'admin') {
+      for (const u of supportUsers) {
+        const name = typeof u.username === 'string' ? u.username.trim() : '';
+        if (!name) continue;
+        if (!byUser.has(name)) byUser.set(name, { username: name, total: 0, count: 0, feedbackCount: 0 });
+      }
+    }
+
+    const rows = Array.from(byUser.values()).map(e => ({
+      username: e.username,
+      avg: e.count ? e.total / e.count : 0,
+      count: e.count,
+      feedbackCount: e.feedbackCount,
+      lastRatedAt: e.lastRatedAt
+    }));
+
+    rows.sort((a, b) => {
+      if (ratingSortKey === 'count') return (b.count - a.count) || (b.avg - a.avg);
+      if (ratingSortKey === 'lastRatedAt') {
+        const at = a.lastRatedAt ? new Date(a.lastRatedAt).getTime() : 0;
+        const bt = b.lastRatedAt ? new Date(b.lastRatedAt).getTime() : 0;
+        return (bt - at) || (b.avg - a.avg);
+      }
+      return (b.avg - a.avg) || (b.count - a.count);
+    });
+
+    const cleanTopN = Number.isFinite(ratingTopN) && ratingTopN > 0 ? Math.floor(ratingTopN) : 10;
+    return rows.slice(0, Math.min(cleanTopN, rows.length));
+  }, [reports, supportUsers, currentRole, ratingSortKey, ratingTopN]);
 
   const filteredReports = useMemo(() => {
     return reports.filter(r => {
@@ -324,6 +387,11 @@ export function ReportsManagement() {
           <TabsTrigger value="submissions" className="gap-2">
             <ClipboardList size={14} /> Submissions
           </TabsTrigger>
+          {currentRole === 'admin' && (
+            <TabsTrigger value="ratings" className="gap-2">
+              <Star size={14} /> Support Ratings
+            </TabsTrigger>
+          )}
           <TabsTrigger value="logs" className="gap-2">
             <Activity size={14} /> Activity Log
           </TabsTrigger>
@@ -393,6 +461,7 @@ export function ReportsManagement() {
                     <TableRow>
                       <TableHead className="w-[100px] font-bold uppercase text-[10px]">Priority</TableHead>
                       <TableHead className="w-[100px] font-bold uppercase text-[10px]">Status</TableHead>
+                      <TableHead className="w-[90px] font-bold uppercase text-[10px]">Rating</TableHead>
                       <TableHead className="font-bold uppercase text-[10px]">Type</TableHead>
                       <TableHead className="font-bold uppercase text-[10px]">Submitter</TableHead>
                       <TableHead className="font-bold uppercase text-[10px]">Data Preview</TableHead>
@@ -413,6 +482,17 @@ export function ReportsManagement() {
                             {getStatusIcon(report.status)}
                             <span className="capitalize text-[10px] font-medium text-muted-foreground">{report.status}</span>
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          {typeof report.serviceRating === 'number' ? (
+                            <div className="flex items-center gap-1 text-amber-600">
+                              {Array.from({ length: 5 }).map((_, i) => (
+                                <Star key={i} size={12} className={i < report.serviceRating! ? 'fill-amber-500 text-amber-500' : 'text-muted-foreground/40'} />
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground">—</span>
+                          )}
                         </TableCell>
                         <TableCell>
                           <div className="font-semibold text-xs">{report.menuName}</div>
@@ -451,7 +531,7 @@ export function ReportsManagement() {
                     ))}
                     {filteredReports.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={7} className="h-64 text-center">
+                        <TableCell colSpan={8} className="h-64 text-center">
                           <div className="flex flex-col items-center justify-center space-y-2 opacity-40">
                             <ClipboardList size={48} />
                             <p className="italic text-sm">No submissions matching current filters.</p>
@@ -465,6 +545,110 @@ export function ReportsManagement() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {currentRole === 'admin' && (
+          <TabsContent value="ratings">
+            <Card className="border-none shadow-md overflow-hidden">
+              <CardHeader className="border-b bg-muted/5 p-6">
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <CardTitle className="text-xl font-bold flex items-center gap-2">
+                        <Star className="text-primary" size={20} />
+                        Support Performance (Ratings)
+                      </CardTitle>
+                      <p className="text-xs text-muted-foreground mt-1">Aggregated user ratings captured after reports are resolved.</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold uppercase text-muted-foreground">Sort</span>
+                      <Select value={ratingSortKey} onValueChange={(v: any) => setRatingSortKey(v)}>
+                        <SelectTrigger className="w-[200px] h-10 bg-card">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="avg">Highest average</SelectItem>
+                          <SelectItem value="count">Most ratings</SelectItem>
+                          <SelectItem value="lastRatedAt">Most recent rating</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold uppercase text-muted-foreground">Top N</span>
+                      <Input
+                        type="number"
+                        value={ratingTopN}
+                        onChange={(e) => setRatingTopN(parseInt(e.target.value || '0', 10))}
+                        className="w-[120px] h-10 bg-card"
+                        min={1}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <ScrollArea className="h-[550px]">
+                  <Table>
+                    <TableHeader className="bg-card/95 backdrop-blur-sm sticky top-0 z-20 border-b">
+                      <TableRow>
+                        <TableHead className="font-bold uppercase text-[10px]">Support User</TableHead>
+                        <TableHead className="w-[140px] font-bold uppercase text-[10px]">Avg Rating</TableHead>
+                        <TableHead className="w-[120px] font-bold uppercase text-[10px]">Ratings</TableHead>
+                        <TableHead className="w-[140px] font-bold uppercase text-[10px]">Feedback</TableHead>
+                        <TableHead className="w-[180px] font-bold uppercase text-[10px]">Last Rated</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {supportRatings.map((row) => (
+                        <TableRow key={row.username} className="group hover:bg-muted/20 transition-colors">
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span className="text-xs font-semibold">{row.username === '__unassigned__' ? 'Unassigned' : row.username}</span>
+                              {row.username !== '__unassigned__' && (
+                                <span className="text-[10px] text-muted-foreground font-mono">support</span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-1 text-amber-600">
+                                {Array.from({ length: 5 }).map((_, i) => (
+                                  <Star
+                                    key={i}
+                                    size={14}
+                                    className={i < Math.round(row.avg) ? 'fill-amber-500 text-amber-500' : 'text-muted-foreground/40'}
+                                  />
+                                ))}
+                              </div>
+                              <span className="text-xs font-semibold">{row.count ? row.avg.toFixed(2) : '—'}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-[10px] font-mono">{row.count}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-[10px] font-mono">{row.feedbackCount}</Badge>
+                          </TableCell>
+                          <TableCell className="text-[10px] text-muted-foreground font-mono">
+                            {row.lastRatedAt ? format(new Date(row.lastRatedAt), 'MMM dd, HH:mm') : '—'}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {supportRatings.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={5} className="h-48 text-center text-muted-foreground italic text-sm">
+                            No ratings available yet.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
 
         <TabsContent value="logs">
           <Card className="border-none shadow-md overflow-hidden">
@@ -712,6 +896,38 @@ export function ReportsManagement() {
                     </TabsList>
 
                     <TabsContent value="response" className="pt-6 space-y-4">
+                      {typeof selectedReport.serviceRating === 'number' && (
+                        <div className="p-4 border rounded-xl bg-amber-50/40 dark:bg-amber-950/15 border-amber-200/60 dark:border-amber-900/50">
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="space-y-1">
+                              <div className="text-[10px] font-bold uppercase text-amber-800 dark:text-amber-400">User Rating</div>
+                              <div className="flex items-center gap-1 text-amber-600">
+                                {Array.from({ length: 5 }).map((_, i) => (
+                                  <Star key={i} size={14} className={i < selectedReport.serviceRating! ? 'fill-amber-500 text-amber-500' : 'text-muted-foreground/40'} />
+                                ))}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-xs font-semibold">{selectedReport.serviceRating} / 5</div>
+                              {selectedReport.serviceRatedAt && (
+                                <div className="text-[10px] text-muted-foreground">
+                                  {format(new Date(selectedReport.serviceRatedAt), 'MMM dd, HH:mm')}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          {selectedReport.serviceFeedback && (
+                            <div className="mt-3 text-sm text-muted-foreground italic break-words">
+                              {selectedReport.serviceFeedback}
+                            </div>
+                          )}
+                          {selectedReport.serviceRatedSupportAssignee && (
+                            <div className="mt-2 text-[10px] text-muted-foreground">
+                              Rated for support: <span className="font-mono">{selectedReport.serviceRatedSupportAssignee}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
                       <div className="space-y-4 bg-muted/20 p-6 rounded-xl border border-dashed border-primary/20">
                         <div className="flex items-center justify-between">
                           <div className="space-y-1">
