@@ -45,7 +45,7 @@ const nextConfig: NextConfigCompat = {
     ignoreBuildErrors: true,
   },
   turbopack: {
-    root: __dirname,
+    root: process.cwd(),
   },
   async headers() {
     return [

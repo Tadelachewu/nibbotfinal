@@ -136,73 +136,91 @@ The system operates on three response types per menu item:
 ### 3.1 Use Case Diagram
 
 ```mermaid
-graph LR
-    subgraph Actors
-        EU["End User"]
-        AD["Admin"]
-        CK["Checker"]
-        SP["Support"]
-    end
+flowchart LR
+    %% Actors
+    EU(("End User"))
+    AD(("Admin"))
+    CK(("Checker"))
+    SP(("Support"))
 
+    %% End User Use Cases
     subgraph "End User Use Cases"
-        UC1["Browse Menus"]
-        UC2["Submit KYC Data"]
-        UC3["View API Response"]
-        UC4["Submit Report"]
-        UC5["View Chat History"]
+        EU_UC1(["Browse Chat Menus"])
+        EU_UC2(["Fill KYC Form"])
+        EU_UC3(["View Dynamic API Data"])
+        EU_UC4(["Submit Support Report"])
+        EU_UC5(["Check Report Status"])
+        EU_UC6(["Rate Support Service"])
+        EU_UC7(["View Chat History"])
     end
 
-    subgraph "Admin Use Cases"
-        UC6["Login / Logout"]
-        UC7["Create Menu Item"]
-        UC8["Update Menu Item"]
-        UC9["Delete Menu Item"]
-        UC10["Manage KYC Fields"]
-        UC11["Manage Admin Users"]
-        UC12["View Interaction Logs"]
-        UC13["Configure App Settings"]
-        UC14["View Dashboard Metrics"]
-        UC15["Manage Reports"]
-        UC16["Change Password"]
+    EU --> EU_UC1
+    EU --> EU_UC5
+    EU --> EU_UC7
+
+    EU_UC2 -. "<<extend>>\n(If API/Report type)" .-> EU_UC1
+    EU_UC3 -. "<<include>>" .-> EU_UC2
+    EU_UC4 -. "<<include>>" .-> EU_UC2
+    EU_UC6 -. "<<extend>>\n(If Resolved)" .-> EU_UC5
+
+    %% System Actor (Admin/Checker/Support)
+    subgraph "Admin / Staff Use Cases"
+        SYS_UC1(["Login to Dashboard"])
+        
+        %% Admin specific
+        AD_UC1(["Manage Menus"])
+        AD_UC1_1(["Configure API Endpoint"])
+        AD_UC1_2(["Attach KYC Fields"])
+        
+        AD_UC2(["Manage Reports (All)"])
+        AD_UC2_1(["Escalate Report"])
+        
+        AD_UC3(["Configure App Settings"])
+        AD_UC3_1(["Upload Avatars & Logos"])
+        
+        AD_UC4(["Manage Admin Accounts"])
+        AD_UC5(["View Interaction Logs"])
+        AD_UC6(["Manage KYC Definitions"])
+        AD_UC7(["View Dashboard Metrics"])
+        
+        %% Checker specific
+        CK_UC1(["Review Pending Menus"])
+        CK_UC1_1(["Approve Menu Change"])
+        CK_UC1_2(["Reject with Reason"])
+        
+        %% Support specific
+        SP_UC1(["Manage Assigned Reports"])
+        SP_UC1_1(["Update Status"])
+        SP_UC1_2(["Add Admin Response"])
+        SP_UC1_3(["Add Internal Notes"])
     end
 
-    subgraph "Checker Use Cases"
-        UC17["Approve Menu"]
-        UC18["Reject Menu"]
-    end
+    AD --> SYS_UC1
+    CK --> SYS_UC1
+    SP --> SYS_UC1
 
-    subgraph "Support Use Cases"
-        UC19["View Assigned Reports"]
-        UC20["Update Report Status"]
-        UC21["Add Admin Response"]
-    end
+    AD --> AD_UC1
+    AD --> AD_UC2
+    AD --> AD_UC3
+    AD --> AD_UC4
+    AD --> AD_UC5
+    AD --> AD_UC6
+    AD --> AD_UC7
 
-    EU --> UC1
-    EU --> UC2
-    EU --> UC3
-    EU --> UC4
-    EU --> UC5
+    AD_UC1_1 -. "<<include>>" .-> AD_UC1
+    AD_UC1_2 -. "<<include>>" .-> AD_UC1
+    
+    AD_UC2_1 -. "<<extend>>" .-> AD_UC2
+    AD_UC3_1 -. "<<include>>" .-> AD_UC3
 
-    AD --> UC6
-    AD --> UC7
-    AD --> UC8
-    AD --> UC9
-    AD --> UC10
-    AD --> UC11
-    AD --> UC12
-    AD --> UC13
-    AD --> UC14
-    AD --> UC15
-    AD --> UC16
+    CK --> CK_UC1
+    CK_UC1_1 -. "<<extend>>" .-> CK_UC1
+    CK_UC1_2 -. "<<extend>>" .-> CK_UC1
 
-    CK --> UC6
-    CK --> UC17
-    CK --> UC18
-
-    SP --> UC6
-    SP --> UC19
-    SP --> UC20
-    SP --> UC21
+    SP --> SP_UC1
+    SP_UC1_1 -. "<<include>>" .-> SP_UC1
+    SP_UC1_2 -. "<<include>>" .-> SP_UC1
+    SP_UC1_3 -. "<<include>>" .-> SP_UC1
 ```
 
 ### 3.2 Description of the Components
@@ -259,97 +277,215 @@ graph LR
 
 ```mermaid
 classDiagram
+    %% Enumerations
+    class ResponseType {
+        <<enumeration>>
+        static
+        api
+        report
+    }
+    class MenuApprovalStatus {
+        <<enumeration>>
+        pending
+        approved
+        rejected
+    }
+    class KYCFieldType {
+        <<enumeration>>
+        text
+        number
+        tel
+        email
+        password
+        boolean
+    }
+    class ReportStatus {
+        <<enumeration>>
+        pending
+        reviewed
+        resolved
+    }
+    class ReportPriority {
+        <<enumeration>>
+        low
+        medium
+        high
+        urgent
+    }
+    class LogStatus {
+        <<enumeration>>
+        success
+        failed
+        error
+    }
+    class AdminRole {
+        <<enumeration>>
+        admin
+        checker
+        support
+    }
+
+    %% Classes
     class MenuItem {
-        +String id
-        +String parentId
-        +String name
-        +String nameAm
-        +ResponseType responseType
-        +String content
-        +Json apiConfig
-        +Int order
-        +Boolean isActive
-        +MenuApprovalStatus approvalStatus
-        +String createdBy
-        +String reviewedBy
-        +Boolean trackClicks
-        +Int clickCount
-        +Json pendingUpdate
+        -String id
+        -String parentId
+        -String name
+        -String nameAm
+        -ResponseType responseType
+        -String content
+        -Json apiConfig
+        -String supportAssignee
+        -Int order
+        -Boolean isActive
+        -MenuApprovalStatus approvalStatus
+        -Boolean trackClicks
+        -Int clickCount
+        -Int sessionClickCount
+        -Json pendingUpdate
+        -DateTime createdAt
+        -DateTime updatedAt
+        +create(data: Object) MenuItem
+        +update(id: String, data: Object) MenuItem
+        +delete(id: String) Boolean
+        +get(id: String) MenuItem
+        +getAll() MenuItem[]
+        +approve(id: String) Boolean
+        +reject(id: String, reason: String) Boolean
+    }
+
+    class MenuAttachment {
+        -Int id
+        -String menuId
+        -String attachedMenuId
+        -DateTime createdAt
     }
 
     class KYCField {
-        +String id
-        +String name
-        +String prompt
-        +String promptAm
-        +KYCFieldType type
-        +String validation
-        +Int order
-        +Boolean required
+        -String id
+        -String name
+        -String prompt
+        -String promptAm
+        -KYCFieldType type
+        -String validation
+        -Int order
+        -Boolean required
+        -DateTime createdAt
+        -DateTime updatedAt
+        +upsert(data: Object) KYCField
+        +delete(id: String) Boolean
+    }
+
+    class MenuKYC {
+        -Int id
+        -String menuId
+        -String kycId
+        -Int order
     }
 
     class UserReport {
-        +String id
-        +String userId
-        +String menuId
-        +String menuName
-        +Json data
-        +ReportStatus status
-        +ReportPriority priority
-        +String adminResponse
-        +String internalNotes
-        +String supportAssignee
+        -String id
+        -String userId
+        -String menuId
+        -String menuName
+        -Json data
+        -ReportStatus status
+        -ReportPriority priority
+        -String adminResponse
+        -String internalNotes
+        -String supportAssignee
+        -Int serviceRating
+        -DateTime timestamp
+        -DateTime createdAt
+        +submit(data: Object) UserReport
+        +updateStatus(id: String, status: ReportStatus) UserReport
+        +addAdminResponse(id: String, response: String) UserReport
+        +assignToSupport(id: String, assignee: String) UserReport
     }
 
     class ReportActivity {
-        +Int id
-        +String reportId
-        +String type
-        +String actor
-        +String target
-        +String content
-    }
-
-    class AdminCredential {
-        +Int id
-        +String username
-        +String email
-        +String passwordHash
-        +AdminRole role
-        +String groupName
+        -Int id
+        -String reportId
+        -String type
+        -String actor
+        -String target
+        -String content
+        -DateTime timestamp
+        +logActivity(reportId: String, type: String, actor: String) ReportActivity
     }
 
     class AppSettings {
-        +Int id
-        +Json supportedLanguages
-        +Json systemTranslations
-        +String botAvatarType
-        +String appLogo
-        +Boolean showAdminPanelIcon
+        -Int id
+        -Json supportedLanguages
+        -Json systemTranslations
+        -String botAvatarType
+        -String botAvatarImage
+        -String appLogo
+        -Boolean showAdminPanelIcon
+        +getSettings() AppSettings
+        +updateSettings(data: Object) AppSettings
     }
 
-    class InteractionLog {
-        +Int id
-        +String sessionId
-        +String userMessage
-        +String botResponse
-        +LogStatus status
-        +Int responseTime
+    class ReportIdConfig {
+        -Int id
+        -String prefix
+        -Boolean yearEnabled
+        -Int numberLength
+        -Int startValue
+        -Boolean resetEveryYear
+    }
+
+    class AdminCredential {
+        -Int id
+        -String username
+        -String email
+        -String passwordHash
+        -AdminRole role
+        -String groupName
+        -DateTime createdAt
+        +login(username: String, password: String) Object
+        +register(data: Object) AdminCredential
+        +changePassword(oldPass: String, newPass: String) Boolean
     }
 
     class AdminRecoveryToken {
-        +String token
-        +String username
-        +DateTime expiresAt
-        +Boolean consumed
+        -String token
+        -String username
+        -DateTime expiresAt
+        -Boolean consumed
+        +generate(username: String) AdminRecoveryToken
+        +verifyAndConsume(token: String) Boolean
     }
 
-    MenuItem "1" --> "*" MenuItem : parent-child
-    MenuItem "1" --> "*" KYCField : via MenuKYC
-    MenuItem "1" --> "*" UserReport : generates
-    UserReport "1" --> "*" ReportActivity : logs
-    AppSettings "1" --> "0..1" ReportIdConfig : configures
-    AdminCredential ..> AdminRecoveryToken : recovery
+    class InteractionLog {
+        -Int id
+        -String sessionId
+        -String userMessage
+        -String botResponse
+        -LogStatus status
+        -Int responseTime
+        -DateTime timestamp
+        +logInteraction(data: Object) InteractionLog
+        +getLogs() InteractionLog[]
+    }
+
+    class ClickHistory {
+        -Int id
+        -String menuId
+        -String sessionId
+        -DateTime clickedAt
+        +recordClick(menuId: String, sessionId: String) ClickHistory
+    }
+
+    %% Relationships
+    MenuItem "1" -- "0..*" MenuItem : association
+    MenuItem *-- "0..*" MenuAttachment : composition
+    MenuItem *-- "0..*" MenuKYC : composition
+    KYCField "1" -- "0..*" MenuKYC : association
+    MenuItem "1" -- "0..*" UserReport : association
+    MenuItem *-- "0..*" ClickHistory : composition
+    UserReport *-- "0..*" ReportActivity : composition
+    AppSettings o-- "0..1" ReportIdConfig : aggregation
+    AdminCredential "1" -- "0..*" AdminRecoveryToken : association
 ```
 
 ### 3.4 Component Diagram
