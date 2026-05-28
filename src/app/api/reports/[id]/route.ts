@@ -8,7 +8,7 @@ export const revalidate = 0;
 
 export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  const session = await getValidatedAdminSession();
+  const session = await getValidatedAdminSession(true);
 
   if (!session?.username) {
     const report = await prisma.userReport.findUnique({
@@ -162,7 +162,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 }
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
-  const session = await getValidatedAdminSession();
+  const session = await getValidatedAdminSession(true);
   if (!session?.username) {
     return NextResponse.json({ status: 'error', message: 'Unauthorized.' }, { status: 401 });
   }
@@ -304,7 +304,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 }
 
 export async function DELETE(_: Request, ctx: { params: Promise<{ id: string }> }) {
-  const session = await getValidatedAdminSession();
+  const session = await getValidatedAdminSession(true);
   if (!session?.username) {
     return NextResponse.json({ status: 'error', message: 'Unauthorized.' }, { status: 401 });
   }

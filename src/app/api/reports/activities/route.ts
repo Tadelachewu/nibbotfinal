@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export async function GET(req: Request) {
-  const session = await getValidatedAdminSession();
+  const session = await getValidatedAdminSession(true);
   if (!session?.username) {
     return NextResponse.json({ status: 'error', message: 'Unauthorized.' }, { status: 401 });
   }

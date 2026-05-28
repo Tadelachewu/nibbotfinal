@@ -8,7 +8,7 @@ import { Prisma } from '@prisma/client';
 import { checkLock, clearKey, enforceRateLimit, getClientIp, incrementCounter, normalizePrincipal, setLock } from '@/lib/rateLimit';
 
 export async function POST(req: Request) {
-  const session = await getValidatedAdminSession();
+  const session = await getValidatedAdminSession(true);
   if (!session?.username) {
     return NextResponse.json({ success: false, error: 'Unauthorized.' }, { status: 401 });
   }
@@ -85,8 +85,8 @@ export async function POST(req: Request) {
   const passwordHash = await hashPassword(newPassword);
 
   try {
-    const data: any = { 
-      username: newUsername, 
+    const data: any = {
+      username: newUsername,
       passwordHash,
       // Invalidate all other sessions on password change
       sessionVersion: { increment: 1 },

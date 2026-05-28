@@ -44,7 +44,7 @@ export async function getAdminSession(): Promise<IronSession<AdminSessionData>> 
   return getIronSession<AdminSessionData>(await cookies(), sessionOptions);
 }
 
-export async function getValidatedAdminSession(): Promise<IronSession<AdminSessionData> | null> {
+export async function getValidatedAdminSession(allowMutations = false): Promise<IronSession<AdminSessionData> | null> {
   const session = await getAdminSession();
   if (!session.username) return null;
 
@@ -57,8 +57,10 @@ export async function getValidatedAdminSession(): Promise<IronSession<AdminSessi
 
   if (now - lastActivityAt > idleMs) {
     console.warn(`[Auth] Session idle timeout for user=${session.username}`);
-    session.destroy();
-    await session.save();
+    if (allowMutations) {
+      session.destroy();
+      await session.save();
+    }
     return null;
   }
 
@@ -66,8 +68,10 @@ export async function getValidatedAdminSession(): Promise<IronSession<AdminSessi
   const createdAt = typeof session.createdAt === 'number' ? session.createdAt : now;
   if (now - createdAt > absoluteLifetimeMs) {
     console.warn(`[Auth] Session absolute lifetime expired for user=${session.username}`);
-    session.destroy();
-    await session.save();
+    if (allowMutations) {
+      session.destroy();
+      await session.save();
+    }
     return null;
   }
 
@@ -82,15 +86,19 @@ export async function getValidatedAdminSession(): Promise<IronSession<AdminSessi
   // If session was bound to an IP/UA and it changed, invalidate to prevent hijacking
   if (session.ip && session.ip !== 'unknown' && session.ip !== currentIp) {
     console.warn(`[Auth] Session IP mismatch. sessionIp=${session.ip} currentIp=${currentIp} user=${session.username}`);
-    session.destroy();
-    await session.save();
+    if (allowMutations) {
+      session.destroy();
+      await session.save();
+    }
     return null;
   }
 
   if (session.userAgent && session.userAgent !== 'unknown' && session.userAgent !== currentUserAgent) {
     console.warn(`[Auth] Session User-Agent mismatch for user=${session.username}`);
-    session.destroy();
-    await session.save();
+    if (allowMutations) {
+      session.destroy();
+      await session.save();
+    }
     return null;
   }
 
@@ -103,8 +111,10 @@ export async function getValidatedAdminSession(): Promise<IronSession<AdminSessi
 
   if (!admin || (typeof session.sessionVersion === 'number' && admin.sessionVersion !== session.sessionVersion)) {
     console.warn(`[Auth] Session version mismatch or user not found. user=${session.username}`);
-    session.destroy();
-    await session.save();
+    if (allowMutations) {
+      session.destroy();
+      await session.save();
+    }
     return null;
   }
 
@@ -113,7 +123,7 @@ export async function getValidatedAdminSession(): Promise<IronSession<AdminSessi
   if (typeof session.csrfToken !== 'string' || !session.csrfToken) {
     session.csrfToken = Buffer.from(crypto.randomUUID()).toString('base64');
   }
-  await session.save();
+  if (allowMutations) await session.save();
 
   return session;
 }

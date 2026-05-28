@@ -20,7 +20,7 @@ function normalizeEmail(email: string): string {
 }
 
 export async function GET() {
-  const session = await getValidatedAdminSession();
+  const session = await getValidatedAdminSession(true);
   if (!session?.username) {
     return NextResponse.json({ success: false, error: 'Unauthorized.' }, { status: 401 });
   }
@@ -72,7 +72,7 @@ function generateRandomPassword(length = 12): string {
 }
 
 export async function POST(req: Request) {
-  const session = await getValidatedAdminSession();
+  const session = await getValidatedAdminSession(true);
   if (!session?.username) {
     return NextResponse.json({ success: false, error: 'Unauthorized.' }, { status: 401 });
   }
@@ -185,7 +185,7 @@ export async function POST(req: Request) {
 }
 
 export async function PATCH(req: Request) {
-  const session = await getValidatedAdminSession();
+  const session = await getValidatedAdminSession(true);
   if (!session?.username) {
     return NextResponse.json({ success: false, error: 'Unauthorized.' }, { status: 401 });
   }
@@ -316,7 +316,7 @@ export async function PATCH(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const session = await getValidatedAdminSession();
+  const session = await getValidatedAdminSession(true);
   if (!session?.username) {
     return NextResponse.json({ success: false, error: 'Unauthorized.' }, { status: 401 });
   }

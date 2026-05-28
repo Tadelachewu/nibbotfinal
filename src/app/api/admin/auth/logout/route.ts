@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { getValidatedAdminSession, verifyCsrfToken } from '@/lib/session';
 
 export async function POST(req: Request) {
-  const session = await getValidatedAdminSession();
+  const session = await getValidatedAdminSession(true);
   if (session && !verifyCsrfToken(req, session, { requireToken: true })) {
     return NextResponse.json({ success: false, error: 'Forbidden.' }, { status: 403 });
   }

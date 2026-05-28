@@ -46,7 +46,7 @@ async function getReportConfig() {
 }
 
 export async function GET() {
-  const session = await getValidatedAdminSession();
+  const session = await getValidatedAdminSession(true);
   if (!session?.username) {
     return NextResponse.json({ status: 'error', message: 'Unauthorized.' }, { status: 401 });
   }
