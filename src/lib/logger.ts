@@ -52,28 +52,14 @@ export interface LogEntry {
 
 const LOGS_STORAGE_KEY = 'nib_interaction_logs';
 
+/**
+ * saveLogEntry is now deprecated in favor of server-side logSecurityEvent.
+ * It has been disabled to prevent sensitive information from being stored in localStorage.
+ */
 export const saveLogEntry = (entry: Omit<LogEntry, 'timestamp'>) => {
-  if (typeof window === 'undefined') return;
-
-  const fullEntry: LogEntry = {
-    ...entry,
-    timestamp: new Date().toISOString(),
-  };
-
-  // Mask sensitive information
-  const maskedEntry = maskSensitiveInfo(fullEntry);
-
-  try {
-    const existingLogsRaw = localStorage.getItem(LOGS_STORAGE_KEY);
-    const existingLogs: LogEntry[] = existingLogsRaw ? JSON.parse(existingLogsRaw) : [];
-    
-    // Keep all logs for now as per user request (transitioning to database soon)
-    const updatedLogs = [maskedEntry, ...existingLogs];
-    
-    localStorage.setItem(LOGS_STORAGE_KEY, JSON.stringify(updatedLogs));
-  } catch (error) {
-    console.error('Failed to save log entry:', error);
-  }
+  // Disabled for security: LocalStorage logging can expose sensitive business data.
+  // Use logSecurityEvent() from @/lib/logger on the server instead.
+  return;
 };
 
 export const getLogs = (): LogEntry[] => {

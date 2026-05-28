@@ -33,7 +33,10 @@ async function ensureInitialAdminExists(req: Request) {
 
   // Security Hardening: Never use hardcoded fallback passwords.
   // The initial administrator password MUST be provided via environment variables.
-  if (!envPassword || typeof envPassword !== 'string' || envPassword.length < 8) {
+  if (!envPassword || typeof envPassword !== 'string' || envPassword.length < 12) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('[CRITICAL] ADMIN_INITIAL_PASSWORD must be set in production with at least 12 characters.');
+    }
     console.warn('[Auth] Initial admin creation skipped: ADMIN_INITIAL_PASSWORD not set or too weak.');
     return;
   }

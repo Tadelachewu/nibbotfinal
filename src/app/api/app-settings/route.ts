@@ -46,7 +46,6 @@ async function persistDataUrlImage(dataUrl: string, prefix: 'bot' | 'user' | 'lo
     ['image/jpg', 'jpg'],
     ['image/webp', 'webp'],
     ['image/gif', 'gif'],
-    ['image/svg+xml', 'svg'],
   ]);
 
   const ext = allowed.get(mime);
