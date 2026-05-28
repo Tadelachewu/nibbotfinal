@@ -17,8 +17,17 @@ function maskSensitiveInfo(text: string): string {
 }
 
 export async function GET(req: Request) {
-  if (!(await getValidatedAdminSession())) {
+  const session = await getValidatedAdminSession();
+  if (!session?.username) {
     return NextResponse.json({ status: 'error', message: 'Unauthorized.' }, { status: 401 });
+  }
+
+  const actor = await prisma.adminCredential.findUnique({
+    where: { username: session.username },
+    select: { role: true },
+  });
+  if (actor?.role !== 'admin') {
+    return NextResponse.json({ status: 'error', message: 'Forbidden.' }, { status: 403 });
   }
 
   const { searchParams } = new URL(req.url);

@@ -18,8 +18,15 @@ async function createTransporter() {
         return nodemailer.createTransport({
             host,
             port,
+            // Enforce secure connection (SSL/TLS) if using port 465, 
+            // otherwise use STARTTLS (requireTLS: true).
             secure: port === 465,
+            requireTLS: true,
             auth: { user, pass },
+            tls: {
+                // Do not fail on invalid certificates in dev, but enforce in prod.
+                rejectUnauthorized: process.env.NODE_ENV === 'production'
+            }
         });
     }
 
@@ -50,10 +57,9 @@ export async function sendEmail(opts: MailOptions) {
     const from = process.env.EMAIL_FROM || `noreply@localhost`;
 
     if (!transporter) {
-        // In non-configured environments, log to console for dev visibility
-        // and return as success so API can behave non-destructively.
-        // DO NOT rely on this in production.
-        console.info('[email] transporter not configured, skipping send', opts);
+        // In non-configured environments, log a warning for dev visibility
+        // but avoid logging the full payload which may contain sensitive tokens.
+        console.warn(`[email] transporter not configured, skipping send to=${opts.to} subject=${opts.subject}`);
         return { ok: true };
     }
 
@@ -80,7 +86,13 @@ export async function sendEmail(opts: MailOptions) {
 }
 
 export async function sendRecoveryEmail(to: string, token: string, username: string) {
-    const host = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || 'https://your-site.example';
+    let host = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || 'https://your-site.example';
+
+    // Security Hardening: Enforce HTTPS for the recovery link in production
+    if (process.env.NODE_ENV === 'production' && host.startsWith('http:')) {
+        host = host.replace('http:', 'https:');
+    }
+
     const resetLink = `${host.replace(/\/$/, '')}/admin/reset?token=${encodeURIComponent(token)}`;
     const subject = 'Users Login password reset';
     const text = `Hello ${username},\n\nWe received a request to reset your Users Login password. Use the link below to reset your password. This link expires soon.\n\n${resetLink}\n\nIf you did not request this, ignore this message and report suspicious activity.`;

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
 import { getValidatedAdminSession, rotateCsrfToken, verifyCsrfToken } from '@/lib/session';
+import { logSecurityEvent } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -47,14 +48,14 @@ function normalizeApiConfig(apiConfig: any) {
     : undefined;
 
   // Normalize request parameters
-  const requestParameters = Array.isArray(apiConfig.requestParameters) 
+  const requestParameters = Array.isArray(apiConfig.requestParameters)
     ? apiConfig.requestParameters.map((param: any) => ({
-        apiKey: String(param.apiKey || ''),
-        sourceType: ['kyc', 'static', 'user_profile', 'admin_default'].includes(param.sourceType) ? param.sourceType : 'kyc',
-        sourceValue: String(param.sourceValue || ''),
-        isEnabled: param.isEnabled !== false, // Default to true
-        isUserConfigurable: param.isUserConfigurable !== false // Default to true
-      }))
+      apiKey: String(param.apiKey || ''),
+      sourceType: ['kyc', 'static', 'user_profile', 'admin_default'].includes(param.sourceType) ? param.sourceType : 'kyc',
+      sourceValue: String(param.sourceValue || ''),
+      isEnabled: param.isEnabled !== false, // Default to true
+      isUserConfigurable: param.isUserConfigurable !== false // Default to true
+    }))
     : [];
 
   return {
@@ -235,20 +236,16 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   const session = await getValidatedAdminSession();
-  if (!session) {
+  if (!session?.username) {
     return NextResponse.json({ status: 'error', message: 'Unauthorized.' }, { status: 401 });
   }
   if (!verifyCsrfToken(req, session, { requireToken: true })) {
     return NextResponse.json({ status: 'error', message: 'Forbidden.' }, { status: 403 });
   }
 
-  if (session.username) {
-    const actor = await prisma.adminCredential.findUnique({ where: { username: session.username } });
-    if (!actor || actor.role !== 'admin') {
-      return NextResponse.json({ status: 'error', message: 'Forbidden.' }, { status: 403 });
-    }
-  } else {
-    return NextResponse.json({ status: 'error', message: 'Unauthorized.' }, { status: 401 });
+  const actor = await prisma.adminCredential.findUnique({ where: { username: session.username } });
+  if (!actor || actor.role !== 'admin') {
+    return NextResponse.json({ status: 'error', message: 'Forbidden.' }, { status: 403 });
   }
 
   const body = await req.json().catch(() => null);
@@ -363,6 +360,16 @@ export async function POST(req: Request) {
   const created = await prisma.menuItem.findUnique({
     where: { id },
     include: { attachments: true, kycMappings: { include: { kyc: true } } }
+  });
+
+  // Audit Log: Menu Creation
+  await logSecurityEvent({
+    actor: session.username ?? 'unknown',
+    action: 'CREATE_MENU',
+    target: `menu:${id}`,
+    details: { name: body.name, responseType: body.responseType, hasApiConfig: !!apiConfig },
+    ip: session.ip,
+    userAgent: session.userAgent
   });
 
   const nextToken = await rotateCsrfToken(session);

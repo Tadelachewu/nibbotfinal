@@ -25,23 +25,21 @@ export function middleware(request: NextRequest) {
     ? `'self' 'nonce-${nonce}' 'unsafe-inline'`
     : `'self' 'nonce-${nonce}' 'unsafe-inline'`
 
-  const styleSrcAttr = "'unsafe-inline'"
-
   const cspHeader = `
       default-src 'self';
       script-src 'self' 'nonce-${nonce}' 'strict-dynamic';
       style-src ${styleSrc};
       style-src-elem ${styleSrcElem};
-      style-src-attr ${styleSrcAttr};
+      style-src-attr 'unsafe-inline';
       img-src 'self' blob: data: https://placehold.co https://images.unsplash.com https://picsum.photos;
-      font-src 'self' data:;
+      font-src 'self';
       object-src 'none';
       base-uri 'self';
       form-action 'self';
       frame-ancestors 'none';
       frame-src 'none';
       media-src 'self';
-      connect-src *;
+      connect-src ${connectSrc};
       ${isProd ? 'upgrade-insecure-requests;' : ''}
     `.replace(/\s{2,}/g, ' ').trim()
 
@@ -73,11 +71,42 @@ export function middleware(request: NextRequest) {
     },
   })
   response.headers.set('Content-Security-Policy', cspHeader)
+  response.headers.set('X-Content-Type-Options', 'nosniff')
+  response.headers.set('X-Frame-Options', 'DENY')
+  response.headers.set('Permissions-Policy', 'accelerometer=(), autoplay=(), camera=(), display-capture=(), encrypted-media=(), fullscreen=(self), gamepad=(), geolocation=(), gyroscope=(), hid=(), idle-detection=(), local-fonts=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), usb=(), xr-spatial-tracking=()')
+  response.headers.delete('X-Powered-By')
+  response.headers.delete('X-AspNet-Version')
+  response.headers.delete('X-AspNetMvc-Version')
+  response.headers.delete('X-AspNetCore-Version')
+  response.headers.delete('Server')
   corsHeaders.forEach((value, key) => response.headers.set(key, value))
 
   const { pathname } = request.nextUrl
   if (pathname.startsWith('/api/')) {
     response.headers.set('Cache-Control', 'no-store')
+  }
+
+  // Strict RBAC: Block legacy password change paths
+  const legacyBlockedPaths = ['/admin-change-password', '/member-change-password'];
+  if (legacyBlockedPaths.some(p => pathname.startsWith(p))) {
+    return new NextResponse(null, { status: 404 });
+  }
+
+  // Strict RBAC: Protect /admin routes from forced browsing.
+  // We allow /admin/login and /admin/reset as they are public entry points.
+  // All other /admin paths require an active nib-admin-session cookie.
+  // Unauthorized requests return 404 to hide the existence of the admin panel.
+  if (pathname.startsWith('/admin') &&
+    !pathname.startsWith('/admin/login') &&
+    !pathname.startsWith('/admin/reset')) {
+    const adminSession = request.cookies.get('nib-admin-session');
+    if (!adminSession) {
+      return new NextResponse(null, { status: 404 });
+    }
+  }
+
+  if (isProd) {
+    response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload')
   }
 
   return response

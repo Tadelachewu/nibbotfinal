@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { hashPassword } from '@/lib/auth';
 import { getValidatedAdminSession, rotateCsrfToken, verifyCsrfToken } from '@/lib/session';
+import { logSecurityEvent } from '@/lib/logger';
 
 function isStrongPassword(password: string): boolean {
   const p = String(password || '');
@@ -54,6 +55,22 @@ export async function GET() {
   });
 }
 
+function generateRandomPassword(length = 12): string {
+  const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+";
+  let ret = "";
+  // Ensure at least one of each required type for our strength checker
+  ret += "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[Math.floor(Math.random() * 26)];
+  ret += "abcdefghijklmnopqrstuvwxyz"[Math.floor(Math.random() * 26)];
+  ret += "0123456789"[Math.floor(Math.random() * 10)];
+  ret += "!@#$%^&*()_+"[Math.floor(Math.random() * 12)];
+
+  for (let i = ret.length; i < length; i++) {
+    ret += charset[Math.floor(Math.random() * charset.length)];
+  }
+  // Shuffle
+  return ret.split('').sort(() => 0.5 - Math.random()).join('');
+}
+
 export async function POST(req: Request) {
   const session = await getValidatedAdminSession();
   if (!session?.username) {
@@ -73,13 +90,22 @@ export async function POST(req: Request) {
   const email = normalizeEmail(body?.email);
   const groupName = typeof body?.groupName === 'string' ? body.groupName.trim().slice(0, 80) : '';
   const role = body?.role === 'checker' || body?.role === 'admin' || body?.role === 'support' ? body.role : '';
-  const password = typeof body?.password === 'string' ? body.password : '';
 
-  if (!username || !email || !role || !password) {
+  let password = typeof body?.password === 'string' ? body.password : '';
+  let isGenerated = false;
+
+  if (!username || !email || !role) {
     return NextResponse.json(
-      { success: false, error: 'username, email, role, and password are required.' },
+      { success: false, error: 'username, email, and role are required.' },
       { status: 400 }
     );
+  }
+
+  // If password is not provided or explicitly requested as random, generate one.
+  // This prevents the "same default password for all" vulnerability.
+  if (!password || body?.generatePassword === true) {
+    password = generateRandomPassword();
+    isGenerated = true;
   }
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -102,6 +128,9 @@ export async function POST(req: Request) {
         passwordHash,
         role,
         groupName: groupName || null,
+        // Enforce temporary password expiration (24 hours) and mandatory change
+        mustChangePassword: true,
+        passwordExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       },
       select: {
         id: true,
@@ -109,8 +138,20 @@ export async function POST(req: Request) {
         email: true,
         groupName: true,
         role: true,
+        mustChangePassword: true,
+        passwordExpiresAt: true,
         createdAt: true,
       },
+    });
+
+    // Audit Log: User Creation
+    await logSecurityEvent({
+      actor: session.username,
+      action: 'CREATE_USER',
+      target: `user:${username}`,
+      details: { role, email, groupName },
+      ip: session.ip,
+      userAgent: session.userAgent
     });
 
     const nextToken = await rotateCsrfToken(session);
@@ -122,7 +163,12 @@ export async function POST(req: Request) {
         email: created.email,
         groupName: created.groupName ?? '',
         role: created.role,
+        mustChangePassword: created.mustChangePassword,
+        passwordExpiresAt: created.passwordExpiresAt?.toISOString() ?? null,
         createdAt: created.createdAt.toISOString(),
+        // Only return the password in the response if it was generated,
+        // so the admin can provide it to the user.
+        temporaryPassword: isGenerated ? password : undefined
       },
     });
     res.headers.set('x-csrf-token', nextToken);
@@ -172,7 +218,7 @@ export async function PATCH(req: Request) {
     );
   }
 
-  const data: { username?: string; email?: string; role?: 'admin' | 'checker' | 'support'; passwordHash?: string; groupName?: string | null } = {};
+  const data: { username?: string; email?: string; role?: 'admin' | 'checker' | 'support'; passwordHash?: string; groupName?: string | null; sessionVersion?: { increment: number } } = {};
 
   if ('username' in (body || {})) {
     const nextUsername = typeof body?.username === 'string' ? body.username.trim() : '';
@@ -215,6 +261,8 @@ export async function PATCH(req: Request) {
       );
     }
     data.passwordHash = await hashPassword(password);
+    // Invalidate sessions for this user if password is changed by admin
+    data.sessionVersion = { increment: 1 };
   }
 
   if (Object.keys(data).length === 0) {
@@ -226,6 +274,20 @@ export async function PATCH(req: Request) {
       where: { id },
       data,
       select: { id: true, username: true, email: true, groupName: true, role: true, createdAt: true },
+    });
+
+    // Audit Log: User Update
+    await logSecurityEvent({
+      actor: session.username,
+      action: 'UPDATE_USER',
+      target: `user:${updated.username}`,
+      details: {
+        fieldsChanged: Object.keys(data).filter(k => k !== 'passwordHash' && k !== 'sessionVersion'),
+        roleChanged: 'role' in data,
+        passwordChanged: 'passwordHash' in data
+      },
+      ip: session.ip,
+      userAgent: session.userAgent
     });
 
     const nextToken = await rotateCsrfToken(session);
@@ -291,6 +353,16 @@ export async function DELETE(req: Request) {
   }
 
   await prisma.adminCredential.delete({ where: { id } });
+
+  // Audit Log: User Deletion
+  await logSecurityEvent({
+    actor: session.username,
+    action: 'DELETE_USER',
+    target: `user:${target.username}`,
+    details: { role: target.role },
+    ip: session.ip,
+    userAgent: session.userAgent
+  });
 
   const nextToken = await rotateCsrfToken(session);
   const res = NextResponse.json({ success: true });

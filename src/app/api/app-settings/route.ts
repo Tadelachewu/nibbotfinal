@@ -6,6 +6,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { Prisma } from '@prisma/client';
+import { logSecurityEvent } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -120,10 +121,18 @@ export async function GET() {
 
 export async function PUT(req: Request) {
   const session = await getValidatedAdminSession();
-  if (!session) {
+  if (!session?.username) {
     return NextResponse.json({ status: 'error', message: 'Unauthorized.' }, { status: 401 });
   }
   if (!verifyCsrfToken(req, session, { requireToken: true })) {
+    return NextResponse.json({ status: 'error', message: 'Forbidden.' }, { status: 403 });
+  }
+
+  const actor = await prisma.adminCredential.findUnique({
+    where: { username: session.username },
+    select: { role: true },
+  });
+  if (actor?.role !== 'admin') {
     return NextResponse.json({ status: 'error', message: 'Forbidden.' }, { status: 403 });
   }
 
@@ -229,6 +238,22 @@ export async function PUT(req: Request) {
         ...({ showAdminPanelIcon } as any)
       },
       include: { reportId: true }
+    });
+
+    // Audit Log: Application Settings Update
+    await logSecurityEvent({
+      actor: session.username,
+      action: 'UPDATE_SETTINGS',
+      target: 'settings:global',
+      details: {
+        languagesCount: Array.isArray(supportedLanguages) ? supportedLanguages.length : 0,
+        hasTranslationsUpdate: Object.keys(systemTranslations).length > 0,
+        hasReportIdUpdate: !!reportId,
+        avatarsChanged: true,
+        logoChanged: !!appLogo
+      },
+      ip: session.ip,
+      userAgent: session.userAgent
     });
 
     const nextToken = await rotateCsrfToken(session);

@@ -185,6 +185,7 @@ export function ChatInterface() {
   const [menus, setMenus] = useState<MenuItem[]>([]);
   const [languages, setLanguages] = useState<Language[]>([]);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [history, setHistory] = useState<Message[]>([]);
   const [currentMenuId, setCurrentMenuId] = useState<string | null>(null);
   const [menuHistory, setMenuHistory] = useState<string[]>([]);
@@ -215,6 +216,20 @@ export function ChatInterface() {
   const [loadingText, setLoadingText] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Check if current user has an admin session to show/hide admin-only UI components
+    const checkAdminSession = async () => {
+      try {
+        const res = await fetch('/api/admin/auth/session', { cache: 'no-store' });
+        const data = await res.json().catch(() => null);
+        setIsAdmin(Boolean(data?.isAuthenticated && ['admin', 'checker', 'support'].includes(data?.role)));
+      } catch {
+        setIsAdmin(false);
+      }
+    };
+    checkAdminSession();
+  }, []);
 
   const fetchRuntimeConfig = useCallback(async () => {
     const previewRequested =
@@ -1573,7 +1588,7 @@ export function ChatInterface() {
           <HomeIcon className="mr-1.5" size={15} />
           {t('ui_home', 'Home')}
         </Button>
-        {appSettings?.showAdminPanelIcon === true ? (
+        {appSettings?.showAdminPanelIcon === true && isAdmin ? (
           <Button
             variant="ghost"
             size="icon"

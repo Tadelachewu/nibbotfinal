@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 
 import { getValidatedAdminSession, rotateCsrfToken, verifyCsrfToken } from '@/lib/session';
+import { logSecurityEvent } from '@/lib/logger';
 
 function ensureRootPrefix(path: string, rootKey: string) {
   const clean = String(path || '').trim();
@@ -348,6 +349,19 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     }
   }
 
+  // Audit Log: Menu Update
+  await logSecurityEvent({
+    actor: session.username ?? 'unknown',
+    action: 'UPDATE_MENU',
+    target: `menu:${id}`,
+    details: {
+      fieldsChanged: Object.keys(data),
+      approvalStatus: data.approvalStatus
+    },
+    ip: session.ip,
+    userAgent: session.userAgent
+  });
+
   const updated = await prisma.menuItem.findUnique({
     where: { id },
     include: { attachments: true, kycMappings: { include: { kyc: true } } }
@@ -567,6 +581,16 @@ export async function DELETE(_: Request, ctx: { params: Promise<{ id: string }> 
 
   const { id } = await ctx.params;
   await prisma.menuItem.delete({ where: { id } });
+
+  // Audit Log: Menu Deletion
+  await logSecurityEvent({
+    actor: session.username ?? 'unknown',
+    action: 'DELETE_MENU',
+    target: `menu:${id}`,
+    ip: session.ip,
+    userAgent: session.userAgent
+  });
+
   const nextToken = await rotateCsrfToken(session);
   const res = NextResponse.json({ status: 'success' });
   res.headers.set('x-csrf-token', nextToken);

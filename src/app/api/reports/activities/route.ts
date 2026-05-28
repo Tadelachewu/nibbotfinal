@@ -11,11 +11,36 @@ export async function GET(req: Request) {
     return NextResponse.json({ status: 'error', message: 'Unauthorized.' }, { status: 401 });
   }
 
+  const actor = await prisma.adminCredential.findUnique({
+    where: { username: session.username },
+    select: { role: true }
+  });
+
+  if (!actor || (actor.role !== 'admin' && actor.role !== 'support')) {
+    return NextResponse.json({ status: 'error', message: 'Forbidden.' }, { status: 403 });
+  }
+
   const { searchParams } = new URL(req.url);
   const reportId = searchParams.get('reportId');
 
+  // Horizontal RBAC (IDOR): Support users can only see activities for reports assigned to them.
+  if (actor.role === 'support' && reportId) {
+    const report = await prisma.userReport.findUnique({
+      where: { id: reportId },
+      select: { supportAssignee: true }
+    });
+    if (!report || report.supportAssignee !== session.username) {
+      return NextResponse.json({ status: 'error', message: 'Forbidden.' }, { status: 403 });
+    }
+  }
+
   const activities = await prisma.reportActivity.findMany({
-    where: reportId ? { reportId } : undefined,
+    where: {
+      AND: [
+        reportId ? { reportId } : {},
+        actor.role === 'support' ? { report: { supportAssignee: session.username } } : {}
+      ]
+    },
     include: {
       report: {
         select: {

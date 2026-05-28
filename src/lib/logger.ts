@@ -1,3 +1,43 @@
+import { prisma } from './prisma';
+
+export interface AuditLogParams {
+  actor: string;
+  action: string;
+  target: string;
+  details?: any;
+  ip?: string;
+  userAgent?: string;
+}
+
+/**
+ * Persists a centralized audit log entry to the database.
+ * Used for tracking administrative and sensitive actions.
+ */
+export async function logSecurityEvent({
+  actor,
+  action,
+  target,
+  details,
+  ip,
+  userAgent
+}: AuditLogParams) {
+  try {
+    await prisma.auditLog.create({
+      data: {
+        actor,
+        action,
+        target,
+        details: details ? JSON.stringify(details) : null,
+        ip,
+        userAgent
+      }
+    });
+  } catch (error) {
+    // Fail-safe: log to console if DB write fails to avoid blocking the business action
+    console.error(`[AuditLog Failure] ${action} by ${actor} on ${target}:`, error);
+  }
+}
+
 export interface LogEntry {
   timestamp: string; // UTC
   sessionId: string;

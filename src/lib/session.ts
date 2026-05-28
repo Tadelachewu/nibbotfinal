@@ -1,10 +1,16 @@
 import crypto from 'crypto';
 import type { IronSession, SessionOptions } from 'iron-session';
 import { getIronSession } from 'iron-session';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
+import { getClientIp } from './rateLimit';
+import { prisma } from './prisma';
 
 export type AdminSessionData = {
   username?: string;
+  role?: string;
+  ip?: string;
+  userAgent?: string;
+  sessionVersion?: number;
   createdAt?: number;
   lastActivityAt?: number;
   lastAuthAt?: number;
@@ -16,17 +22,21 @@ const idleMinutes = Number.isFinite(idleMinutesRaw) && idleMinutesRaw > 0 ? idle
 const idleSeconds = Math.floor(idleMinutes * 60);
 const idleMs = idleSeconds * 1000;
 
+// Absolute session lifetime limit (8 hours)
+const absoluteLifetimeMs = 8 * 60 * 60 * 1000;
+
 export const sessionOptions: SessionOptions = {
   password: process.env.SECRET_COOKIE_PASSWORD as string,
   cookieName: 'nib-admin-session',
   ttl: idleSeconds,
   cookieOptions: {
+    // In production, force Secure, HttpOnly, and SameSite=Strict for maximum protection.
+    // In development, allow lax for easier debugging.
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
-    // Use a more permissive SameSite in non-development and allow None in production
-    // so cookies are sent for cross-site requests when behind a proxy/CDN.
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
     maxAge: idleSeconds,
+    path: '/',
   },
 };
 
@@ -46,6 +56,53 @@ export async function getValidatedAdminSession(): Promise<IronSession<AdminSessi
       : now;
 
   if (now - lastActivityAt > idleMs) {
+    console.warn(`[Auth] Session idle timeout for user=${session.username}`);
+    session.destroy();
+    await session.save();
+    return null;
+  }
+
+  // Absolute session lifetime check (8 hours)
+  const createdAt = typeof session.createdAt === 'number' ? session.createdAt : now;
+  if (now - createdAt > absoluteLifetimeMs) {
+    console.warn(`[Auth] Session absolute lifetime expired for user=${session.username}`);
+    session.destroy();
+    await session.save();
+    return null;
+  }
+
+  // Contextual binding check (IP and User-Agent)
+  // We use headers() from next/headers which is available in Server Components/Actions/API Routes.
+  const reqHeaders = await headers();
+  const currentIp = reqHeaders.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    reqHeaders.get('x-real-ip')?.trim() ||
+    'unknown';
+  const currentUserAgent = reqHeaders.get('user-agent') || 'unknown';
+
+  // If session was bound to an IP/UA and it changed, invalidate to prevent hijacking
+  if (session.ip && session.ip !== 'unknown' && session.ip !== currentIp) {
+    console.warn(`[Auth] Session IP mismatch. sessionIp=${session.ip} currentIp=${currentIp} user=${session.username}`);
+    session.destroy();
+    await session.save();
+    return null;
+  }
+
+  if (session.userAgent && session.userAgent !== 'unknown' && session.userAgent !== currentUserAgent) {
+    console.warn(`[Auth] Session User-Agent mismatch for user=${session.username}`);
+    session.destroy();
+    await session.save();
+    return null;
+  }
+
+  // Concurrent session control: check session version in DB
+  // This allows invalidating all other sessions on login or password change.
+  const admin = await prisma.adminCredential.findUnique({
+    where: { username: session.username },
+    select: { sessionVersion: true }
+  });
+
+  if (!admin || (typeof session.sessionVersion === 'number' && admin.sessionVersion !== session.sessionVersion)) {
+    console.warn(`[Auth] Session version mismatch or user not found. user=${session.username}`);
     session.destroy();
     await session.save();
     return null;

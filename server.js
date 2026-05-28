@@ -1,5 +1,8 @@
-const { createServer } = require('http');
+const { createServer: createHttpServer } = require('http');
+const { createServer: createHttpsServer } = require('https');
 const { parse } = require('url');
+const fs = require('fs');
+const path = require('path');
 const next = require('next');
 const { Server } = require('socket.io');
 const Redis = require('ioredis');
@@ -75,9 +78,20 @@ app.prepare().then(async () => {
   }
 
   function buildContentSecurityPolicy(nonce) {
-    // Allow connections to any origin while keeping other directives strict.
-    // Using '*' for connect-src permits fetch/websocket to arbitrary origins.
-    const connectSrc = '*';
+    // Restrict connect-src to self, trusted APIs, and WebSockets.
+    // Using a whitelist prevents XSS from exfiltrating data to arbitrary origins.
+    const connectSrc = [
+      "'self'",
+      "https://www.google.com",
+      "ws://localhost:9002",
+      "ws://localhost:9004",
+      "ws://127.0.0.1:9002",
+      "ws://127.0.0.1:9004",
+      "ws://localhost:3000",
+      "ws://localhost:3001",
+      "ws://127.0.0.1:3000",
+      "ws://127.0.0.1:3001"
+    ].join(' ');
 
     const scriptSrc = nonce ? `'self' 'nonce-${nonce}'` : "'self'";
     const styleSrc = nonce ? `'self' 'nonce-${nonce}'` : "'self'";
@@ -91,8 +105,9 @@ app.prepare().then(async () => {
       `connect-src ${connectSrc}`,
       `script-src ${scriptSrc}`,
       `style-src ${styleSrc}`,
-      `img-src 'self' data: blob: https://placehold.co https://images.unsplash.com https://picsum.photos`,
-      "font-src 'self' data:",
+      "style-src-attr 'unsafe-inline'",
+      `img-src 'self' blob: data: https://placehold.co https://images.unsplash.com https://picsum.photos`,
+      "font-src 'self'",
       "frame-src 'none'",
       ...(!dev ? ['upgrade-insecure-requests', 'block-all-mixed-content'] : []),
     ];
@@ -137,7 +152,57 @@ app.prepare().then(async () => {
     return directives.join('; ');
   }
 
-  const httpServer = createServer(async (req, res) => {
+  const connectionsPerIp = new Map();
+
+  // Hardened TLS configuration (Forward Secrecy AEAD ciphers only, no CBC, no static RSA)
+  const tlsOptions = {
+    minVersion: 'TLSv1.2',
+    maxVersion: 'TLSv1.3',
+    ciphers: [
+      'ECDHE-RSA-AES128-GCM-SHA256',
+      'ECDHE-RSA-AES256-GCM-SHA384',
+      'ECDHE-RSA-CHACHA20-POLY1305'
+    ].join(':'),
+    honorCipherOrder: true,
+  };
+
+  const sslKeyPath = process.env.SSL_KEY_PATH;
+  const sslCertPath = process.env.SSL_CERT_PATH;
+  let useHttps = false;
+  let httpsOptions = {};
+
+  if (sslKeyPath && sslCertPath) {
+    try {
+      httpsOptions = {
+        ...tlsOptions,
+        key: fs.readFileSync(path.resolve(sslKeyPath)),
+        cert: fs.readFileSync(path.resolve(sslCertPath)),
+      };
+      useHttps = true;
+      console.log('[Auth] SSL certificates loaded. Hardened TLS enabled.');
+    } catch (err) {
+      console.warn('[Auth] Failed to load SSL certificates. Falling back to HTTP.', err.message);
+    }
+  }
+
+  const requestHandler = async (req, res) => {
+    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
+
+    // Simple connection limiting per IP (DoS protection)
+    const currentConns = connectionsPerIp.get(ip) || 0;
+    if (currentConns > 100) { // Limit to 100 concurrent requests per IP
+      res.statusCode = 429;
+      res.end('Too Many Requests');
+      return;
+    }
+    connectionsPerIp.set(ip, currentConns + 1);
+
+    res.on('finish', () => {
+      const count = connectionsPerIp.get(ip) || 1;
+      if (count <= 1) connectionsPerIp.delete(ip);
+      else connectionsPerIp.set(ip, count - 1);
+    });
+
     try {
       const maxRequestBodyBytes = Number(process.env.MAX_REQUEST_BODY_BYTES || 1024 * 1024);
       const method = String(req.method || 'GET').toUpperCase();
@@ -215,8 +280,11 @@ app.prepare().then(async () => {
       }
       // Remove X-Powered-By header (Express adds this by default)
       res.removeHeader('X-Powered-By');
+      res.removeHeader('X-AspNet-Version');
+      res.removeHeader('X-AspNetMvc-Version');
+      res.removeHeader('X-AspNetCore-Version');
       res.removeHeader('Server');
-      res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=(), payment=(), usb=(), fullscreen=(self)');
+      res.setHeader('Permissions-Policy', 'accelerometer=(), autoplay=(), camera=(), display-capture=(), encrypted-media=(), fullscreen=(self), gamepad=(), geolocation=(), gyroscope=(), hid=(), idle-detection=(), local-fonts=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), usb=(), xr-spatial-tracking=()');
       if (isApiRoute) {
         res.setHeader('Cache-Control', 'no-store');
       }
@@ -228,7 +296,11 @@ app.prepare().then(async () => {
       res.statusCode = 500;
       res.end('internal server error');
     }
-  });
+  };
+
+  const httpServer = useHttps
+    ? createHttpsServer(httpsOptions, requestHandler)
+    : createHttpServer(requestHandler);
 
   // Attach Socket.io directly to the Next.js HTTP listener!
   const io = new Server(httpServer, {
@@ -241,6 +313,7 @@ app.prepare().then(async () => {
   });
   const applyEngineSecurityHeaders = (headers) => {
     headers['content-security-policy'] = sanitizeCsp(buildContentSecurityPolicy());
+    headers['permissions-policy'] = 'accelerometer=(), autoplay=(), camera=(), display-capture=(), encrypted-media=(), fullscreen=(self), gamepad=(), geolocation=(), gyroscope=(), hid=(), idle-detection=(), local-fonts=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), usb=(), xr-spatial-tracking=()';
     headers['x-content-type-options'] = 'nosniff';
     headers['x-frame-options'] = 'DENY';
     headers['x-permitted-cross-domain-policies'] = 'none';
@@ -303,6 +376,10 @@ app.prepare().then(async () => {
     }
   }
 
+  httpServer.headersTimeout = 20000; // Limit time to receive headers (Slowloris protection)
+  httpServer.requestTimeout = 30000; // Limit time to receive full request (Slowloris protection)
+  httpServer.keepAliveTimeout = 5000; // Close idle connections quickly
+
   httpServer
     .once('error', (err) => {
       console.error(err);
@@ -310,6 +387,7 @@ app.prepare().then(async () => {
     })
     .listen(port, () => {
       const modeLabel = dev ? 'Development' : 'Production';
-      console.log(`> ${modeLabel} Real-Time Engine Ready on http://${hostname}:${port}`);
+      const protocol = useHttps ? 'https' : 'http';
+      console.log(`> ${modeLabel} Real-Time Engine Ready on ${protocol}://${hostname}:${port}`);
     });
 });

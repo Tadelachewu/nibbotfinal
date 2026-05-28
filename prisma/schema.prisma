@@ -265,6 +265,9 @@ model AdminCredential {
   passwordHash String
   role         AdminRole @default(admin)
   groupName    String?  @map("group_name")
+  sessionVersion Int      @default(1) @map("session_version")
+  mustChangePassword Boolean @default(false) @map("must_change_password")
+  passwordExpiresAt DateTime? @map("password_expires_at")
   createdAt    DateTime @default(now())
 
   @@index([groupName])
@@ -281,4 +284,21 @@ model AdminRecoveryToken {
 
   @@index([username])
   @@map("admin_recovery_tokens")
+}
+
+// Centralized Audit Log for administrative and sensitive actions
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  timestamp DateTime @default(now())
+  actor     String   // username of the admin performing the action
+  action    String   // e.g., "CREATE_USER", "UPDATE_SETTINGS", "DELETE_MENU"
+  target    String   // e.g., "user:jdoe", "settings:global", "menu:123"
+  details   String?  @db.Text // JSON string of changes or additional context
+  ip        String?
+  userAgent String?
+
+  @@index([actor])
+  @@index([action])
+  @@index([timestamp])
+  @@map("audit_logs")
 }
