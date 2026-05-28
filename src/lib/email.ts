@@ -93,7 +93,7 @@ export async function sendRecoveryEmail(to: string, token: string, username: str
         host = host.replace('http:', 'https:');
     }
 
-    const resetLink = `${host.replace(/\/$/, '')}/admin/reset?token=${encodeURIComponent(token)}`;
+    const resetLink = `${host.replace(/\/$/, '')}/reset?token=${encodeURIComponent(token)}`;
     const subject = 'Users Login password reset';
     const text = `Hello ${username},\n\nWe received a request to reset your Users Login password. Use the link below to reset your password. This link expires soon.\n\n${resetLink}\n\nIf you did not request this, ignore this message and report suspicious activity.`;
     const html = `<p>Hello ${username},</p><p>We received a request to reset your Users Login password. Click the link below to reset your password. This link expires soon.</p><p><a href="${resetLink}">${resetLink}</a></p><p>If you did not request this, ignore this message and report suspicious activity.</p>`;

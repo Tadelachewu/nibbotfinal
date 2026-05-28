@@ -5,11 +5,11 @@ import { notFound, redirect } from 'next/navigation';
 import { AdminPageClient } from '@/components/admin/AdminPageClient';
 
 export default async function AdminPage() {
-  const session = await getValidatedAdminSession();
+  const session = await getValidatedAdminSession(false);
 
   if (!session?.username) {
     // If no admin session, redirect to the public login page
-    redirect('/admin/login');
+    redirect('/login');
   }
 
   const admin = await prisma.adminCredential.findUnique({

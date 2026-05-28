@@ -44,7 +44,7 @@ export async function getAdminSession(): Promise<IronSession<AdminSessionData>> 
   return getIronSession<AdminSessionData>(await cookies(), sessionOptions);
 }
 
-export async function getValidatedAdminSession(allowMutations = false): Promise<IronSession<AdminSessionData> | null> {
+export async function getValidatedAdminSession(allowMutations = true): Promise<IronSession<AdminSessionData> | null> {
   const session = await getAdminSession();
   if (!session.username) return null;
 
@@ -118,12 +118,22 @@ export async function getValidatedAdminSession(allowMutations = false): Promise<
     return null;
   }
 
-  if (typeof session.createdAt !== 'number') session.createdAt = now;
-  session.lastActivityAt = now;
-  if (typeof session.csrfToken !== 'string' || !session.csrfToken) {
-    session.csrfToken = Buffer.from(crypto.randomUUID()).toString('base64');
+  if (allowMutations) {
+    if (typeof session.createdAt !== 'number') session.createdAt = now;
+    session.lastActivityAt = now;
+    if (typeof session.csrfToken !== 'string' || !session.csrfToken) {
+      session.csrfToken = Buffer.from(crypto.randomUUID()).toString('base64');
+    }
+    try {
+      // Iron-session save() will attempt to write cookies.
+      // This is allowed in API Route Handlers and Server Actions, but not in Server Components.
+      await session.save();
+    } catch (e) {
+      // Log and continue if it's a cookie modification error.
+      // This allows the function to be used in Server Components without crashing.
+      console.warn('[Auth] Could not update session in this context', e instanceof Error ? e.message : e);
+    }
   }
-  if (allowMutations) await session.save();
 
   return session;
 }

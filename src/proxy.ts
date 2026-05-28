@@ -1,15 +1,24 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const nonce = btoa(crypto.randomUUID())
   const host = request.headers.get('host') || request.nextUrl.host
   const isProd = process.env.NODE_ENV === 'production'
   const origin = request.headers.get('origin')
   const isCorsRequest = Boolean(origin)
+
+  // Allowed origins for frame-ancestors
+  const rawAncestors = process.env.ALLOWED_FRAME_ANCESTORS || ''
+  const allowedAncestors = rawAncestors.split(/[,\s]+/).filter(Boolean)
+  const frameAncestors = ["'self'", ...allowedAncestors].join(' ')
+
   const connectSrc = [
     "'self'",
-    'https://www.google.com',
+    'https:',
+    'http:',
+    'blob:',
+    'data:',
     ...(host ? [`ws://${host}`, `wss://${host}`] : []),
     'ws://localhost:9002',
     'ws://localhost:9004',
@@ -17,28 +26,28 @@ export function middleware(request: NextRequest) {
     'ws://127.0.0.1:9004',
   ].join(' ')
 
-  const styleSrc = isProd
-    ? `'self' 'nonce-${nonce}'`
-    : `'self' 'nonce-${nonce}' 'unsafe-inline'`
+  const styleSrc = `'self' 'nonce-${nonce}' 'unsafe-inline' https://fonts.googleapis.com`
 
-  const styleSrcElem = isProd
-    ? `'self' 'nonce-${nonce}' 'unsafe-inline'`
-    : `'self' 'nonce-${nonce}' 'unsafe-inline'`
+  const styleSrcElem = `'self' 'nonce-${nonce}' 'unsafe-inline' https://fonts.googleapis.com`
+
+  const scriptSrc = isProd
+    ? `'self' 'nonce-${nonce}' 'unsafe-eval' 'unsafe-inline'`
+    : `'self' 'nonce-${nonce}' 'unsafe-eval' 'unsafe-inline' 'strict-dynamic'`
 
   const cspHeader = `
       default-src 'self';
-      script-src 'self' 'nonce-${nonce}' 'strict-dynamic';
+      script-src ${scriptSrc};
       style-src ${styleSrc};
       style-src-elem ${styleSrcElem};
       style-src-attr 'unsafe-inline';
-      img-src 'self' blob: data: https://placehold.co https://images.unsplash.com https://picsum.photos;
-      font-src 'self';
+      img-src 'self' blob: data: https://* http://*;
+      font-src 'self' data: https://fonts.gstatic.com;
       object-src 'none';
       base-uri 'self';
       form-action 'self';
-      frame-ancestors 'none';
-      frame-src 'none';
-      media-src 'self';
+      frame-ancestors ${frameAncestors};
+      frame-src 'self' https://*;
+      media-src 'self' blob: data:;
       connect-src ${connectSrc};
       ${isProd ? 'upgrade-insecure-requests;' : ''}
     `.replace(/\s{2,}/g, ' ').trim()
@@ -50,6 +59,7 @@ export function middleware(request: NextRequest) {
 
   const corsHeaders = new Headers()
   if (isCorsRequest && origin) {
+    // If origin is allowed (for framing or general CORS)
     corsHeaders.set('Access-Control-Allow-Origin', origin)
     corsHeaders.set('Vary', 'Origin')
     corsHeaders.set('Access-Control-Allow-Credentials', 'true')
@@ -70,9 +80,14 @@ export function middleware(request: NextRequest) {
       headers: requestHeaders,
     },
   })
+
   response.headers.set('Content-Security-Policy', cspHeader)
   response.headers.set('X-Content-Type-Options', 'nosniff')
-  response.headers.set('X-Frame-Options', 'DENY')
+
+  // If we have allowed ancestors and the origin matches, we can be more specific, 
+  // but SAMEORIGIN is a safe fallback for X-Frame-Options when CSP is present.
+  response.headers.set('X-Frame-Options', 'SAMEORIGIN')
+
   response.headers.set('Permissions-Policy', 'accelerometer=(), autoplay=(), camera=(), display-capture=(), encrypted-media=(), fullscreen=(self), gamepad=(), geolocation=(), gyroscope=(), hid=(), idle-detection=(), local-fonts=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), usb=(), xr-spatial-tracking=()')
   response.headers.delete('X-Powered-By')
   response.headers.delete('X-AspNet-Version')
@@ -93,15 +108,11 @@ export function middleware(request: NextRequest) {
   }
 
   // Strict RBAC: Protect /admin routes from forced browsing.
-  // We allow /admin/login and /admin/reset as they are public entry points.
-  // All other /admin paths require an active nib-admin-session cookie.
-  // Unauthorized requests return 404 to hide the existence of the admin panel.
-  if (pathname.startsWith('/admin') &&
-    !pathname.startsWith('/admin/login') &&
-    !pathname.startsWith('/admin/reset')) {
+  // Unauthorized requests redirect to /login.
+  if (pathname.startsWith('/admin')) {
     const adminSession = request.cookies.get('nib-admin-session');
     if (!adminSession) {
-      return new NextResponse(null, { status: 404 });
+      return NextResponse.redirect(new URL('/login', request.url));
     }
   }
 
@@ -115,12 +126,9 @@ export function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     '/api/:path*',
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
+    '/admin/:path*',
+    '/app-settings/:path*',
+    '/uploads/:path*',
     {
       source: '/((?!_next/static|_next/image|favicon.ico).*)',
       missing: [

@@ -33,7 +33,7 @@ export default function ResetPage() {
             const json = await res.json().catch(() => null);
             if (res.ok && json?.success) {
                 toast({ title: 'Password reset', description: 'You can now sign in with your new password.' });
-                // Redirect to admin root (login)
+                // Redirect to admin root (which will now redirect to /login)
                 router.push('/admin');
             } else {
                 toast({ title: 'Reset failed', description: json?.error || 'Invalid or expired token', variant: 'destructive' });

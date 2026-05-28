@@ -3,7 +3,7 @@ import { getValidatedAdminSession } from '@/lib/session';
 import { prisma } from '@/lib/prisma';
 
 export async function GET() {
-  const session = await getValidatedAdminSession(true);
+  const session = await getValidatedAdminSession();
   if (!session) return NextResponse.json({ isAuthenticated: false });
   const admin = session.username
     ? await prisma.adminCredential.findUnique({ where: { username: session.username } })

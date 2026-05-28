@@ -1588,7 +1588,7 @@ export function ChatInterface() {
           <HomeIcon className="mr-1.5" size={15} />
           {t('ui_home', 'Home')}
         </Button>
-        {appSettings?.showAdminPanelIcon === true && isAdmin ? (
+        {appSettings?.showAdminPanelIcon === true ? (
           <Button
             variant="ghost"
             size="icon"

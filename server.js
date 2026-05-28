@@ -100,7 +100,7 @@ app.prepare().then(async () => {
       "default-src 'self'",
       "base-uri 'self'",
       "object-src 'none'",
-      "frame-ancestors 'none'",
+      "frame-ancestors 'self'",
       "form-action 'self'",
       `connect-src ${connectSrc}`,
       `script-src ${scriptSrc}`,
@@ -108,7 +108,7 @@ app.prepare().then(async () => {
       "style-src-attr 'unsafe-inline'",
       `img-src 'self' blob: data: https://placehold.co https://images.unsplash.com https://picsum.photos`,
       "font-src 'self'",
-      "frame-src 'none'",
+      "frame-src 'self' https://www.google.com",
       ...(!dev ? ['upgrade-insecure-requests', 'block-all-mixed-content'] : []),
     ];
 
@@ -261,15 +261,14 @@ app.prepare().then(async () => {
       // req.headers['x-nonce'] = nonce;
       // res.setHeader('Content-Security-Policy', cspHeader);
       // res.setHeader('x-nonce', nonce);
-      res.setHeader('X-Frame-Options', 'DENY');
+      res.setHeader('X-Frame-Options', 'SAMEORIGIN');
       res.setHeader('X-Content-Type-Options', 'nosniff');
       if (!dev && isHttpsRequest(req)) {
         res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
       }
       res.setHeader('X-Permitted-Cross-Domain-Policies', 'none');
-      res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
-      res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
-      res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+      res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
 
       // req.nonce = nonce;
       if (pathname.startsWith('/_next/static/')) {
@@ -315,11 +314,10 @@ app.prepare().then(async () => {
     headers['content-security-policy'] = sanitizeCsp(buildContentSecurityPolicy());
     headers['permissions-policy'] = 'accelerometer=(), autoplay=(), camera=(), display-capture=(), encrypted-media=(), fullscreen=(self), gamepad=(), geolocation=(), gyroscope=(), hid=(), idle-detection=(), local-fonts=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), usb=(), xr-spatial-tracking=()';
     headers['x-content-type-options'] = 'nosniff';
-    headers['x-frame-options'] = 'DENY';
+    headers['x-frame-options'] = 'SAMEORIGIN';
     headers['x-permitted-cross-domain-policies'] = 'none';
-    headers['cross-origin-embedder-policy'] = 'require-corp';
-    headers['cross-origin-opener-policy'] = 'same-origin';
-    headers['cross-origin-resource-policy'] = 'same-origin';
+    headers['cross-origin-opener-policy'] = 'same-origin-allow-popups';
+    headers['cross-origin-resource-policy'] = 'cross-origin';
   };
   io.engine.on('initial_headers', (headers) => {
     applyEngineSecurityHeaders(headers);
