@@ -2,7 +2,7 @@
 'use client';
 
 import Link from 'next/link';
-import { MessageSquare, LogOut } from 'lucide-react';
+import { MessageSquare, LogOut, HelpCircle } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import ThemeToggle from '@/components/ui/ThemeToggle';
 import { useAdminAuth } from './AdminAuthContext';
@@ -41,6 +41,13 @@ export function AdminHeader() {
         >
           <MessageSquare size={16} />
           <span className="hidden sm:inline">Preview User Interface</span>
+        </Link>
+        <Link
+          href="/admin/help"
+          className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
+        >
+          <HelpCircle size={16} />
+          <span className="hidden sm:inline">Help</span>
         </Link>
         <AdminChangePassword />
         <button
