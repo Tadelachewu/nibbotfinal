@@ -1,0 +1,553 @@
+# Admin Dashboard Help (Readable Notes)
+
+These notes explain what each Admin area does, what to check daily, and how to troubleshoot common issues. They are written as practical, readable notes (bulleted and indented) so Admins can operate confidently: create menus, map APIs, triage submissions, and keep the platform secure.
+
+---
+
+## Quick Start (Daily Routine)
+
+- **Start of day (5-minute scan)**
+  - **Dashboard**
+    - Check **Online Now** (traffic / availability signal).
+    - Check **Pending** and **Urgent** counts (workload / SLA).
+    - Skim **Recent Activity** for error spikes or unusual patterns.
+  - **Submissions**
+    - Open **Pending** tab.
+    - Assign owners and set priorities (do not leave urgent unassigned).
+    - Add short internal notes for anything that needs follow-up.
+  - **Menus**
+    - For any change you plan to publish today:
+      - run the **Test Console** with sample inputs,
+      - confirm mapping renders correctly (message/table),
+      - save for approval (Maker-Checker).
+  - **Logs**
+    - When something looks wrong, identify the category first:
+      - menu/template issue,
+      - KYC validation issue,
+      - API/auth issue,
+      - system outage/latency.
+
+> Tip: Troubleshooting should follow the user journey in order: **menu → KYC → API call → mapping → output**. Find the first step that breaks.
+
+---
+
+## Contents
+
+- [1. Dashboard](#1-dashboard)
+- [2. Menu Management](#2-menu-management)
+- [3. Submissions & Ticketing](#3-submissions-ticketing)
+- [4. Users & Security](#4-users-security)
+- [5. Localization & Branding](#5-localization-branding)
+- [6. Logs & Observability](#6-logs-observability)
+- [Common Troubleshooting](#common-troubleshooting)
+- [Glossary](#glossary)
+
+---
+
+## 1. Dashboard
+
+The Dashboard is the “command center” for system health, usage, and operational workload.
+
+### What you see (and what it means)
+
+- **Online Now**
+  - What it tells you
+    - Are users currently connected and active?
+    - Is traffic normal for this time of day?
+  - How to use it
+    - sudden drop to zero can indicate downtime or real-time connectivity issues
+    - sudden spike can indicate campaign traffic or abuse
+
+- **Pending / Urgent**
+  - What it tells you
+    - current workload and SLA risk
+  - How to use it
+    - urgent should be assigned first
+    - use it to plan staffing and handovers
+
+- **Recent Activity**
+  - What it tells you
+    - “what just happened” across user actions and system actions
+  - How to use it
+    - spot newly introduced errors after a deployment
+    - confirm that newly published menus are being used and behaving normally
+
+- **Top Menus / Usage**
+  - What it tells you
+    - what users rely on most (high-impact flows)
+  - How to use it
+    - prioritize fixes in the most-used menus first
+    - identify menus that need caching/optimization due to high volume
+
+### Real-time widgets (practical notes)
+
+- **Online Now widget**
+  - Shows live count of active sessions.
+  - Typically powered by real-time presence (WebSockets + presence store).
+  - Drilldown is useful for:
+    - identifying repeated IPs (possible abuse),
+    - validating that traffic exists during incidents,
+    - correlating “user says it’s down” with real presence.
+
+### Recommended checks
+
+- **Per shift**
+  - Review Pending/Urgent and assign owners.
+  - Scan Recent Activity for failures.
+  - If you changed anything (menus/settings), watch the Dashboard for stability right after publishing.
+
+- **Weekly**
+  - Review Top Menus to decide:
+    - what content to simplify,
+    - what APIs to optimize,
+    - what flows cause repeated submissions (possible UX confusion).
+
+---
+
+## 2. Menu Management
+
+Menus define what the bot can do. A menu can show static content, call an API, or collect information (KYC/report) and create a submission.
+
+### Menu types (when to use)
+
+| Type | Use it for | Output |
+|---|---|---|
+| **Static** | FAQs, onboarding text, instructions, help pages | Rich text / message |
+| **API** | balance checks, transactions, any live external data | Message or Table |
+| **Report** | complaints, incident reports, structured data collection | Submission / ticket |
+
+### Create or edit a menu (Editor)
+
+- **Core fields (always set these well)**
+  - `Name` / `NameAm`
+    - keep names short and action-based (example: “Check Balance”, “Report Card Issue”)
+    - ensure translations carry the same meaning (not word-for-word if unclear)
+  - `Parent Menu`
+    - defines where the menu appears in navigation
+    - avoid deep nesting unless needed (too deep makes user navigation slow)
+  - `trackClicks`
+    - enable for important menus you want to measure
+    - disable for low-value internal utilities to reduce noise
+
+- **Static content notes**
+  - use short paragraphs and bullets
+  - include “what to do next” (example: contact, opening hours, required documents)
+  - avoid large blocks of text; break into sections with headings
+
+- **KYC mappings (data collection)**
+  - What it is
+    - prompts that collect user input before an API call or report submission
+  - Good practices
+    - collect the minimum required fields only
+    - use clear prompts (what the user should type, examples, required format)
+    - apply validation that blocks obvious junk, but don’t make it too strict
+  - Field configuration checklist
+    - `Type`
+      - `text` for names/notes
+      - `number` for IDs/amounts
+      - `tel` for phone
+      - `email` for email
+      - `boolean` for yes/no
+    - `Prompt` (English/Amharic)
+      - include example input when helpful
+        - example: “Enter account number (example: 100200300)”
+    - `Required`
+      - if required, confirm your prompt is unambiguous
+    - `Validation`
+      - prefer simple rules (length, numeric-only) over complex regex where possible
+
+> Security note: treat KYC fields as sensitive. Do not collect secrets like PINs/passwords. Collect only what you need to complete the service.
+
+- **API configuration (API menus)**
+  - Endpoint basics
+    - **Method**: GET/POST (match the API)
+    - **Endpoint URL**: use correct base URL and correct path
+  - Authentication
+    - `None`: for public endpoints only
+    - `Bearer Token`: preferred for most secure APIs
+    - `API Key`: use header-based keys; avoid hardcoding where possible
+    - `Basic Auth`: avoid unless required by legacy systems
+  - Request mapping
+    - map outgoing parameters from:
+      - static values (fixed strings),
+      - user/session values (secure tokens),
+      - KYC values collected from the user.
+    - keep parameter names exactly as the API expects.
+  - Response mapping (most common source of “it doesn’t work”)
+    - `Root Key`
+      - where your useful JSON lives (example: `data`)
+    - Message mode
+      - write a short template sentence using placeholders
+      - keep the output stable even if optional fields are missing
+    - Table mode
+      - use when the API returns an array of objects (transactions, items, history)
+      - choose the correct array path and select columns users will understand
+
+- **Attached menus / Next steps**
+  - use to guide the user after a response:
+    - example: after “Check Balance”, attach “Recent Transactions” and “Report Issue”
+  - avoid attaching too many items; 2–4 is usually enough
+
+- **Test Console (always use before saving)**
+  - Run with 2–3 realistic examples:
+    - a normal case (valid input)
+    - an edge case (empty history, small balance, etc.)
+    - a failure case (invalid account / unauthorized)
+  - Inspect:
+    - HTTP status code,
+    - raw JSON response,
+    - rendered message/table output.
+  - Fix before saving:
+    - wrong Root Key / mapping path,
+    - missing columns in table,
+    - unclear output text,
+    - validation too strict.
+
+### After saving (List view actions)
+
+- **Reordering**
+  - keep high-frequency menus near the top
+  - group similar services together under the same parent
+- **Add sub-menu**
+  - use to create a clean “service category → action” structure
+- **Active toggle**
+  - suspend a menu during incidents (safer than deleting)
+  - re-enable once fixed/approved
+- **Delete**
+  - only delete when you are sure it is no longer needed
+  - prefer suspend if you might need it later
+
+### Maker-Checker (Approval workflow)
+
+- **What it is**
+  - separation of duties: the person who creates changes is not the person who approves publishing
+- **What to expect**
+  - when an `Admin` edits/saves:
+    - status becomes **Pending Approval** or **Pending Update**
+  - when a `Checker` reviews:
+    - **Approve** publishes,
+    - **Reject** requires a reason (document what is wrong and what to fix)
+- **Best practices**
+  - write clear rejection reasons:
+    - “Root Key should be `data`, mapping currently points to `result`”
+    - “KYC validation rejects valid phone numbers; loosen regex”
+
+---
+
+## 3. Submissions & Ticketing
+
+Submissions are user-generated reports/forms that require review, investigation, and resolution.
+
+### Lifecycle tabs (operational meaning)
+
+- **Pending (Triage)**
+  - new items needing first review
+  - actions: validate, assign, prioritize, request more info if needed
+- **Reviewed (In progress)**
+  - active investigation or waiting on an external party
+  - actions: add notes, attach evidence, update status as work progresses
+- **Resolved (Closed)**
+  - completed and documented outcomes
+  - actions: final response, export for reporting, audit readiness
+
+### Triage checklist (use on every Pending item)
+
+- **Quality checks**
+  - confirm it is not duplicate or spam
+  - confirm required fields exist (KYC completeness)
+  - confirm the submission matches the selected menu/flow
+
+- **Operational actions**
+  - set **Priority**
+    - urgent: service outage, fraud indicators, critical user impact
+    - high: blocking issue for a user
+    - medium/low: informational or non-blocking
+  - set **Assignee**
+    - always assign urgent/high items
+    - reassign when staff shift changes
+
+- **Internal notes (recommended format)**
+  - **Summary**: one sentence describing the issue
+  - **Evidence**: what you saw (IDs, timestamps, screenshots if needed)
+  - **Next step**: what action you will take
+
+### Inspect panel (Detail view)
+
+- **Action bar**
+  - update Status (Pending/Reviewed/Resolved)
+  - update Priority (Urgent/High/Medium/Low)
+  - assign to an agent (include reason/type if required)
+
+- **User response (user-visible)**
+  - keep it short and actionable:
+    - what happened,
+    - what you are doing,
+    - what the user should do next (if anything),
+    - expected follow-up channel (if applicable).
+
+- **Collected data**
+  - review KYC values in a clean grid
+  - validate formats (account number length, phone number, dates)
+
+- **Internal notes (private)**
+  - store investigation details here, not in the user response
+  - record decisions (why you rejected, why you escalated)
+
+- **Export JSON**
+  - export raw payload for:
+    - compliance,
+    - audits,
+    - attaching to external ticket systems,
+    - escalation to engineering.
+
+### Support ratings (how to use)
+
+- **What it is**
+  - users can rate service (typically 1–5) and optionally leave feedback
+- **How to use it**
+  - identify repeated low ratings and investigate root cause:
+    - unclear menu wording,
+    - slow APIs,
+    - delayed responses,
+    - wrong routing/assignee.
+- **Sorting options**
+  - highest average (quality)
+  - most ratings (volume)
+  - most recent rating (fresh issues)
+  - top N filter (focus view)
+
+---
+
+## 4. Users & Security
+
+### Roles (what each role can do)
+
+| Role | Primary purpose | Key restrictions |
+|---|---|---|
+| **Admin** | manage menus, users, settings | cannot approve own menu changes |
+| **Checker** | approve/reject pending menu changes | focused on review/approval |
+| **Support** | work on submissions/tickets | limited access outside reports |
+
+### Onboarding / offboarding checklist
+
+- **Onboarding**
+  - assign least-privilege role first (Support → Admin only if required)
+  - confirm the user can log in and access only needed pages
+  - provide a short training checklist:
+    - how to triage submissions,
+    - how to use Test Console,
+    - what not to store (secrets).
+
+- **Offboarding / role change**
+  - disable access immediately when staff leave or change roles
+  - force logout sessions
+  - verify no shared credentials were exposed (rotate secrets if needed)
+
+### Security controls (recommended practices)
+
+- **Session management**
+  - use secure cookie sessions
+  - force logout if compromise is suspected
+  - review active sessions during incidents
+
+- **Password policy**
+  - use strong passwords and avoid reuse
+  - reset credentials when:
+    - device is lost,
+    - staff leaves,
+    - suspicious activity is detected.
+
+- **Audit logging**
+  - every admin action should be traceable:
+    - who did it,
+    - what changed,
+    - when it happened.
+  - use audit logs for investigations and compliance.
+
+### End-user management
+
+- **User listing**
+  - view anonymous sessions, last activity, and linked submissions
+  - useful for correlating “a user reported an issue” with actual activity
+
+- **Preview as user**
+  - use before publishing major menu changes
+  - verify:
+    - wording is clear,
+    - KYC prompts make sense,
+    - navigation returns back correctly,
+    - outputs are readable on mobile.
+
+---
+
+## 5. Localization & Branding
+
+### Localization (translations)
+
+- **Strings table**
+  - edit UI text and provide translations (example: Amharic)
+  - use consistent terminology (menu names, action verbs)
+
+- **Preview**
+  - always preview before publishing:
+    - text length fits the UI,
+    - meaning is correct,
+    - placeholders render correctly.
+
+- **Translation best practices**
+  - avoid translating IDs/keys or technical placeholders
+  - keep user prompts natural and clear (not overly formal)
+  - maintain consistent casing and punctuation.
+
+### App settings & branding
+
+- **Visual identity**
+  - configure bot/user avatars and logos
+  - keep branding consistent with organization guidelines
+
+- **System configuration**
+  - manage `supportedLanguages`
+  - manage custom system translations
+
+- **Reference / report ID formatting**
+  - configure:
+    - prefix (example: `NIB`)
+    - include year (optional)
+    - numeric length and start value
+    - reset strategy (yearly vs continuous)
+  - recommended
+    - keep IDs short enough to read over the phone
+    - ensure uniqueness (do not reuse IDs).
+
+---
+
+## 6. Logs & Observability
+
+Logs help you explain what happened when a user reports “it doesn’t work”.
+
+### Where logs help most
+
+- **Confirm the failure type**
+  - user input/validation issue,
+  - template/mapping issue,
+  - API/auth issue,
+  - system latency/outage.
+
+- **Confirm the time window**
+  - match the user’s report time with log timestamps
+  - check for repeated failures in the same period (systemic issue)
+
+### What to look for
+
+- **Interaction logs**
+  - recent bot interactions
+  - execution time (slow spikes can indicate upstream issues)
+  - endpoint hit (which API/menu caused the issue)
+
+- **Data masking**
+  - sensitive values (tokens, passwords, PINs) should be redacted automatically
+  - if you see secrets in logs, treat it as a security incident
+
+- **Error tracking**
+  - filter by status and type to identify:
+    - failing endpoints,
+    - common error codes (401/403/500),
+    - patterns tied to a specific menu.
+
+### Exporting logs (when escalating)
+
+- Include:
+  - timestamps,
+  - the menu name,
+  - request/response summaries (without secrets),
+  - correlation IDs if available,
+  - steps to reproduce.
+
+---
+
+## Common Troubleshooting
+
+### “Online Now is zero”
+
+- **Quick checks**
+  - confirm the web app is up and reachable
+  - reload the page and confirm the UI is not stale
+- **Real-time checks**
+  - confirm real-time connectivity and presence store connectivity (if used)
+  - check whether a recent deployment disabled real-time features
+- **Interpretation**
+  - if user traffic should exist but Online Now is zero, treat as a potential outage
+
+### “Menu is missing / not visible to users”
+
+- Confirm the menu is:
+  - Active (not suspended),
+  - placed under the correct Parent Menu,
+  - approved/published (Maker-Checker),
+  - not hidden behind scheduling/visibility rules (if configured).
+
+### “API menu returns empty data”
+
+- Compare:
+  - raw JSON (Test Console) vs mapping configuration
+- Validate:
+  - `Root Key` is correct
+  - mapping paths match the actual JSON structure
+  - table array path points to the correct array
+- Confirm:
+  - API returned 200
+  - expected fields exist (not renamed or nested differently)
+
+### “API menu returns 401/403”
+
+- Authentication checks
+  - confirm auth type matches the API requirement
+  - confirm header name/value are correct
+  - confirm tokens are not expired and are coming from the expected source
+- Common causes
+  - wrong environment (test token in prod)
+  - missing prefix (Bearer vs raw token)
+
+### “API menu returns 500 or ‘Server error’”
+
+- Determine whether the error is:
+  - upstream (API is failing),
+  - mapping/template (bad path causing exception),
+  - validation (unexpected input breaks server logic).
+- Collect:
+  - exact time and menu name,
+  - sample inputs used,
+  - raw response body (if safe),
+  - error trace/log entry for engineering.
+
+### “Users can’t submit a report”
+
+- KYC checks
+  - required fields may be missing or unclear
+  - validation rules may be too strict (common)
+- Workflow checks
+  - menu may be suspended or not approved
+  - submission pipeline may be failing (check logs)
+
+---
+
+## Glossary
+
+- **Menu**
+  - a bot action item that renders content, calls an API, or collects KYC/report data
+- **Static menu**
+  - a menu that renders fixed content (FAQ/instructions)
+- **API menu**
+  - a menu that calls an external/internal API and renders a message or table
+- **Report menu**
+  - a menu that collects structured info and creates a submission/ticket
+- **KYC mapping**
+  - the form-like schema that collects user inputs before executing an action
+- **Root Key**
+  - the base JSON path used when mapping API responses into templates
+- **Response mapping**
+  - rules that turn raw JSON into a user-readable message or table
+- **Submission**
+  - a stored report/form created from a Report menu
+- **Maker-Checker**
+  - approval workflow separating change creation from change approval
