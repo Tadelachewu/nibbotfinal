@@ -196,6 +196,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   }
 
   const reviewedAt = new Date();
+  let auditDetails: any = { action };
   if (isNewMenuPending) {
     const data: any = { reviewedBy: session.username, reviewedAt };
     if (action === 'approve') {
@@ -210,6 +211,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       data.rejectionReason = reason;
     }
     await prisma.menuItem.update({ where: { id }, data });
+    auditDetails = { ...auditDetails, fieldsChanged: Object.keys(data), approvalStatus: data.approvalStatus };
   } else {
     if (action === 'approve') {
       const pendingUpdate =
@@ -219,6 +221,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       if (!pendingUpdate) {
         return NextResponse.json({ status: 'error', message: 'No pending update to approve.' }, { status: 409 });
       }
+      auditDetails = { ...auditDetails, fieldsChanged: Object.keys(pendingUpdate), pendingStatus: null };
 
       const attachedMenuIds: string[] = Array.isArray(pendingUpdate.attachedMenuIds)
         ? pendingUpdate.attachedMenuIds
@@ -346,6 +349,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
           pendingRejectionReason: reason
         }
       });
+      auditDetails = {
+        ...auditDetails,
+        fieldsChanged: ['pendingStatus', 'pendingReviewedBy', 'pendingReviewedAt', 'pendingRejectionReason'],
+        pendingStatus: 'rejected'
+      };
     }
   }
 
@@ -354,10 +362,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     actor: session.username ?? 'unknown',
     action: 'UPDATE_MENU',
     target: `menu:${id}`,
-    details: {
-      fieldsChanged: Object.keys(data),
-      approvalStatus: data.approvalStatus
-    },
+    details: auditDetails,
     ip: session.ip,
     userAgent: session.userAgent
   });

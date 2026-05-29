@@ -15,6 +15,24 @@ function nowMs() {
   return Date.now();
 }
 
+function normalizeIp(raw: string | null | undefined): string {
+  const value = String(raw || '').trim();
+  if (!value) return 'unknown';
+  const first = value.split(',')[0]?.trim();
+  if (!first) return 'unknown';
+  if (first.toLowerCase() === 'unknown') return 'unknown';
+
+  if (first.startsWith('[')) {
+    const endBracket = first.indexOf(']');
+    if (endBracket > 1) return first.slice(1, endBracket);
+  }
+
+  const ipv4Match = /^(\d{1,3}(?:\.\d{1,3}){3})(?::\d+)?$/.exec(first);
+  if (ipv4Match) return ipv4Match[1];
+
+  return first;
+}
+
 function getRedisUrl() {
   const url = process.env.REDIS_URL;
   return typeof url === 'string' && url.trim().length > 0 ? url.trim() : null;
@@ -57,11 +75,11 @@ function cleanMemory() {
 
 export function getClientIp(req: Request): string {
   const xff = req.headers.get('x-forwarded-for');
-  if (xff) return xff.split(',')[0].trim() || 'unknown';
+  if (xff) return normalizeIp(xff);
   const realIp = req.headers.get('x-real-ip');
-  if (realIp) return realIp.trim() || 'unknown';
+  if (realIp) return normalizeIp(realIp);
   const cf = req.headers.get('cf-connecting-ip');
-  if (cf) return cf.trim() || 'unknown';
+  if (cf) return normalizeIp(cf);
   return 'unknown';
 }
 

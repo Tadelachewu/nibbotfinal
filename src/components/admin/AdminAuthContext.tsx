@@ -67,7 +67,20 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
       const method = String(init?.method || 'GET').toUpperCase();
       const needsToken = !['GET', 'HEAD', 'OPTIONS'].includes(method);
       // Always include credentials so cookies are sent/received on cross-site requests
-      if (!needsToken || !csrfToken) return fetch(input, { ...init, credentials: 'include' });
+      if (!needsToken || !csrfToken) {
+        const res = await fetch(input, { ...init, credentials: 'include' });
+        if (res.status === 401) {
+          setIsAuthenticated(false);
+          setCurrentUsername('');
+          setCurrentRole('');
+          setCsrfToken('');
+          if (typeof window !== 'undefined') {
+            const path = window.location.pathname || '';
+            if (path.startsWith('/admin') && path !== '/login') window.location.href = '/login';
+          }
+        }
+        return res;
+      }
 
       const headers = new Headers(init?.headers || {});
       headers.set('x-csrf-token', csrfToken);
@@ -75,6 +88,16 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
       const nextToken = res.headers.get('x-csrf-token');
       if (typeof nextToken === 'string' && nextToken) {
         setCsrfToken(nextToken);
+      }
+      if (res.status === 401) {
+        setIsAuthenticated(false);
+        setCurrentUsername('');
+        setCurrentRole('');
+        setCsrfToken('');
+        if (typeof window !== 'undefined') {
+          const path = window.location.pathname || '';
+          if (path.startsWith('/admin') && path !== '/login') window.location.href = '/login';
+        }
       }
       return res;
     },

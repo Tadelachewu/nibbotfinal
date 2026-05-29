@@ -90,27 +90,27 @@ export function ReportsManagement() {
     setLoading(true);
     (async () => {
       try {
-        const res = await fetch('/api/reports', { cache: 'no-store' });
+        const res = await csrfFetch('/api/reports', { cache: 'no-store' });
         const json = await res.json().catch(() => null);
         setReports(Array.isArray(json?.data) ? json.data : []);
       } finally {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [csrfFetch]);
 
   const refreshLogs = useCallback(() => {
     setLoadingLogs(true);
     (async () => {
       try {
-        const res = await fetch('/api/reports/activities', { cache: 'no-store' });
+        const res = await csrfFetch('/api/reports/activities', { cache: 'no-store' });
         const json = await res.json().catch(() => null);
         setActivityLogs(Array.isArray(json?.data) ? json.data : []);
       } finally {
         setLoadingLogs(false);
       }
     })();
-  }, []);
+  }, [csrfFetch]);
 
   useEffect(() => {
     refreshReports();

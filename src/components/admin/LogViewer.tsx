@@ -9,8 +9,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Search, RotateCcw, AlertCircle, CheckCircle2, Info, Clock, ExternalLink } from 'lucide-react';
 import { format } from 'date-fns';
+import { useAdminAuth } from './AdminAuthContext';
 
 export function LogViewer() {
+  const { csrfFetch } = useAdminAuth();
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [filter, setFilter] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -31,7 +33,7 @@ export function LogViewer() {
     setIsLoading(true);
     (async () => {
       try {
-        const res = await fetch('/api/logs', { cache: 'no-store' });
+        const res = await csrfFetch('/api/logs', { cache: 'no-store' });
         const json = await res.json().catch(() => null);
         setLogs(Array.isArray(json?.data) ? json.data : []);
       } finally {
@@ -42,7 +44,7 @@ export function LogViewer() {
 
   useEffect(() => {
     fetchLogs();
-  }, []);
+  }, [csrfFetch]);
 
   const filterLower = filter.toLowerCase();
   const filteredLogs = logs.filter(log => {

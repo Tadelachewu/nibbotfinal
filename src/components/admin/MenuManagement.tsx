@@ -120,7 +120,7 @@ export function MenuManagement() {
   useEffect(() => {
     const load = async () => {
       const [menusRes, settingsRes] = await Promise.all([
-        fetch('/api/menus?includeInactive=1', { cache: 'no-store' }),
+        csrfFetch('/api/menus?includeInactive=1', { cache: 'no-store' }),
         fetch('/api/app-settings', { cache: 'no-store' })
       ]);
       const [menusJson, settingsJson] = await Promise.all([
@@ -145,7 +145,7 @@ export function MenuManagement() {
     };
 
     load();
-  }, []);
+  }, [csrfFetch]);
 
   useEffect(() => {
     if (currentRole !== 'admin') return;
@@ -169,7 +169,7 @@ export function MenuManagement() {
 
   const refresh = () => {
     (async () => {
-      const res = await fetch('/api/menus?includeInactive=1', { cache: 'no-store' });
+      const res = await csrfFetch('/api/menus?includeInactive=1', { cache: 'no-store' });
       const json = await res.json().catch(() => null);
       setMenus(Array.isArray(json?.data) ? json.data : []);
     })();
@@ -267,13 +267,30 @@ export function MenuManagement() {
         body: JSON.stringify({ action: 'approve' })
       });
       const json = await res.json().catch(() => null);
+      if (res.status === 401) {
+        throw new Error('Session expired. Please log in again.');
+      }
       if (!res.ok || json?.status === 'error') {
+        const verifyRes = await csrfFetch('/api/menus?includeInactive=1', { cache: 'no-store' });
+        const verifyJson = await verifyRes.json().catch(() => null);
+        const list = Array.isArray(verifyJson?.data) ? verifyJson.data : [];
+        const updated = list.find((m: any) => m?.id === id);
+        const isApproved =
+          !!updated &&
+          (updated.approvalStatus || 'approved') === 'approved' &&
+          (updated.pendingStatus ?? null) === null;
+        if (isApproved) {
+          setMenus(list);
+          toast({ title: "Approved", description: "Menu approved successfully." });
+          return;
+        }
         throw new Error(json?.message || 'Approval failed.');
       }
       refresh();
       toast({ title: "Approved", description: "Menu approved successfully." });
-    } catch {
-      toast({ title: "Error", description: "Could not approve menu.", variant: "destructive" });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not approve menu.';
+      toast({ title: "Error", description: message, variant: "destructive" });
     }
   };
 
@@ -285,13 +302,17 @@ export function MenuManagement() {
         body: JSON.stringify({ action: 'reject', reason })
       });
       const json = await res.json().catch(() => null);
+      if (res.status === 401) {
+        throw new Error('Session expired. Please log in again.');
+      }
       if (!res.ok || json?.status === 'error') {
         throw new Error(json?.message || 'Rejection failed.');
       }
       refresh();
       toast({ title: "Rejected", description: "Menu rejected." });
-    } catch {
-      toast({ title: "Error", description: "Could not reject menu.", variant: "destructive" });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not reject menu.';
+      toast({ title: "Error", description: message, variant: "destructive" });
     }
   };
 
@@ -2179,7 +2200,7 @@ export function CheckerMenuReview() {
   useEffect(() => {
     const load = async () => {
       const [menusRes, settingsRes] = await Promise.all([
-        fetch('/api/menus?adminPreview=1', { cache: 'no-store' }),
+        csrfFetch('/api/menus?adminPreview=1', { cache: 'no-store' }),
         fetch('/api/app-settings', { cache: 'no-store' })
       ]);
       const [menusJson, settingsJson] = await Promise.all([
@@ -2196,11 +2217,11 @@ export function CheckerMenuReview() {
       }
     };
     load();
-  }, []);
+  }, [csrfFetch]);
 
   const refresh = () => {
     (async () => {
-      const res = await fetch('/api/menus?adminPreview=1', { cache: 'no-store' });
+      const res = await csrfFetch('/api/menus?adminPreview=1', { cache: 'no-store' });
       const json = await res.json().catch(() => null);
       setMenus(Array.isArray(json?.data) ? json.data : []);
     })();
@@ -2267,11 +2288,30 @@ export function CheckerMenuReview() {
         body: JSON.stringify({ action: 'approve' })
       });
       const json = await res.json().catch(() => null);
-      if (!res.ok || json?.status === 'error') throw new Error(json?.message || 'Approval failed.');
+      if (res.status === 401) {
+        throw new Error('Session expired. Please log in again.');
+      }
+      if (!res.ok || json?.status === 'error') {
+        const verifyRes = await csrfFetch('/api/menus?adminPreview=1', { cache: 'no-store' });
+        const verifyJson = await verifyRes.json().catch(() => null);
+        const list = Array.isArray(verifyJson?.data) ? verifyJson.data : [];
+        const updated = list.find((m: any) => m?.id === id);
+        const isApproved =
+          !!updated &&
+          (updated.approvalStatus || 'approved') === 'approved' &&
+          (updated.pendingStatus ?? null) === null;
+        if (isApproved) {
+          setMenus(list);
+          toast({ title: "Approved", description: "Menu approved successfully." });
+          return;
+        }
+        throw new Error(json?.message || 'Approval failed.');
+      }
       refresh();
       toast({ title: "Approved", description: "Menu approved successfully." });
-    } catch {
-      toast({ title: "Error", description: "Could not approve menu.", variant: "destructive" });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not approve menu.';
+      toast({ title: "Error", description: message, variant: "destructive" });
     }
   };
 
@@ -2283,11 +2323,15 @@ export function CheckerMenuReview() {
         body: JSON.stringify({ action: 'reject', reason })
       });
       const json = await res.json().catch(() => null);
+      if (res.status === 401) {
+        throw new Error('Session expired. Please log in again.');
+      }
       if (!res.ok || json?.status === 'error') throw new Error(json?.message || 'Rejection failed.');
       refresh();
       toast({ title: "Rejected", description: "Menu rejected." });
-    } catch {
-      toast({ title: "Error", description: "Could not reject menu.", variant: "destructive" });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not reject menu.';
+      toast({ title: "Error", description: message, variant: "destructive" });
     }
   };
 

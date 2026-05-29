@@ -2,7 +2,6 @@ import crypto from 'crypto';
 import type { IronSession, SessionOptions } from 'iron-session';
 import { getIronSession } from 'iron-session';
 import { cookies, headers } from 'next/headers';
-import { getClientIp } from './rateLimit';
 import { prisma } from './prisma';
 
 export type AdminSessionData = {
@@ -39,6 +38,24 @@ export const sessionOptions: SessionOptions = {
     path: '/',
   },
 };
+
+function normalizeIp(raw: string | null | undefined): string {
+  const value = String(raw || '').trim();
+  if (!value) return 'unknown';
+  const first = value.split(',')[0]?.trim();
+  if (!first) return 'unknown';
+  if (first.toLowerCase() === 'unknown') return 'unknown';
+
+  if (first.startsWith('[')) {
+    const endBracket = first.indexOf(']');
+    if (endBracket > 1) return first.slice(1, endBracket);
+  }
+
+  const ipv4Match = /^(\d{1,3}(?:\.\d{1,3}){3})(?::\d+)?$/.exec(first);
+  if (ipv4Match) return ipv4Match[1];
+
+  return first;
+}
 
 export async function getAdminSession(): Promise<IronSession<AdminSessionData>> {
   return getIronSession<AdminSessionData>(await cookies(), sessionOptions);
@@ -78,13 +95,17 @@ export async function getValidatedAdminSession(allowMutations = true): Promise<I
   // Contextual binding check (IP and User-Agent)
   // We use headers() from next/headers which is available in Server Components/Actions/API Routes.
   const reqHeaders = await headers();
-  const currentIp = reqHeaders.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    reqHeaders.get('x-real-ip')?.trim() ||
-    'unknown';
+  const currentIp = normalizeIp(
+    reqHeaders.get('x-forwarded-for') ||
+    reqHeaders.get('x-real-ip') ||
+    reqHeaders.get('cf-connecting-ip') ||
+    'unknown'
+  );
   const currentUserAgent = reqHeaders.get('user-agent') || 'unknown';
+  const sessionIp = normalizeIp(session.ip);
 
   // If session was bound to an IP/UA and it changed, invalidate to prevent hijacking
-  if (session.ip && session.ip !== 'unknown' && session.ip !== currentIp) {
+  if (sessionIp !== 'unknown' && currentIp !== 'unknown' && sessionIp !== currentIp) {
     console.warn(`[Auth] Session IP mismatch. sessionIp=${session.ip} currentIp=${currentIp} user=${session.username}`);
     if (allowMutations) {
       session.destroy();
@@ -121,6 +142,9 @@ export async function getValidatedAdminSession(allowMutations = true): Promise<I
   if (allowMutations) {
     if (typeof session.createdAt !== 'number') session.createdAt = now;
     session.lastActivityAt = now;
+    if (typeof session.ip === 'string' && session.ip && session.ip !== sessionIp) {
+      session.ip = sessionIp;
+    }
     if (typeof session.csrfToken !== 'string' || !session.csrfToken) {
       session.csrfToken = Buffer.from(crypto.randomUUID()).toString('base64');
     }
@@ -238,7 +262,15 @@ export function verifyCsrfToken(
 }
 
 export async function rotateCsrfToken(session: IronSession<AdminSessionData>): Promise<string> {
-  session.csrfToken = Buffer.from(crypto.randomUUID()).toString('base64');
-  await session.save();
-  return session.csrfToken;
+  const previous = typeof session.csrfToken === 'string' ? session.csrfToken : '';
+  const next = Buffer.from(crypto.randomUUID()).toString('base64');
+  session.csrfToken = next;
+  try {
+    await session.save();
+    return next;
+  } catch (e) {
+    session.csrfToken = previous;
+    console.warn('[Auth] Could not rotate CSRF token', e instanceof Error ? e.message : e);
+    return previous || next;
+  }
 }

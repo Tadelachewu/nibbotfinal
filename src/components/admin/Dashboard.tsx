@@ -18,6 +18,7 @@ import {
 } from 'recharts';
 import { MenuItem, UserReport } from '@/lib/types';
 import { createClassWithRules } from '@/lib/csp';
+import { useAdminAuth } from './AdminAuthContext';
 import {
   Users,
   Zap,
@@ -31,6 +32,7 @@ import {
 } from 'lucide-react';
 
 export function Dashboard() {
+  const { csrfFetch } = useAdminAuth();
   // Initialize with empty data to avoid hydration mismatch
   const [data, setData] = useState({
     menus: [] as MenuItem[],
@@ -45,9 +47,9 @@ export function Dashboard() {
     setMounted(true);
     const load = async () => {
       const [menusRes, reportsRes, logsRes] = await Promise.all([
-        fetch('/api/menus?includeInactive=1', { cache: 'no-store' }),
-        fetch('/api/reports', { cache: 'no-store' }),
-        fetch('/api/logs?summary=1', { cache: 'no-store' })
+        csrfFetch('/api/menus?includeInactive=1', { cache: 'no-store' }),
+        csrfFetch('/api/reports', { cache: 'no-store' }),
+        csrfFetch('/api/logs?summary=1', { cache: 'no-store' })
       ]);
       const [menusJson, reportsJson, logsJson] = await Promise.all([
         menusRes.json().catch(() => null),
@@ -109,7 +111,7 @@ export function Dashboard() {
       socket?.disconnect();
       clearInterval(dataInterval);
     };
-  }, []);
+  }, [csrfFetch]);
 
   // Inject nonce-protected classes for dynamic colored elements
   useEffect(() => {
