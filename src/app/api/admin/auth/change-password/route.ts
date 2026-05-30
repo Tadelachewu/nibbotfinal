@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { comparePasswords, hashPassword } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
-import { getValidatedAdminSession, rotateCsrfToken, verifyCsrfToken } from '@/lib/session';
+import { getAdminSession, getValidatedAdminSession, rotateCsrfToken, verifyCsrfToken } from '@/lib/session';
 
 import { Prisma } from '@prisma/client';
 import { checkLock, clearKey, enforceRateLimit, getClientIp, incrementCounter, normalizePrincipal, setLock } from '@/lib/rateLimit';

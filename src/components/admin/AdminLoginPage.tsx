@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
-import { useAdminAuth, evaluatePasswordStrength } from './AdminAuthContext';
+import React, { useState } from 'react';
+import { useAdminAuth } from './AdminAuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -47,8 +47,6 @@ export function AdminLoginPage() {
       })
       .catch(() => { });
   }, []);
-
-  const strength = useMemo(() => evaluatePasswordStrength(password), [password]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,59 +143,6 @@ export function AdminLoginPage() {
                 </button>
               </div>
             </div>
-
-            {/* Password Strength Meter (visible only when typing) */}
-            {password.length > 0 && (
-              <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-[hsl(25,20%,50%)]">Password Strength</span>
-                  <span className={`text-xs font-semibold ${strength.score === 0 ? 'text-red-400' :
-                    strength.score === 1 ? 'text-orange-400' :
-                      strength.score === 2 ? 'text-yellow-400' :
-                        strength.score === 3 ? 'text-blue-400' :
-                          'text-green-400'
-                    }`}>
-                    {strength.label}
-                  </span>
-                </div>
-                {/* Strength Bar */}
-                <div className="flex gap-1">
-                  {[0, 1, 2, 3, 4].map((i) => (
-                    <div
-                      key={i}
-                      className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${i <= strength.score
-                        ? strength.score === 0 ? 'bg-red-500' :
-                          strength.score === 1 ? 'bg-orange-500' :
-                            strength.score === 2 ? 'bg-yellow-500' :
-                              strength.score === 3 ? 'bg-blue-500' :
-                                'bg-green-500'
-                        : 'bg-[hsl(25,30%,18%)]'
-                        }`}
-                    />
-                  ))}
-                </div>
-                {/* Requirement Checklist */}
-                <div className="grid grid-cols-2 gap-1 mt-1">
-                  {[
-                    { key: 'minLength', label: '8+ characters' },
-                    { key: 'hasUppercase', label: 'Uppercase (A-Z)' },
-                    { key: 'hasLowercase', label: 'Lowercase (a-z)' },
-                    { key: 'hasNumber', label: 'Number (0-9)' },
-                    { key: 'hasSpecial', label: 'Special (!@#...)' },
-                  ].map(({ key, label }) => (
-                    <span
-                      key={key}
-                      className={`text-[10px] flex items-center gap-1 transition-colors ${strength.checks[key as keyof typeof strength.checks]
-                        ? 'text-green-400'
-                        : 'text-[hsl(25,20%,35%)]'
-                        }`}
-                    >
-                      {strength.checks[key as keyof typeof strength.checks] ? '✓' : '○'} {label}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {/* Submit */}
             <Button

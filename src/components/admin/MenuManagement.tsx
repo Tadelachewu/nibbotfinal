@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { MenuItem, KYCField, TableColumn, AuthType, ApiConfig, Language, AppSettings, ReportPriority, ReportIdConfig } from '@/lib/types';
 import { defaultReportIdConfig } from '@/lib/store';
 import { Button } from '@/components/ui/button';
@@ -2109,8 +2110,16 @@ export function MenuManagement() {
                         {settings.appLogo && (
                           <div className="pt-4 border-t">
                             <Label className="text-[10px] uppercase font-bold text-muted-foreground block mb-2">Logo Preview</Label>
-                            <div className="w-24 h-24 rounded-lg border bg-muted/5 flex items-center justify-center p-2 overflow-hidden shadow-inner">
-                              <img src={settings.appLogo} alt="Logo Preview" className="max-w-full max-h-full object-contain" />
+                            <div className="relative w-24 h-24 rounded-lg border bg-muted/5 flex items-center justify-center p-2 overflow-hidden shadow-inner">
+                              <Image
+                                src={settings.appLogo}
+                                alt="Logo Preview"
+                                fill
+                                sizes="96px"
+                                className="object-contain"
+                                loader={({ src }) => src}
+                                unoptimized
+                              />
                             </div>
                           </div>
                         )}

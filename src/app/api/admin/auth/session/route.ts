@@ -13,6 +13,7 @@ export async function GET() {
     isAuthenticated: true,
     username: session.username,
     role: admin.role,
+    mustChangePassword: admin.mustChangePassword === true,
     csrfToken: session.csrfToken
   });
 }

@@ -67,6 +67,28 @@ npx prisma migrate dev
 npx tsx prisma/seed.ts
 ```
 
+#### Troubleshooting: "Cannot find module '.prisma/client/default'"
+
+- Symptoms: running `npx tsx prisma/seed.ts` errors with "Cannot find module '.prisma/client/default'".
+- Causes & fixes:
+    - You didn't install dependencies: run `npm install` (or `npm ci`) first so `@prisma/client` and `prisma` are present.
+    - Prisma client not generated: run `npx prisma generate` before running the seed script.
+    - Missing `DATABASE_URL`: ensure `.env` contains a valid `DATABASE_URL` pointing to your database before running `npx prisma generate` or `npx prisma migrate dev`.
+    - Using a custom Prisma schema path: pass `--schema` to `prisma generate` (e.g. `npx prisma generate --schema=prisma/schema.prisma`).
+    - If you're running the seed via TypeScript (`npx tsx prisma/seed.ts`), ensure `tsx` is available (installed in `devDependencies`) or run the compiled JS script instead.
+
+- Minimal sequence to prepare and seed locally:
+
+```bash
+npm install
+export DATABASE_URL="postgresql://user:pass@localhost:5432/nibbot?schema=public" # Windows: set via PowerShell or .env
+npx prisma generate
+npx prisma migrate dev
+npx tsx prisma/seed.ts
+```
+
+If you still see the missing module error after these steps, delete `node_modules/.prisma` and re-run `npx prisma generate`.
+
 Notes:
 *   If you change `prisma/schema.prisma`, run `npx prisma migrate dev --name <change_name>` to create a new migration.
 *   If you deleted `prisma/migrations`, Prisma will show “No migration found in prisma/migrations” until you recreate migrations.
@@ -87,7 +109,38 @@ npm run dev:io
 
 ---
 
-## 🔌 API Configuration (Admin)
+## � Admin Forced Password Change (`mustChangePassword`)
+
+When an admin account is newly created or password-reset, the `mustChangePassword` flag is set in the database. This enforces a password change on the next login:
+
+### How it works
+
+1. **Login with forced change**: When logging in with `mustChangePassword=true`, the login response includes the flag and the client automatically redirects to `/admin/change-password`.
+2. **Change password page**: The dedicated page (`src/app/admin/change-password/page.tsx`) prompts the user to enter their current password, new username, and new password.
+3. **Password validation**: New passwords must be strong (8+ chars, uppercase, lowercase, number, special character).
+4. **Flag cleared**: After successful change, the `mustChangePassword` flag is set to false in the database and the user is redirected to the admin dashboard.
+
+### Testing the flow
+
+Run the integration test script to verify the full flow:
+
+```bash
+# PowerShell (Windows)
+./scripts/test-mustChangePassword-flow.ps1
+
+# Optional: customize credentials
+./scripts/test-mustChangePassword-flow.ps1 -Username admin -OldPassword Admin@1234 -NewPassword NewAdmin@5678 -NewUsername admin_updated
+```
+
+The test verifies:
+- Login with a seeded admin account returns `mustChangePassword: true`
+- Session endpoint reflects the flag
+- Change-password endpoint clears the flag
+- Re-login with new credentials shows the flag is cleared
+
+---
+
+## �🔌 API Configuration (Admin)
 
 The Admin dashboard can call external APIs using:
 *   **Endpoint URL**: supports placeholders like `{{account_id}}` (from collected KYC)

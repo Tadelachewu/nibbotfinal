@@ -33,12 +33,20 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const summaryOnly = searchParams.get('summary') === '1' || searchParams.get('summary') === 'true';
 
-  const uniqueSessions = await prisma.interactionLog
-    .findMany({
-      distinct: ['sessionId'],
-      select: { sessionId: true },
-    })
-    .then(rows => rows.filter(r => typeof r.sessionId === 'string' && r.sessionId.trim()).length);
+  const sessionStartRows = await prisma.interactionLog.findMany({
+    where: { tags: { has: 'session_start' } },
+    distinct: ['sessionId'],
+    select: { sessionId: true },
+  });
+
+  const uniqueSessions = sessionStartRows.length
+    ? sessionStartRows.filter(r => typeof r.sessionId === 'string' && r.sessionId.trim()).length
+    : await prisma.interactionLog
+      .findMany({
+        distinct: ['sessionId'],
+        select: { sessionId: true },
+      })
+      .then(rows => rows.filter(r => typeof r.sessionId === 'string' && r.sessionId.trim()).length);
 
   if (summaryOnly) {
     return NextResponse.json({

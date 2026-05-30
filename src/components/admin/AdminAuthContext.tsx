@@ -46,6 +46,7 @@ interface AdminAuthContextType {
   isAuthenticated: boolean;
   currentUsername: string;
   currentRole: 'admin' | 'checker' | 'support' | '';
+  mustChangePassword: boolean;
   csrfFetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
   login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
@@ -60,6 +61,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   const [currentUsername, setCurrentUsername] = useState('');
   const [currentRole, setCurrentRole] = useState<'admin' | 'checker' | 'support' | ''>('');
   const [csrfToken, setCsrfToken] = useState('');
+  const [mustChangePassword, setMustChangePassword] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
   const csrfFetch = useCallback(
@@ -74,6 +76,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
           setCurrentUsername('');
           setCurrentRole('');
           setCsrfToken('');
+          setMustChangePassword(false);
           if (typeof window !== 'undefined') {
             const path = window.location.pathname || '';
             if (path.startsWith('/admin') && path !== '/login') window.location.href = '/login';
@@ -94,6 +97,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         setCurrentUsername('');
         setCurrentRole('');
         setCsrfToken('');
+        setMustChangePassword(false);
         if (typeof window !== 'undefined') {
           const path = window.location.pathname || '';
           if (path.startsWith('/admin') && path !== '/login') window.location.href = '/login';
@@ -116,11 +120,13 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
           setCurrentUsername(typeof json.username === 'string' ? json.username : '');
           setCurrentRole(json?.role === 'checker' || json?.role === 'admin' || json?.role === 'support' ? json.role : '');
           setCsrfToken(typeof json.csrfToken === 'string' ? json.csrfToken : '');
+          setMustChangePassword(json?.mustChangePassword === true);
         } else {
           setIsAuthenticated(false);
           setCurrentUsername('');
           setCurrentRole('');
           setCsrfToken('');
+          setMustChangePassword(false);
         }
       } catch {
         if (!active) return;
@@ -128,6 +134,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         setCurrentUsername('');
         setCurrentRole('');
         setCsrfToken('');
+        setMustChangePassword(false);
       } finally {
         if (active) setHydrated(true);
       }
@@ -160,6 +167,14 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
       setCurrentUsername(typeof json.username === 'string' ? json.username : trimmedUsername);
       setCurrentRole(json?.role === 'checker' || json?.role === 'admin' || json?.role === 'support' ? json.role : '');
       setCsrfToken(typeof json.csrfToken === 'string' ? json.csrfToken : '');
+      const flagMustChange = json?.mustChangePassword === true;
+      setMustChangePassword(flagMustChange);
+      
+      // Redirect to change-password page if the flag is set
+      if (flagMustChange && typeof window !== 'undefined') {
+        window.location.href = '/admin/change-password';
+      }
+      
       return { success: true };
     }
 
@@ -172,6 +187,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     setCurrentUsername('');
     setCurrentRole('');
     setCsrfToken('');
+    setMustChangePassword(false);
   }, [csrfFetch]);
 
   const changeCredentials = useCallback(async (currentPassword: string, newUsername: string, newPassword: string, newEmail?: string) => {
@@ -209,7 +225,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AdminAuthContext.Provider value={{ isAuthenticated, currentUsername, currentRole, csrfFetch, login, logout, changeCredentials }}>
+    <AdminAuthContext.Provider value={{ isAuthenticated, currentUsername, currentRole, mustChangePassword, csrfFetch, login, logout, changeCredentials }}>
       {children}
     </AdminAuthContext.Provider>
   );

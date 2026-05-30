@@ -55,6 +55,9 @@ function getRedisClient(): RedisClient | null {
       reconnectOnError: () => false,
     });
     redisClient = client;
+    client.on('error', () => {
+      redisClient = null;
+    });
     client.connect().catch(() => { });
     return client;
   } catch {

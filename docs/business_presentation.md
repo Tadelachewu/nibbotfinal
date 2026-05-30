@@ -51,6 +51,7 @@ The platform is built on three distinct "Action Types" that handle every possibl
 **Dynamic Orchestration & Real-Time Intelligence**
 
 *   **Explanation**: Connects the chatbot to your bank's or company's existing RESTful APIs in real-time. Features a visual "Root Mapping Key" engine to parse complex JSON data.
+*   **Security Note (Phase 0 Scope)**: The API engine is intended for **non‑sensitive public data** and low‑risk informational endpoints (e.g., **holiday calendars**, **exchange rates**). Highly sensitive actions and data access (e.g., **balance checks**, **fund transfers**) require strong user verification and policy controls (step‑up verification / identity binding), which will be introduced in a later phase.
 *   **Key Features**:
     *   **Dynamic KYC**: Automatically prompts the user for missing data (Account IDs, Phone numbers) before calling the API.
     *   **Unified Mapping Engine**: Maps API responses directly into user-friendly messages or structured tables using absolute JSON paths (`data.balance`).
@@ -96,6 +97,31 @@ The platform is built on three distinct "Action Types" that handle every possibl
 *   **Engagement Analytics**: Detailed click counts and session history for every menu item, allowing you to see which services are most popular.
 *   **Interaction Logs**: Full, searchable history of all bot-user exchanges (anonymized for privacy), enabling data-driven optimizations of the chatbot's response logic.
 *   **Business Value**: Empowers management with real-time data to make informed decisions about service expansions and customer behavior trends.
+
+---
+
+## 📽️ Slide 8A: Best Features (What Makes NibBot Unique)
+**Differentiators You Don’t Get in Typical Chatbots**
+
+*   **No‑Code Service Orchestration**: Business admins can build complete conversational services (menus + logic) without developers.
+*   **Three Action Types, One Platform**: Static content, live API workflows, and Internal Support (ticket/report) flows under one unified system.
+*   **Maker‑Checker Governance**: All critical changes go through approval before going live, reducing operational risk and ensuring compliance.
+*   **Dynamic KYC Collection**: Collects only the missing user inputs needed for an API call (account_id, phone, etc.) and validates them in-flow.
+*   **Response Mapping Engine**: Converts complex JSON responses into clean user messages or structured tables using configurable mappings.
+*   **API Action Guardrails (Current Version)**: The API engine is best for non‑sensitive workflows. Very sensitive APIs should require stronger user verification; this will be introduced in the next version (step‑up verification, stronger identity binding, and policy enforcement).
+*   **Rich Content Editing (WYSIWYG)**: Admins can format content, embed links, add images, and control text/highlight colors for branded UX.
+*   **Multi‑Language Support (Amharic/English + extensible)**: Separate per-language content fields plus system translation support for UI text.
+*   **Real‑Time Presence + Dashboards**: Redis + WebSockets power “Online Now” and live metrics for operational visibility.
+*   **Deep Observability**: Interaction logs capture user flows and outcomes (success/failure/error) to continuously optimize services.
+*   **Security Hardening by Default**: Same-origin + CSRF protection, secure sessions, rate limiting (Redis-backed), and strict security headers/CSP.
+
+---
+
+## 📽️ Slide 8B: Next Version Roadmap (Planned Engines)
+**What We’ll Add to Take NibBot Even Further**
+
+*   **Live Agent Engine (Human Handoff)**: Escalate a conversation to a human agent with queueing, assignment, and conversation context transfer (chat history + collected KYC).
+*   **AI Agent Engine (RAG Knowledge Answers)**: Knowledge‑base powered question answering using retrieval‑augmented generation (RAG) for accurate, source‑grounded answers with admin‑managed documents.
 
 ---
 

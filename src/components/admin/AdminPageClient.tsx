@@ -130,9 +130,5 @@ function AdminConsole() {
 }
 
 export function AdminPageClient() {
-  return (
-    <AdminAuthProvider>
-      <AdminConsole />
-    </AdminAuthProvider>
-  );
+  return <AdminConsole />;
 }
