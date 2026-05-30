@@ -67,6 +67,8 @@ export function ReportsManagement() {
   const { csrfFetch, currentRole, currentUsername } = useAdminAuth();
   const [reports, setReports] = useState<UserReport[]>([]);
   const [loading, setLoading] = useState(true);
+  const [reportsMeta, setReportsMeta] = useState<{ page: number; pageSize: number; total: number; totalPages: number; hasMore: boolean } | null>(null);
+  const [loadingMoreReports, setLoadingMoreReports] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
@@ -85,44 +87,71 @@ export function ReportsManagement() {
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
+  const [activityMeta, setActivityMeta] = useState<{ page: number; pageSize: number; total: number; totalPages: number; hasMore: boolean } | null>(null);
+  const [loadingMoreActivity, setLoadingMoreActivity] = useState(false);
 
-  const refreshReports = useCallback(() => {
-    setLoading(true);
-    (async () => {
-      try {
-        const res = await csrfFetch('/api/reports', { cache: 'no-store' });
-        const json = await res.json().catch(() => null);
-        setReports(Array.isArray(json?.data) ? json.data : []);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [csrfFetch]);
+  const REPORTS_PAGE_SIZE = 50;
+  const ACTIVITY_PAGE_SIZE = 100;
 
-  const refreshLogs = useCallback(() => {
-    setLoadingLogs(true);
-    (async () => {
-      try {
-        const res = await csrfFetch('/api/reports/activities', { cache: 'no-store' });
-        const json = await res.json().catch(() => null);
-        setActivityLogs(Array.isArray(json?.data) ? json.data : []);
-      } finally {
-        setLoadingLogs(false);
-      }
-    })();
+  const fetchReports = useCallback(async (opts?: { page?: number; append?: boolean }) => {
+    const page = Number.isFinite(opts?.page) && (opts?.page as number) >= 0 ? Math.floor(opts!.page as number) : 0;
+    const append = Boolean(opts?.append);
+    if (append) setLoadingMoreReports(true);
+    else setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('pageSize', String(REPORTS_PAGE_SIZE));
+      if (search.trim()) params.set('q', search.trim());
+      if (statusFilter !== 'all') params.set('status', statusFilter);
+      if (priorityFilter !== 'all') params.set('priority', priorityFilter);
+      const res = await csrfFetch(`/api/reports?${params.toString()}`, { cache: 'no-store' });
+      const json = await res.json().catch(() => null);
+      const next = Array.isArray(json?.data) ? json.data : [];
+      const meta = json?.meta && typeof json.meta === 'object' ? json.meta : null;
+      setReportsMeta(meta);
+      setReports(prev => append ? [...prev, ...next] : next);
+    } finally {
+      if (append) setLoadingMoreReports(false);
+      else setLoading(false);
+    }
+  }, [csrfFetch, search, statusFilter, priorityFilter]);
+
+  const fetchActivityLogs = useCallback(async (opts?: { page?: number; append?: boolean }) => {
+    const page = Number.isFinite(opts?.page) && (opts?.page as number) >= 0 ? Math.floor(opts!.page as number) : 0;
+    const append = Boolean(opts?.append);
+    if (append) setLoadingMoreActivity(true);
+    else setLoadingLogs(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('pageSize', String(ACTIVITY_PAGE_SIZE));
+      const res = await csrfFetch(`/api/reports/activities?${params.toString()}`, { cache: 'no-store' });
+      const json = await res.json().catch(() => null);
+      const next = Array.isArray(json?.data) ? json.data : [];
+      const meta = json?.meta && typeof json.meta === 'object' ? json.meta : null;
+      setActivityMeta(meta);
+      setActivityLogs(prev => append ? [...prev, ...next] : next);
+    } finally {
+      if (append) setLoadingMoreActivity(false);
+      else setLoadingLogs(false);
+    }
   }, [csrfFetch]);
 
   useEffect(() => {
-    refreshReports();
-    refreshLogs();
-  }, [refreshReports, refreshLogs]);
+    fetchActivityLogs({ page: 0, append: false });
+  }, [fetchActivityLogs]);
+
+  useEffect(() => {
+    fetchReports({ page: 0, append: false });
+  }, [search, statusFilter, priorityFilter, fetchReports]);
 
   useEffect(() => {
     if (currentRole !== 'admin') return;
     let active = true;
     (async () => {
       try {
-        const res = await csrfFetch('/api/admin/users', { cache: 'no-store' });
+        const res = await csrfFetch('/api/admin/users?role=support&pageSize=200', { cache: 'no-store' });
         const json = await res.json().catch(() => null);
         if (!active) return;
         const list = Array.isArray(json?.data) ? json.data : [];
@@ -197,20 +226,7 @@ export function ReportsManagement() {
     return rows.slice(0, Math.min(cleanTopN, rows.length));
   }, [reports, supportUsers, currentRole, ratingSortKey, ratingTopN]);
 
-  const filteredReports = useMemo(() => {
-    return reports.filter(r => {
-      const matchesSearch =
-        r.menuName?.toLowerCase().includes(search.toLowerCase()) ||
-        r.userId?.toLowerCase().includes(search.toLowerCase()) ||
-        r.id.toLowerCase().includes(search.toLowerCase()) ||
-        Object.values(r.data || {}).some(val => String(val).toLowerCase().includes(search.toLowerCase()));
-
-      const matchesStatus = statusFilter === 'all' || r.status === statusFilter;
-      const matchesPriority = priorityFilter === 'all' || r.priority === priorityFilter;
-
-      return matchesSearch && matchesStatus && matchesPriority;
-    });
-  }, [reports, search, statusFilter, priorityFilter]);
+  const filteredReports = reports;
 
   const handleSaveAdminData = (overrideStatus?: UserReport['status']) => {
     if (selectedReportId) {
@@ -275,7 +291,7 @@ export function ReportsManagement() {
           if (overrideStatus === 'resolved') {
             setIsInspectOpen(false);
           }
-          refreshLogs();
+          fetchActivityLogs({ page: 0, append: false });
         } catch {
           toast({ title: "Error", description: "Failed to save changes.", variant: "destructive" });
         }
@@ -293,7 +309,7 @@ export function ReportsManagement() {
         }
         setReports(prev => prev.filter(r => r.id !== reportId));
         toast({ title: "Report Deleted" });
-        refreshLogs();
+        fetchActivityLogs({ page: 0, append: false });
       } catch {
         toast({ title: "Error", description: "Failed to delete report.", variant: "destructive" });
       }
@@ -410,7 +426,7 @@ export function ReportsManagement() {
                     <p className="text-xs text-muted-foreground mt-1">Manage, triage, and respond to user-submitted reports.</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={refreshReports}>
+                    <Button variant="outline" size="sm" onClick={() => fetchReports({ page: 0, append: false })} disabled={loading}>
                       <RefreshCw size={14} className="mr-2" /> Refresh
                     </Button>
                   </div>
@@ -539,6 +555,30 @@ export function ReportsManagement() {
                         </TableCell>
                       </TableRow>
                     )}
+                    {reportsMeta?.hasMore && (
+                      <TableRow>
+                        <TableCell colSpan={8} className="py-6">
+                          <div className="flex items-center justify-center gap-3">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={loadingMoreReports}
+                              onClick={() => fetchReports({ page: (reportsMeta?.page ?? 0) + 1, append: true })}
+                              className="gap-2"
+                            >
+                              <Loader2 size={14} className={cn(loadingMoreReports && 'animate-spin')} />
+                              Load more
+                            </Button>
+                            {typeof reportsMeta.total === 'number' && (
+                              <span className="text-xs text-muted-foreground">
+                                Showing {filteredReports.length} of {reportsMeta.total}
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
                   </TableBody>
                 </Table>
               </ScrollArea>
@@ -662,7 +702,7 @@ export function ReportsManagement() {
                   <p className="text-xs text-muted-foreground mt-1">Audit trail for assignments, escalations, and official responses.</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={refreshLogs} disabled={loadingLogs}>
+                  <Button variant="outline" size="sm" onClick={() => fetchActivityLogs({ page: 0, append: false })} disabled={loadingLogs}>
                     <RefreshCw size={12} className={cn("mr-2", loadingLogs && "animate-spin")} /> Refresh Log
                   </Button>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/20 px-3 py-1.5 rounded-full font-medium">
@@ -737,6 +777,30 @@ export function ReportsManagement() {
                         <TableRow>
                           <TableCell colSpan={5} className="h-48 text-center text-muted-foreground italic text-sm">
                             No activities recorded yet.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      {activityMeta?.hasMore && (
+                        <TableRow>
+                          <TableCell colSpan={5} className="py-6">
+                            <div className="flex items-center justify-center gap-3">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={loadingMoreActivity}
+                                onClick={() => fetchActivityLogs({ page: (activityMeta?.page ?? 0) + 1, append: true })}
+                                className="gap-2"
+                              >
+                                <Loader2 size={14} className={cn(loadingMoreActivity && 'animate-spin')} />
+                                Load more
+                              </Button>
+                              {typeof activityMeta.total === 'number' && (
+                                <span className="text-xs text-muted-foreground">
+                                  Showing {activityLogs.length} of {activityMeta.total}
+                                </span>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       )}

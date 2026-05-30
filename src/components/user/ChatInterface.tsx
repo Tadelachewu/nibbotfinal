@@ -55,6 +55,14 @@ interface Message {
   sender: 'bot' | 'user';
   text?: string;
   content?: string;
+  staticPage?: {
+    menuId: string;
+    lang: string;
+    page: number;
+    totalPages: number;
+    hasMore: boolean;
+    maxChars: number;
+  };
   options?: MenuItem[];
   relatedOptions?: MenuItem[];
   relatedDescription?: string;
@@ -71,6 +79,10 @@ interface Message {
     rootData: any;
     arrayPath: string;
     rootKey: string;
+  };
+  tablePage?: {
+    rowsShown: number;
+    pageSize: number;
   };
   reportStatus?: UserReport;
 }
@@ -187,6 +199,7 @@ export function ChatInterface() {
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [history, setHistory] = useState<Message[]>([]);
+  const historyRef = useRef<Message[]>([]);
   const [currentMenuId, setCurrentMenuId] = useState<string | null>(null);
   const [menuHistory, setMenuHistory] = useState<string[]>([]);
   const [currentLang, setCurrentLang] = useState<Language | null>(null);
@@ -214,8 +227,13 @@ export function ChatInterface() {
   const [kycInput, setKycInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [loadingText, setLoadingText] = useState('');
+  const [loadingMoreId, setLoadingMoreId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    historyRef.current = history;
+  }, [history]);
 
   useEffect(() => {
     // Check if current user has an admin session to show/hide admin-only UI components
@@ -273,6 +291,37 @@ export function ChatInterface() {
 
     return { settings, menus: data as MenuItem[] };
   }, []);
+
+  const adminPreviewRequested =
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('adminPreview') === '1';
+
+  const fetchMenuContentPage = useCallback(async (args: { menuId: string; lang: string; page: number; maxChars: number }) => {
+    const params = new URLSearchParams();
+    params.set('lang', args.lang || 'en');
+    params.set('page', String(args.page ?? 0));
+    params.set('maxChars', String(args.maxChars ?? 2000));
+    if (adminPreviewRequested) params.set('adminPreview', '1');
+
+    const res = await fetch(`/api/menus/${encodeURIComponent(args.menuId)}?${params.toString()}`, { cache: 'no-store' });
+    const json = await res.json().catch(() => null);
+    if (!res.ok || json?.status !== 'success') {
+      const message = typeof json?.message === 'string' && json.message ? json.message : 'Failed to load content.';
+      throw new Error(message);
+    }
+
+    return json.data as {
+      id: string;
+      responseType: string;
+      lang: string;
+      page: number;
+      totalPages: number;
+      hasMore: boolean;
+      maxChars: number;
+      totalChars: number;
+      content: string;
+    };
+  }, [adminPreviewRequested]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -565,17 +614,21 @@ export function ChatInterface() {
         if (menu) {
           const rootKey = msg.sourceRootKey || menu.apiConfig?.rootKey || 'data';
           if (msg.sourceType === 'menu_intro') {
-            const rawIntro = getLocalizedContent(menu);
-            const isDefault = rawIntro === '<p>Enter your response message here...</p>';
-            const introContent = (isDefault || isHtmlEffectivelyEmpty(rawIntro)) ? '' : rawIntro;
-            nextContent = introContent ? replacePlaceholders(introContent, { rootKey }) : '';
+            if (!msg.staticPage) {
+              const rawIntro = getLocalizedContent(menu);
+              const isDefault = rawIntro === '<p>Enter your response message here...</p>';
+              const introContent = (isDefault || isHtmlEffectivelyEmpty(rawIntro)) ? '' : rawIntro;
+              nextContent = introContent ? replacePlaceholders(introContent, { rootKey }) : '';
+            }
           } else if (msg.sourceType === 'menu' || msg.sourceType === 'menu_back') {
-            const localized = replacePlaceholders(getLocalizedContent(menu), { rootKey });
-            nextContent = (isHtmlEffectivelyEmpty(localized) && (msg.options?.length || 0) > 0)
-              ? t('ui_select_option', 'Please select an option:')
-              : localized;
-            if (msg.sourceType === 'menu_back') {
-              nextText = t('ui_back', 'Back');
+            if (!msg.staticPage) {
+              const localized = replacePlaceholders(getLocalizedContent(menu), { rootKey });
+              nextContent = (isHtmlEffectivelyEmpty(localized) && (msg.options?.length || 0) > 0)
+                ? t('ui_select_option', 'Please select an option:')
+                : localized;
+              if (msg.sourceType === 'menu_back') {
+                nextText = t('ui_back', 'Back');
+              }
             }
           } else if (msg.sourceType === 'kyc_prompt' && msg.kycFieldId) {
             const field = menu.apiConfig?.kycFields?.find(f => f.id === msg.kycFieldId);
@@ -615,6 +668,55 @@ export function ChatInterface() {
       };
     }));
   }, [currentLang, menus, appSettings?.systemTranslations]);
+
+  useEffect(() => {
+    if (!currentLang) return;
+    const langCode = currentLang.code || 'en';
+    const snapshot = historyRef.current;
+    const targets = snapshot.filter(m => m.sender === 'bot' && m.staticPage?.menuId);
+    if (!targets.length) return;
+
+    (async () => {
+      const updates = await Promise.all(targets.map(async (m) => {
+        try {
+          const lastPage = Math.max(0, m.staticPage!.page);
+          const pages = await Promise.all(
+            Array.from({ length: lastPage + 1 }).map((_, idx) => fetchMenuContentPage({
+              menuId: m.staticPage!.menuId,
+              lang: langCode,
+              page: idx,
+              maxChars: m.staticPage!.maxChars
+            }))
+          );
+          const data = pages[pages.length - 1];
+          const combined = pages.map(p => p.content || '').join('');
+          const rootKey = m.sourceRootKey || 'data';
+          return {
+            id: m.id,
+            content: replacePlaceholders(combined, { rootKey }),
+            staticPage: {
+              menuId: m.staticPage!.menuId,
+              lang: data.lang || langCode,
+              page: data.page,
+              totalPages: data.totalPages,
+              hasMore: data.hasMore,
+              maxChars: data.maxChars
+            }
+          };
+        } catch {
+          return null;
+        }
+      }));
+
+      const byId = new Map(updates.filter(Boolean).map(u => [u!.id, u!]));
+      if (!byId.size) return;
+      setHistory(prev => prev.map(m => {
+        const u = byId.get(m.id);
+        if (!u) return m;
+        return { ...m, content: u.content, staticPage: u.staticPage };
+      }));
+    })();
+  }, [currentLang, fetchMenuContentPage]);
 
   const hasUnresolvedTemplate = (value: any) => {
     const str = String(value ?? '');
@@ -1089,6 +1191,7 @@ export function ChatInterface() {
         }
 
         if (validData) {
+          const pageSize = 20;
           botMsg.tableData = {
             columns: (mapping.tableColumns || []).map(col => ({ ...col, localizedHeader: getLocalizedTableHeader(menu, col) })),
             rows,
@@ -1096,6 +1199,7 @@ export function ChatInterface() {
             arrayPath,
             rootKey
           };
+          botMsg.tablePage = { pageSize, rowsShown: Math.min(rows.length, pageSize) };
           botMsg.sourceType = 'api_table';
           botMsg.sourceMenuId = menu.id;
           botMsg.sourceRootKey = rootKey;
@@ -1200,10 +1304,40 @@ export function ChatInterface() {
       return;
     }
     setMenuHistory(prev => [...prev, currentMenuId || 'root']);
+    const langCode = currentLang?.code || 'en';
+    let serverPage: {
+      id: string;
+      responseType: string;
+      lang: string;
+      page: number;
+      totalPages: number;
+      hasMore: boolean;
+      maxChars: number;
+      totalChars: number;
+      content: string;
+    } | null = null;
+    try {
+      serverPage = await fetchMenuContentPage({ menuId: effectiveMenu.id, lang: langCode, page: 0, maxChars: 2000 });
+    } catch {
+      serverPage = null;
+    }
+
+    const resolvedContent = serverPage ? serverPage.content : getLocalizedContent(effectiveMenu);
+    const resolvedHtml = replacePlaceholders(resolvedContent, { rootKey }) || (childMenus.length > 0 ? t('ui_select_option', 'Please select an option:') : '');
     setHistory(prev => [...prev, {
       id: `bot-${Date.now()}`,
       sender: 'bot',
-      content: replacePlaceholders(getLocalizedContent(effectiveMenu), { rootKey }) || (childMenus.length > 0 ? t('ui_select_option', 'Please select an option:') : ''),
+      content: resolvedHtml,
+      ...(serverPage ? {
+        staticPage: {
+          menuId: effectiveMenu.id,
+          lang: serverPage.lang || langCode,
+          page: serverPage.page,
+          totalPages: serverPage.totalPages,
+          hasMore: serverPage.hasMore,
+          maxChars: serverPage.maxChars
+        }
+      } : {}),
       options: childMenus.length > 0 ? childMenus : undefined,
       relatedOptions: relatedItems.length > 0 ? relatedItems : undefined,
       relatedDescription: effectiveMenu.attachmentDescription || undefined,
@@ -1215,13 +1349,59 @@ export function ChatInterface() {
     logInteraction({
       sessionId: userData.id,
       userMessage: getLocalizedName(effectiveMenu),
-      botResponse: replacePlaceholders(getLocalizedContent(effectiveMenu), { rootKey }) || 'Options',
+      botResponse: resolvedHtml || 'Options',
       status: 'success',
       endpoint: 'Internal:MenuNavigation',
       tags: ['navigation', effectiveMenu.name]
     });
 
     setCurrentMenuId(effectiveMenu.id);
+  };
+
+  const loadMoreStatic = async (msg: Message) => {
+    if (!msg.staticPage?.hasMore) return;
+    if (!msg.staticPage.menuId) return;
+    if (loadingMoreId) return;
+
+    setLoadingMoreId(msg.id);
+    try {
+      const langCode = currentLang?.code || msg.staticPage.lang || 'en';
+      const nextPage = msg.staticPage.page + 1;
+      const data = await fetchMenuContentPage({
+        menuId: msg.staticPage.menuId,
+        lang: langCode,
+        page: nextPage,
+        maxChars: msg.staticPage.maxChars
+      });
+
+      const rootKey = msg.sourceRootKey || 'data';
+      const nextHtml = replacePlaceholders(data.content, { rootKey });
+      setHistory(prev => prev.map(m => {
+        if (m.id !== msg.id) return m;
+        if (!m.staticPage) return m;
+        const combined = `${m.content || ''}${nextHtml || ''}`;
+        return {
+          ...m,
+          content: combined,
+          staticPage: {
+            ...m.staticPage,
+            lang: data.lang || langCode,
+            page: data.page,
+            totalPages: data.totalPages,
+            hasMore: data.hasMore,
+            maxChars: data.maxChars
+          }
+        };
+      }));
+    } catch (err) {
+      toast({
+        variant: 'destructive',
+        title: t('ui_error', 'Error'),
+        description: err instanceof Error ? err.message : t('ui_failed_load_more', 'Failed to load more content.')
+      });
+    } finally {
+      setLoadingMoreId(null);
+    }
   };
 
   const handleBack = () => {
@@ -1428,6 +1608,23 @@ export function ChatInterface() {
               )}
               {msg.id !== 'welcome' && msg.text && <div dangerouslySetInnerHTML={{ __html: msg.text }} />}
               {msg.content && <div dangerouslySetInnerHTML={{ __html: msg.content }} />}
+              {msg.staticPage?.hasMore && (
+                <div className="mt-3 flex items-center justify-between gap-2">
+                  <div className="text-[10px] text-muted-foreground font-bold tracking-widest">
+                    {msg.staticPage.page + 1} / {msg.staticPage.totalPages}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={loadingMoreId === msg.id}
+                    className="rounded-full h-8 px-3 text-[11px] font-bold uppercase"
+                    onClick={() => loadMoreStatic(msg)}
+                  >
+                    {loadingMoreId === msg.id ? t('ui_loading', 'Loading...') : t('ui_read_more', 'Read more')}
+                  </Button>
+                </div>
+              )}
               {msg.reportStatus && (
                 <div className="mt-4 border rounded-xl p-4 bg-primary/5 shadow-sm space-y-4">
                   <div className="flex items-center justify-between border-b pb-3">
@@ -1514,18 +1711,45 @@ export function ChatInterface() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {msg.tableData.rows.map((row, i) => (
-                          <TableRow key={i} className="hover:bg-muted/5 transition-colors">
-                            {msg.tableData!.columns.map((col, j) => (
-                              <TableCell key={j} className="text-xs py-2.5 font-medium px-3 whitespace-normal break-words min-w-[80px]" title={String(resolveTableCell(col.key, row, msg.tableData!.rootData, msg.tableData!.arrayPath, msg.tableData!.rootKey) ?? '')}>
-                                {String(resolveTableCell(col.key, row, msg.tableData!.rootData, msg.tableData!.arrayPath, msg.tableData!.rootKey) ?? '')}
-                              </TableCell>
-                            ))}
-                          </TableRow>
-                        ))}
+                        {msg.tableData.rows
+                          .slice(0, msg.tablePage?.rowsShown ?? msg.tableData.rows.length)
+                          .map((row, i) => (
+                            <TableRow key={i} className="hover:bg-muted/5 transition-colors">
+                              {msg.tableData!.columns.map((col, j) => (
+                                <TableCell key={j} className="text-xs py-2.5 font-medium px-3 whitespace-normal break-words min-w-[80px]" title={String(resolveTableCell(col.key, row, msg.tableData!.rootData, msg.tableData!.arrayPath, msg.tableData!.rootKey) ?? '')}>
+                                  {String(resolveTableCell(col.key, row, msg.tableData!.rootData, msg.tableData!.arrayPath, msg.tableData!.rootKey) ?? '')}
+                                </TableCell>
+                              ))}
+                            </TableRow>
+                          ))}
                       </TableBody>
                     </Table>
                   </div>
+                  {typeof msg.tablePage?.rowsShown === 'number' && msg.tableData.rows.length > msg.tablePage.rowsShown && (
+                    <div className="p-3 border-t bg-muted/10 flex items-center justify-between gap-3">
+                      <div className="text-[10px] text-muted-foreground font-bold tracking-widest">
+                        {msg.tablePage.rowsShown} / {msg.tableData.rows.length}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="rounded-full h-8 px-3 text-[11px] font-bold uppercase"
+                        onClick={() => {
+                          setHistory(prev => prev.map(m => {
+                            if (m.id !== msg.id) return m;
+                            if (!m.tableData) return m;
+                            const pageSize = m.tablePage?.pageSize ?? 20;
+                            const rowsShown = m.tablePage?.rowsShown ?? pageSize;
+                            const nextShown = Math.min(m.tableData.rows.length, rowsShown + pageSize);
+                            return { ...m, tablePage: { pageSize, rowsShown: nextShown } };
+                          }));
+                        }}
+                      >
+                        {t('ui_load_more', 'Load more')}
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
               <MessageOptionsList

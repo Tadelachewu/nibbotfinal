@@ -6,6 +6,16 @@ import { getValidatedAdminSession, verifyCsrfToken } from '@/lib/session';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+function parsePageParams(searchParams: URLSearchParams) {
+  const pageRaw = Number(searchParams.get('page') ?? '0');
+  const pageSizeRaw = Number(searchParams.get('pageSize') ?? '100');
+  const page = Number.isFinite(pageRaw) && pageRaw >= 0 ? Math.floor(pageRaw) : 0;
+  const pageSize = Number.isFinite(pageSizeRaw) && pageSizeRaw > 0
+    ? Math.min(Math.floor(pageSizeRaw), 500)
+    : 100;
+  return { page, pageSize, skip: page * pageSize, take: pageSize };
+}
+
 function maskSensitiveInfo(text: string): string {
   const sensitiveKeys = ['password', 'token', 'secret', 'key', 'pin', 'cvv'];
   let out = text;
@@ -32,6 +42,8 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const summaryOnly = searchParams.get('summary') === '1' || searchParams.get('summary') === 'true';
+  const q = String(searchParams.get('q') ?? '').trim();
+  const { page, pageSize, skip, take } = parsePageParams(searchParams);
 
   const sessionStartRows = await prisma.interactionLog.findMany({
     where: { tags: { has: 'session_start' } },
@@ -56,14 +68,35 @@ export async function GET(req: Request) {
     });
   }
 
-  const logs = await prisma.interactionLog.findMany({
-    orderBy: { timestamp: 'desc' },
-    take: 500
-  });
+  const where: any = q
+    ? {
+      OR: [
+        { sessionId: { contains: q, mode: 'insensitive' } },
+        { userMessage: { contains: q, mode: 'insensitive' } },
+        { botResponse: { contains: q, mode: 'insensitive' } },
+        { endpoint: { contains: q, mode: 'insensitive' } },
+        { tags: { has: q } },
+      ]
+    }
+    : {};
+
+  const [total, logs] = await Promise.all([
+    prisma.interactionLog.count({ where }),
+    prisma.interactionLog.findMany({
+      where,
+      orderBy: { timestamp: 'desc' },
+      skip,
+      take
+    })
+  ]);
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const hasMore = page + 1 < totalPages;
 
   return NextResponse.json({
     status: 'success',
     stats: { uniqueSessions },
+    meta: { page, pageSize, total, totalPages, hasMore },
     data: logs.map(l => ({
       timestamp: l.timestamp.toISOString(),
       sessionId: l.sessionId,

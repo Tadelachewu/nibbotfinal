@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { LogEntry } from '@/lib/logger';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -16,6 +16,9 @@ export function LogViewer() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [filter, setFilter] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [meta, setMeta] = useState<{ page: number; pageSize: number; total: number; totalPages: number; hasMore: boolean } | null>(null);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const PAGE_SIZE = 100;
 
   const toPlainText = (input: string) => {
     const str = String(input || '');
@@ -29,35 +32,31 @@ export function LogViewer() {
     }
   };
 
-  const fetchLogs = () => {
-    setIsLoading(true);
-    (async () => {
-      try {
-        const res = await csrfFetch('/api/logs', { cache: 'no-store' });
-        const json = await res.json().catch(() => null);
-        setLogs(Array.isArray(json?.data) ? json.data : []);
-      } finally {
-        setIsLoading(false);
-      }
-    })();
-  };
+  const fetchLogs = useCallback(async (opts?: { page?: number; append?: boolean }) => {
+    const page = Number.isFinite(opts?.page) && (opts?.page as number) >= 0 ? Math.floor(opts!.page as number) : 0;
+    const append = Boolean(opts?.append);
+    if (append) setIsLoadingMore(true);
+    else setIsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('pageSize', String(PAGE_SIZE));
+      if (filter.trim()) params.set('q', filter.trim());
+      const res = await csrfFetch(`/api/logs?${params.toString()}`, { cache: 'no-store' });
+      const json = await res.json().catch(() => null);
+      const next = Array.isArray(json?.data) ? json.data : [];
+      const nextMeta = json?.meta && typeof json.meta === 'object' ? json.meta : null;
+      setMeta(nextMeta);
+      setLogs(prev => append ? [...prev, ...next] : next);
+    } finally {
+      if (append) setIsLoadingMore(false);
+      else setIsLoading(false);
+    }
+  }, [csrfFetch, filter]);
 
   useEffect(() => {
-    fetchLogs();
-  }, [csrfFetch]);
-
-  const filterLower = filter.toLowerCase();
-  const filteredLogs = logs.filter(log => {
-    const userMsg = toPlainText(log.userMessage || '');
-    const botMsg = toPlainText(log.botResponse || '');
-    return (
-      log.sessionId.toLowerCase().includes(filterLower) ||
-      userMsg.toLowerCase().includes(filterLower) ||
-      botMsg.toLowerCase().includes(filterLower) ||
-      log.endpoint?.toLowerCase().includes(filterLower) ||
-      log.tags?.some(tag => tag.toLowerCase().includes(filterLower))
-    );
-  });
+    fetchLogs({ page: 0, append: false });
+  }, [filter, fetchLogs]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -80,7 +79,7 @@ export function LogViewer() {
             onChange={(e) => setFilter(e.target.value)}
           />
         </div>
-        <Button variant="outline" onClick={fetchLogs} disabled={isLoading}>
+        <Button variant="outline" onClick={() => fetchLogs({ page: 0, append: false })} disabled={isLoading}>
           <RotateCcw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
           Refresh
         </Button>
@@ -106,14 +105,14 @@ export function LogViewer() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredLogs.length === 0 ? (
+                {logs.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="h-24 text-center text-muted-foreground italic">
                       {isLoading ? 'Loading logs...' : 'No interaction logs found.'}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredLogs.map((log, index) => (
+                  logs.map((log, index) => (
                     <TableRow key={index} className="group hover:bg-muted/30 transition-colors">
                       <TableCell className="font-mono text-[10px] text-muted-foreground">
                         {log.timestamp ? format(new Date(log.timestamp), 'yyyy-MM-dd HH:mm:ss') : 'N/A'}
@@ -149,6 +148,30 @@ export function LogViewer() {
                       </TableCell>
                     </TableRow>
                   ))
+                )}
+                {meta?.hasMore && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="py-6">
+                      <div className="flex items-center justify-center gap-3">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={isLoadingMore}
+                          onClick={() => fetchLogs({ page: (meta?.page ?? 0) + 1, append: true })}
+                          className="gap-2"
+                        >
+                          <RotateCcw className={`h-4 w-4 ${isLoadingMore ? 'animate-spin' : ''}`} />
+                          Load more
+                        </Button>
+                        {typeof meta.total === 'number' && (
+                          <span className="text-xs text-muted-foreground">
+                            Showing {logs.length} of {meta.total}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
                 )}
               </TableBody>
             </Table>

@@ -5,6 +5,174 @@ import prisma from '@/lib/prisma';
 import { getValidatedAdminSession, rotateCsrfToken, verifyCsrfToken } from '@/lib/session';
 import { logSecurityEvent } from '@/lib/logger';
 
+function parseBoolean(value: string | null) {
+  return value === '1' || value === 'true';
+}
+
+function splitContentBlocks(content: string) {
+  const str = String(content || '');
+  if (!str.trim()) return [];
+
+  const looksLikeHtml = str.includes('<') && str.includes('>');
+  if (looksLikeHtml) {
+    const closingTag = /(<\/(?:p|li|h[1-6]|blockquote|pre|tr|table|div)>)/i;
+    if (closingTag.test(str)) {
+      const parts = str.split(closingTag);
+      const blocks: string[] = [];
+      let buf = '';
+      for (const part of parts) {
+        if (!part) continue;
+        buf += part;
+        if (closingTag.test(part)) {
+          blocks.push(buf);
+          buf = '';
+        }
+      }
+      if (buf.trim()) blocks.push(buf);
+      return blocks;
+    }
+  }
+
+  const blocks = str
+    .split(/\n\s*\n/g)
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  return blocks.length ? blocks.map(b => `${b}\n\n`) : [str];
+}
+
+function paginateBlocks(blocks: string[], page: number, maxChars: number) {
+  const safePage = Number.isFinite(page) && page >= 0 ? Math.floor(page) : 0;
+  const limit = Number.isFinite(maxChars) && maxChars > 200 ? Math.min(Math.floor(maxChars), 20000) : 2000;
+
+  const pages: string[] = [];
+  let buf = '';
+
+  const flush = () => {
+    if (buf) pages.push(buf);
+    buf = '';
+  };
+
+  for (const block of blocks) {
+    const next = buf + block;
+    if (next.length <= limit) {
+      buf = next;
+      continue;
+    }
+
+    if (buf) {
+      flush();
+      if (block.length <= limit) {
+        buf = block;
+        continue;
+      }
+    }
+
+    let i = 0;
+    while (i < block.length) {
+      pages.push(block.slice(i, i + limit));
+      i += limit;
+    }
+  }
+  flush();
+
+  const pageCount = pages.length || 1;
+  const idx = Math.min(safePage, Math.max(0, pageCount - 1));
+  return { content: pages[idx] ?? '', page: idx, totalPages: pageCount, hasMore: idx < pageCount - 1, maxChars: limit };
+}
+
+function applyPendingUpdate(menu: any) {
+  const pending = (menu.pendingStatus === 'pending' || menu.pendingStatus === 'rejected') && menu.pendingUpdate && typeof menu.pendingUpdate === 'object';
+  if (!pending) return menu;
+  const update = menu.pendingUpdate as Record<string, any>;
+  const merged: any = { ...menu, ...update };
+  if (Object.prototype.hasOwnProperty.call(update, 'apiConfig')) merged.apiConfig = update.apiConfig ?? null;
+  if (Object.prototype.hasOwnProperty.call(update, 'content')) merged.content = update.content ?? null;
+  if (Object.prototype.hasOwnProperty.call(update, 'contentAm')) merged.contentAm = update.contentAm ?? null;
+  if (Object.prototype.hasOwnProperty.call(update, 'nameAm')) merged.nameAm = update.nameAm ?? null;
+  if (Object.prototype.hasOwnProperty.call(update, 'parentId')) merged.parentId = update.parentId ?? null;
+  if (Object.prototype.hasOwnProperty.call(update, 'translations')) merged.translations = update.translations ?? null;
+  return merged;
+}
+
+function getLocalizedContent(menu: any, lang: string) {
+  const code = String(lang || 'en').toLowerCase().trim();
+  if (!code || code === 'en') return String(menu.content || '');
+  if (code === 'am') return String(menu.contentAm || menu.content || '');
+  const t = menu.translations && typeof menu.translations === 'object' ? (menu.translations as any) : null;
+  const fromTranslations = t?.[code]?.content;
+  if (typeof fromTranslations === 'string') return fromTranslations;
+  return String(menu.content || '');
+}
+
+export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const { searchParams } = new URL(req.url);
+  const { id } = await ctx.params;
+
+  const adminPreviewRequested = parseBoolean(searchParams.get('adminPreview'));
+  const lang = searchParams.get('lang') || 'en';
+  const page = Number(searchParams.get('page') || '0');
+  const maxChars = Number(searchParams.get('maxChars') || '2000');
+
+  let role: 'admin' | 'checker' | null = null;
+  if (adminPreviewRequested) {
+    const session = await getValidatedAdminSession(false);
+    if (!session?.username) {
+      return NextResponse.json({ status: 'error', message: 'Unauthorized.' }, { status: 401 });
+    }
+    const actor = await prisma.adminCredential.findUnique({ where: { username: session.username }, select: { role: true } });
+    role = actor?.role === 'admin' || actor?.role === 'checker' ? actor.role : null;
+    if (!role) {
+      return NextResponse.json({ status: 'error', message: 'Forbidden.' }, { status: 403 });
+    }
+  }
+
+  const menu = await prisma.menuItem.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      responseType: true,
+      isActive: true,
+      approvalStatus: true,
+      content: true,
+      contentAm: true,
+      translations: true,
+      pendingStatus: true,
+      pendingUpdate: true,
+    }
+  });
+
+  if (!menu) {
+    return NextResponse.json({ status: 'error', message: 'Not found.' }, { status: 404 });
+  }
+
+  if (!adminPreviewRequested) {
+    if (menu.isActive === false || (menu.approvalStatus ?? 'approved') !== 'approved') {
+      return NextResponse.json({ status: 'error', message: 'Not found.' }, { status: 404 });
+    }
+  }
+
+  const effective = adminPreviewRequested ? applyPendingUpdate(menu) : menu;
+  const full = getLocalizedContent(effective, lang);
+  const blocks = splitContentBlocks(full);
+  const paged = paginateBlocks(blocks, page, maxChars);
+
+  return NextResponse.json({
+    status: 'success',
+    data: {
+      id: menu.id,
+      responseType: menu.responseType,
+      lang,
+      page: paged.page,
+      totalPages: paged.totalPages,
+      hasMore: paged.hasMore,
+      maxChars: paged.maxChars,
+      totalChars: full.length,
+      content: paged.content,
+    }
+  });
+}
+
 function ensureRootPrefix(path: string, rootKey: string) {
   const clean = String(path || '').trim();
   const rk = String(rootKey || '').trim() || 'data';

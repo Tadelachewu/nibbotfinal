@@ -5,6 +5,16 @@ import { getValidatedAdminSession } from '@/lib/session';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+function parsePageParams(searchParams: URLSearchParams) {
+  const pageRaw = Number(searchParams.get('page') ?? '0');
+  const pageSizeRaw = Number(searchParams.get('pageSize') ?? '100');
+  const page = Number.isFinite(pageRaw) && pageRaw >= 0 ? Math.floor(pageRaw) : 0;
+  const pageSize = Number.isFinite(pageSizeRaw) && pageSizeRaw > 0
+    ? Math.min(Math.floor(pageSizeRaw), 500)
+    : 100;
+  return { page, pageSize, skip: page * pageSize, take: pageSize };
+}
+
 export async function GET(req: Request) {
   const session = await getValidatedAdminSession(true);
   if (!session?.username) {
@@ -22,6 +32,7 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const reportId = searchParams.get('reportId');
+  const { page, pageSize, skip, take } = parsePageParams(searchParams);
 
   // Horizontal RBAC (IDOR): Support users can only see activities for reports assigned to them.
   if (actor.role === 'support' && reportId) {
@@ -34,26 +45,36 @@ export async function GET(req: Request) {
     }
   }
 
-  const activities = await prisma.reportActivity.findMany({
-    where: {
-      AND: [
-        reportId ? { reportId } : {},
-        actor.role === 'support' ? { report: { supportAssignee: session.username } } : {}
-      ]
-    },
-    include: {
-      report: {
-        select: {
-          menuName: true
+  const where: any = {
+    AND: [
+      reportId ? { reportId } : {},
+      actor.role === 'support' ? { report: { supportAssignee: session.username } } : {}
+    ]
+  };
+
+  const [total, activities] = await Promise.all([
+    prisma.reportActivity.count({ where }),
+    prisma.reportActivity.findMany({
+      where,
+      include: {
+        report: {
+          select: {
+            menuName: true
+          }
         }
-      }
-    },
-    orderBy: { timestamp: 'desc' },
-    take: 500
-  });
+      },
+      orderBy: { timestamp: 'desc' },
+      skip,
+      take
+    })
+  ]);
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const hasMore = page + 1 < totalPages;
 
   return NextResponse.json({
     status: 'success',
+    meta: { page, pageSize, total, totalPages, hasMore },
     data: activities.map(a => ({
       id: a.id,
       reportId: a.reportId,

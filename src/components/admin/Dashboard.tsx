@@ -48,7 +48,7 @@ export function Dashboard() {
     const load = async () => {
       const [menusRes, reportsRes, logsRes] = await Promise.all([
         csrfFetch('/api/menus?includeInactive=1', { cache: 'no-store' }),
-        csrfFetch('/api/reports', { cache: 'no-store' }),
+        csrfFetch('/api/reports?pageSize=200', { cache: 'no-store' }),
         csrfFetch('/api/logs?summary=1', { cache: 'no-store' })
       ]);
       const [menusJson, reportsJson, logsJson] = await Promise.all([
@@ -82,9 +82,9 @@ export function Dashboard() {
       if (!active) return;
       const transports =
         typeof window !== 'undefined' &&
-        window.location.protocol === 'https:' &&
-        window.location.hostname !== 'localhost' &&
-        window.location.hostname !== '127.0.0.1'
+          window.location.protocol === 'https:' &&
+          window.location.hostname !== 'localhost' &&
+          window.location.hostname !== '127.0.0.1'
           ? ['polling']
           : ['polling', 'websocket'];
 

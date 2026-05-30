@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -36,6 +36,9 @@ export function UsersManagement() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [meta, setMeta] = useState<{ page: number; pageSize: number; total: number; totalPages: number; hasMore: boolean } | null>(null);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const didInitQueryRef = useRef(false);
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
@@ -66,29 +69,49 @@ export function UsersManagement() {
   const [userToDelete, setUserToDelete] = useState<AdminUser | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [query, setQuery] = useState('');
+  const PAGE_SIZE = 50;
 
-  const loadUsers = useCallback(async (mode: 'initial' | 'refresh') => {
+  const loadUsers = useCallback(async (mode: 'initial' | 'refresh' | 'more', opts?: { page?: number; append?: boolean }) => {
     try {
+      const page = Number.isFinite(opts?.page) && (opts?.page as number) >= 0 ? Math.floor(opts!.page as number) : 0;
+      const append = Boolean(opts?.append);
       if (mode === 'initial') setIsLoading(true);
+      else if (mode === 'more') setIsLoadingMore(true);
       else setIsRefreshing(true);
 
-      const res = await csrfFetch('/api/admin/users', { cache: 'no-store' });
+      const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('pageSize', String(PAGE_SIZE));
+      if (query.trim()) params.set('q', query.trim());
+      const res = await csrfFetch(`/api/admin/users?${params.toString()}`, { cache: 'no-store' });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.success) {
         throw new Error(json?.error || 'Failed to load users.');
       }
-      setUsers(Array.isArray(json.data) ? json.data : []);
+      const next = Array.isArray(json.data) ? json.data : [];
+      const nextMeta = json?.meta && typeof json.meta === 'object' ? json.meta : null;
+      setMeta(nextMeta);
+      setUsers(prev => append ? [...prev, ...next] : next);
     } catch (e: any) {
       toast({ title: 'Error', description: e?.message || 'Could not load users.', variant: 'destructive' });
     } finally {
       if (mode === 'initial') setIsLoading(false);
+      else if (mode === 'more') setIsLoadingMore(false);
       else setIsRefreshing(false);
     }
-  }, [csrfFetch]);
+  }, [csrfFetch, query]);
 
   useEffect(() => {
-    loadUsers('initial');
+    loadUsers('initial', { page: 0, append: false });
   }, [loadUsers]);
+
+  useEffect(() => {
+    if (!didInitQueryRef.current) {
+      didInitQueryRef.current = true;
+      return;
+    }
+    loadUsers('refresh', { page: 0, append: false });
+  }, [query, loadUsers]);
 
   const canCreate =
     form.username.trim().length > 0 &&
@@ -121,7 +144,7 @@ export function UsersManagement() {
       setIsCreateOpen(false);
       setForm({ username: '', email: '', groupName: '', role: 'checker', password: '' });
       setShowCreatePassword(false);
-      await loadUsers('refresh');
+      await loadUsers('refresh', { page: 0, append: false });
     } catch (e: any) {
       toast({ title: 'Error', description: e?.message || 'Could not create user.', variant: 'destructive' });
     } finally {
@@ -174,7 +197,7 @@ export function UsersManagement() {
       toast({ title: 'Updated', description: `User "${json.data?.username || editForm.username.trim()}" updated.` });
       setIsEditOpen(false);
       setEditForm({ id: null, username: '', email: '', groupName: '', role: 'checker', password: '' });
-      await loadUsers('refresh');
+      await loadUsers('refresh', { page: 0, append: false });
     } catch (e: any) {
       toast({ title: 'Error', description: e?.message || 'Could not update user.', variant: 'destructive' });
     } finally {
@@ -182,14 +205,7 @@ export function UsersManagement() {
     }
   };
 
-  const filteredUsers = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return users;
-    return users.filter(u => {
-      const haystack = `${u.username} ${u.email} ${u.groupName || ''}`.toLowerCase();
-      return haystack.includes(q);
-    });
-  }, [users, query]);
+  const filteredUsers = users;
 
   const confirmDelete = async () => {
     if (!userToDelete) return;
@@ -206,7 +222,7 @@ export function UsersManagement() {
       }
       toast({ title: 'Deleted', description: `User "${userToDelete.username}" deleted.` });
       setUserToDelete(null);
-      await loadUsers('refresh');
+      await loadUsers('refresh', { page: 0, append: false });
     } catch (e: any) {
       toast({ title: 'Error', description: e?.message || 'Could not delete user.', variant: 'destructive' });
     } finally {
@@ -220,10 +236,10 @@ export function UsersManagement() {
         <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/10">
           <div className="space-y-1">
             <CardTitle>Admin Users</CardTitle>
-            <div className="text-[11px] text-muted-foreground">{filteredUsers.length} users</div>
+            <div className="text-[11px] text-muted-foreground">{typeof meta?.total === 'number' ? meta.total : filteredUsers.length} users</div>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => loadUsers('refresh')} disabled={isLoading || isRefreshing}>
+            <Button variant="outline" size="sm" onClick={() => loadUsers('refresh', { page: 0, append: false })} disabled={isLoading || isRefreshing}>
               <RefreshCw size={14} className={isRefreshing ? 'mr-2 animate-spin' : 'mr-2'} /> Refresh
             </Button>
             <Button size="sm" onClick={() => setIsCreateOpen(true)}>
@@ -296,6 +312,30 @@ export function UsersManagement() {
                         </TableCell>
                       </TableRow>
                     ))
+                  )}
+                  {meta?.hasMore && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="py-6">
+                        <div className="flex items-center justify-center gap-3">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={isLoadingMore}
+                            onClick={() => loadUsers('more', { page: (meta?.page ?? 0) + 1, append: true })}
+                            className="gap-2"
+                          >
+                            <RefreshCw size={14} className={isLoadingMore ? 'animate-spin' : ''} />
+                            Load more
+                          </Button>
+                          {typeof meta.total === 'number' && (
+                            <span className="text-xs text-muted-foreground">
+                              Showing {filteredUsers.length} of {meta.total}
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
                   )}
                 </TableBody>
               </Table>

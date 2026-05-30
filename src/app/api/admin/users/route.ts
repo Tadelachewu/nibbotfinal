@@ -19,7 +19,17 @@ function normalizeEmail(email: string): string {
   return String(email || '').trim().toLowerCase();
 }
 
-export async function GET() {
+function parsePageParams(searchParams: URLSearchParams) {
+  const pageRaw = Number(searchParams.get('page') ?? '0');
+  const pageSizeRaw = Number(searchParams.get('pageSize') ?? '50');
+  const page = Number.isFinite(pageRaw) && pageRaw >= 0 ? Math.floor(pageRaw) : 0;
+  const pageSize = Number.isFinite(pageSizeRaw) && pageSizeRaw > 0
+    ? Math.min(Math.floor(pageSizeRaw), 200)
+    : 50;
+  return { page, pageSize, skip: page * pageSize, take: pageSize };
+}
+
+export async function GET(req: Request) {
   const session = await getValidatedAdminSession(true);
   if (!session?.username) {
     return NextResponse.json({ success: false, error: 'Unauthorized.' }, { status: 401 });
@@ -30,20 +40,51 @@ export async function GET() {
     return NextResponse.json({ success: false, error: 'Forbidden.' }, { status: 403 });
   }
 
-  const users = await prisma.adminCredential.findMany({
-    select: {
-      id: true,
-      username: true,
-      email: true,
-      groupName: true,
-      role: true,
-      createdAt: true,
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+  const { searchParams } = new URL(req.url);
+  const q = String(searchParams.get('q') ?? '').trim();
+  const roleFilterRaw = String(searchParams.get('role') ?? '').trim();
+  const roleFilter = roleFilterRaw === 'admin' || roleFilterRaw === 'checker' || roleFilterRaw === 'support'
+    ? roleFilterRaw
+    : null;
+  const { page, pageSize, skip, take } = parsePageParams(searchParams);
+
+  const where: any = {
+    ...(roleFilter ? { role: roleFilter } : {}),
+    ...(q
+      ? {
+        OR: [
+          { username: { contains: q, mode: 'insensitive' } },
+          { email: { contains: q, mode: 'insensitive' } },
+          { groupName: { contains: q, mode: 'insensitive' } },
+        ]
+      }
+      : {})
+  };
+
+  const [total, users] = await Promise.all([
+    prisma.adminCredential.count({ where }),
+    prisma.adminCredential.findMany({
+      where,
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        groupName: true,
+        role: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take
+    })
+  ]);
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const hasMore = page + 1 < totalPages;
 
   return NextResponse.json({
     success: true,
+    meta: { page, pageSize, total, totalPages, hasMore },
     data: users.map(u => ({
       id: u.id,
       username: u.username,
