@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { isSameOriginRequest } from './lib/session'
 
 export function proxy(request: NextRequest) {
   const nonce = btoa(crypto.randomUUID())
@@ -8,6 +9,10 @@ export function proxy(request: NextRequest) {
   const origin = request.headers.get('origin')
   const isCorsRequest = Boolean(origin)
 
+  // Determine a safe Access-Control-Allow-Origin value.
+  // Use the shared same-origin check to avoid duplicating allowed-origins logic.
+  const allowedOrigin = isCorsRequest && origin && isSameOriginRequest(request) ? origin : ''
+
   // Allowed origins for frame-ancestors
   const rawAncestors = process.env.ALLOWED_FRAME_ANCESTORS || ''
   const allowedAncestors = rawAncestors.split(/[,\s]+/).filter(Boolean)
@@ -15,10 +20,13 @@ export function proxy(request: NextRequest) {
 
   const connectSrc = [
     "'self'",
-    'https:',
-    'http:',
     'blob:',
     'data:',
+    'https://www.google.com',
+    'https://fonts.gstatic.com',
+    'https://placehold.co',
+    'https://images.unsplash.com',
+    'https://picsum.photos',
     ...(host ? [`ws://${host}`, `wss://${host}`] : []),
     'ws://localhost:9002',
     'ws://localhost:9004',
@@ -31,8 +39,8 @@ export function proxy(request: NextRequest) {
   const styleSrcElem = `'self' 'nonce-${nonce}' 'unsafe-inline' https://fonts.googleapis.com`
 
   const scriptSrc = isProd
-    ? `'self' 'nonce-${nonce}' 'unsafe-eval' 'unsafe-inline'`
-    : `'self' 'nonce-${nonce}' 'unsafe-eval' 'unsafe-inline' 'strict-dynamic'`
+    ? `'self' 'nonce-${nonce}' 'strict-dynamic'`
+    : `'self' 'nonce-${nonce}' 'unsafe-eval' 'strict-dynamic'`
 
   const cspHeader = `
       default-src 'self';
@@ -40,13 +48,13 @@ export function proxy(request: NextRequest) {
       style-src ${styleSrc};
       style-src-elem ${styleSrcElem};
       style-src-attr 'unsafe-inline';
-      img-src 'self' blob: data: https://* http://*;
+      img-src 'self' blob: data: https://placehold.co https://images.unsplash.com https://picsum.photos;
       font-src 'self' data: https://fonts.gstatic.com;
       object-src 'none';
       base-uri 'self';
       form-action 'self';
       frame-ancestors ${frameAncestors};
-      frame-src 'self' https://*;
+      frame-src 'self';
       media-src 'self' blob: data:;
       connect-src ${connectSrc};
       ${isProd ? 'upgrade-insecure-requests;' : ''}
@@ -58,16 +66,12 @@ export function proxy(request: NextRequest) {
   requestHeaders.set('Content-Security-Policy', cspHeader)
 
   const corsHeaders = new Headers()
-  if (isCorsRequest && origin) {
-    // If origin is allowed (for framing or general CORS)
-    corsHeaders.set('Access-Control-Allow-Origin', origin)
+  if (isCorsRequest && allowedOrigin) {
+    corsHeaders.set('Access-Control-Allow-Origin', allowedOrigin)
     corsHeaders.set('Vary', 'Origin')
     corsHeaders.set('Access-Control-Allow-Credentials', 'true')
     corsHeaders.set('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS')
-    corsHeaders.set(
-      'Access-Control-Allow-Headers',
-      request.headers.get('access-control-request-headers') || '*'
-    )
+    corsHeaders.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-CSRF-Token, Accept, X-Requested-With')
     corsHeaders.set('Access-Control-Max-Age', '86400')
   }
 
@@ -119,6 +123,7 @@ export function proxy(request: NextRequest) {
   if (isProd) {
     response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload')
   }
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
 
   return response
 }

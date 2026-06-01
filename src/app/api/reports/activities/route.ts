@@ -31,7 +31,10 @@ export async function GET(req: Request) {
   }
 
   const { searchParams } = new URL(req.url);
-  const reportId = searchParams.get('reportId');
+  const rawReportId = searchParams.get('reportId');
+  const reportId = typeof rawReportId === 'string' && rawReportId.trim() && /^[A-Za-z0-9-]+$/.test(rawReportId.trim())
+    ? rawReportId.trim()
+    : null;
   const { page, pageSize, skip, take } = parsePageParams(searchParams);
 
   // Horizontal RBAC (IDOR): Support users can only see activities for reports assigned to them.

@@ -88,7 +88,10 @@ export function Dashboard() {
           ? ['polling']
           : ['polling', 'websocket'];
 
-      socket = io({ path: '/socket.io', transports });
+      // Prefer websocket-only connections to avoid exposing session ids in query strings
+      const usePolling = String(process.env.NEXT_PUBLIC_ENABLE_POLLING || 'false') === 'true';
+      const chosenTransports = usePolling ? ['polling', 'websocket'] : ['websocket'];
+      socket = io({ path: '/socket.io', transports: chosenTransports });
       socket.on('online_count_updated', (data) => {
         if (data && typeof data.count === 'number') {
           setOnlineNow(data.count);

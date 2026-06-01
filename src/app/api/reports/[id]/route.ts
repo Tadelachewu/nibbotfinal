@@ -6,8 +6,26 @@ import { getValidatedAdminSession, rotateCsrfToken, verifyCsrfToken } from '@/li
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+function normalizeReportId(value: unknown) {
+  if (typeof value !== 'string') return null;
+  const id = value.trim();
+  if (!id || !/^[A-Za-z0-9-]+$/.test(id)) return null;
+  return id;
+}
+
+function normalizeString(value: unknown, maxLength = 1024) {
+  return typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
+}
+
+const validPriorities = new Set(['low', 'medium', 'high', 'urgent']);
+const validStatuses = new Set(['pending', 'reviewed', 'resolved']);
+
 export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) {
-  const { id } = await ctx.params;
+  const params = await ctx.params;
+  const id = normalizeReportId(params.id);
+  if (!id) {
+    return NextResponse.json({ status: 'error', message: 'Invalid report id.' }, { status: 400 });
+  }
   const session = await getValidatedAdminSession(true);
 
   if (!session?.username) {
@@ -90,7 +108,11 @@ export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) 
 }
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
-  const { id } = await ctx.params;
+  const params = await ctx.params;
+  const id = normalizeReportId(params.id);
+  if (!id) {
+    return NextResponse.json({ status: 'error', message: 'Invalid report id.' }, { status: 400 });
+  }
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== 'object') {
     return NextResponse.json({ status: 'error', message: 'Invalid request body.' }, { status: 400 });
@@ -176,7 +198,11 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     return NextResponse.json({ status: 'error', message: 'Forbidden.' }, { status: 403 });
   }
 
-  const { id } = await ctx.params;
+  const params = await ctx.params;
+  const id = normalizeReportId(params.id);
+  if (!id) {
+    return NextResponse.json({ status: 'error', message: 'Invalid report id.' }, { status: 400 });
+  }
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== 'object') {
     return NextResponse.json({ status: 'error', message: 'Invalid request body.' }, { status: 400 });
@@ -194,6 +220,26 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   if (role === 'support' && Object.prototype.hasOwnProperty.call(body, 'priority')) {
     return NextResponse.json({ status: 'error', message: 'Forbidden.' }, { status: 403 });
   }
+
+  const rawStatus = typeof body.status === 'string' ? body.status.trim() : '';
+  const nextStatus = rawStatus ? (validStatuses.has(rawStatus) ? rawStatus : null) : undefined;
+  if (rawStatus && !nextStatus) {
+    return NextResponse.json({ status: 'error', message: 'Invalid report status.' }, { status: 400 });
+  }
+
+  const rawPriority = typeof body.priority === 'string' ? body.priority.trim() : '';
+  const nextPriority = rawPriority ? (validPriorities.has(rawPriority) ? rawPriority : null) : undefined;
+  if (rawPriority && !nextPriority) {
+    return NextResponse.json({ status: 'error', message: 'Invalid report priority.' }, { status: 400 });
+  }
+
+  const nextAdminResponse = typeof body.adminResponse === 'string'
+    ? normalizeString(body.adminResponse, 2000)
+    : undefined;
+
+  const requestedNotes = typeof body.internalNotes === 'string'
+    ? normalizeString(body.internalNotes, 2000)
+    : undefined;
 
   const nextSupportAssignee =
     role === 'admin' && Object.prototype.hasOwnProperty.call(body, 'supportAssignee')
@@ -225,7 +271,6 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   }
 
   const existingNotes = typeof existing.internalNotes === 'string' ? existing.internalNotes : '';
-  const requestedNotes = typeof body.internalNotes === 'string' ? body.internalNotes : undefined;
   let nextInternalNotes = requestedNotes;
 
   if (isSupportAssignmentChange && typeof nextSupportAssignee === 'string') {
@@ -256,20 +301,20 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     });
   }
 
-  if (typeof body.adminResponse === 'string' && body.adminResponse.trim().length > 0) {
+  if (typeof nextAdminResponse === 'string' && nextAdminResponse.length > 0) {
     activitiesToCreate.push({
       type: 'response',
       actor: session.username,
-      content: body.adminResponse.trim()
+      content: nextAdminResponse
     });
   }
 
   const updated = await prisma.userReport.update({
     where: { id },
     data: {
-      status: body.status ?? undefined,
-      priority: body.priority ?? undefined,
-      adminResponse: typeof body.adminResponse === 'string' ? body.adminResponse : undefined,
+      status: nextStatus ?? undefined,
+      priority: nextPriority ?? undefined,
+      adminResponse: typeof nextAdminResponse === 'string' ? nextAdminResponse : undefined,
       internalNotes: typeof nextInternalNotes === 'string' ? nextInternalNotes : undefined,
       supportAssignee: nextSupportAssignee,
       activities: activitiesToCreate.length > 0 ? {
@@ -317,7 +362,11 @@ export async function DELETE(_: Request, ctx: { params: Promise<{ id: string }> 
     return NextResponse.json({ status: 'error', message: 'Forbidden.' }, { status: 403 });
   }
 
-  const { id } = await ctx.params;
+  const params = await ctx.params;
+  const id = normalizeReportId(params.id);
+  if (!id) {
+    return NextResponse.json({ status: 'error', message: 'Invalid report id.' }, { status: 400 });
+  }
   await prisma.userReport.delete({ where: { id } });
   const nextToken = await rotateCsrfToken(session);
   const res = NextResponse.json({ status: 'success' });

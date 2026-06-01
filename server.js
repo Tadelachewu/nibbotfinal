@@ -131,6 +131,44 @@ app.prepare().then(async () => {
     ].join('; ');
   }
 
+  function getAllowedOrigins() {
+    const allowedOrigins = new Set();
+    if (process.env.APP_ORIGIN) {
+      try {
+        allowedOrigins.add(new URL(process.env.APP_ORIGIN).origin);
+      } catch { }
+    }
+    if (process.env.NEXT_PUBLIC_SITE_URL) {
+      try {
+        allowedOrigins.add(new URL(process.env.NEXT_PUBLIC_SITE_URL).origin);
+      } catch { }
+    }
+    String(process.env.ALLOWED_ORIGINS || '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
+      .forEach(o => {
+        try {
+          allowedOrigins.add(new URL(o).origin);
+        } catch {
+          allowedOrigins.add(o);
+        }
+      });
+    // Also support a dedicated env var for Socket.IO allowlist (comma separated)
+    String(process.env.SOCKET_IO_ALLOWED_ORIGINS || '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
+      .forEach(o => {
+        try {
+          allowedOrigins.add(new URL(o).origin);
+        } catch {
+          allowedOrigins.add(o);
+        }
+      });
+    return allowedOrigins;
+  }
+
   // Tidy the directive string. In production we strip any 'unsafe-eval' tokens
   // for defense-in-depth; in development we allow 'unsafe-eval' to enable
   // React/Next dev debugging features (source maps / callstack reconstruction).
@@ -211,6 +249,8 @@ app.prepare().then(async () => {
       const isApiRoute = pathname.startsWith('/api');
       const shouldLimitBody = hasBodyMethod && (isApiRoute || method === 'POST');
       const origin = typeof req.headers.origin === 'string' ? req.headers.origin : '';
+      const allowedOrigins = getAllowedOrigins();
+      const allowedOrigin = origin && allowedOrigins.has(origin) ? origin : '';
       const isDirectoryAccess = pathname !== '/' && pathname.endsWith('/');
       if (isDirectoryAccess) {
         // Explicitly block any directory access that isn't the root to prevent directory listing.
@@ -218,15 +258,15 @@ app.prepare().then(async () => {
         res.end('Not Found');
         return;
       }
-      if (origin) {
-        res.setHeader('Access-Control-Allow-Origin', origin);
+      if (allowedOrigin) {
+        res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
         res.setHeader('Vary', 'Origin');
         res.setHeader('Access-Control-Allow-Credentials', 'true');
         res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-        res.setHeader('Access-Control-Allow-Headers', req.headers['access-control-request-headers'] || '*');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-CSRF-Token, Accept, X-Requested-With');
         res.setHeader('Access-Control-Max-Age', '86400');
       }
-      if (method === 'OPTIONS' && origin) {
+      if (method === 'OPTIONS') {
         res.statusCode = 204;
         res.end();
         return;
@@ -257,12 +297,14 @@ app.prepare().then(async () => {
         }
       }
 
-      // req.headers['content-security-policy'] = cspHeader;
-      // req.headers['x-nonce'] = nonce;
-      // res.setHeader('Content-Security-Policy', cspHeader);
-      // res.setHeader('x-nonce', nonce);
+      const nonce = crypto.randomBytes(16).toString('base64url');
+      const cspHeader = sanitizeCsp(buildContentSecurityPolicy(nonce));
+      req.headers['x-nonce'] = nonce;
+      req.headers['content-security-policy'] = cspHeader;
+      res.setHeader('Content-Security-Policy', cspHeader);
       res.setHeader('X-Frame-Options', 'SAMEORIGIN');
       res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
       if (!dev && isHttpsRequest(req)) {
         res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
       }
@@ -272,8 +314,10 @@ app.prepare().then(async () => {
 
       // req.nonce = nonce;
       if (pathname.startsWith('/_next/static/')) {
-        res.setHeader('Access-Control-Allow-Origin', origin || '*');
-        res.setHeader('Vary', 'Origin');
+        if (allowedOrigin) {
+          res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+          res.setHeader('Vary', 'Origin');
+        }
         // Prevent indexing of internal static assets (defense-in-depth)
         res.setHeader('X-Robots-Tag', 'noindex, nofollow');
       }
@@ -305,10 +349,30 @@ app.prepare().then(async () => {
   const io = new Server(httpServer, {
     cors: {
       origin: (origin, callback) => {
-        return callback(null, true);
+        const allowedOrigins = getAllowedOrigins();
+        if (!origin || allowedOrigins.has(origin)) {
+          return callback(null, true);
+        }
+        // Log rejected origin for debugging in development/testing.
+        try {
+          console.warn('[Socket.IO] CORS origin rejected', { origin, allowedOrigins: Array.from(allowedOrigins) });
+        } catch (e) { }
+        return callback(new Error('Origin not allowed by CORS'));
       },
       methods: ['GET', 'POST'] // Specify allowed methods
     }
+  });
+  // Strip any raw `sid` from the handshake query to reduce exposure in logs.
+  // We do NOT disable polling here; polling remains available for clients that require it.
+  io.use((socket, next) => {
+    try {
+      if (socket.handshake && socket.handshake.query && socket.handshake.query.sid) {
+        try { delete socket.handshake.query.sid; } catch (e) { }
+      }
+    } catch (e) {
+      // ignore
+    }
+    next();
   });
   const applyEngineSecurityHeaders = (headers) => {
     headers['content-security-policy'] = sanitizeCsp(buildContentSecurityPolicy());

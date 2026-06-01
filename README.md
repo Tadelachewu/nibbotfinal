@@ -40,6 +40,13 @@ PORT=9002
 DATABASE_URL=postgresql://user:password@localhost:5432/nibbot?schema=public
 SECRET_COOKIE_PASSWORD=replace-with-a-long-random-secret
 
+# Socket.IO origin allowlist for custom websocket ports or domains
+SOCKET_IO_ALLOWED_ORIGINS=http://localhost:9002
+# App origin used for CORS and static asset access in production
+APP_ORIGIN=http://localhost:9002
+# Public site URL used for client-side URL generation and reset links
+NEXT_PUBLIC_SITE_URL=http://localhost:9002
+
 # Redis configuration (used for Socket.io presence tracking)
 REDIS_URL=redis://localhost:6379
 

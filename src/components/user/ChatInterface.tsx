@@ -355,6 +355,16 @@ export function ChatInterface() {
     }
 
     setUserData(prev => ({ ...prev, id: sessionId }));
+    // Persist sessionId to an httpOnly cookie for same-origin requests so Socket.IO
+    // connections and polling do not need to carry sensitive identifiers in query strings.
+    if (typeof window !== 'undefined' && sessionId) {
+      fetch('/api/session-cookie', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId }),
+        credentials: 'same-origin'
+      }).catch(() => { });
+    }
 
     (async () => {
       const runtime = await fetchRuntimeConfig().catch(() => ({ menus: [] as MenuItem[] }));
@@ -427,15 +437,17 @@ export function ChatInterface() {
     const connect = () => {
       if (!active) return;
 
+      // Prefer websocket-only connections to avoid exposing session ids in query strings
+      // Allow fallback polling only when explicitly enabled via environment flag.
       const transports =
         typeof window !== 'undefined' &&
-          window.location.protocol === 'https:' &&
-          window.location.hostname !== 'localhost' &&
-          window.location.hostname !== '127.0.0.1'
-          ? ['polling']
-          : ['polling', 'websocket'];
+          String(process.env.NEXT_PUBLIC_ENABLE_POLLING || 'false') === 'true'
+          ? ['polling', 'websocket']
+          : ['websocket'];
 
-      socket = io({ path: '/socket.io', transports });
+      // Specify explicit origin and enable credentials so browser handshakes include cookies
+      const socketUrl = typeof window !== 'undefined' ? window.location.origin : undefined;
+      socket = io(socketUrl, { path: '/socket.io', transports, withCredentials: true });
       socket.emit('user_active', { sessionId: userData.id });
       pingInterval = setInterval(() => {
         socket?.emit('user_active', { sessionId: userData.id });
