@@ -18,11 +18,12 @@ export function proxy(request: NextRequest) {
   const allowedAncestors = rawAncestors.split(/[,\s]+/).filter(Boolean)
   const frameAncestors = ["'self'", ...allowedAncestors].join(' ')
 
-  const connectSrc = [
+  // Static/default connect-src entries
+  const staticConnect = [
     "'self'",
     'blob:',
     'data:',
-    'https://calendarific.com',
+
     'https://www.google.com',
     'https://fonts.gstatic.com',
     'https://placehold.co',
@@ -32,8 +33,21 @@ export function proxy(request: NextRequest) {
     'ws://localhost:9002',
     'ws://localhost:3020',
     'ws://127.0.0.1:9002',
-    'https://nibprocure.nibbank.com.et',
-  ].join(' ')
+    'wss://nibterachatboat.nibbank.com.et',
+   
+  ]
+
+  // Additional connect-src entries from environment (comma/space-separated)
+  const extraConnectRaw = process.env.ALLOWED_CONNECT_SRC || ''
+  const extraConnect = extraConnectRaw
+    .split(/[,\s]+/)
+    .map(s => s.trim())
+    .filter(Boolean)
+
+  // Merge and dedupe while preserving order
+  const connectSet = new Set<string>()
+  for (const v of [...staticConnect, ...extraConnect]) connectSet.add(v)
+  const connectSrc = Array.from(connectSet).join(' ')
 
   const styleSrc = `'self' 'nonce-${nonce}' 'unsafe-inline' https://fonts.googleapis.com`
 
