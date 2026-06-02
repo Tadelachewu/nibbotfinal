@@ -103,24 +103,29 @@ export async function getValidatedAdminSession(allowMutations = true): Promise<I
   );
   const currentUserAgent = reqHeaders.get('user-agent') || 'unknown';
   const sessionIp = normalizeIp(session.ip);
+  // Optional binding toggle: set ENABLE_SESSION_BINDING=false to disable strict IP/User-Agent binding.
+  // This can help when legitimate client User-Agent or IP changes are expected (proxy/CDN, preview modes).
+  const enforceBinding = process.env.ENABLE_SESSION_BINDING !== 'false';
 
   // If session was bound to an IP/UA and it changed, invalidate to prevent hijacking
-  if (sessionIp !== 'unknown' && currentIp !== 'unknown' && sessionIp !== currentIp) {
-    console.warn(`[Auth] Session IP mismatch. sessionIp=${session.ip} currentIp=${currentIp} user=${session.username}`);
-    if (allowMutations) {
-      session.destroy();
-      await session.save();
+  if (enforceBinding) {
+    if (sessionIp !== 'unknown' && currentIp !== 'unknown' && sessionIp !== currentIp) {
+      console.warn(`[Auth] Session IP mismatch. sessionIp=${session.ip} currentIp=${currentIp} user=${session.username}`);
+      if (allowMutations) {
+        session.destroy();
+        await session.save();
+      }
+      return null;
     }
-    return null;
-  }
 
-  if (session.userAgent && session.userAgent !== 'unknown' && session.userAgent !== currentUserAgent) {
-    console.warn(`[Auth] Session User-Agent mismatch for user=${session.username}`);
-    if (allowMutations) {
-      session.destroy();
-      await session.save();
+    if (session.userAgent && session.userAgent !== 'unknown' && session.userAgent !== currentUserAgent) {
+      console.warn(`[Auth] Session User-Agent mismatch for user=${session.username}`);
+      if (allowMutations) {
+        session.destroy();
+        await session.save();
+      }
+      return null;
     }
-    return null;
   }
 
   // Concurrent session control: check session version in DB
