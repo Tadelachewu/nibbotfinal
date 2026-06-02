@@ -84,7 +84,7 @@ app.prepare().then(async () => {
       "'self'",
       "https://www.google.com",
       "ws://localhost:9002",
-      "ws://localhost:9004",
+      "wss://nibterachatboat.nibbank.com.et",
       "ws://127.0.0.1:9002",
       "ws://127.0.0.1:9004",
       "ws://localhost:3000",

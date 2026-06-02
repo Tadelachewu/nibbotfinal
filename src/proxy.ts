@@ -31,7 +31,7 @@ export function proxy(request: NextRequest) {
     'ws://localhost:9002',
     'ws://localhost:9004',
     'ws://127.0.0.1:9002',
-    'ws://127.0.0.1:9004',
+    'https://nibprocure.nibbank.com.et',
   ].join(' ')
 
   const styleSrc = `'self' 'nonce-${nonce}' 'unsafe-inline' https://fonts.googleapis.com`
