@@ -33,8 +33,9 @@ export function proxy(request: NextRequest) {
     'ws://localhost:9002',
     'ws://localhost:3020',
     'ws://127.0.0.1:9002',
+    'wss://localhost:3020',
     'wss://nibterachatboat.nibbank.com.et',
-   
+
   ]
 
   // Additional connect-src entries from environment (comma/space-separated)

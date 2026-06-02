@@ -87,7 +87,7 @@ app.prepare().then(async () => {
       "wss://nibterachatboat.nibbank.com.et",
       "ws://127.0.0.1:9002",
       "ws://127.0.0.1:9004",
-      "ws://localhost:3000",
+      "wss://localhost:3020",
       "ws://localhost:3020",
       "ws://127.0.0.1:3000",
       "ws://127.0.0.1:3001"
