@@ -22,6 +22,7 @@ export function proxy(request: NextRequest) {
     "'self'",
     'blob:',
     'data:',
+    'https://calendarific.com',
     'https://www.google.com',
     'https://fonts.gstatic.com',
     'https://placehold.co',
@@ -29,7 +30,7 @@ export function proxy(request: NextRequest) {
     'https://picsum.photos',
     ...(host ? [`ws://${host}`, `wss://${host}`] : []),
     'ws://localhost:9002',
-    'ws://localhost:9004',
+    'ws://localhost:3020',
     'ws://127.0.0.1:9002',
     'https://nibprocure.nibbank.com.et',
   ].join(' ')

@@ -88,7 +88,7 @@ app.prepare().then(async () => {
       "ws://127.0.0.1:9002",
       "ws://127.0.0.1:9004",
       "ws://localhost:3000",
-      "ws://localhost:3001",
+      "ws://localhost:3020",
       "ws://127.0.0.1:3000",
       "ws://127.0.0.1:3001"
     ].join(' ');
