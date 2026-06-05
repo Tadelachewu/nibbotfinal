@@ -336,8 +336,58 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const { id } = await ctx.params;
   const body = await req.json().catch(() => null);
   const action = typeof body?.action === 'string' ? body.action.trim() : '';
-  if (action !== 'approve' && action !== 'reject') {
+  if (action !== 'approve' && action !== 'reject' && action !== 'discard_pending') {
     return NextResponse.json({ status: 'error', message: 'Invalid action.' }, { status: 400 });
+  }
+
+  if (action === 'discard_pending') {
+    const actor = await prisma.adminCredential.findUnique({ where: { username: session.username } });
+    if (!actor || actor.role !== 'admin') {
+      return NextResponse.json({ status: 'error', message: 'Forbidden.' }, { status: 403 });
+    }
+
+    const existing = await prisma.menuItem.findUnique({
+      where: { id },
+      select: { id: true, approvalStatus: true, pendingStatus: true, pendingUpdate: true }
+    });
+    const hasPending = (existing?.pendingStatus === 'pending' || existing?.pendingStatus === 'rejected') &&
+      !!existing?.pendingUpdate &&
+      typeof existing.pendingUpdate === 'object';
+    if (!existing || !hasPending) {
+      return NextResponse.json({ status: 'error', message: 'No pending update to discard.' }, { status: 409 });
+    }
+
+    const reviewedAt = new Date();
+    await prisma.menuItem.update({
+      where: { id },
+      data: {
+        pendingUpdate: Prisma.DbNull,
+        pendingStatus: null,
+        pendingCreatedBy: null,
+        pendingReviewedBy: session.username,
+        pendingReviewedAt: reviewedAt,
+        pendingRejectionReason: null
+      }
+    });
+
+    await logSecurityEvent({
+      actor: session.username ?? 'unknown',
+      action: 'UPDATE_MENU',
+      target: `menu:${id}`,
+      details: { action: 'discard_pending', fieldsChanged: ['pendingUpdate', 'pendingStatus'] },
+      ip: session.ip,
+      userAgent: session.userAgent
+    });
+
+    const updated = await prisma.menuItem.findUnique({
+      where: { id },
+      include: { attachments: true, kycMappings: { include: { kyc: true } } }
+    });
+
+    const nextToken = await rotateCsrfToken(session);
+    const res = NextResponse.json({ status: 'success', data: updated ? buildMenuResponse(updated, true) : null });
+    res.headers.set('x-csrf-token', nextToken);
+    return res;
   }
 
   const actor = await prisma.adminCredential.findUnique({ where: { username: session.username } });

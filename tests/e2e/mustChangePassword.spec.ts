@@ -41,6 +41,7 @@ test('mustChangePassword flow: login -> change password -> re-login', async ({ p
   const oldPassword = 'Admin@1234'
   const newPassword = 'NewAdmin@5678'
   const newUsername = 'admin_updated'
+  const newEmail = 'admin_updated@example.com'
 
   await page.goto(baseURL)
 
@@ -71,15 +72,15 @@ test('mustChangePassword flow: login -> change password -> re-login', async ({ p
   expect(sessionRes.body?.mustChangePassword).toBe(true)
 
   // Test 3: Call change-password endpoint with x-csrf-token header
-  const changeRes = await page.evaluate(async (base, token, oldP, newU, newP) => {
+  const changeRes = await page.evaluate(async (base, token, oldP, newU, newP, email) => {
     const r = await fetch(base + '/api/admin/auth/change-password', {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json', 'x-csrf-token': token },
-      body: JSON.stringify({ currentPassword: oldP, newUsername: newU, newPassword: newP })
+      body: JSON.stringify({ currentPassword: oldP, newUsername: newU, newPassword: newP, email })
     })
     return { status: r.status, body: await r.json().catch(() => null) }
-  }, baseURL, csrfToken, oldPassword, newUsername, newPassword)
+  }, baseURL, csrfToken, oldPassword, newUsername, newPassword, newEmail)
 
   expect(changeRes.status).toBe(200)
   expect(changeRes.body?.success).toBe(true)

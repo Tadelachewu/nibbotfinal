@@ -13,10 +13,11 @@ import { useToast } from '@/hooks/use-toast';
 
 export default function ChangePasswordPage() {
   const router = useRouter();
-  const { isAuthenticated, currentUsername, changeCredentials, mustChangePassword } = useAdminAuth();
+  const { isAuthenticated, currentUsername, currentEmail, changeCredentials, mustChangePassword } = useAdminAuth();
   const { toast } = useToast();
 
   const [currentPassword, setCurrentPassword] = useState('');
+  const [newEmail, setNewEmail] = useState(currentEmail);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [newUsername, setNewUsername] = useState(currentUsername);
@@ -33,6 +34,14 @@ export default function ChangePasswordPage() {
       router.replace('/login');
     }
   }, [isAuthenticated, router]);
+
+  useEffect(() => {
+    setNewUsername(currentUsername);
+  }, [currentUsername]);
+
+  useEffect(() => {
+    setNewEmail(currentEmail);
+  }, [currentEmail]);
 
   // Load logo
   React.useEffect(() => {
@@ -54,6 +63,8 @@ export default function ChangePasswordPage() {
     return { valid: errors.length === 0, errors };
   };
 
+  const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -61,6 +72,16 @@ export default function ChangePasswordPage() {
     // Validation
     if (!currentPassword || !newPassword || !confirmPassword || !newUsername) {
       setError('All fields are required.');
+      return;
+    }
+
+    const emailTrimmed = newEmail.trim();
+    if (mustChangePassword && !emailTrimmed) {
+      setError('Email is required so you can use Forgot Password later.');
+      return;
+    }
+    if (emailTrimmed && !validateEmail(emailTrimmed)) {
+      setError('Please enter a valid email address.');
       return;
     }
 
@@ -81,7 +102,7 @@ export default function ChangePasswordPage() {
     }
 
     setIsLoading(true);
-    const result = await changeCredentials(currentPassword, newUsername, newPassword);
+    const result = await changeCredentials(currentPassword, newUsername, newPassword, emailTrimmed || undefined);
 
     if (result.success) {
       toast({
@@ -188,6 +209,27 @@ export default function ChangePasswordPage() {
               />
             </div>
 
+            {/* Email */}
+            <div className="space-y-2">
+              <Label htmlFor="new-email" className="text-muted-foreground text-sm font-medium">
+                Email {mustChangePassword ? '' : <span className="text-muted-foreground font-normal">(optional)</span>}
+              </Label>
+              <Input
+                id="new-email"
+                type="email"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                placeholder="name@example.com"
+                className="h-11 bg-card/90 border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/20 transition-all"
+                required={mustChangePassword}
+              />
+              {mustChangePassword ? (
+                <p className="text-xs text-muted-foreground">
+                  Use an email you can access. It is required for password recovery.
+                </p>
+              ) : null}
+            </div>
+
             {/* New Password */}
             <div className="space-y-2">
               <Label htmlFor="new-password" className="text-muted-foreground text-sm font-medium">
@@ -250,7 +292,7 @@ export default function ChangePasswordPage() {
             {/* Submit */}
             <Button
               type="submit"
-              disabled={isLoading || !currentPassword || !newPassword || !confirmPassword || !newUsername}
+              disabled={isLoading || !currentPassword || !newPassword || !confirmPassword || !newUsername || (mustChangePassword && !newEmail.trim())}
               className="w-full h-11 bg-gradient-to-r from-[hsl(45,93%,47%)] to-[hsl(40,90%,45%)] hover:from-[hsl(45,93%,52%)] hover:to-[hsl(40,90%,50%)] text-[hsl(25,50%,10%)] font-semibold shadow-lg shadow-[hsl(45,93%,47%)]/20 transition-all duration-200 disabled:opacity-50"
             >
               {isLoading ? (

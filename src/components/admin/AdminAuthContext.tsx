@@ -45,6 +45,7 @@ export function isStrongPassword(password: string): boolean {
 interface AdminAuthContextType {
   isAuthenticated: boolean;
   currentUsername: string;
+  currentEmail: string;
   currentRole: 'admin' | 'checker' | 'support' | '';
   mustChangePassword: boolean;
   csrfFetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
@@ -59,6 +60,7 @@ const AdminAuthContext = createContext<AdminAuthContextType | null>(null);
 export function AdminAuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUsername, setCurrentUsername] = useState('');
+  const [currentEmail, setCurrentEmail] = useState('');
   const [currentRole, setCurrentRole] = useState<'admin' | 'checker' | 'support' | ''>('');
   const [csrfToken, setCsrfToken] = useState('');
   const [mustChangePassword, setMustChangePassword] = useState(false);
@@ -118,12 +120,14 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         if (json?.isAuthenticated) {
           setIsAuthenticated(true);
           setCurrentUsername(typeof json.username === 'string' ? json.username : '');
+          setCurrentEmail(typeof json.email === 'string' ? json.email : '');
           setCurrentRole(json?.role === 'checker' || json?.role === 'admin' || json?.role === 'support' ? json.role : '');
           setCsrfToken(typeof json.csrfToken === 'string' ? json.csrfToken : '');
           setMustChangePassword(json?.mustChangePassword === true);
         } else {
           setIsAuthenticated(false);
           setCurrentUsername('');
+          setCurrentEmail('');
           setCurrentRole('');
           setCsrfToken('');
           setMustChangePassword(false);
@@ -132,6 +136,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         if (!active) return;
         setIsAuthenticated(false);
         setCurrentUsername('');
+        setCurrentEmail('');
         setCurrentRole('');
         setCsrfToken('');
         setMustChangePassword(false);
@@ -185,6 +190,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     await csrfFetch('/api/admin/auth/logout', { method: 'POST' });
     setIsAuthenticated(false);
     setCurrentUsername('');
+    setCurrentEmail('');
     setCurrentRole('');
     setCsrfToken('');
     setMustChangePassword(false);
@@ -214,6 +220,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     const json = await response.json().catch(() => null);
     if (response.ok && json?.success) {
       setCurrentUsername(typeof json.username === 'string' ? json.username : trimmedNewUsername);
+      if (typeof newEmail === 'string' && newEmail.trim()) setCurrentEmail(newEmail.trim());
       return { success: true };
     }
     return { success: false, error: json?.error || 'Failed to change credentials.' };
@@ -225,7 +232,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AdminAuthContext.Provider value={{ isAuthenticated, currentUsername, currentRole, mustChangePassword, csrfFetch, login, logout, changeCredentials }}>
+    <AdminAuthContext.Provider value={{ isAuthenticated, currentUsername, currentEmail, currentRole, mustChangePassword, csrfFetch, login, logout, changeCredentials }}>
       {children}
     </AdminAuthContext.Provider>
   );

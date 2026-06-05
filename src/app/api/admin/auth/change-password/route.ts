@@ -68,6 +68,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false, error: 'Unauthorized.' }, { status: 401 });
   }
 
+  const emailRequired = admin.mustChangePassword === true;
+  if (emailRequired && !newEmail) {
+    return NextResponse.json(
+      { success: false, error: 'Email is required during initial setup so password recovery works.' },
+      { status: 400 }
+    );
+  }
+  if (newEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+    return NextResponse.json({ success: false, error: 'Invalid email address.' }, { status: 400 });
+  }
+
   const ok = await comparePasswords(currentPassword, admin.passwordHash);
   if (!ok) {
     const { count } = await incrementCounter(failuresKey, 15 * 60 * 1000);
