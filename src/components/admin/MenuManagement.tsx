@@ -104,6 +104,8 @@ export function MenuManagement() {
   const [expandedBrowserFolders, setExpandedBrowserFolders] = useState<Set<string>>(new Set(['root']));
   const [editForm, setEditForm] = useState<Partial<MenuItem>>({});
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
+  const [languageToDelete, setLanguageToDelete] = useState<number | null>(null);
+  const [pendingDiscardId, setPendingDiscardId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState<string>('');
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -200,23 +202,7 @@ export function MenuManagement() {
     }
   };
 
-  const getEffectiveMenu = (m: MenuItem): MenuItem => {
-    const hasPending = (m.pendingStatus === 'pending' || m.pendingStatus === 'rejected') && m.pendingUpdate && typeof m.pendingUpdate === 'object';
-    if (!hasPending) return m;
-    const update = m.pendingUpdate as any;
-    const merged = { ...m };
-    if ('name' in update) merged.name = update.name;
-    if ('nameAm' in update) merged.nameAm = update.nameAm;
-    if ('responseType' in update) merged.responseType = update.responseType;
-    if ('content' in update) merged.content = update.content;
-    if ('contentAm' in update) merged.contentAm = update.contentAm;
-    if ('supportAssignee' in update) merged.supportAssignee = update.supportAssignee;
-    if ('order' in update) merged.order = update.order;
-    if ('isActive' in update) merged.isActive = update.isActive;
-    if ('trackClicks' in update) merged.trackClicks = update.trackClicks;
-    if ('parentId' in update) merged.parentId = update.parentId;
-    return merged;
-  };
+  const getEffectiveMenu = (m: MenuItem): MenuItem => m;
 
   const normalizeSiblings = (parentId: string | null) => {
     return menus
@@ -488,8 +474,32 @@ export function MenuManagement() {
       toast({ title: "Error", description: "Cannot remove default language.", variant: "destructive" });
       return;
     }
-    const newLangs = settings.supportedLanguages.filter((_, i) => i !== index);
-    setSettings({ ...settings, supportedLanguages: newLangs });
+    setLanguageToDelete(index);
+  };
+
+  const discardRejectedPendingUpdate = async (id: string) => {
+    try {
+      const res = await csrfFetch(`/api/menus/${encodeURIComponent(id)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'discard_pending' })
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || json?.status === 'error') {
+        throw new Error(json?.message || 'Failed to discard pending update.');
+      }
+      const listRes = await csrfFetch('/api/menus?includeInactive=1', { cache: 'no-store' });
+      const listJson = await listRes.json().catch(() => null);
+      const list = Array.isArray(listJson?.data) ? listJson.data : [];
+      setMenus(list);
+      const updated = list.find((m: any) => m?.id === id) as MenuItem | undefined;
+      if (updated) {
+        setEditForm(JSON.parse(JSON.stringify(updated)));
+      }
+      toast({ title: "Restored", description: "Rejected pending update discarded. Live version restored." });
+    } catch (e) {
+      toast({ title: "Error", description: e instanceof Error ? e.message : "Failed to discard pending update.", variant: "destructive" });
+    }
   };
 
   const testApi = async () => {
@@ -762,10 +772,10 @@ export function MenuManagement() {
                   {activeDraftIds.includes(item.id) && (
                     <>
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-500" onClick={() => handleStartEdit(originalItem)} title="Resume Draft">
-                         <FileCode size={14} />
+                        <FileCode size={14} />
                       </Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => discardDraft(item.id)} title="Discard Draft">
-                         <X size={14} />
+                        <X size={14} />
                       </Button>
                     </>
                   )}
@@ -908,6 +918,18 @@ export function MenuManagement() {
                         <div className="text-xs text-destructive/90 bg-card/50 p-3 rounded-lg border border-destructive/10 leading-relaxed">
                           <strong>Reason:</strong> {reason}
                         </div>
+                        {isUpdateRejected && editingId ? (
+                          <div className="pt-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="border-destructive/30 text-destructive hover:bg-destructive/5"
+                              onClick={() => setPendingDiscardId(editingId)}
+                            >
+                              Restore Live Version
+                            </Button>
+                          </div>
+                        ) : null}
                         <div className="text-[10px] text-muted-foreground pt-1 italic font-medium">
                           Review the reason above, make changes, and save to resubmit for approval.
                         </div>
@@ -2181,6 +2203,61 @@ export function MenuManagement() {
         </AlertDialogContent>
       </AlertDialog>
 
+      <AlertDialog open={languageToDelete !== null} onOpenChange={(open) => { if (!open) setLanguageToDelete(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Language</AlertDialogTitle>
+            <AlertDialogDescription>This will remove the language from supported languages. Continue?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setLanguageToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive"
+              onClick={() => {
+                const idx = languageToDelete;
+                if (idx === null) return;
+                const lang = settings.supportedLanguages[idx];
+                if (lang?.isDefault) {
+                  toast({ title: "Error", description: "Cannot remove default language.", variant: "destructive" });
+                  setLanguageToDelete(null);
+                  return;
+                }
+                const newLangs = settings.supportedLanguages.filter((_, i) => i !== idx);
+                setSettings({ ...settings, supportedLanguages: newLangs });
+                setLanguageToDelete(null);
+              }}
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!pendingDiscardId} onOpenChange={(open) => { if (!open) setPendingDiscardId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restore Live Version</AlertDialogTitle>
+            <AlertDialogDescription>Discard the rejected pending update and keep the current live version unchanged?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingDiscardId(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive"
+              onClick={() => {
+                const id = pendingDiscardId;
+                if (!id) return;
+                (async () => {
+                  await discardRejectedPendingUpdate(id);
+                  setPendingDiscardId(null);
+                })();
+              }}
+            >
+              Restore
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={!!rejectingId} onOpenChange={() => { setRejectingId(null); setRejectReason(''); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -2226,6 +2303,7 @@ export function CheckerMenuReview() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<MenuItem | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState<string>('');
 
@@ -2275,6 +2353,47 @@ export function CheckerMenuReview() {
     )
     .map(m => previewById.get(m.id) || m);
   const isChecker = currentRole === 'checker';
+
+  const formatDiffValue = (v: any) => {
+    if (v === null || v === undefined) return '';
+    if (typeof v === 'string') return v;
+    if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+    try {
+      return JSON.stringify(v, null, 2);
+    } catch {
+      return String(v);
+    }
+  };
+
+  const computePendingDiff = (base: MenuItem, update: any) => {
+    const rows: Array<{ key: string; oldValue: string; newValue: string }> = [];
+    const u = update && typeof update === 'object' ? update : {};
+    const keys = [
+      'parentId',
+      'name',
+      'nameAm',
+      'responseType',
+      'content',
+      'contentAm',
+      'apiConfig',
+      'supportAssignee',
+      'order',
+      'isActive',
+      'trackClicks',
+      'translations',
+      'attachedMenuIds',
+      'attachmentDescription'
+    ];
+    for (const k of keys) {
+      if (!Object.prototype.hasOwnProperty.call(u, k)) continue;
+      const oldVal = (base as any)[k];
+      const newVal = (u as any)[k];
+      const oldStr = formatDiffValue(oldVal);
+      const newStr = formatDiffValue(newVal);
+      if (oldStr !== newStr) rows.push({ key: k, oldValue: oldStr, newValue: newStr });
+    }
+    return rows;
+  };
 
   function mergeMenuWithUpdate(menu: MenuItem, update: any) {
     const merged: any = { ...(menu as any), ...(update || {}) };
@@ -2950,7 +3069,7 @@ export function CheckerMenuReview() {
                         <Button
                           size="sm"
                           className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white"
-                          onClick={() => handleApprove(m.id)}
+                          onClick={() => setApprovingId(m.id)}
                           disabled={!isChecker || (m.approvalStatus === 'pending' ? m.createdBy === currentUsername : m.pendingCreatedBy === currentUsername)}
                         >
                           Approve
@@ -3034,11 +3153,47 @@ export function CheckerMenuReview() {
                     ) : null}
 
                     {hasPendingUpdate && pendingView ? (
-                      <Tabs defaultValue="pending" className="w-full">
-                        <TabsList className="grid grid-cols-2 w-full bg-muted/20 p-1 border shadow-sm">
+                      <Tabs defaultValue="diff" className="w-full">
+                        <TabsList className="grid grid-cols-3 w-full bg-muted/20 p-1 border shadow-sm">
+                          <TabsTrigger value="diff" className="text-xs">Diff</TabsTrigger>
                           <TabsTrigger value="pending" className="text-xs">Pending Edit</TabsTrigger>
                           <TabsTrigger value="live" className="text-xs">Current Live</TabsTrigger>
                         </TabsList>
+                        <TabsContent value="diff" className="m-0 border-none p-0 outline-none mt-4">
+                          <div className="space-y-3">
+                            {(() => {
+                              const diff = computePendingDiff(selected, selected.pendingUpdate);
+                              if (diff.length === 0) {
+                                return (
+                                  <div className="text-sm text-muted-foreground">
+                                    No differences detected.
+                                  </div>
+                                );
+                              }
+                              return (
+                                <div className="space-y-3">
+                                  {diff.map((row) => (
+                                    <div key={row.key} className="border rounded-lg bg-card overflow-hidden">
+                                      <div className="px-3 py-2 border-b bg-muted/20 text-[11px] font-bold uppercase text-muted-foreground">
+                                        {row.key}
+                                      </div>
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
+                                        <div className="p-3 border-b md:border-b-0 md:border-r">
+                                          <div className="text-[10px] uppercase font-bold text-muted-foreground mb-2">Previous</div>
+                                          <pre className="text-[11px] whitespace-pre-wrap break-words font-mono">{row.oldValue || '-'}</pre>
+                                        </div>
+                                        <div className="p-3">
+                                          <div className="text-[10px] uppercase font-bold text-muted-foreground mb-2">Updated</div>
+                                          <pre className="text-[11px] whitespace-pre-wrap break-words font-mono">{row.newValue || '-'}</pre>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </TabsContent>
                         <TabsContent value="pending" className="m-0 border-none p-0 outline-none mt-4">
                           {renderReadonlyMenuForm(pendingView)}
                         </TabsContent>
@@ -3091,6 +3246,31 @@ export function CheckerMenuReview() {
               }}
             >
               Reject
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!approvingId} onOpenChange={(open) => { if (!open) setApprovingId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Approve Menu</AlertDialogTitle>
+            <AlertDialogDescription>Approve this menu or pending update? This action will apply the pending update to the live menu.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setApprovingId(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-emerald-600 hover:bg-emerald-700"
+              onClick={() => {
+                const id = approvingId;
+                if (!id) return;
+                (async () => {
+                  await handleApprove(id);
+                  setApprovingId(null);
+                })();
+              }}
+            >
+              Approve
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
