@@ -43,7 +43,8 @@ import {
   Fingerprint,
   Calendar,
   UserCircle,
-  Info
+  Info,
+  X
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -91,6 +92,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { usePerMenuDrafts } from '@/hooks/usePerMenuDrafts';
 
 export function MenuManagement() {
   const { csrfFetch, currentRole, currentUsername } = useAdminAuth();
@@ -107,6 +109,8 @@ export function MenuManagement() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const { activeDraftIds, getDraft, discardDraft } = usePerMenuDrafts(editingId, editForm, isEditDialogOpen);
 
   const [activeLangTab, setActiveLangTab] = useState<string>('en');
   const [apiPreviewResult, setApiPreviewResult] = useState<any>(null);
@@ -356,6 +360,14 @@ export function MenuManagement() {
     setApiPreviewResult(null);
     setSentHeaders(null);
     setSentBody(null);
+
+    const draft = getDraft(menu.id);
+    if (draft) {
+      setEditForm(draft);
+      setIsEditDialogOpen(true);
+      return;
+    }
+
     const cloned = JSON.parse(JSON.stringify(menu));
     const hasPending = (menu.pendingStatus === 'pending' || menu.pendingStatus === 'rejected') && menu.pendingUpdate && typeof menu.pendingUpdate === 'object';
     const merged = hasPending ? { ...cloned, ...(menu.pendingUpdate as any) } : cloned;
@@ -389,6 +401,7 @@ export function MenuManagement() {
         if (!res.ok || json?.status === 'error') {
           throw new Error(json?.message || 'Failed to save menu.');
         }
+        discardDraft(editingId);
         setIsEditDialogOpen(false);
         setEditingId(null);
         refresh();
@@ -744,6 +757,16 @@ export function MenuManagement() {
                           </Popover>
                         )}
                       </div>
+                    </>
+                  )}
+                  {activeDraftIds.includes(item.id) && (
+                    <>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-500" onClick={() => handleStartEdit(originalItem)} title="Resume Draft">
+                         <FileCode size={14} />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => discardDraft(item.id)} title="Discard Draft">
+                         <X size={14} />
+                      </Button>
                     </>
                   )}
                   <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => handleAdd(item.id)} title="Add Sub-menu"><FolderPlus size={14} /></Button>

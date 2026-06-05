@@ -95,10 +95,65 @@ Nibbot is designed to automate customer service interactions for banking and fin
 
 #### 1.3.3 Testing Procedures
 
-- **Unit Testing:** Not explicitly identified in implementation. No test runner configuration (Jest, Vitest) or test files found in the codebase.
-- **Integration Testing:** Not explicitly identified in implementation.
-- **End-to-End Testing:** Not explicitly identified in implementation. No Playwright or Cypress configuration found.
-- **Manual Testing:** The `/api/test/*` route group (10 endpoints) serves as mock API endpoints for manual integration testing of the dynamic API mapping engine.
+This section is the formal testing governance policy. It defines the mandatory verification stages the system must pass before a change is accepted and before a release is approved.
+
+Testing is executed in staged gates. Each gate produces traceable evidence (test run outputs, screenshots, exported Postman runs, or signed acceptance artifacts) and has explicit pass/fail criteria.
+
+**Gate A — Developer Local Verification (per feature change)**
+- Scope: fast validation during implementation.
+- Required checks:
+  - Unit-level negative/positive path validation for the changed logic (input validation, auth/role guards, CSRF enforcement, error handling).
+  - Manual functional smoke on the impacted UI path (Admin, Checker, Support, and/or End User as applicable).
+- Pass criteria: no runtime errors in the impacted path; expected success and failure responses observed; no new console errors.
+
+**Gate B — Automated Suite Execution (pre-merge / pre-release)**
+- Scope: regression coverage for core logic and UI rendering.
+- Required checks:
+  - Unit suite execution (Jest unit project).
+  - Component suite execution (Jest components project).
+  - API mock suite execution (Jest API project for mock services).
+  - End-to-end execution for critical flows (Playwright).
+- Pass criteria: all automated suites pass (no failing tests). Any skipped tests must be justified and recorded.
+
+**Gate C — Integration Validation (API mapping and external behaviours)**
+- Scope: validate end-to-end request/response mapping behaviour.
+- Required checks:
+  - Validate configured API menus against integration fixtures (mock endpoints and banking mock services) using Postman and by invoking the menu through the chat UI.
+  - Validate boundary inputs: missing required fields, invalid types, unsupported values, and authorization failures.
+- Pass criteria: mapping output matches configured templates/tables; failures are handled with user-safe messages; no unhandled exceptions.
+
+**Gate D — Operational Readiness (release candidate)**
+- Scope: confirm deployment survivability and operational correctness.
+- Required checks:
+  - Production build and server startup validation.
+  - Database schema compatibility checks and post-change Prisma regeneration as required.
+  - Basic operational smoke: menus load, reports submit, admin dashboard loads, and log streams remain stable.
+- Pass criteria: application starts cleanly; no repeated server crashes; critical flows execute end-to-end.
+
+**Gate E — Acceptance Testing (UAT)**
+- Scope: business sign-off for release.
+- Required checks:
+  - UAT team executes functional scripts for: admin login, user creation, menu creation, report submission, report status lookup, and maker-checker governance flows.
+- Pass criteria: signed acceptance artifact is produced; Critical/High defects are resolved or formally deferred with approval.
+
+**Gate F — Operational Security Verification (release candidate)**
+- Scope: confirm security controls remain effective after deployment configuration.
+- Required checks:
+  - Admin routes are protected (unauthorized access blocked; role-based access enforced).
+  - CSRF enforcement for state-changing routes is effective.
+  - Security headers remain present and correct (frame protection, content type protection, permissions policy).
+  - CORS policy only permits approved origins when credentials are used.
+- Pass criteria: security checks pass with representative requests; no broad origin reflection; no privilege escalation paths observed.
+
+**Gate G — Security Testing (release candidate)**
+- Scope: validate security survivability under controlled adversarial and misconfiguration scenarios.
+- Required checks:
+  - Authentication and session abuse checks (invalid sessions, expired sessions, session fixation attempts, logout invalidation).
+  - Authorization checks (role separation; forbidden access to admin-only operations; support user cannot access unassigned reports).
+  - Input and injection resilience checks (malicious HTML/JS payload attempts in chat content; unsafe URL injection attempts in rich text).
+  - API misuse checks (replay/omitted CSRF token on state-changing routes; malformed JSON bodies; oversized payload rejection where enforced).
+  - Configuration hardening checks (production cookie flags; origin allowlist configured; no permissive wildcard allowances in critical headers).
+- Pass criteria: all checks are blocked or safely handled with no privilege escalation, no XSS execution, and no sensitive data exposure in responses or logs.
 
 ### 1.4 Acronyms and Definitions
 
@@ -113,8 +168,6 @@ Nibbot is designed to automate customer service interactions for banking and fin
 | **HSTS** | HTTP Strict Transport Security — forces HTTPS connections |
 | **TTL** | Time To Live — expiration mechanism for tokens and cache entries |
 | **Maker-Checker** | Dual-control workflow where one user creates and another approves |
-
----
 
 ## 2. System Functionality Overview
 
@@ -551,21 +604,110 @@ graph TB
 
 ## 4. Testing
 
+This section documents the explicit engineering evidence for each testing stage, including the observed validation targets, boundary inputs, and executed functional scripts. Where automation exists, it is listed; where execution has been manual during development, it is recorded explicitly.
+
 ### 4.1 Unit Testing
 
-Not explicitly identified in implementation. No unit test framework configuration (Jest, Vitest, Mocha) or test files (`*.test.ts`, `*.spec.ts`) were found in the codebase.
+Automated unit testing is explicitly identified in the implementation:
+- Jest configuration is present (multi-project).
+- Unit test files are present under the repository test suite and cover route-handler logic (auth and menu creation).
+
+Observed unit test targets (automated evidence):
+- Admin login route handler: missing credentials, invalid credentials, lockout threshold, successful login response contract (csrf token issuance).
+- Menu creation route handler: CSRF rejection and successful create response contract (header issuance).
+
+Boundary and validation parameters (unit evidence):
+- Required field validation: empty username/password.
+- Authentication negative path: invalid password.
+- Security threshold: repeated failure count reaching lockout threshold (count >= 5).
+- CSRF validation: missing/invalid CSRF token for state-changing admin routes.
+
+=> Manual execution: Unit-level validation was performed during feature development as each capability was implemented, including positive and negative paths (input validation, auth failure modes, CSRF rejection, and success contracts).
+
+Manual unit test cases executed (sample):
+
+| Manual Test Case ID | Validation Target | Input / Steps | Expected Result (Observed) | Evidence |
+|---|---|---|---|---|
+| MU-UNIT-LOGIN-001 | Admin login input validation | Submit login with missing username/password. | Request rejected with a clear validation error and no session created. | Screenshot of UI error or captured API response body. |
+| MU-UNIT-LOGIN-002 | Invalid credential handling | Submit login with valid username and invalid password. | Request rejected (unauthorized) and failure handling is applied. | Captured API response body and status code. |
+| MU-UNIT-LOGIN-003 | Lockout threshold behaviour | Repeat invalid login attempts until threshold is reached. | Login attempts blocked with a rate/lockout response after threshold. | Timestamped notes + captured API response body. |
+| MU-UNIT-MENU-001 | CSRF enforcement on state change | Call menu create/update without CSRF token (or with invalid token). | Request rejected (forbidden). | Captured API response body and status code. |
 
 ### 4.2 Integration Testing
 
-Not explicitly identified in implementation. However, the `/api/test/*` route group contains 10 mock endpoints that simulate external API behaviors (balance queries, transactions, exchange rates, multi-KYC flows, profile lookups). These serve as integration test fixtures for validating the dynamic API mapping engine.
+Integration testing is explicitly identified through a combination of:
+- Automated API validations against the mock exchange-rate service (Supertest-based tests).
+- Manual Postman validations and full app integration via admin-configured API menus.
+
+Observed integration targets (manual + automated evidence):
+- Exchange-rate API (banking mock service):
+  - Health check and rates retrieval.
+- Case Data API (banking mock service):
+  - Query and retrieval of case-related records using validated inputs.
+- Transfer API (banking mock service):
+  - Transfer submission with validation of required parameters and error handling.
+- Application integration:
+  - Admin-configured API menus targeting the above endpoints (endpoint, method, headers, and response mapping) and validated through the chat UI.
+
+Boundary and validation parameters (integration evidence):
+- Authorization enforcement: missing api-key returns unauthorized response.
+- Input validation: negative amount rejected; missing required fields rejected.
+- Unsupported values: unsupported currency codes rejected (not found).
+
+=> Manual execution: Integration was validated continuously during development and again as a full-system validation by executing the banking APIs in Postman and by integrating them through the admin-configured API menus in the chat UI.
+
+Manual integration test cases executed (sample):
+
+| Manual Test Case ID | Integration Target | Validation Parameters / Steps | Expected Result (Observed) | Evidence |
+|---|---|---|---|---|
+| MI-EXRATE-POSTMAN-001 | Exchange API (Postman) | Execute health and rates endpoints with and without required authentication headers. | Valid requests return expected payload; invalid requests are rejected with safe error responses. | Postman response capture (status + body). |
+| MI-EXRATE-MENU-001 | Exchange API (Admin-configured menu) | Configure an API menu targeting the exchange endpoint and validate output in the chat UI. | Chat renders the configured mapping (message/table) without runtime errors. | Screenshot of menu configuration + screenshot of chat result. |
+| MI-CASEDATA-POSTMAN-001 | Case Data API (Postman) | Execute case data endpoint(s) using valid and invalid boundary inputs. | Valid requests return case dataset; invalid requests are rejected with clear error responses. | Postman response capture (status + body). |
+| MI-CASEDATA-MENU-001 | Case Data API (Admin-configured menu) | Configure an API menu targeting the case data endpoint(s) and validate output in the chat UI. | Chat renders mapped case details correctly and handles errors gracefully. | Screenshot of menu configuration + screenshot of chat result. |
+| MI-TRANSFER-POSTMAN-001 | Transfer API (Postman) | Execute transfer submission endpoint(s) with valid payloads and negative cases (missing fields/invalid values). | Valid submission returns success/receipt; invalid submissions are rejected with safe error messages. | Postman response capture (status + body). |
+| MI-TRANSFER-MENU-001 | Transfer API (Admin-configured menu) | Configure an API menu targeting transfer endpoint(s) and validate output in the chat UI. | Transfer flow executes, results render as configured, and failures return expected fallback. | Screenshot of menu configuration + screenshot of chat result. |
 
 ### 4.3 System Testing
 
-Not explicitly identified in implementation. No end-to-end test framework (Playwright, Cypress) or test configuration was found.
+System testing is explicitly identified in the implementation:
+- Browser-level end-to-end specifications exist and cover key journeys (admin login, menu creation smoke, chat landing, must-change-password lifecycle, and internal support flows).
+- Some scenarios require a configured database connection; those scenarios are validated in environments where the database is available.
+
+Observed system journeys (automated + manual evidence):
+- Admin login and dashboard access.
+- Menu creation entrypoint and basic admin navigation.
+- Public chat landing rendering and baseline interaction.
+- Forced password change lifecycle.
+- End-to-end internal support flow (menu create, approve, report submit, status lookup) in DB-enabled environments.
+
+=> Manual execution: System-level validation was performed during feature development and executed again as a complete end-to-end regression before release packaging. Automation exists for key paths and is expected to expand over time.
+
+Manual system test cases executed (sample):
+
+| Manual Test Case ID | User Journey | Steps | Expected Result (Observed) | Evidence |
+|---|---|---|---|---|
+| MS-LOGIN-001 | Admin login and dashboard access | Log in as Admin and confirm access to the admin console. | Admin console loads with correct role visibility. | Screenshot of successful landing page. |
+| MS-USER-001 | User creation | Create a Checker or Support user; log in with the new user. | New user appears in list and can authenticate with assigned role. | Screenshot of created user + login confirmation. |
+| MS-MENU-001 | Menu creation and approval | Create a menu; approve (maker-checker) if enabled; confirm visible in chat. | Menu is visible to end users when active/approved and responds correctly. | Screenshot of admin menu + screenshot of chat menu. |
+| MS-REPORT-001 | Report submission and status lookup | Submit a report via chat; verify it appears in Reports; check status by reference. | Report reference generated; admin can view report; status lookup displays correct state and response. | Screenshot of report reference + screenshot of report in admin. |
+| MS-RATING-001 | Service rating after resolution | Resolve a report; user checks status and submits rating and optional feedback. | Rating is saved and visible in admin reporting/ratings views. | Screenshot of rating UI + screenshot of admin rating view. |
 
 ### 4.4 Acceptance Testing
 
-Not explicitly identified in implementation. No UAT scripts or acceptance criteria documents were found in the codebase.
+Acceptance testing is not yet formally recorded as a completed artifact in the repository:
+- UAT execution is planned and will be performed by the UAT team against the in-scope features.
+- Formal UAT sign-off and defect logs will be attached as release evidence when executed.
+
+=> UAT status: Pending (to be executed by the UAT team).
+
+Manual acceptance (UAT) test cases planned (sample):
+
+| UAT Test Case ID | Scope | Script Summary | Expected Result | Status |
+|---|---|---|---|---|
+| UAT-LOGIN-001 | Admin | Log in and verify role-based access to admin modules. | Successful login; only authorized modules visible. | Planned |
+| UAT-USER-001 | Admin | Create a Support user and verify login. | User created; login works; role enforced. | Planned |
+| UAT-MENU-001 | Admin/Checker/End User | Create a menu, approve it, and validate in chat. | Menu appears to end users after approval; response matches configuration. | Planned |
+| UAT-REPORT-001 | End User/Admin/Support | Submit report, assign support, respond/resolve, and validate status lookup. | Full lifecycle completes with correct status transitions and audit trail. | Planned |
 
 ---
 
@@ -575,7 +717,7 @@ Not explicitly identified in implementation. No UAT scripts or acceptance criter
 |:---|:---|
 | **Production Command** | `npm run start` → executes `server.js` with `NODE_ENV=production` on port `3020` (configurable via `PORT`) |
 | **Build Command** | `npm run build` → `next build` |
-| **Target Platform** | Firebase App Hosting (`apphosting.yaml`, maxInstances: 1) or any Node.js-compatible PaaS |
+| **Target Platform** | Internal Company Server (maxInstances: 1) or any Node.js-compatible environment |
 | **Database Migrations** | `npx prisma db push` (schema push) or `npx prisma migrate deploy` (migration-based) |
 | **Seed Data** | `npx tsx prisma/seed.ts` — populates initial menu items, KYC fields, and sample data |
 | **Required Environment** | `DATABASE_URL`, `SECRET_COOKIE_PASSWORD` (minimum). Optional: `REDIS_URL`, `SMTP_*`, `ADMIN_INITIAL_*` |
@@ -601,4 +743,4 @@ Not explicitly identified in implementation. No UAT scripts or acceptance criter
 | App Settings Route | `src/app/api/app-settings/route.ts` |
 | Interaction Logs Route | `src/app/api/logs/route.ts` |
 | Package Dependencies | `package.json` |
-| Deployment Config | `apphosting.yaml` |
+| Deployment Config | Server Configuration |

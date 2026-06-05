@@ -5,7 +5,7 @@ import { isSameOriginRequest } from './lib/session'
 export function proxy(request: NextRequest) {
   const nonce = btoa(crypto.randomUUID())
   const host = request.headers.get('host') || request.nextUrl.host
-  const isProd = process.env.NODE_ENV === 'production'
+  const isProd = process.env.NODE_ENV === 'production' && !host?.includes('localhost') && !host?.includes('127.0.0.1')
   const origin = request.headers.get('origin')
   const isCorsRequest = Boolean(origin)
 
@@ -52,7 +52,7 @@ export function proxy(request: NextRequest) {
 
   const styleSrc = `'self' 'nonce-${nonce}' 'unsafe-inline' https://fonts.googleapis.com`
 
-  const styleSrcElem = `'self' 'nonce-${nonce}' 'unsafe-inline' https://fonts.googleapis.com`
+  const styleSrcElem = `'self' 'unsafe-inline' https://fonts.googleapis.com`
 
   const scriptSrc = isProd
     ? `'self' 'nonce-${nonce}' 'strict-dynamic'`
