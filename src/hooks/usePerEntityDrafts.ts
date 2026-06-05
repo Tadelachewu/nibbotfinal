@@ -1,26 +1,28 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { MenuItem } from '@/lib/types';
 
-const DRAFT_PREFIX = 'nibbot_menu_draft_';
 const AUTOSAVE_DEBOUNCE_MS = 500;
 
-export function usePerMenuDrafts(
+export function usePerEntityDrafts<TData>(
+  entityPrefix: string,
   editingId: string | null,
-  editForm: Partial<MenuItem>,
+  editForm: TData,
   isEditorOpen: boolean
 ) {
   const [activeDraftIds, setActiveDraftIds] = useState<Set<string>>(new Set());
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const previousEditFormRef = useRef<Partial<MenuItem>>({});
+  const previousEditFormRef = useRef<TData | null>(null);
+
+  const getPrefix = useCallback(() => `nibbot_${entityPrefix}_draft_`, [entityPrefix]);
 
   // Scan local storage for active drafts
   const scanDrafts = useCallback(() => {
     try {
       const keys = Object.keys(localStorage);
       const draftIds = new Set<string>();
+      const prefix = getPrefix();
       for (const key of keys) {
-        if (key.startsWith(DRAFT_PREFIX)) {
-          const id = key.replace(DRAFT_PREFIX, '');
+        if (key.startsWith(prefix)) {
+          const id = key.replace(prefix, '');
           if (id) draftIds.add(id);
         }
       }
@@ -28,19 +30,19 @@ export function usePerMenuDrafts(
     } catch (e) {
       console.warn('Failed to access localStorage', e);
     }
-  }, []);
+  }, [getPrefix]);
 
   useEffect(() => {
     scanDrafts();
     // Listen for cross-tab updates
     const handleStorage = (e: StorageEvent) => {
-      if (e.key?.startsWith(DRAFT_PREFIX) || e.key === null) {
+      if (e.key?.startsWith(getPrefix()) || e.key === null) {
         scanDrafts();
       }
     };
     window.addEventListener('storage', handleStorage);
     return () => window.removeEventListener('storage', handleStorage);
-  }, [scanDrafts]);
+  }, [scanDrafts, getPrefix]);
 
   // Auto-save logic
   useEffect(() => {
@@ -48,7 +50,7 @@ export function usePerMenuDrafts(
 
     // Check if form actually changed
     const currentStr = JSON.stringify(editForm);
-    const prevStr = JSON.stringify(previousEditFormRef.current);
+    const prevStr = previousEditFormRef.current ? JSON.stringify(previousEditFormRef.current) : null;
     if (currentStr === prevStr) return;
 
     previousEditFormRef.current = JSON.parse(currentStr);
@@ -59,7 +61,7 @@ export function usePerMenuDrafts(
 
     debounceTimerRef.current = setTimeout(() => {
       try {
-        localStorage.setItem(`${DRAFT_PREFIX}${editingId}`, currentStr);
+        localStorage.setItem(`${getPrefix()}${editingId}`, currentStr);
         // Force state update of active draft IDs so UI reflects it immediately
         setActiveDraftIds(prev => {
           const next = new Set(prev);
@@ -74,22 +76,22 @@ export function usePerMenuDrafts(
     return () => {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     };
-  }, [editForm, editingId, isEditorOpen]);
+  }, [editForm, editingId, isEditorOpen, getPrefix]);
 
   // Manual actions
-  const getDraft = useCallback((id: string): Partial<MenuItem> | null => {
+  const getDraft = useCallback((id: string): TData | null => {
     try {
-      const raw = localStorage.getItem(`${DRAFT_PREFIX}${id}`);
+      const raw = localStorage.getItem(`${getPrefix()}${id}`);
       if (!raw) return null;
       return JSON.parse(raw);
     } catch {
       return null;
     }
-  }, []);
+  }, [getPrefix]);
 
   const discardDraft = useCallback((id: string) => {
     try {
-      localStorage.removeItem(`${DRAFT_PREFIX}${id}`);
+      localStorage.removeItem(`${getPrefix()}${id}`);
       setActiveDraftIds(prev => {
         const next = new Set(prev);
         next.delete(id);
@@ -98,7 +100,7 @@ export function usePerMenuDrafts(
     } catch (e) {
       console.warn('Failed to discard draft', e);
     }
-  }, []);
+  }, [getPrefix]);
 
   return {
     activeDraftIds: Array.from(activeDraftIds),

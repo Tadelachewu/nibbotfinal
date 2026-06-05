@@ -144,7 +144,7 @@ export function LogViewer() {
                       </TableCell>
                       <TableCell>{getStatusBadge(log.status)}</TableCell>
                       <TableCell className="text-right font-mono text-xs">
-                        {log.responseTime ? `${log.responseTime}ms` : '--'}
+                        {Number.isFinite(log.responseTime) ? `${Math.max(0, Math.round(log.responseTime))}ms` : '0ms'}
                       </TableCell>
                     </TableRow>
                   ))

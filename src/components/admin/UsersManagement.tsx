@@ -20,7 +20,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
 import { useAdminAuth, evaluatePasswordStrength, isStrongPassword } from './AdminAuthContext';
-import { Edit2, Eye, EyeOff, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { Edit2, Eye, EyeOff, Plus, RefreshCw, Search, Trash2, FileCode, X } from 'lucide-react';
+import { usePerEntityDrafts } from '@/hooks/usePerEntityDrafts';
 
 type AdminUser = {
   id: number;
@@ -65,6 +66,9 @@ export function UsersManagement() {
   });
   const [showEditPassword, setShowEditPassword] = useState(false);
   const editStrength = useMemo(() => evaluatePasswordStrength(editForm.password), [editForm.password]);
+
+  const { activeDraftIds: activeCreateDrafts, getDraft: getCreateDraft, discardDraft: discardCreateDraft } = usePerEntityDrafts('user_create', 'new', form, isCreateOpen);
+  const { activeDraftIds: activeEditDrafts, getDraft: getEditDraft, discardDraft: discardEditDraft } = usePerEntityDrafts('user_edit', String(editForm.id || ''), editForm, isEditOpen);
 
   const [userToDelete, setUserToDelete] = useState<AdminUser | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -141,6 +145,7 @@ export function UsersManagement() {
       }
 
       toast({ title: 'Created', description: `User "${json.data?.username || form.username.trim()}" created.` });
+      discardCreateDraft('new');
       setIsCreateOpen(false);
       setForm({ username: '', email: '', groupName: '', role: 'checker', password: '' });
       setShowCreatePassword(false);
@@ -160,14 +165,19 @@ export function UsersManagement() {
     (editForm.password.length === 0 || isStrongPassword(editForm.password));
 
   const openEdit = (u: AdminUser) => {
-    setEditForm({
-      id: u.id,
-      username: u.username,
-      email: u.email,
-      groupName: u.groupName || '',
-      role: u.role,
-      password: '',
-    });
+    const draft = getEditDraft(String(u.id));
+    if (draft) {
+      setEditForm(draft as any);
+    } else {
+      setEditForm({
+        id: u.id,
+        username: u.username,
+        email: u.email,
+        groupName: u.groupName || '',
+        role: u.role,
+        password: '',
+      });
+    }
     setShowEditPassword(false);
     setIsEditOpen(true);
   };
@@ -195,6 +205,7 @@ export function UsersManagement() {
         throw new Error(json?.error || 'Failed to update user.');
       }
       toast({ title: 'Updated', description: `User "${json.data?.username || editForm.username.trim()}" updated.` });
+      discardEditDraft(String(editForm.id));
       setIsEditOpen(false);
       setEditForm({ id: null, username: '', email: '', groupName: '', role: 'checker', password: '' });
       await loadUsers('refresh', { page: 0, append: false });
@@ -242,6 +253,20 @@ export function UsersManagement() {
             <Button variant="outline" size="sm" onClick={() => loadUsers('refresh', { page: 0, append: false })} disabled={isLoading || isRefreshing}>
               <RefreshCw size={14} className={isRefreshing ? 'mr-2 animate-spin' : 'mr-2'} /> Refresh
             </Button>
+            {activeCreateDrafts.includes('new') && (
+              <>
+                <Button variant="outline" size="sm" className="text-amber-500 border-amber-200 bg-amber-50" onClick={() => {
+                  const draft = getCreateDraft('new');
+                  if (draft) setForm(draft as any);
+                  setIsCreateOpen(true);
+                }}>
+                  <FileCode size={14} className="mr-2" /> Resume Draft
+                </Button>
+                <Button variant="outline" size="sm" className="text-destructive border-red-200 bg-red-50" onClick={() => discardCreateDraft('new')} title="Discard Draft">
+                  <X size={14} />
+                </Button>
+              </>
+            )}
             <Button size="sm" onClick={() => setIsCreateOpen(true)}>
               <Plus size={14} className="mr-2" /> Create User
             </Button>
@@ -291,7 +316,23 @@ export function UsersManagement() {
                         <TableCell className="capitalize">{u.role}</TableCell>
                         <TableCell>{new Date(u.createdAt).toLocaleString()}</TableCell>
                         <TableCell className="text-right">
-                          <div className="inline-flex gap-2">
+                          <div className="inline-flex gap-2 items-center">
+                            {activeEditDrafts.includes(String(u.id)) && (
+                              <>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-500" onClick={() => {
+                                  const draft = getEditDraft(String(u.id));
+                                  if (draft) {
+                                    setEditForm(draft as any);
+                                    setIsEditOpen(true);
+                                  }
+                                }} title="Resume Draft">
+                                  <FileCode size={14} />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => discardEditDraft(String(u.id))} title="Discard Draft">
+                                  <X size={14} />
+                                </Button>
+                              </>
+                            )}
                             <Button
                               variant="outline"
                               size="sm"

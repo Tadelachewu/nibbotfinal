@@ -6,20 +6,23 @@ import { defaultSystemTranslations } from '@/lib/store';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Save, Globe, Languages, Info } from 'lucide-react';
+import { Save, Globe, Languages, Info, FileCode, X } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { toast } from '@/hooks/use-toast';
+import { usePerEntityDrafts } from '@/hooks/usePerEntityDrafts';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAdminAuth } from './AdminAuthContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from '@/components/ui/button';
 
 export function LocalizationManagement() {
   const { csrfFetch } = useAdminAuth();
   const [settings, setSettings] = useState<AppSettings>({ supportedLanguages: [] });
   const [translations, setTranslations] = useState<Record<string, Record<string, string>>>({});
   const [isSaving, setIsSaving] = useState(false);
+
+  const { activeDraftIds, getDraft, discardDraft } = usePerEntityDrafts('translations', 'global', translations, true);
 
   const mergeSystemTranslations = (
     current: Record<string, Record<string, string>> | undefined,
@@ -89,6 +92,7 @@ export function LocalizationManagement() {
           throw new Error(json?.message || 'Failed to save translations.');
         }
 
+        discardDraft('global');
         setSettings(json.data);
         toast({
           title: "Success",
@@ -171,6 +175,29 @@ export function LocalizationManagement() {
       </div>
 
       <Separator />
+
+      {activeDraftIds.includes('global') && (
+        <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg flex items-center justify-between text-amber-800">
+          <div className="flex items-center gap-3">
+            <FileCode className="flex-shrink-0" size={20} />
+            <div>
+              <h4 className="font-bold text-sm">Unsaved Draft Available</h4>
+              <p className="text-xs">You have unsaved localization changes.</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" className="bg-white hover:bg-amber-100 border-amber-200 text-amber-700" onClick={() => {
+              const draft = getDraft('global') as Record<string, Record<string, string>>;
+              if (draft) setTranslations(draft);
+            }}>
+              Resume Draft
+            </Button>
+            <Button variant="outline" size="sm" className="bg-white hover:bg-red-50 border-red-200 text-destructive" onClick={() => discardDraft('global')}>
+              Discard
+            </Button>
+          </div>
+        </div>
+      )}
 
       <Card>
         <CardHeader>

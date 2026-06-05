@@ -34,8 +34,11 @@ import {
   CheckCircle,
   Eye,
   Send,
-  Star
+  Star,
+  FileCode,
+  X
 } from 'lucide-react';
+import { usePerEntityDrafts } from '@/hooks/usePerEntityDrafts';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -85,6 +88,13 @@ export function ReportsManagement() {
   const [editingSupportAssignmentReason, setEditingSupportAssignmentReason] = useState<string>('');
   const [isInspectOpen, setIsInspectOpen] = useState(false);
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
+
+  const inspectForm = useMemo(() => ({
+    editingResponse, editingNotes, editingStatus, editingPriority, editingSupportAssignee, editingSupportAssignmentType, editingSupportAssignmentReason
+  }), [editingResponse, editingNotes, editingStatus, editingPriority, editingSupportAssignee, editingSupportAssignmentType, editingSupportAssignmentReason]);
+
+  const { activeDraftIds: activeReportDrafts, getDraft: getReportDraft, discardDraft: discardReportDraft } = usePerEntityDrafts('report', selectedReportId, inspectForm, isInspectOpen);
+
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [activityMeta, setActivityMeta] = useState<{ page: number; pageSize: number; total: number; totalPages: number; hasMore: boolean } | null>(null);
@@ -281,6 +291,7 @@ export function ReportsManagement() {
           }
 
           setEditingStatus(finalStatus);
+          discardReportDraft(selectedReportId);
           setReports(prev => prev.map(r => (r.id === selectedReportId ? json.data : r)));
 
           toast({
@@ -529,19 +540,55 @@ export function ReportsManagement() {
                           {format(new Date(report.timestamp), 'MMM dd, HH:mm')}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="sm" className="h-8 text-xs hover:text-primary" onClick={() => {
-                            setSelectedReportId(report.id);
-                            setEditingResponse(report.adminResponse || '');
-                            setEditingNotes(report.internalNotes || '');
-                            setEditingStatus(report.status);
-                            setEditingPriority(report.priority || 'medium');
-                            setEditingSupportAssignee(report.supportAssignee || '__none__');
-                            setEditingSupportAssignmentType(report.supportAssignee ? 'escalation' : 'first_assignment');
-                            setEditingSupportAssignmentReason('');
-                            setIsInspectOpen(true);
-                          }}>
-                            Inspect <ChevronRight size={14} className="ml-1" />
-                          </Button>
+                          <div className="inline-flex items-center gap-1">
+                            {activeReportDrafts.includes(report.id) && (
+                              <>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-500" onClick={() => {
+                                  setSelectedReportId(report.id);
+                                  const draft = getReportDraft(report.id) as any;
+                                  if (draft) {
+                                    setEditingResponse(draft.editingResponse || '');
+                                    setEditingNotes(draft.editingNotes || '');
+                                    setEditingStatus(draft.editingStatus || 'pending');
+                                    setEditingPriority(draft.editingPriority || 'medium');
+                                    setEditingSupportAssignee(draft.editingSupportAssignee || '__none__');
+                                    setEditingSupportAssignmentType(draft.editingSupportAssignmentType || 'first_assignment');
+                                    setEditingSupportAssignmentReason(draft.editingSupportAssignmentReason || '');
+                                  }
+                                  setIsInspectOpen(true);
+                                }} title="Resume Draft">
+                                  <FileCode size={14} />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => discardReportDraft(report.id)} title="Discard Draft">
+                                  <X size={14} />
+                                </Button>
+                              </>
+                            )}
+                            <Button variant="ghost" size="sm" className="h-8 text-xs hover:text-primary" onClick={() => {
+                              setSelectedReportId(report.id);
+                              const draft = getReportDraft(report.id) as any;
+                              if (draft) {
+                                setEditingResponse(draft.editingResponse || '');
+                                setEditingNotes(draft.editingNotes || '');
+                                setEditingStatus(draft.editingStatus || 'pending');
+                                setEditingPriority(draft.editingPriority || 'medium');
+                                setEditingSupportAssignee(draft.editingSupportAssignee || '__none__');
+                                setEditingSupportAssignmentType(draft.editingSupportAssignmentType || 'first_assignment');
+                                setEditingSupportAssignmentReason(draft.editingSupportAssignmentReason || '');
+                              } else {
+                                setEditingResponse(report.adminResponse || '');
+                                setEditingNotes(report.internalNotes || '');
+                                setEditingStatus(report.status);
+                                setEditingPriority(report.priority || 'medium');
+                                setEditingSupportAssignee(report.supportAssignee || '__none__');
+                                setEditingSupportAssignmentType(report.supportAssignee ? 'escalation' : 'first_assignment');
+                                setEditingSupportAssignmentReason('');
+                              }
+                              setIsInspectOpen(true);
+                            }}>
+                              Inspect <ChevronRight size={14} className="ml-1" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}

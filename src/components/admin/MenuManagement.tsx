@@ -92,7 +92,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { usePerMenuDrafts } from '@/hooks/usePerMenuDrafts';
+import { usePerEntityDrafts } from '@/hooks/usePerEntityDrafts';
 
 export function MenuManagement() {
   const { csrfFetch, currentRole, currentUsername } = useAdminAuth();
@@ -110,7 +110,7 @@ export function MenuManagement() {
   const [isSaving, setIsSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const { activeDraftIds, getDraft, discardDraft } = usePerMenuDrafts(editingId, editForm, isEditDialogOpen);
+  const { activeDraftIds, getDraft, discardDraft } = usePerEntityDrafts('menu', editingId, editForm, isEditDialogOpen);
 
   const [activeLangTab, setActiveLangTab] = useState<string>('en');
   const [apiPreviewResult, setApiPreviewResult] = useState<any>(null);
