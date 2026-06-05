@@ -61,6 +61,15 @@ export async function getAdminSession(): Promise<IronSession<AdminSessionData>> 
   return getIronSession<AdminSessionData>(await cookies(), sessionOptions);
 }
 
+async function destroySessionSafely(session: IronSession<AdminSessionData>) {
+  session.destroy();
+  try {
+    await session.save();
+  } catch (e) {
+    console.warn('[Auth] Could not destroy session in this context', e instanceof Error ? e.message : e);
+  }
+}
+
 export async function getValidatedAdminSession(allowMutations = true): Promise<IronSession<AdminSessionData> | null> {
   const session = await getAdminSession();
   if (!session.username) return null;
@@ -75,8 +84,7 @@ export async function getValidatedAdminSession(allowMutations = true): Promise<I
   if (now - lastActivityAt > idleMs) {
     console.warn(`[Auth] Session idle timeout for user=${session.username}`);
     if (allowMutations) {
-      session.destroy();
-      await session.save();
+      await destroySessionSafely(session);
     }
     return null;
   }
@@ -86,8 +94,7 @@ export async function getValidatedAdminSession(allowMutations = true): Promise<I
   if (now - createdAt > absoluteLifetimeMs) {
     console.warn(`[Auth] Session absolute lifetime expired for user=${session.username}`);
     if (allowMutations) {
-      session.destroy();
-      await session.save();
+      await destroySessionSafely(session);
     }
     return null;
   }
@@ -112,17 +119,15 @@ export async function getValidatedAdminSession(allowMutations = true): Promise<I
     if (sessionIp !== 'unknown' && currentIp !== 'unknown' && sessionIp !== currentIp) {
       console.warn(`[Auth] Session IP mismatch. sessionIp=${session.ip} currentIp=${currentIp} user=${session.username}`);
       if (allowMutations) {
-        session.destroy();
-        await session.save();
+        await destroySessionSafely(session);
       }
       return null;
     }
 
-    if (session.userAgent && session.userAgent !== 'unknown' && session.userAgent !== currentUserAgent) {
+    if (session.userAgent && session.userAgent !== 'unknown' && currentUserAgent !== 'unknown' && session.userAgent !== currentUserAgent) {
       console.warn(`[Auth] Session User-Agent mismatch for user=${session.username}`);
       if (allowMutations) {
-        session.destroy();
-        await session.save();
+        await destroySessionSafely(session);
       }
       return null;
     }
@@ -138,8 +143,7 @@ export async function getValidatedAdminSession(allowMutations = true): Promise<I
   if (!admin || (typeof session.sessionVersion === 'number' && admin.sessionVersion !== session.sessionVersion)) {
     console.warn(`[Auth] Session version mismatch or user not found. user=${session.username}`);
     if (allowMutations) {
-      session.destroy();
-      await session.save();
+      await destroySessionSafely(session);
     }
     return null;
   }

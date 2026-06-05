@@ -99,6 +99,7 @@ export async function POST(req: Request) {
       }),
       status: 'success',
       endpoint: '/api/upload',
+      responseTime: 0,
       tags: ['security', 'admin', 'upload'],
     },
   });

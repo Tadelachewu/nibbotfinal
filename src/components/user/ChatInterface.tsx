@@ -421,6 +421,7 @@ export function ChatInterface() {
       botResponse: 'SESSION_START',
       status: 'success',
       endpoint: 'Internal:SessionStart',
+      responseTime: 0,
       tags: ['session_start']
     });
   }, [userData.id]);
@@ -896,6 +897,7 @@ export function ChatInterface() {
 
   const handleStatusLookup = async (id: string) => {
     setHistory(prev => [...prev, { id: `user-lookup-${Date.now()}`, sender: 'user', text: id }]);
+    const startTime = Date.now();
     let found: UserReport | null = null;
     try {
       const res = await fetch(`/api/reports/${encodeURIComponent(id)}`, { cache: 'no-store' });
@@ -936,6 +938,7 @@ export function ChatInterface() {
       botResponse: found ? foundMsg : notFoundMsg,
       status: found ? 'success' : 'failed',
       endpoint: 'Internal:StatusLookup',
+      responseTime: Date.now() - startTime,
       tags: ['status_lookup']
     });
 
@@ -994,6 +997,7 @@ export function ChatInterface() {
   const handleInternalReport = async (menu: MenuItem, kycData: Record<string, any>, relatedMenus: MenuItem[] = []) => {
     setLoadingText(t('ui_loading_submitting_report', 'Submitting your report...'));
     setIsLoading(true);
+    const startTime = Date.now();
     try {
       const reportPayload: Record<string, any> = {};
       menu.apiConfig?.kycFields?.forEach(field => {
@@ -1045,6 +1049,7 @@ export function ChatInterface() {
         botResponse: finalMsg || defaultSuccess,
         status: 'success',
         endpoint: 'Internal Support',
+        responseTime: Date.now() - startTime,
         tags: ['report', menu.name]
       });
     } catch {
@@ -1056,6 +1061,7 @@ export function ChatInterface() {
         botResponse: msg,
         status: 'error',
         endpoint: 'Internal Support',
+        responseTime: Date.now() - startTime,
         tags: ['report', 'error']
       });
     } finally {
@@ -1243,6 +1249,7 @@ export function ChatInterface() {
   };
 
   const navigateTo = async (menu: MenuItem) => {
+    const startTime = Date.now();
     const runtime = await fetchRuntimeConfig().catch(() => ({ menus }));
     const activeMenus = runtime.menus;
     const effectiveMenu = activeMenus.find(m => m.id === menu.id) || menu;
@@ -1364,6 +1371,7 @@ export function ChatInterface() {
       botResponse: resolvedHtml || 'Options',
       status: 'success',
       endpoint: 'Internal:MenuNavigation',
+      responseTime: Date.now() - startTime,
       tags: ['navigation', effectiveMenu.name]
     });
 

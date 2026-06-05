@@ -4,6 +4,9 @@ const appOrigin = process.env.APP_ORIGIN || 'http://localhost:9002';
 const nextConfig = {
   /* config options here */
   poweredByHeader: false,
+  turbopack: {
+    root: __dirname,
+  },
   typescript: {
     ignoreBuildErrors: true,
   },

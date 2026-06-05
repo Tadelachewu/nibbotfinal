@@ -105,7 +105,7 @@ export async function GET(req: Request) {
         botResponse: l.botResponse,
         status: l.status,
         endpoint: l.endpoint ?? undefined,
-        responseTime: l.responseTime ?? undefined,
+        responseTime: Number.isFinite(l.responseTime) ? Math.max(0, Math.round(Number(l.responseTime))) : 0,
         errorDetails: l.errorDetails ?? undefined,
         tags: l.tags ?? []
       }))
@@ -127,6 +127,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ status: 'error', message: 'Invalid request body.' }, { status: 400 });
     }
 
+    const normalizedResponseTime = Number.isFinite(body.responseTime)
+      ? Math.max(0, Math.round(Number(body.responseTime)))
+      : 0;
+
     const created = await prisma.interactionLog.create({
       data: {
         sessionId: body.sessionId ?? 'unknown',
@@ -134,7 +138,7 @@ export async function POST(req: Request) {
         botResponse: maskSensitiveInfo(String(body.botResponse ?? '')),
         status: body.status ?? 'success',
         endpoint: body.endpoint ?? null,
-        responseTime: Number.isFinite(body.responseTime) ? body.responseTime : null,
+        responseTime: normalizedResponseTime,
         errorDetails: body.errorDetails ? maskSensitiveInfo(String(body.errorDetails)) : null,
         tags: Array.isArray(body.tags) ? body.tags : []
       }
@@ -149,7 +153,7 @@ export async function POST(req: Request) {
         botResponse: created.botResponse,
         status: created.status,
         endpoint: created.endpoint ?? undefined,
-        responseTime: created.responseTime ?? undefined,
+        responseTime: Number.isFinite(created.responseTime) ? Math.max(0, Math.round(Number(created.responseTime))) : 0,
         errorDetails: created.errorDetails ?? undefined,
         tags: created.tags ?? []
       }
