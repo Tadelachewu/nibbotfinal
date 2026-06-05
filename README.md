@@ -307,6 +307,12 @@ redis
 
 Wsl then ubuntu
 sudo service redis-server start
-redis-cli ping
+redis-cli  then ping
 it says pong
+
+
+
+on windows native (without linux)
+    winget install -e --id Memurai.MemuraiDeveloper
+    memurai-cli =>  so PING it says pong
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { getValidatedAdminSession, verifyCsrfToken } from '@/lib/session';
+import prisma from '@/lib/prisma';
 
 export async function POST(req: Request) {
   const session = await getValidatedAdminSession(true);
@@ -12,8 +13,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true });
   }
 
+  if (session.username) {
+    await prisma.adminCredential.update({
+      where: { username: session.username },
+      data: { sessionVersion: { increment: 1 } },
+    }).catch(() => null);
+  }
+
   session.destroy();
-  await session.save();
+  try {
+    await session.save();
+  } catch { }
 
   const res = NextResponse.json({ success: true });
   res.headers.set('x-csrf-token', '');

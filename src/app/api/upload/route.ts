@@ -18,6 +18,34 @@ function safeSegment(value: string) {
     .slice(0, 64);
 }
 
+function hasPngSignature(bytes: Buffer) {
+  return bytes.length >= 8 &&
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47 &&
+    bytes[4] === 0x0d &&
+    bytes[5] === 0x0a &&
+    bytes[6] === 0x1a &&
+    bytes[7] === 0x0a;
+}
+
+function hasJpegSignature(bytes: Buffer) {
+  return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+}
+
+function hasGifSignature(bytes: Buffer) {
+  if (bytes.length < 6) return false;
+  const header = bytes.subarray(0, 6).toString('ascii');
+  return header === 'GIF87a' || header === 'GIF89a';
+}
+
+function hasWebpSignature(bytes: Buffer) {
+  return bytes.length >= 12 &&
+    bytes.subarray(0, 4).toString('ascii') === 'RIFF' &&
+    bytes.subarray(8, 12).toString('ascii') === 'WEBP';
+}
+
 export async function POST(req: Request) {
   const session = await getValidatedAdminSession(true);
   if (!session?.username) {
@@ -35,7 +63,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ status: 'error', message: 'Forbidden.' }, { status: 403 });
   }
 
-  const maxBytes = Number(process.env.MAX_UPLOAD_BYTES || DEFAULT_MAX_UPLOAD_BYTES);
+  const maxBytesRaw = Number(process.env.MAX_UPLOAD_BYTES || DEFAULT_MAX_UPLOAD_BYTES);
+  const maxBytes = Number.isFinite(maxBytesRaw) && maxBytesRaw > 0 ? Math.floor(maxBytesRaw) : DEFAULT_MAX_UPLOAD_BYTES;
 
   let form: FormData;
   try {
@@ -70,6 +99,15 @@ export async function POST(req: Request) {
   const bytes = Buffer.from(await file.arrayBuffer());
   if (!bytes.length || bytes.length > maxBytes) {
     return NextResponse.json({ status: 'error', message: 'File too large.' }, { status: 413 });
+  }
+
+  const signatureOk =
+    (ext === 'png' && hasPngSignature(bytes)) ||
+    (ext === 'jpg' && hasJpegSignature(bytes)) ||
+    (ext === 'gif' && hasGifSignature(bytes)) ||
+    (ext === 'webp' && hasWebpSignature(bytes));
+  if (!signatureOk) {
+    return NextResponse.json({ status: 'error', message: 'File content does not match declared type.' }, { status: 415 });
   }
 
   const userDir = safeSegment(session.username);
