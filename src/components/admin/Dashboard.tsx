@@ -88,9 +88,9 @@ export function Dashboard() {
           ? ['polling']
           : ['polling', 'websocket'];
 
-      // Prefer websocket-only connections to avoid exposing session ids in query strings
-      const usePolling = String(process.env.NEXT_PUBLIC_ENABLE_POLLING || 'false') === 'true';
-      const chosenTransports = usePolling ? ['polling', 'websocket'] : ['websocket'];
+      // Allow both polling and websocket by default for maximum compatibility.
+      // Socket.io will automatically upgrade to websocket when possible.
+      const chosenTransports = ['polling', 'websocket'];
       socket = io({ path: '/socket.io', transports: chosenTransports });
       socket.on('online_count_updated', (data) => {
         if (data && typeof data.count === 'number') {
@@ -124,8 +124,8 @@ export function Dashboard() {
     statusDots.forEach((el) => {
       const color = el.getAttribute('data-status-color') || ''
       if (!color) return
-      const cls = createClassWithRules(`background-color: ${color};`)
-      el.classList.add(cls)
+      const res = createClassWithRules(`background-color: ${color};`)
+      el.classList.add(res.className)
     })
 
     // progress bars
@@ -134,8 +134,8 @@ export function Dashboard() {
       const pct = el.getAttribute('data-progress-percentage') || '0'
       const color = el.getAttribute('data-progress-color') || ''
       const rules = `width: ${pct}%; ${color ? `background-color: ${color};` : ''}`
-      const cls = createClassWithRules(rules)
-      el.classList.add(cls)
+      const res = createClassWithRules(rules)
+      el.classList.add(res.className)
     })
   }, [mounted, data])
 

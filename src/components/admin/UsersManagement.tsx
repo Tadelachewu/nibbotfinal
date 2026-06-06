@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -389,6 +389,7 @@ export function UsersManagement() {
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Create Admin User</DialogTitle>
+            <DialogDescription id="user-create-description">Add a new administrative user with a specific role and access group.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
@@ -481,6 +482,7 @@ export function UsersManagement() {
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Update Admin User</DialogTitle>
+            <DialogDescription id="user-edit-description">Modify existing user details, update role, or change password.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">

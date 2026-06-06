@@ -5,7 +5,7 @@ import { isSameOriginRequest } from './lib/session'
 export function proxy(request: NextRequest) {
   const nonce = btoa(crypto.randomUUID())
   const host = request.headers.get('host') || request.nextUrl.host
-  const isProd = process.env.NODE_ENV === 'production' && !host?.includes('localhost') && !host?.includes('127.0.0.1')
+  const isProd = process.env.NODE_ENV === 'production'
   const origin = request.headers.get('origin')
   const isCorsRequest = Boolean(origin)
 
@@ -21,21 +21,16 @@ export function proxy(request: NextRequest) {
   // Static/default connect-src entries
   const staticConnect = [
     "'self'",
-    'blob:',
-    'data:',
-
     'https://www.google.com',
     'https://fonts.gstatic.com',
-    'https://placehold.co',
-    'https://images.unsplash.com',
-    'https://picsum.photos',
-    ...(host ? [`ws://${host}`, `wss://${host}`] : []),
+    'https://placehold.co/',
+    'https://images.unsplash.com/',
+    'https://picsum.photos/',
     'ws://localhost:9002',
     'ws://localhost:3020',
     'ws://127.0.0.1:9002',
     'wss://localhost:3020',
     'wss://nibterachatboat.nibbank.com.et'
-
   ]
 
   // Additional connect-src entries from environment (comma/space-separated)
@@ -50,7 +45,7 @@ export function proxy(request: NextRequest) {
   for (const v of [...staticConnect, ...extraConnect]) connectSet.add(v)
   const connectSrc = Array.from(connectSet).join(' ')
 
-  const styleSrc = `'self' 'nonce-${nonce}' 'unsafe-inline' https://fonts.googleapis.com`
+  const styleSrc = `'self' 'unsafe-inline' https://fonts.googleapis.com`
 
   const styleSrcElem = `'self' 'unsafe-inline' https://fonts.googleapis.com`
 
@@ -59,7 +54,7 @@ export function proxy(request: NextRequest) {
     : `'self' 'nonce-${nonce}' 'unsafe-eval' 'strict-dynamic'`
 
   const cspHeader = `
-      default-src 'self';
+      default-src 'self' http://localhost:3020/ https://nibterachatboat.nibbank.com.et/;
       script-src ${scriptSrc};
       style-src ${styleSrc};
       style-src-elem ${styleSrcElem};

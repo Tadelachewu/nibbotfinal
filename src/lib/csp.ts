@@ -18,7 +18,7 @@ export function getCspNonce(): string | null {
 }
 
 let styleCounter = 0
-export function createClassWithRules(rules: string): string {
+export function createClassWithRules(rules: string): { className: string; tag: HTMLStyleElement } {
     const className = `csp-${Date.now().toString(36)}-${(styleCounter++).toString(36)}`
     const css = `.${className} { ${rules} }`
     const nonce = getCspNonce()
@@ -26,7 +26,7 @@ export function createClassWithRules(rules: string): string {
     if (nonce) tag.setAttribute('nonce', nonce)
     tag.appendChild(document.createTextNode(css))
     document.head.appendChild(tag)
-    return className
+    return { className, tag }
 }
 
 export function injectRawStyle(css: string): HTMLStyleElement | null {

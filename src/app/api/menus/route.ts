@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 
 import { getValidatedAdminSession, rotateCsrfToken, verifyCsrfToken } from '@/lib/session';
 import { logSecurityEvent } from '@/lib/logger';
+import { sanitizeHtml } from '@/lib/security';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -287,6 +288,21 @@ export async function POST(req: Request) {
     }
   }
 
+  // Sanitize HTML content fields
+  const content = typeof body.content === 'string' ? sanitizeHtml(body.content) : (body.content ?? null);
+  const contentAm = typeof body.contentAm === 'string' ? sanitizeHtml(body.contentAm) : (body.contentAm ?? null);
+  const translations = body.translations && typeof body.translations === 'object'
+    ? (() => {
+      const t = { ...body.translations } as any;
+      Object.keys(t).forEach(lang => {
+        if (t[lang] && typeof t[lang].content === 'string') {
+          t[lang].content = sanitizeHtml(t[lang].content);
+        }
+      });
+      return t;
+    })()
+    : (body.translations ?? null);
+
   await prisma.menuItem.create({
     data: {
       id,
@@ -294,8 +310,8 @@ export async function POST(req: Request) {
       name: body.name ?? '',
       nameAm: body.nameAm ?? null,
       responseType: body.responseType,
-      content: body.content ?? null,
-      contentAm: body.contentAm ?? null,
+      content,
+      contentAm,
       apiConfig: apiConfig ?? null,
       supportAssignee,
       order: Number.isFinite(body.order) ? body.order : 0,
@@ -305,7 +321,7 @@ export async function POST(req: Request) {
       trackClicks: Boolean(body.trackClicks),
       clickCount: Number.isFinite(body.clickCount) ? body.clickCount : 0,
       sessionClickCount: Number.isFinite(body.sessionClickCount) ? body.sessionClickCount : 0,
-      translations: body.translations ?? null,
+      translations,
       attachmentDescription: typeof body.attachmentDescription === 'string' ? body.attachmentDescription : null
     }
   });

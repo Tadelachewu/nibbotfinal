@@ -44,13 +44,6 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -64,7 +57,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import { useAdminAuth } from './AdminAuthContext';
-import { Activity, History } from 'lucide-react';
+import { Activity } from 'lucide-react';
 
 export function ReportsManagement() {
   const { csrfFetch, currentRole, currentUsername } = useAdminAuth();
@@ -244,31 +237,6 @@ export function ReportsManagement() {
 
       (async () => {
         try {
-          const existing = reports.find(r => r.id === selectedReportId);
-          const previousSupportAssignee =
-            typeof existing?.supportAssignee === 'string' && existing.supportAssignee.trim()
-              ? existing.supportAssignee.trim()
-              : null;
-          const nextSupportAssignee =
-            editingSupportAssignee === '__none__'
-              ? null
-              : (typeof editingSupportAssignee === 'string' && editingSupportAssignee.trim() ? editingSupportAssignee.trim() : null);
-          const isSupportAssignmentChange =
-            currentRole === 'admin' && Object.is(previousSupportAssignee, nextSupportAssignee) === false;
-
-          if (isSupportAssignmentChange && typeof nextSupportAssignee === 'string') {
-            const reason = editingSupportAssignmentReason.trim();
-            const expectedType = previousSupportAssignee ? 'escalation' : 'first_assignment';
-            if (editingSupportAssignmentType !== expectedType) {
-              toast({ title: 'Assignment Type Required', description: `Select "${expectedType === 'first_assignment' ? 'First Assigned' : 'Escalation'}".`, variant: 'destructive' });
-              return;
-            }
-            if (!reason) {
-              toast({ title: 'Reason Required', description: 'Provide a reason for assigning Support.', variant: 'destructive' });
-              return;
-            }
-          }
-
           const res = await csrfFetch(`/api/reports/${encodeURIComponent(selectedReportId)}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
@@ -378,100 +346,58 @@ export function ReportsManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-2">
-        <Card className="p-4 bg-primary/5 border-primary/20">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase text-primary">Pending</span>
-            <AlertCircle size={16} className="text-primary" />
-          </div>
-          <p className="text-2xl font-bold mt-1">{reports.filter(r => r.status === 'pending').length}</p>
-        </Card>
-        <Card className="p-4 bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase text-blue-700 dark:text-blue-400">Reviewed</span>
-            <Clock size={16} className="text-blue-700 dark:text-blue-400" />
-          </div>
-          <p className="text-2xl font-bold mt-1">{reports.filter(r => r.status === 'reviewed').length}</p>
-        </Card>
-        <Card className="p-4 bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase text-amber-700 dark:text-amber-400">High/Urgent</span>
-            <ShieldAlert size={16} className="text-amber-700 dark:text-amber-400" />
-          </div>
-          <p className="text-2xl font-bold mt-1">{reports.filter(r => r.priority === 'high' || r.priority === 'urgent').length}</p>
-        </Card>
-        <Card className="p-4 bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase text-emerald-700 dark:text-emerald-400">Resolved Total</span>
-            <CheckCircle2 size={16} className="text-emerald-700 dark:text-emerald-400" />
-          </div>
-          <p className="text-2xl font-bold mt-1">{reports.filter(r => r.status === 'resolved').length}</p>
-        </Card>
-      </div>
-
-      <Tabs defaultValue="submissions" className="w-full">
-        <TabsList className="mb-4">
-          <TabsTrigger value="submissions" className="gap-2">
-            <ClipboardList size={14} /> Submissions
-          </TabsTrigger>
-          {currentRole === 'admin' && (
-            <TabsTrigger value="ratings" className="gap-2">
-              <Star size={14} /> Support Ratings
-            </TabsTrigger>
-          )}
-          <TabsTrigger value="logs" className="gap-2">
-            <Activity size={14} /> Activity Log
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="submissions">
-          <Card className="border-none shadow-md overflow-hidden">
-            <CardHeader className="border-b bg-muted/5 p-6">
-              <div className="flex flex-col space-y-4">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div>
-                    <CardTitle className="text-xl font-bold flex items-center gap-2">
-                      <ClipboardList className="text-primary" size={20} />
-                      Operational Console
-                    </CardTitle>
-                    <p className="text-xs text-muted-foreground mt-1">Manage, triage, and respond to user-submitted reports.</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => fetchReports({ page: 0, append: false })} disabled={loading}>
-                      <RefreshCw size={14} className="mr-2" /> Refresh
-                    </Button>
-                  </div>
+      {isInspectOpen && selectedReport ? (
+        <div className="min-h-[100dvh] bg-background -mt-6 -mx-6 px-6 py-6 animate-in fade-in slide-in-from-right-4 duration-300">
+          <div className="sticky top-16 z-40 bg-card border-b shadow-sm -mx-6 px-6 mb-6">
+            <div className="max-w-6xl mx-auto py-3 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <Button variant="ghost" onClick={() => setIsInspectOpen(false)} className="shrink-0">
+                  <ChevronRight size={16} className="mr-2 rotate-180" />
+                  Back
+                </Button>
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <FileText className="text-primary" size={24} />
                 </div>
+                <div>
+                  <h2 className="text-xl font-bold truncate">{selectedReport.menuName}</h2>
+                  <p className="text-xs text-muted-foreground font-mono">Reference: {selectedReport.id}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => downloadJson(selectedReport)}>
+                  <Download size={14} className="mr-2" /> Export JSON
+                </Button>
+                {currentRole === 'admin' && (
+                  <Button variant="ghost" size="icon" className="text-destructive" onClick={() => { handleDeleteReport(selectedReport.id); setIsInspectOpen(false); }}>
+                    <Trash2 size={18} />
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
 
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="relative flex-1 min-w-[200px]">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search submissions..."
-                      className="pl-10 bg-card"
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                    />
-                  </div>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-[140px] h-10 bg-card">
-                      <Filter size={14} className="mr-2" />
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
+          <div className="max-w-6xl mx-auto space-y-6">
+            {/* ADMIN ACTION BAR */}
+            <div className="bg-amber-50/50 dark:bg-amber-950/20 border rounded-xl p-4 flex flex-wrap items-center gap-4 justify-between shadow-sm">
+              <div className="flex flex-wrap items-center gap-3 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold uppercase text-muted-foreground">Status</span>
+                  <Badge className={cn("text-[10px] capitalize",
+                    editingStatus === 'resolved' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-400' :
+                      editingStatus === 'reviewed' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-400' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-400'
+                  )}>
+                    {editingStatus}
+                  </Badge>
+                </div>
+                <Separator orientation="vertical" className="h-4" />
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold uppercase text-muted-foreground">Set Priority</span>
+                  <Select
+                    value={editingPriority}
+                    onValueChange={(val: any) => setEditingPriority(val)}
+                  >
+                    <SelectTrigger disabled={currentRole === 'support'} className="h-7 w-28 text-[10px]"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="reviewed">Reviewed</SelectItem>
-                      <SelectItem value="resolved">Resolved</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                    <SelectTrigger className="w-[140px] h-10 bg-card">
-                      <ShieldAlert size={14} className="mr-2" />
-                      <SelectValue placeholder="Priority" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Priority</SelectItem>
                       <SelectItem value="urgent">Urgent</SelectItem>
                       <SelectItem value="high">High</SelectItem>
                       <SelectItem value="medium">Medium</SelectItem>
@@ -479,71 +405,368 @@ export function ReportsManagement() {
                     </SelectContent>
                   </Select>
                 </div>
+                <Separator orientation="vertical" className="h-4" />
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold uppercase text-muted-foreground">Support</span>
+                  {currentRole === 'admin' ? (
+                    <Select value={editingSupportAssignee} onValueChange={(val) => {
+                      setEditingSupportAssignee(val);
+                      const existing = selectedReport?.supportAssignee;
+                      const hadAssignee = typeof existing === 'string' && existing.trim().length > 0;
+                      if (val === '__none__') {
+                        setEditingSupportAssignmentType('first_assignment');
+                        setEditingSupportAssignmentReason('');
+                        return;
+                      }
+                      setEditingSupportAssignmentType(hadAssignee ? 'escalation' : 'first_assignment');
+                      setEditingSupportAssignmentReason('');
+                    }}>
+                      <SelectTrigger className="h-7 w-44 text-[10px]"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Unassigned</SelectItem>
+                        {supportUsers.map(u => (
+                          <SelectItem key={u.username} value={u.username}>{u.username}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px]">
+                      {editingSupportAssignee === '__none__' ? 'Unassigned' : (editingSupportAssignee === currentUsername ? 'Assigned to you' : editingSupportAssignee)}
+                    </Badge>
+                  )}
+                </div>
               </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <ScrollArea className="h-[550px]">
-                <Table>
-                  <TableHeader className="bg-card/95 backdrop-blur-sm sticky top-0 z-20 border-b">
-                    <TableRow>
-                      <TableHead className="w-[100px] font-bold uppercase text-[10px]">Priority</TableHead>
-                      <TableHead className="w-[100px] font-bold uppercase text-[10px]">Status</TableHead>
-                      <TableHead className="w-[90px] font-bold uppercase text-[10px]">Rating</TableHead>
-                      <TableHead className="font-bold uppercase text-[10px]">Type</TableHead>
-                      <TableHead className="font-bold uppercase text-[10px]">Submitter</TableHead>
-                      <TableHead className="font-bold uppercase text-[10px]">Data Preview</TableHead>
-                      <TableHead className="font-bold uppercase text-[10px]">Timestamp</TableHead>
-                      <TableHead className="text-right font-bold uppercase text-[10px]">Action</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredReports.map((report) => (
-                      <TableRow key={report.id} className="group hover:bg-muted/20 transition-colors">
-                        <TableCell>
-                          <Badge variant="outline" className={cn("capitalize text-[9px] px-2", getPriorityColor(report.priority))}>
-                            {report.priority || 'medium'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {getStatusIcon(report.status)}
-                            <span className="capitalize text-[10px] font-medium text-muted-foreground">{report.status}</span>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className={cn("h-8 text-[11px] font-bold", editingStatus === 'reviewed' && "bg-blue-50 border-blue-200 dark:bg-blue-900/30 dark:border-blue-800")}
+                  onClick={() => handleSaveAdminData('reviewed')}
+                >
+                  <Clock size={14} className="mr-2 text-blue-500" /> Mark Reviewed
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-8 text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
+                  onClick={() => handleSaveAdminData('resolved')}
+                >
+                  <CheckCircle size={14} className="mr-2" /> Mark Resolved
+                </Button>
+              </div>
+            </div>
+
+            <div className="pb-24">
+              <Tabs defaultValue="response" className="w-full">
+                <TabsList className="grid w-full grid-cols-3 h-11 bg-muted/20 border-b rounded-none px-0">
+                  <TabsTrigger value="response" className="text-xs gap-2 data-[state=active]:bg-card data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-11 shadow-none">
+                    <MessageSquare size={14} /> User Response
+                  </TabsTrigger>
+                  <TabsTrigger value="data" className="text-xs gap-2 data-[state=active]:bg-card data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-11 shadow-none">
+                    <Database size={14} /> Collected Data
+                  </TabsTrigger>
+                  <TabsTrigger value="notes" className="text-xs gap-2 data-[state=active]:bg-card data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-11 shadow-none">
+                    <NotebookPen size={14} /> Internal Notes
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="response" className="pt-6 space-y-4 animate-in fade-in-50 duration-500">
+                  {typeof selectedReport.serviceRating === 'number' && (
+                    <div className="p-4 border rounded-xl bg-amber-50/40 dark:bg-amber-950/15 border-amber-200/60 dark:border-amber-900/50">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="space-y-1">
+                          <div className="text-[10px] font-bold uppercase text-amber-800 dark:text-amber-400">User Rating</div>
+                          <div className="flex items-center gap-1 text-amber-600">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <Star key={i} size={14} className={i < selectedReport.serviceRating! ? 'fill-amber-500 text-amber-500' : 'text-muted-foreground/40'} />
+                            ))}
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          {typeof report.serviceRating === 'number' ? (
-                            <div className="flex items-center gap-1 text-amber-600">
-                              {Array.from({ length: 5 }).map((_, i) => (
-                                <Star key={i} size={12} className={i < report.serviceRating! ? 'fill-amber-500 text-amber-500' : 'text-muted-foreground/40'} />
-                              ))}
+                        </div>
+                        <div className="text-right">
+                          <div className="text-xs font-semibold">{selectedReport.serviceRating} / 5</div>
+                          {selectedReport.serviceRatedAt && (
+                            <div className="text-[10px] text-muted-foreground">
+                              {format(new Date(selectedReport.serviceRatedAt), 'MMM dd, HH:mm')}
                             </div>
-                          ) : (
-                            <span className="text-[10px] text-muted-foreground">—</span>
                           )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="font-semibold text-xs">{report.menuName}</div>
-                          <div className="text-[9px] text-muted-foreground font-mono">#{report.id.split('_')[1] || report.id}</div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <User size={12} className="text-muted-foreground" />
-                            <span className="text-[11px] font-mono">{report.userId}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="text-[10px] text-muted-foreground truncate max-w-[200px] italic">
-                            {Object.entries(report.data || {}).map(([k, v]) => `${k}:${v}`).join(', ')}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-[10px]">
-                          {format(new Date(report.timestamp), 'MMM dd, HH:mm')}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="inline-flex items-center gap-1">
-                            {activeReportDrafts.includes(report.id) && (
-                              <>
-                                <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-500" onClick={() => {
+                        </div>
+                      </div>
+                      {selectedReport.serviceFeedback && (
+                        <div className="mt-3 text-sm text-muted-foreground italic break-words">
+                          "{selectedReport.serviceFeedback}"
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="space-y-4 bg-[#f4a61b]/10 p-6 rounded-xl border border-dashed border-[#f4a61b]/30">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        <Label className="text-sm font-bold flex items-center gap-2 text-[#763717]">
+                          <Send size={16} className="text-[#763717]" />
+                          Official Written Response
+                        </Label>
+                        <p className="text-[11px] text-muted-foreground">This message will be visible to the user when they check their report status.</p>
+                      </div>
+                    </div>
+                    <Textarea
+                      value={editingResponse}
+                      onChange={(e) => setEditingResponse(e.target.value)}
+                      placeholder="Type your official message to the user here..."
+                      className="min-h-[150px] text-sm bg-card shadow-inner border-[#f4a61b]/20 focus-visible:ring-[#f4a61b]"
+                    />
+                    <div className="flex justify-between items-center">
+                      <p className="text-[10px] text-muted-foreground italic max-w-md">
+                        Use the primary save button at the bottom of the page to commit this response and notify the user.
+                      </p>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="data" className="pt-6 animate-in fade-in-50 duration-500">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {Object.entries(selectedReport.data || {}).map(([key, value]) => (
+                      <div key={key} className="p-4 border rounded-xl bg-slate-50/50 dark:bg-muted/20 hover:bg-card transition-all shadow-sm group">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-tight">{prettifyKey(key)}</span>
+                        </div>
+                        <span className="text-sm font-semibold text-foreground font-mono break-all">{String(value || 'N/A')}</span>
+                      </div>
+                    ))}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="notes" className="pt-6 space-y-4 animate-in fade-in-50 duration-500">
+                  <div className="space-y-3 p-6 border rounded-xl bg-amber-50/30 dark:bg-amber-950/10 border-amber-200 dark:border-amber-900/50">
+                    <div className="space-y-1">
+                      <Label className="text-sm font-bold flex items-center gap-2 text-amber-900 dark:text-amber-400">
+                        <NotebookPen size={16} />
+                        Private Internal Notes
+                      </Label>
+                      <p className="text-[11px] text-amber-700 dark:text-amber-500/70 italic">These notes are strictly for internal review and are NEVER shared with the user.</p>
+                    </div>
+                    <Textarea
+                      value={editingNotes}
+                      onChange={(e) => setEditingNotes(e.target.value)}
+                      placeholder="Add internal investigation notes, findings, or team observations..."
+                      className="min-h-[150px] text-sm border-amber-200 dark:border-amber-900/50 focus-visible:ring-amber-500 bg-card"
+                    />
+                    <div className="flex justify-between items-center">
+                      <p className="text-[11px] text-amber-700 dark:text-amber-500/70 italic max-w-md">
+                        Internal notes are persistent and will be saved along with all other status changes.
+                      </p>
+                    </div>
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </div>
+          </div>
+
+          <div className="sticky bottom-0 z-40 bg-card border-t -mx-6 px-6 py-4 flex items-center justify-between shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <User size={14} />
+              <span className="text-[11px] font-mono">Submitter: {selectedReport.userId}</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button variant="ghost" className="h-10 px-6 font-bold" onClick={() => setIsInspectOpen(false)}>Cancel</Button>
+              <Button
+                className="h-10 px-8 font-bold bg-[#f4a61b] text-[#763717] hover:bg-[#f4a61b]/90 border-none shadow-lg active:scale-[0.98] transition-all"
+                onClick={() => handleSaveAdminData()}
+              >
+                Save All Changes
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-2">
+            <Card className="p-4 bg-primary/5 border-primary/20">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase text-primary">Pending</span>
+                <AlertCircle size={16} className="text-primary" />
+              </div>
+              <p className="text-2xl font-bold mt-1">{reports.filter(r => r.status === 'pending').length}</p>
+            </Card>
+            <Card className="p-4 bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase text-blue-700 dark:text-blue-400">Reviewed</span>
+                <Clock size={16} className="text-blue-700 dark:text-blue-400" />
+              </div>
+              <p className="text-2xl font-bold mt-1">{reports.filter(r => r.status === 'reviewed').length}</p>
+            </Card>
+            <Card className="p-4 bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase text-amber-700 dark:text-amber-400">High/Urgent</span>
+                <ShieldAlert size={16} className="text-amber-700 dark:text-amber-400" />
+              </div>
+              <p className="text-2xl font-bold mt-1">{reports.filter(r => r.priority === 'high' || r.priority === 'urgent').length}</p>
+            </Card>
+            <Card className="p-4 bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase text-emerald-700 dark:text-emerald-400">Resolved Total</span>
+                <CheckCircle2 size={16} className="text-emerald-700 dark:text-emerald-400" />
+              </div>
+              <p className="text-2xl font-bold mt-1">{reports.filter(r => r.status === 'resolved').length}</p>
+            </Card>
+          </div>
+
+          <Tabs defaultValue="submissions" className="w-full">
+            <TabsList className="mb-4">
+              <TabsTrigger value="submissions" className="gap-2">
+                <ClipboardList size={14} /> Submissions
+              </TabsTrigger>
+              {currentRole === 'admin' && (
+                <TabsTrigger value="ratings" className="gap-2">
+                  <Star size={14} /> Support Ratings
+                </TabsTrigger>
+              )}
+              <TabsTrigger value="logs" className="gap-2">
+                <Activity size={14} /> Activity Log
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="submissions">
+              <Card className="border-none shadow-md overflow-hidden">
+                <CardHeader className="border-b bg-muted/5 p-6">
+                  <div className="flex flex-col space-y-4">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div>
+                        <CardTitle className="text-xl font-bold flex items-center gap-2">
+                          <ClipboardList className="text-primary" size={20} />
+                          Operational Console
+                        </CardTitle>
+                        <p className="text-xs text-muted-foreground mt-1">Manage, triage, and respond to user-submitted reports.</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" onClick={() => fetchReports({ page: 0, append: false })} disabled={loading}>
+                          <RefreshCw size={14} className="mr-2" /> Refresh
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="relative flex-1 min-w-[200px]">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Search submissions..."
+                          className="pl-10 bg-card"
+                          value={search}
+                          onChange={(e) => setSearch(e.target.value)}
+                        />
+                      </div>
+                      <Select value={statusFilter} onValueChange={setStatusFilter}>
+                        <SelectTrigger className="w-[140px] h-10 bg-card">
+                          <Filter size={14} className="mr-2" />
+                          <SelectValue placeholder="Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Status</SelectItem>
+                          <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="reviewed">Reviewed</SelectItem>
+                          <SelectItem value="resolved">Resolved</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                        <SelectTrigger className="w-[140px] h-10 bg-card">
+                          <ShieldAlert size={14} className="mr-2" />
+                          <SelectValue placeholder="Priority" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Priority</SelectItem>
+                          <SelectItem value="urgent">Urgent</SelectItem>
+                          <SelectItem value="high">High</SelectItem>
+                          <SelectItem value="medium">Medium</SelectItem>
+                          <SelectItem value="low">Low</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <ScrollArea className="h-[550px]">
+                    <Table>
+                      <TableHeader className="bg-card/95 backdrop-blur-sm sticky top-0 z-20 border-b">
+                        <TableRow>
+                          <TableHead className="w-[100px] font-bold uppercase text-[10px]">Priority</TableHead>
+                          <TableHead className="w-[100px] font-bold uppercase text-[10px]">Status</TableHead>
+                          <TableHead className="w-[90px] font-bold uppercase text-[10px]">Rating</TableHead>
+                          <TableHead className="font-bold uppercase text-[10px]">Type</TableHead>
+                          <TableHead className="font-bold uppercase text-[10px]">Submitter</TableHead>
+                          <TableHead className="font-bold uppercase text-[10px]">Data Preview</TableHead>
+                          <TableHead className="font-bold uppercase text-[10px]">Timestamp</TableHead>
+                          <TableHead className="text-right font-bold uppercase text-[10px]">Action</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredReports.map((report) => (
+                          <TableRow key={report.id} className="group hover:bg-muted/20 transition-colors">
+                            <TableCell>
+                              <Badge variant="outline" className={cn("capitalize text-[9px] px-2", getPriorityColor(report.priority))}>
+                                {report.priority || 'medium'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                {getStatusIcon(report.status)}
+                                <span className="capitalize text-[10px] font-medium text-muted-foreground">{report.status}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {typeof report.serviceRating === 'number' ? (
+                                <div className="flex items-center gap-1 text-amber-600">
+                                  {Array.from({ length: 5 }).map((_, i) => (
+                                    <Star key={i} size={12} className={i < report.serviceRating! ? 'fill-amber-500 text-amber-500' : 'text-muted-foreground/40'} />
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-[10px] text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <div className="font-semibold text-xs">{report.menuName}</div>
+                              <div className="text-[9px] text-muted-foreground font-mono">#{report.id.split('_')[1] || report.id}</div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <User size={12} className="text-muted-foreground" />
+                                <span className="text-[11px] font-mono">{report.userId}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="text-[10px] text-muted-foreground truncate max-w-[200px] italic">
+                                {Object.entries(report.data || {}).map(([k, v]) => `${k}:${v}`).join(', ')}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground text-[10px]">
+                              {format(new Date(report.timestamp), 'MMM dd, HH:mm')}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="inline-flex items-center gap-1">
+                                {activeReportDrafts.includes(report.id) && (
+                                  <>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-500" onClick={() => {
+                                      setSelectedReportId(report.id);
+                                      const draft = getReportDraft(report.id) as any;
+                                      if (draft) {
+                                        setEditingResponse(draft.editingResponse || '');
+                                        setEditingNotes(draft.editingNotes || '');
+                                        setEditingStatus(draft.editingStatus || 'pending');
+                                        setEditingPriority(draft.editingPriority || 'medium');
+                                        setEditingSupportAssignee(draft.editingSupportAssignee || '__none__');
+                                        setEditingSupportAssignmentType(draft.editingSupportAssignmentType || 'first_assignment');
+                                        setEditingSupportAssignmentReason(draft.editingSupportAssignmentReason || '');
+                                      }
+                                      setIsInspectOpen(true);
+                                    }} title="Resume Draft">
+                                      <FileCode size={14} />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => discardReportDraft(report.id)} title="Discard Draft">
+                                      <X size={14} />
+                                    </Button>
+                                  </>
+                                )}
+                                <Button variant="ghost" size="sm" className="h-8 text-xs hover:text-primary" onClick={() => {
                                   setSelectedReportId(report.id);
                                   const draft = getReportDraft(report.id) as any;
                                   if (draft) {
@@ -554,563 +777,292 @@ export function ReportsManagement() {
                                     setEditingSupportAssignee(draft.editingSupportAssignee || '__none__');
                                     setEditingSupportAssignmentType(draft.editingSupportAssignmentType || 'first_assignment');
                                     setEditingSupportAssignmentReason(draft.editingSupportAssignmentReason || '');
+                                  } else {
+                                    setEditingResponse(report.adminResponse || '');
+                                    setEditingNotes(report.internalNotes || '');
+                                    setEditingStatus(report.status);
+                                    setEditingPriority(report.priority || 'medium');
+                                    setEditingSupportAssignee(report.supportAssignee || '__none__');
+                                    setEditingSupportAssignmentType(report.supportAssignee ? 'escalation' : 'first_assignment');
+                                    setEditingSupportAssignmentReason('');
                                   }
                                   setIsInspectOpen(true);
-                                }} title="Resume Draft">
-                                  <FileCode size={14} />
+                                }}>
+                                  Inspect <ChevronRight size={14} className="ml-1" />
                                 </Button>
-                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => discardReportDraft(report.id)} title="Discard Draft">
-                                  <X size={14} />
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        {filteredReports.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={8} className="h-64 text-center">
+                              <div className="flex flex-col items-center justify-center space-y-2 opacity-40">
+                                <ClipboardList size={48} />
+                                <p className="italic text-sm">No submissions matching current filters.</p>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        {reportsMeta?.hasMore && (
+                          <TableRow>
+                            <TableCell colSpan={8} className="py-6">
+                              <div className="flex items-center justify-center gap-3">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={loadingMoreReports}
+                                  onClick={() => fetchReports({ page: (reportsMeta?.page ?? 0) + 1, append: true })}
+                                  className="gap-2"
+                                >
+                                  <Loader2 size={14} className={cn(loadingMoreReports && 'animate-spin')} />
+                                  Load more
                                 </Button>
-                              </>
-                            )}
-                            <Button variant="ghost" size="sm" className="h-8 text-xs hover:text-primary" onClick={() => {
-                              setSelectedReportId(report.id);
-                              const draft = getReportDraft(report.id) as any;
-                              if (draft) {
-                                setEditingResponse(draft.editingResponse || '');
-                                setEditingNotes(draft.editingNotes || '');
-                                setEditingStatus(draft.editingStatus || 'pending');
-                                setEditingPriority(draft.editingPriority || 'medium');
-                                setEditingSupportAssignee(draft.editingSupportAssignee || '__none__');
-                                setEditingSupportAssignmentType(draft.editingSupportAssignmentType || 'first_assignment');
-                                setEditingSupportAssignmentReason(draft.editingSupportAssignmentReason || '');
-                              } else {
-                                setEditingResponse(report.adminResponse || '');
-                                setEditingNotes(report.internalNotes || '');
-                                setEditingStatus(report.status);
-                                setEditingPriority(report.priority || 'medium');
-                                setEditingSupportAssignee(report.supportAssignee || '__none__');
-                                setEditingSupportAssignmentType(report.supportAssignee ? 'escalation' : 'first_assignment');
-                                setEditingSupportAssignmentReason('');
-                              }
-                              setIsInspectOpen(true);
-                            }}>
-                              Inspect <ChevronRight size={14} className="ml-1" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {filteredReports.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={8} className="h-64 text-center">
-                          <div className="flex flex-col items-center justify-center space-y-2 opacity-40">
-                            <ClipboardList size={48} />
-                            <p className="italic text-sm">No submissions matching current filters.</p>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )}
-                    {reportsMeta?.hasMore && (
-                      <TableRow>
-                        <TableCell colSpan={8} className="py-6">
-                          <div className="flex items-center justify-center gap-3">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              disabled={loadingMoreReports}
-                              onClick={() => fetchReports({ page: (reportsMeta?.page ?? 0) + 1, append: true })}
-                              className="gap-2"
-                            >
-                              <Loader2 size={14} className={cn(loadingMoreReports && 'animate-spin')} />
-                              Load more
-                            </Button>
-                            {typeof reportsMeta.total === 'number' && (
-                              <span className="text-xs text-muted-foreground">
-                                Showing {filteredReports.length} of {reportsMeta.total}
-                              </span>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </TabsContent>
+                                {typeof reportsMeta.total === 'number' && (
+                                  <span className="text-xs text-muted-foreground">
+                                    Showing {filteredReports.length} of {reportsMeta.total}
+                                  </span>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-        {currentRole === 'admin' && (
-          <TabsContent value="ratings">
-            <Card className="border-none shadow-md overflow-hidden">
-              <CardHeader className="border-b bg-muted/5 p-6">
-                <div className="flex flex-col gap-4">
-                  <div className="flex items-center justify-between gap-4">
+            {currentRole === 'admin' && (
+              <TabsContent value="ratings">
+                <Card className="border-none shadow-md overflow-hidden">
+                  <CardHeader className="border-b bg-muted/5 p-6">
+                    <div className="flex flex-col gap-4">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <CardTitle className="text-xl font-bold flex items-center gap-2">
+                            <Star className="text-primary" size={20} />
+                            Support Performance (Ratings)
+                          </CardTitle>
+                          <p className="text-xs text-muted-foreground mt-1">Aggregated user ratings captured after reports are resolved.</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold uppercase text-muted-foreground">Sort</span>
+                          <Select value={ratingSortKey} onValueChange={(v: any) => setRatingSortKey(v)}>
+                            <SelectTrigger className="w-[200px] h-10 bg-card">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="avg">Highest average</SelectItem>
+                              <SelectItem value="count">Most ratings</SelectItem>
+                              <SelectItem value="lastRatedAt">Most recent rating</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold uppercase text-muted-foreground">Top N</span>
+                          <Input
+                            type="number"
+                            value={ratingTopN}
+                            onChange={(e) => setRatingTopN(parseInt(e.target.value || '0', 10))}
+                            className="w-[120px] h-10 bg-card"
+                            min={1}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <ScrollArea className="h-[550px]">
+                      <Table>
+                        <TableHeader className="bg-card/95 backdrop-blur-sm sticky top-0 z-20 border-b">
+                          <TableRow>
+                            <TableHead className="font-bold uppercase text-[10px]">Support User</TableHead>
+                            <TableHead className="w-[140px] font-bold uppercase text-[10px]">Avg Rating</TableHead>
+                            <TableHead className="w-[120px] font-bold uppercase text-[10px]">Ratings</TableHead>
+                            <TableHead className="w-[140px] font-bold uppercase text-[10px]">Feedback</TableHead>
+                            <TableHead className="w-[180px] font-bold uppercase text-[10px]">Last Rated</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {supportRatings.map((row) => (
+                            <TableRow key={row.username} className="group hover:bg-muted/20 transition-colors">
+                              <TableCell>
+                                <div className="flex flex-col">
+                                  <span className="text-xs font-semibold">{row.username === '__unassigned__' ? 'Unassigned' : row.username}</span>
+                                  {row.username !== '__unassigned__' && (
+                                    <span className="text-[10px] text-muted-foreground font-mono">support</span>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="flex items-center gap-1 text-amber-600">
+                                    {Array.from({ length: 5 }).map((_, i) => (
+                                      <Star
+                                        key={i}
+                                        size={14}
+                                        className={i < Math.round(row.avg) ? 'fill-amber-500 text-amber-500' : 'text-muted-foreground/40'}
+                                      />
+                                    ))}
+                                  </div>
+                                  <span className="text-xs font-semibold">{row.count ? row.avg.toFixed(2) : '—'}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className="text-[10px] font-mono">{row.count}</Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className="text-[10px] font-mono">{row.feedbackCount}</Badge>
+                              </TableCell>
+                              <TableCell className="text-[10px] text-muted-foreground font-mono">
+                                {row.lastRatedAt ? format(new Date(row.lastRatedAt), 'MMM dd, HH:mm') : '—'}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                          {supportRatings.length === 0 && (
+                            <TableRow>
+                              <TableCell colSpan={5} className="h-48 text-center text-muted-foreground italic text-sm">
+                                No ratings available yet.
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </ScrollArea>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            )}
+
+            <TabsContent value="logs">
+              <Card className="border-none shadow-md overflow-hidden">
+                <CardHeader className="border-b bg-muted/5 p-6">
+                  <div className="flex items-center justify-between">
                     <div>
                       <CardTitle className="text-xl font-bold flex items-center gap-2">
-                        <Star className="text-primary" size={20} />
-                        Support Performance (Ratings)
+                        <Activity className="text-primary" size={20} />
+                        Support Activity Stream
                       </CardTitle>
-                      <p className="text-xs text-muted-foreground mt-1">Aggregated user ratings captured after reports are resolved.</p>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold uppercase text-muted-foreground">Sort</span>
-                      <Select value={ratingSortKey} onValueChange={(v: any) => setRatingSortKey(v)}>
-                        <SelectTrigger className="w-[200px] h-10 bg-card">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="avg">Highest average</SelectItem>
-                          <SelectItem value="count">Most ratings</SelectItem>
-                          <SelectItem value="lastRatedAt">Most recent rating</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <p className="text-xs text-muted-foreground mt-1">Audit trail for assignments, escalations, and official responses.</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold uppercase text-muted-foreground">Top N</span>
-                      <Input
-                        type="number"
-                        value={ratingTopN}
-                        onChange={(e) => setRatingTopN(parseInt(e.target.value || '0', 10))}
-                        className="w-[120px] h-10 bg-card"
-                        min={1}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                <ScrollArea className="h-[550px]">
-                  <Table>
-                    <TableHeader className="bg-card/95 backdrop-blur-sm sticky top-0 z-20 border-b">
-                      <TableRow>
-                        <TableHead className="font-bold uppercase text-[10px]">Support User</TableHead>
-                        <TableHead className="w-[140px] font-bold uppercase text-[10px]">Avg Rating</TableHead>
-                        <TableHead className="w-[120px] font-bold uppercase text-[10px]">Ratings</TableHead>
-                        <TableHead className="w-[140px] font-bold uppercase text-[10px]">Feedback</TableHead>
-                        <TableHead className="w-[180px] font-bold uppercase text-[10px]">Last Rated</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {supportRatings.map((row) => (
-                        <TableRow key={row.username} className="group hover:bg-muted/20 transition-colors">
-                          <TableCell>
-                            <div className="flex flex-col">
-                              <span className="text-xs font-semibold">{row.username === '__unassigned__' ? 'Unassigned' : row.username}</span>
-                              {row.username !== '__unassigned__' && (
-                                <span className="text-[10px] text-muted-foreground font-mono">support</span>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="flex items-center gap-1 text-amber-600">
-                                {Array.from({ length: 5 }).map((_, i) => (
-                                  <Star
-                                    key={i}
-                                    size={14}
-                                    className={i < Math.round(row.avg) ? 'fill-amber-500 text-amber-500' : 'text-muted-foreground/40'}
-                                  />
-                                ))}
-                              </div>
-                              <span className="text-xs font-semibold">{row.count ? row.avg.toFixed(2) : '—'}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="text-[10px] font-mono">{row.count}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="text-[10px] font-mono">{row.feedbackCount}</Badge>
-                          </TableCell>
-                          <TableCell className="text-[10px] text-muted-foreground font-mono">
-                            {row.lastRatedAt ? format(new Date(row.lastRatedAt), 'MMM dd, HH:mm') : '—'}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      {supportRatings.length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={5} className="h-48 text-center text-muted-foreground italic text-sm">
-                            No ratings available yet.
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        )}
-
-        <TabsContent value="logs">
-          <Card className="border-none shadow-md overflow-hidden">
-            <CardHeader className="border-b bg-muted/5 p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-xl font-bold flex items-center gap-2">
-                    <Activity className="text-primary" size={20} />
-                    Support Activity Stream
-                  </CardTitle>
-                  <p className="text-xs text-muted-foreground mt-1">Audit trail for assignments, escalations, and official responses.</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => fetchActivityLogs({ page: 0, append: false })} disabled={loadingLogs}>
-                    <RefreshCw size={12} className={cn("mr-2", loadingLogs && "animate-spin")} /> Refresh Log
-                  </Button>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/20 px-3 py-1.5 rounded-full font-medium">
-                    <Clock size={12} /> Database tracking
-                  </div>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <ScrollArea className="h-[600px]">
-                <div className="p-0">
-                  <Table>
-                    <TableHeader className="bg-card/95 backdrop-blur-sm sticky top-0 z-20 border-b">
-                      <TableRow>
-                        <TableHead className="w-[180px] font-bold uppercase text-[10px]">Timestamp</TableHead>
-                        <TableHead className="w-[140px] font-bold uppercase text-[10px]">Event</TableHead>
-                        <TableHead className="font-bold uppercase text-[10px]">Description</TableHead>
-                        <TableHead className="w-[120px] font-bold uppercase text-[10px]">Report Ref</TableHead>
-                        <TableHead className="text-right font-bold uppercase text-[10px]">Actor/Target</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {activityLogs.map((log) => (
-                        <TableRow key={log.id} className="group hover:bg-muted/10 transition-colors">
-                          <TableCell className="text-[10px] text-muted-foreground font-mono">
-                            {format(new Date(log.timestamp), 'MMM dd, HH:mm:ss')}
-                          </TableCell>
-                          <TableCell>
-                            {log.type === 'assignment' ? (
-                              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-[9px] uppercase">Assignment</Badge>
-                            ) : log.type === 'response' ? (
-                              <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[9px] uppercase">Response</Badge>
-                            ) : log.type === 'resolution' ? (
-                              <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200 text-[9px] uppercase">Resolved</Badge>
-                            ) : (
-                              <Badge variant="outline" className="bg-primary/5 text-primary/70 border-primary/10 text-[9px] uppercase">Submission</Badge>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <div className="space-y-1">
-                              <p className="text-xs font-medium">{log.content || 'Activity recorded'}</p>
-                              {log.type === 'assignment' && log.target && (
-                                <p className="text-[9px] text-muted-foreground italic">Assigned to {log.target}</p>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-[10px] font-mono text-primary cursor-pointer hover:underline" onClick={() => {
-                              setSelectedReportId(log.reportId);
-                              const r = reports.find(x => x.id === log.reportId);
-                              if (r) {
-                                setEditingResponse(r.adminResponse || '');
-                                setEditingNotes(r.internalNotes || '');
-                                setEditingStatus(r.status);
-                                setEditingPriority(r.priority || 'medium');
-                                setEditingSupportAssignee(r.supportAssignee || '__none__');
-                                setEditingSupportAssignmentType(r.supportAssignee ? 'escalation' : 'first_assignment');
-                                setIsInspectOpen(true);
-                              }
-                            }}>
-                              #{log.reportId.split('_')[1] || log.reportId}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex flex-col items-end">
-                              <span className="text-[10px] font-bold">{log.actor}</span>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      {activityLogs.length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={5} className="h-48 text-center text-muted-foreground italic text-sm">
-                            No activities recorded yet.
-                          </TableCell>
-                        </TableRow>
-                      )}
-                      {activityMeta?.hasMore && (
-                        <TableRow>
-                          <TableCell colSpan={5} className="py-6">
-                            <div className="flex items-center justify-center gap-3">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                disabled={loadingMoreActivity}
-                                onClick={() => fetchActivityLogs({ page: (activityMeta?.page ?? 0) + 1, append: true })}
-                                className="gap-2"
-                              >
-                                <Loader2 size={14} className={cn(loadingMoreActivity && 'animate-spin')} />
-                                Load more
-                              </Button>
-                              {typeof activityMeta.total === 'number' && (
-                                <span className="text-xs text-muted-foreground">
-                                  Showing {activityLogs.length} of {activityMeta.total}
-                                </span>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-
-      <Dialog open={isInspectOpen} onOpenChange={setIsInspectOpen}>
-        <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
-          {selectedReport && (
-            <>
-              <DialogHeader className="p-6 border-b bg-muted/5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/10 rounded-lg">
-                      <FileText className="text-primary" size={24} />
-                    </div>
-                    <div>
-                      <DialogTitle className="text-xl">{selectedReport.menuName}</DialogTitle>
-                      <p className="text-xs text-muted-foreground font-mono">Reference: {selectedReport.id}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => downloadJson(selectedReport)}>
-                      <Download size={14} className="mr-2" /> Export JSON
-                    </Button>
-                    {currentRole === 'admin' && (
-                      <Button variant="ghost" size="icon" className="text-destructive" onClick={() => { handleDeleteReport(selectedReport.id); setIsInspectOpen(false); }}>
-                        <Trash2 size={18} />
+                      <Button variant="outline" size="sm" onClick={() => fetchActivityLogs({ page: 0, append: false })} disabled={loadingLogs}>
+                        <RefreshCw size={12} className={cn("mr-2", loadingLogs && "animate-spin")} /> Refresh Log
                       </Button>
-                    )}
-                  </div>
-                </div>
-              </DialogHeader>
-
-              {/* ADMIN ACTION BAR: Resolve, Review, and Metadata Management */}
-              <div className="bg-amber-50/50 dark:bg-amber-950/20 border-b p-4 flex flex-wrap items-center gap-4 justify-between">
-                <div className="flex flex-wrap items-center gap-3 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold uppercase text-muted-foreground">Status</span>
-                    <Badge className={cn("text-[10px] capitalize",
-                      editingStatus === 'resolved' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-400' :
-                        editingStatus === 'reviewed' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-400' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-400'
-                    )}>
-                      {editingStatus}
-                    </Badge>
-                  </div>
-                  <Separator orientation="vertical" className="h-4" />
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold uppercase text-muted-foreground">Set Priority</span>
-                    <Select
-                      value={editingPriority}
-                      onValueChange={(val: any) => setEditingPriority(val)}
-                    >
-                      <SelectTrigger disabled={currentRole === 'support'} className="h-7 w-28 text-[10px]"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="urgent">Urgent</SelectItem>
-                        <SelectItem value="high">High</SelectItem>
-                        <SelectItem value="medium">Medium</SelectItem>
-                        <SelectItem value="low">Low</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Separator orientation="vertical" className="h-4" />
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold uppercase text-muted-foreground">Support</span>
-                    {currentRole === 'admin' ? (
-                      <Select value={editingSupportAssignee} onValueChange={(val) => {
-                        setEditingSupportAssignee(val);
-                        const existing = selectedReport?.supportAssignee;
-                        const hadAssignee = typeof existing === 'string' && existing.trim().length > 0;
-                        if (val === '__none__') {
-                          setEditingSupportAssignmentType('first_assignment');
-                          setEditingSupportAssignmentReason('');
-                          return;
-                        }
-                        setEditingSupportAssignmentType(hadAssignee ? 'escalation' : 'first_assignment');
-                        setEditingSupportAssignmentReason('');
-                      }}>
-                        <SelectTrigger className="h-7 w-44 text-[10px]"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">Unassigned</SelectItem>
-                          {supportUsers.map(u => (
-                            <SelectItem key={u.username} value={u.username}>{u.username}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Badge variant="outline" className="text-[10px]">
-                        {editingSupportAssignee === '__none__' ? 'Unassigned' : (editingSupportAssignee === currentUsername ? 'Assigned to you' : editingSupportAssignee)}
-                      </Badge>
-                    )}
-                  </div>
-                  {currentRole === 'admin' && editingSupportAssignee !== '__none__' && (
-                    <>
-                      <Separator orientation="vertical" className="h-4" />
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold uppercase text-muted-foreground">Type</span>
-                        <Select value={editingSupportAssignmentType} onValueChange={(val: any) => setEditingSupportAssignmentType(val)}>
-                          <SelectTrigger className="h-7 w-36 text-[10px]"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="first_assignment">First Assigned</SelectItem>
-                            <SelectItem value="escalation">Escalation</SelectItem>
-                          </SelectContent>
-                        </Select>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/20 px-3 py-1.5 rounded-full font-medium">
+                        <Clock size={12} /> Database tracking
                       </div>
-                      <div className="flex items-center gap-2 basis-full sm:basis-auto">
-                        <span className="text-[10px] font-bold uppercase text-muted-foreground">Reason</span>
-                        <Input
-                          value={editingSupportAssignmentReason}
-                          onChange={(e) => setEditingSupportAssignmentReason(e.target.value)}
-                          placeholder="Reason for assignment..."
-                          className="h-7 w-full sm:w-56 text-[11px] bg-card"
-                        />
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className={cn("h-8 text-[11px] font-bold", editingStatus === 'reviewed' && "bg-blue-50 border-blue-200 dark:bg-blue-900/30 dark:border-blue-800")}
-                    onClick={() => handleSaveAdminData('reviewed')}
-                  >
-                    <Clock size={14} className="mr-2 text-blue-500" /> Mark Reviewed
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="h-8 text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
-                    onClick={() => handleSaveAdminData('resolved')}
-                  >
-                    <CheckCircle size={14} className="mr-2" /> Mark Resolved
-                  </Button>
-                </div>
-              </div>
-
-              <ScrollArea className="flex-1">
-                <div className="p-6 space-y-6">
-                  <Tabs defaultValue="response" className="w-full">
-                    <TabsList className="grid w-full grid-cols-3 h-11">
-                      <TabsTrigger value="response" className="text-xs gap-2">
-                        <MessageSquare size={14} /> User Response
-                      </TabsTrigger>
-                      <TabsTrigger value="data" className="text-xs gap-2">
-                        <Database size={14} /> Collected Data
-                      </TabsTrigger>
-                      <TabsTrigger value="notes" className="text-xs gap-2">
-                        <NotebookPen size={14} /> Internal Notes
-                      </TabsTrigger>
-                    </TabsList>
-
-                    <TabsContent value="response" className="pt-6 space-y-4">
-                      {typeof selectedReport.serviceRating === 'number' && (
-                        <div className="p-4 border rounded-xl bg-amber-50/40 dark:bg-amber-950/15 border-amber-200/60 dark:border-amber-900/50">
-                          <div className="flex items-center justify-between gap-4">
-                            <div className="space-y-1">
-                              <div className="text-[10px] font-bold uppercase text-amber-800 dark:text-amber-400">User Rating</div>
-                              <div className="flex items-center gap-1 text-amber-600">
-                                {Array.from({ length: 5 }).map((_, i) => (
-                                  <Star key={i} size={14} className={i < selectedReport.serviceRating! ? 'fill-amber-500 text-amber-500' : 'text-muted-foreground/40'} />
-                                ))}
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <div className="text-xs font-semibold">{selectedReport.serviceRating} / 5</div>
-                              {selectedReport.serviceRatedAt && (
-                                <div className="text-[10px] text-muted-foreground">
-                                  {format(new Date(selectedReport.serviceRatedAt), 'MMM dd, HH:mm')}
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <ScrollArea className="h-[600px]">
+                    <div className="p-0">
+                      <Table>
+                        <TableHeader className="bg-card/95 backdrop-blur-sm sticky top-0 z-20 border-b">
+                          <TableRow>
+                            <TableHead className="w-[180px] font-bold uppercase text-[10px]">Timestamp</TableHead>
+                            <TableHead className="w-[140px] font-bold uppercase text-[10px]">Event</TableHead>
+                            <TableHead className="font-bold uppercase text-[10px]">Description</TableHead>
+                            <TableHead className="w-[120px] font-bold uppercase text-[10px]">Report Ref</TableHead>
+                            <TableHead className="text-right font-bold uppercase text-[10px]">Actor/Target</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {activityLogs.map((log) => (
+                            <TableRow key={log.id} className="group hover:bg-muted/10 transition-colors">
+                              <TableCell className="text-[10px] text-muted-foreground font-mono">
+                                {format(new Date(log.timestamp), 'MMM dd, HH:mm:ss')}
+                              </TableCell>
+                              <TableCell>
+                                {log.type === 'assignment' ? (
+                                  <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-[9px] uppercase">Assignment</Badge>
+                                ) : log.type === 'response' ? (
+                                  <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[9px] uppercase">Response</Badge>
+                                ) : log.type === 'resolution' ? (
+                                  <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200 text-[9px] uppercase">Resolved</Badge>
+                                ) : (
+                                  <Badge variant="outline" className="bg-primary/5 text-primary/70 border-primary/10 text-[9px] uppercase">Submission</Badge>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <div className="space-y-1">
+                                  <p className="text-xs font-medium">{log.content || 'Activity recorded'}</p>
+                                  {log.type === 'assignment' && log.target && (
+                                    <p className="text-[9px] text-muted-foreground italic">Assigned to {log.target}</p>
+                                  )}
                                 </div>
-                              )}
-                            </div>
-                          </div>
-                          {selectedReport.serviceFeedback && (
-                            <div className="mt-3 text-sm text-muted-foreground italic break-words">
-                              {selectedReport.serviceFeedback}
-                            </div>
+                              </TableCell>
+                              <TableCell>
+                                <span className="text-[10px] font-mono text-primary cursor-pointer hover:underline" onClick={() => {
+                                  setSelectedReportId(log.reportId);
+                                  const r = reports.find(x => x.id === log.reportId);
+                                  if (r) {
+                                    setEditingResponse(r.adminResponse || '');
+                                    setEditingNotes(r.internalNotes || '');
+                                    setEditingStatus(r.status);
+                                    setEditingPriority(r.priority || 'medium');
+                                    setEditingSupportAssignee(r.supportAssignee || '__none__');
+                                    setEditingSupportAssignmentType(r.supportAssignee ? 'escalation' : 'first_assignment');
+                                    setIsInspectOpen(true);
+                                  }
+                                }}>
+                                  #{log.reportId.split('_')[1] || log.reportId}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex flex-col items-end">
+                                  <span className="text-[10px] font-bold">{log.actor}</span>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                          {activityLogs.length === 0 && (
+                            <TableRow>
+                              <TableCell colSpan={5} className="h-48 text-center text-muted-foreground italic text-sm">
+                                No activities recorded yet.
+                              </TableCell>
+                            </TableRow>
                           )}
-                          {selectedReport.serviceRatedSupportAssignee && (
-                            <div className="mt-2 text-[10px] text-muted-foreground">
-                              Rated for support: <span className="font-mono">{selectedReport.serviceRatedSupportAssignee}</span>
-                            </div>
+                          {activityMeta?.hasMore && (
+                            <TableRow>
+                              <TableCell colSpan={5} className="py-6">
+                                <div className="flex items-center justify-center gap-3">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={loadingMoreActivity}
+                                    onClick={() => fetchActivityLogs({ page: (activityMeta?.page ?? 0) + 1, append: true })}
+                                    className="gap-2"
+                                  >
+                                    <Loader2 size={14} className={cn(loadingMoreActivity && 'animate-spin')} />
+                                    Load more
+                                  </Button>
+                                  {typeof activityMeta.total === 'number' && (
+                                    <span className="text-xs text-muted-foreground">
+                                      Showing {activityLogs.length} of {activityMeta.total}
+                                    </span>
+                                  )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
                           )}
-                        </div>
-                      )}
-                      <div className="space-y-4 bg-muted/20 p-6 rounded-xl border border-dashed border-primary/20">
-                        <div className="flex items-center justify-between">
-                          <div className="space-y-1">
-                            <Label className="text-sm font-bold flex items-center gap-2">
-                              <Send size={16} className="text-primary" />
-                              Official Written Response
-                            </Label>
-                            <p className="text-[11px] text-muted-foreground">This message will be visible to the user when they check their report status in the chat.</p>
-                          </div>
-                          {selectedReport.adminResponse && (
-                            <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700">Message Active</Badge>
-                          )}
-                        </div>
-                        <Textarea
-                          value={editingResponse}
-                          onChange={(e) => setEditingResponse(e.target.value)}
-                          placeholder="Type your official message to the user here... (e.g., 'We have received your report and blocked your card.')"
-                          className="min-h-[150px] text-sm bg-card shadow-inner"
-                        />
-                      </div>
-                    </TabsContent>
-
-                    <TabsContent value="data" className="pt-6">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {Object.entries(selectedReport.data || {}).map(([key, value]) => (
-                          <div key={key} className="p-4 border rounded-xl bg-slate-50/50 dark:bg-muted/20 hover:bg-card transition-all shadow-sm group">
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-tight">{prettifyKey(key)}</span>
-                            </div>
-                            <span className="text-sm font-semibold text-foreground font-mono break-all">{String(value || 'N/A')}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </TabsContent>
-
-                    <TabsContent value="notes" className="pt-6 space-y-4">
-                      <div className="space-y-3 p-6 border rounded-xl bg-amber-50/30 dark:bg-amber-950/10 border-amber-200 dark:border-amber-900/50">
-                        <div className="space-y-1">
-                          <Label className="text-sm font-bold flex items-center gap-2 text-amber-900 dark:text-amber-400">
-                            <NotebookPen size={16} />
-                            Private Internal Notes
-                          </Label>
-                          <p className="text-[11px] text-amber-700 dark:text-amber-500/70 italic">These notes are strictly for admin review and are NEVER shared with the user.</p>
-                        </div>
-                        <Textarea
-                          value={editingNotes}
-                          onChange={(e) => setEditingNotes(e.target.value)}
-                          placeholder="Add internal investigation notes, next steps, or agent observations..."
-                          className="min-h-[150px] text-sm border-amber-200 dark:border-amber-900/50 focus-visible:ring-amber-500 bg-card"
-                        />
-                      </div>
-                    </TabsContent>
-                  </Tabs>
-                </div>
-              </ScrollArea>
-
-              <DialogFooter className="p-6 border-t bg-muted/5 sticky bottom-0 z-50 flex items-center justify-between sm:justify-between w-full">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <User size={14} />
-                  <span className="text-[11px] font-mono">Submitter: {selectedReport.userId}</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Button variant="ghost" className="h-10 px-6" onClick={() => setIsInspectOpen(false)}>Cancel</Button>
-                  <Button className="h-10 px-8" onClick={() => handleSaveAdminData()}>
-                    Save All Changes
-                  </Button>
-                </div>
-              </DialogFooter>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </>
+      )}
     </div>
   );
 }

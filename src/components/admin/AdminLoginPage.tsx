@@ -11,9 +11,9 @@ import { Logo } from '@/components/Logo';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
-
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 
@@ -175,6 +175,7 @@ export function AdminLoginPage() {
             <DialogContent className="sm:max-w-[420px]">
               <DialogHeader>
                 <DialogTitle>Forgot Password</DialogTitle>
+                <DialogDescription id="forgot-password-description">Enter your administrative email to receive a secure recovery token.</DialogDescription>
               </DialogHeader>
               <div className="space-y-3 mt-2">
                 {/* In production we don't return the token in the response; an email is sent instead. */}
@@ -220,6 +221,7 @@ export function AdminLoginPage() {
         <DialogContent className="sm:max-w-[420px]">
           <DialogHeader>
             <DialogTitle>Reset Password</DialogTitle>
+            <DialogDescription id="reset-password-description">Use your recovery token to set a new administrative password.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 mt-2">
             <Label className="text-sm">Recovery Token</Label>

@@ -196,33 +196,50 @@ function ColorPanel({ editor, mode, onClose }: ColorPanelProps) {
 
   // Generate CSS classes for color buttons and current color display using nonce-protected styles
   useEffect(() => {
-    const map = new Map()
+    const map = new Map<string, { className: string; tag: HTMLStyleElement }>()
+    const createdTags: HTMLStyleElement[] = []
+
     // color buttons
     colors.forEach((c) => {
       const val = c.value || ''
       if (map.has(val)) return
+      let result;
       if (!val && mode === 'highlight') {
         const rules = `background-color: transparent; background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%); background-size: 6px 6px; background-position: 0 0, 3px 3px;`
-        map.set(val, createClassWithRules(rules))
+        result = createClassWithRules(rules)
       } else {
         const bg = val || (mode === 'text' ? 'white' : 'transparent')
-        map.set(val, createClassWithRules(`background-color: ${bg};`))
+        result = createClassWithRules(`background-color: ${bg};`)
       }
+      map.set(val, result)
+      createdTags.push(result.tag)
     })
 
     // apply classes to elements
     const buttons = Array.from(document.querySelectorAll('[data-color]')) as HTMLElement[]
     buttons.forEach((btn) => {
       const val = btn.getAttribute('data-color') || ''
-      const cls = map.get(val)
-      if (cls) btn.classList.add(cls)
+      const res = map.get(val)
+      if (res) btn.classList.add(res.className)
     })
 
     const current = document.querySelector('[data-current-color]') as HTMLElement | null
     if (current) {
       const c = current.getAttribute('data-current-color') || ''
-      const cls = map.get(c) || createClassWithRules(`background-color: ${c};`)
-      current.classList.add(cls)
+      let res = map.get(c)
+      if (!res) {
+        res = createClassWithRules(`background-color: ${c};`)
+        createdTags.push(res.tag)
+      }
+      current.classList.add(res.className)
+    }
+
+    return () => {
+      createdTags.forEach(tag => {
+        try {
+          if (tag.parentNode) tag.parentNode.removeChild(tag)
+        } catch (e) { }
+      })
     }
   }, [colors, mode])
 

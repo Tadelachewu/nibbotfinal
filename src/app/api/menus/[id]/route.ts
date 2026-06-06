@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 
 import { getValidatedAdminSession, rotateCsrfToken, verifyCsrfToken } from '@/lib/session';
 import { logSecurityEvent } from '@/lib/logger';
+import { sanitizeHtml } from '@/lib/security';
 
 function parseBoolean(value: string | null) {
   return value === '1' || value === 'true';
@@ -661,6 +662,21 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
     }
   }
 
+  // Sanitize HTML content fields
+  const content = typeof body.content === 'string' ? sanitizeHtml(body.content) : (body.content ?? null);
+  const contentAm = typeof body.contentAm === 'string' ? sanitizeHtml(body.contentAm) : (body.contentAm ?? null);
+  const translations = body.translations && typeof body.translations === 'object'
+    ? (() => {
+      const t = { ...body.translations } as any;
+      Object.keys(t).forEach(lang => {
+        if (t[lang] && typeof t[lang].content === 'string') {
+          t[lang].content = sanitizeHtml(t[lang].content);
+        }
+      });
+      return t;
+    })()
+    : (body.translations ?? null);
+
   if (existing.approvalStatus === 'approved') {
     const pendingUpdate = {
       parentId: Object.prototype.hasOwnProperty.call(body, 'parentId')
@@ -669,14 +685,14 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
       name: body.name ?? undefined,
       nameAm: Object.prototype.hasOwnProperty.call(body, 'nameAm') ? (body.nameAm ?? null) : undefined,
       responseType: body.responseType ?? undefined,
-      content: Object.prototype.hasOwnProperty.call(body, 'content') ? (body.content ?? null) : undefined,
-      contentAm: Object.prototype.hasOwnProperty.call(body, 'contentAm') ? (body.contentAm ?? null) : undefined,
+      content: Object.prototype.hasOwnProperty.call(body, 'content') ? content : undefined,
+      contentAm: Object.prototype.hasOwnProperty.call(body, 'contentAm') ? contentAm : undefined,
       apiConfig: Object.prototype.hasOwnProperty.call(body, 'apiConfig') ? (apiConfig ? { ...(apiConfig as any), kycFields } : null) : undefined,
       supportAssignee,
       order: Number.isFinite(body.order) ? body.order : undefined,
       isActive: typeof body.isActive === 'boolean' ? body.isActive : undefined,
       trackClicks: typeof body.trackClicks === 'boolean' ? body.trackClicks : undefined,
-      translations: Object.prototype.hasOwnProperty.call(body, 'translations') ? (body.translations ?? null) : undefined,
+      translations: Object.prototype.hasOwnProperty.call(body, 'translations') ? translations : undefined,
       attachedMenuIds: Object.prototype.hasOwnProperty.call(body, 'attachedMenuIds') ? attachedMenuIds : undefined,
       attachmentDescription: Object.prototype.hasOwnProperty.call(body, 'attachmentDescription') ? (typeof body.attachmentDescription === 'string' ? body.attachmentDescription : null) : undefined
     };
@@ -706,8 +722,8 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
         name: body.name ?? undefined,
         nameAm: body.nameAm ?? null,
         responseType: body.responseType ?? undefined,
-        content: body.content ?? null,
-        contentAm: body.contentAm ?? null,
+        content,
+        contentAm,
         apiConfig: apiConfig ?? null,
         supportAssignee,
         order: Number.isFinite(body.order) ? body.order : undefined,
@@ -715,7 +731,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
         trackClicks: typeof body.trackClicks === 'boolean' ? body.trackClicks : undefined,
         clickCount: Number.isFinite(body.clickCount) ? body.clickCount : undefined,
         sessionClickCount: Number.isFinite(body.sessionClickCount) ? body.sessionClickCount : undefined,
-        translations: body.translations ?? null,
+        translations,
         attachmentDescription: Object.prototype.hasOwnProperty.call(body, 'attachmentDescription') ? (typeof body.attachmentDescription === 'string' ? body.attachmentDescription : null) : undefined,
         approvalStatus: 'pending',
         rejectionReason: null

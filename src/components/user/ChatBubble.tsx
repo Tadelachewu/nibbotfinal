@@ -3,24 +3,25 @@
 import { ReactNode } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
+import { escapeHtml } from '@/lib/security';
 
 interface ChatBubbleProps {
   children: ReactNode;
   isBot?: boolean;
-  botAvatar?: { type?: 'text' | 'image', image?: string, text?: string };
-  userAvatar?: { type?: 'text' | 'image', image?: string, text?: string };
+  botAvatar?: { type?: 'text' | 'image', image?: string, text?: string, url?: string };
+  userAvatar?: { type?: 'text' | 'image', image?: string, text?: string, url?: string };
 }
 
-function makeAvatarDataUri(text: string, background: string) {
-  const safeText = String(text || '').toUpperCase();
+function makeAvatarDataUri(text: string, background: string, color: string) {
+  const safeText = escapeHtml(String(text || '').toUpperCase());
   const fontSize = Math.max(14, 36 - Math.max(0, safeText.length - 2) * 6);
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="${background}"/><text x="50" y="58" text-anchor="middle" font-family="Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial" font-size="${fontSize}" font-weight="700" fill="#ffffff">${safeText}</text></svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="${background}"/><text x="50" y="58" text-anchor="middle" font-family="Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial" font-size="${fontSize}" font-weight="700" fill="${color}">${safeText}</text></svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
 export function ChatBubble({ children, isBot = true, botAvatar, userAvatar }: ChatBubbleProps) {
-  const defaultBotAvatar = botAvatar?.type === 'image' && botAvatar.image ? botAvatar.image : makeAvatarDataUri(botAvatar?.text || 'TT', '#763717');
-  const defaultUserAvatar = userAvatar?.type === 'image' && userAvatar.image ? userAvatar.image : makeAvatarDataUri(userAvatar?.text || 'ME', '#F4A61B');
+  const defaultBotAvatar = botAvatar?.url || (botAvatar?.type === 'image' && botAvatar.image ? botAvatar.image : makeAvatarDataUri(botAvatar?.text || 'NB', '#f4a61b', '#763717'));
+  const defaultUserAvatar = userAvatar?.url || (userAvatar?.type === 'image' && userAvatar.image ? userAvatar.image : makeAvatarDataUri(userAvatar?.text || 'U', '#f4a61b', '#763717'));
 
   return (
     <div className={cn(
@@ -28,17 +29,17 @@ export function ChatBubble({ children, isBot = true, botAvatar, userAvatar }: Ch
       isBot ? "justify-start" : "justify-end"
     )}>
       {isBot && (
-        <Avatar className="h-8 w-8 border-2 border-primary/20 shrink-0">
+        <Avatar className="h-8 w-8 border-2 border-[#f4a61b]/20 shrink-0">
           <AvatarImage src={defaultBotAvatar} />
-          <AvatarFallback className="bg-primary text-white text-[10px]">{botAvatar?.text || 'TT'}</AvatarFallback>
+          <AvatarFallback className="bg-[#f4a61b] text-[#763717] text-[10px] font-bold">{botAvatar?.text || 'NB'}</AvatarFallback>
         </Avatar>
       )}
 
       <div className={cn(
         "max-w-[80%] rounded-2xl p-3 sm:p-4 shadow-sm transition-all hover:shadow-md overflow-hidden min-w-0",
         isBot
-          ? "bg-card text-foreground rounded-tl-none border border-border"
-          : "bg-accent text-white rounded-tr-none"
+          ? "bg-card text-[#763717] rounded-tl-none border border-border"
+          : "bg-[#f4a61b] text-[#763717] rounded-tr-none"
       )}>
         <div className="wysiwyg-content break-words whitespace-pre-wrap [word-break:break-word] [overflow-wrap:anywhere] min-w-0">
           {children}
@@ -46,9 +47,9 @@ export function ChatBubble({ children, isBot = true, botAvatar, userAvatar }: Ch
       </div>
 
       {!isBot && (
-        <Avatar className="h-8 w-8 border-2 border-accent/20 shrink-0">
+        <Avatar className="h-8 w-8 border-2 border-[#f4a61b]/20 shrink-0">
           <AvatarImage src={defaultUserAvatar} />
-          <AvatarFallback className="bg-accent text-white text-[10px]">{userAvatar?.text || 'ME'}</AvatarFallback>
+          <AvatarFallback className="bg-[#f4a61b] text-[#763717] text-[10px] font-bold">{userAvatar?.text || 'U'}</AvatarFallback>
         </Avatar>
       )}
     </div>

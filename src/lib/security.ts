@@ -1,6 +1,37 @@
+import DOMPurify from 'isomorphic-dompurify';
+
 /**
  * Security utilities for the TalkTree system.
  */
+
+/**
+ * Sanitizes HTML content to prevent XSS attacks.
+ * Uses DOMPurify to strip dangerous tags and attributes.
+ */
+export function sanitizeHtml(html: string): string {
+  if (!html) return '';
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: [
+      'p', 'b', 'i', 'em', 'strong', 'a', 'ul', 'ol', 'li', 'br', 'span', 'div',
+      'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'code', 'pre',
+      'table', 'thead', 'tbody', 'tr', 'th', 'td', 'img'
+    ],
+    ALLOWED_ATTR: ['href', 'target', 'class', 'src', 'alt', 'style', 'title', 'rel'],
+  }) as string;
+}
+
+/**
+ * Escapes HTML special characters to prevent XSS when rendering plain text in HTML.
+ */
+export function escapeHtml(str: string): string {
+  if (!str) return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
 
 /**
  * Validates a URL against an allowlist of domains to prevent SSRF.
@@ -10,7 +41,7 @@ export function validateApiUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
     const protocol = parsed.protocol;
-    
+
     // Only allow http/https
     if (protocol !== 'http:' && protocol !== 'https:') return false;
 

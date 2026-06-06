@@ -181,6 +181,17 @@ This is used by the server and Redis presence engine to keep the `online_users` 
 
 Example: a visitor opens the chat app, receives `user_abc123` in localStorage, and sends heartbeats until the tab closes. The admin dashboard can then display an accurate online count.
 
+### 4.4 Real-time Tracking and Presence
+
+While the `sessionId` is permanent in the browser, the system tracks real-time "Online Now" status via a volatile presence record:
+
+1. **Heartbeat Mechanism**: The Chat Interface emits a `user_active` event every 15 seconds via Socket.io.
+2. **Redis Storage**: The server stores the `sessionId` in a Redis sorted set (`online_users`) with the current timestamp as the score.
+3. **Expiration Logic**: 
+   - The `sessionId` in `localStorage` **never expires** automatically.
+   - The **presence record** in Redis expires after **20 seconds** of inactivity.
+   - A background loop on the server purges stale records every 5 seconds, ensuring the "Online Now" count reflects only currently active tabs.
+
 ## 5. What is not part of session management
 
 - Redis is not the admin session store.

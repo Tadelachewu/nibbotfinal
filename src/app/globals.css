@@ -67,6 +67,10 @@
   @apply leading-relaxed break-words;
 }
 
+.ProseMirror {
+  white-space: pre-wrap !important;
+}
+
 .wysiwyg-content h1 { @apply text-2xl font-extrabold mb-4 mt-2; color: var(--primary); }
 .wysiwyg-content h2 { @apply text-xl font-bold mb-3 mt-2; }
 .wysiwyg-content h3 { @apply text-lg font-bold mb-2; }
@@ -142,4 +146,4 @@
   input, select, textarea {
     font-size: 16px !important;
   }
-}
+}

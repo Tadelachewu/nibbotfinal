@@ -82,22 +82,22 @@ app.prepare().then(async () => {
     // Using a whitelist prevents XSS from exfiltrating data to arbitrary origins.
     const connectSrc = [
       "'self'",
-      "https://www.google.com",
+      "https://www.google.com/",
       "ws://localhost:9002",
       "wss://nibterachatboat.nibbank.com.et",
       "ws://127.0.0.1:9002",
       "ws://127.0.0.1:9004",
       "wss://localhost:3020",
-      "ws://localhost:3020",
       "ws://127.0.0.1:3000",
       "ws://127.0.0.1:3001"
     ].join(' ');
 
     const scriptSrc = nonce ? `'self' 'nonce-${nonce}'` : "'self'";
-    const styleSrc = nonce ? `'self' 'nonce-${nonce}'` : "'self'";
+    const styleSrc = "'self' 'unsafe-inline'";
+    const styleSrcElem = "'self' 'unsafe-inline' https://fonts.googleapis.com/";
 
     const directives = [
-      "default-src 'self'",
+      "default-src 'self' http://localhost:3020/ https://nibterachatboat.nibbank.com.et/",
       "base-uri 'self'",
       "object-src 'none'",
       "frame-ancestors 'self'",
@@ -106,9 +106,10 @@ app.prepare().then(async () => {
       `script-src ${scriptSrc}`,
       `style-src ${styleSrc}`,
       "style-src-attr 'unsafe-inline'",
-      `img-src 'self' blob: data: https://placehold.co https://images.unsplash.com https://picsum.photos`,
+      `style-src-elem ${styleSrcElem}`,
+      `img-src 'self' blob: data: https://placehold.co/ https://images.unsplash.com/ https://picsum.photos/`,
       "font-src 'self'",
-      "frame-src 'self' https://www.google.com",
+      "frame-src 'self' https://www.google.com/",
       ...(!dev ? ['upgrade-insecure-requests', 'block-all-mixed-content'] : []),
     ];
 

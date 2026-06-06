@@ -49,6 +49,7 @@ import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import { defaultSystemTranslations } from '@/lib/store';
+import { sanitizeHtml } from '@/lib/security';
 
 interface Message {
   id: string;
@@ -94,10 +95,10 @@ interface UserData {
   kyc: Record<string, any>;
 }
 
-function makeAvatarDataUri(text: string, background: string) {
+function makeAvatarDataUri(text: string, background: string, color: string) {
   const safeText = String(text || '').toUpperCase();
   const fontSize = Math.max(14, 36 - Math.max(0, safeText.length - 2) * 6);
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="${background}"/><text x="50" y="58" text-anchor="middle" font-family="Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial" font-size="${fontSize}" font-weight="700" fill="#ffffff">${safeText}</text></svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="${background}"/><text x="50" y="58" text-anchor="middle" font-family="Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial" font-size="${fontSize}" font-weight="700" fill="${color}">${safeText}</text></svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
@@ -133,10 +134,10 @@ function MessageOptionsList({
         <Button
           key={opt.id}
           variant="outline"
-          className="rounded-[1.25rem] bg-white hover:bg-primary/5 border-primary/30 text-primary/90 hover:text-primary h-auto py-3 px-4 flex items-center justify-start text-left w-fit max-w-full shadow-sm"
+          className="rounded-[1.25rem] bg-[#f4a61b] hover:bg-[#f4a61b]/90 border-[#f4a61b] text-[#763717] h-auto py-3 px-4 flex items-center justify-start text-left w-fit max-w-full shadow-md transition-all active:scale-[0.98]"
           onClick={() => navigateTo(opt)}
         >
-          <span className="whitespace-normal break-words font-medium text-[13px] leading-snug">{getLocalizedName(opt)}</span>
+          <span className="whitespace-normal break-words font-bold text-[13px] leading-snug">{getLocalizedName(opt)}</span>
         </Button>
       ))}
 
@@ -182,11 +183,11 @@ function MessageOptionsList({
         <Button
           key={opt.id}
           variant="secondary"
-          className="rounded-[1.25rem] shadow-sm flex items-center justify-start text-left w-fit max-w-full h-auto py-3 px-4 gap-2 bg-primary/5 hover:bg-primary/10 text-primary/90 hover:text-primary"
+          className="rounded-[1.25rem] shadow-sm flex items-center justify-start text-left w-fit max-w-full h-auto py-3 px-4 gap-2 bg-[#f4a61b]/80 hover:bg-[#f4a61b] text-[#763717]"
           onClick={() => navigateTo(opt)}
         >
           <ClipboardCheck size={16} className="shrink-0 opacity-70" />
-          <span className="whitespace-normal break-words font-medium text-[13px] leading-snug">{getLocalizedName(opt)}</span>
+          <span className="whitespace-normal break-words font-bold text-[13px] leading-snug">{getLocalizedName(opt)}</span>
         </Button>
       ))}
     </div>
@@ -203,10 +204,15 @@ export function ChatInterface() {
   const [currentMenuId, setCurrentMenuId] = useState<string | null>(null);
   const [menuHistory, setMenuHistory] = useState<string[]>([]);
   const [currentLang, setCurrentLang] = useState<Language | null>(null);
-  const userAvatarFallback = appSettings?.userAvatarText || 'ME';
+  const userAvatarFallback = appSettings?.userAvatarText || 'U';
   const userAvatarUrl = appSettings?.userAvatarType === 'image' && appSettings?.userAvatarImage
     ? appSettings.userAvatarImage
-    : makeAvatarDataUri(userAvatarFallback, '#763717');
+    : makeAvatarDataUri(userAvatarFallback, '#f4a61b', '#763717');
+
+  const botAvatarFallback = appSettings?.botAvatarText || 'NB';
+  const botAvatarUrl = appSettings?.botAvatarType === 'image' && appSettings?.botAvatarImage
+    ? appSettings.botAvatarImage
+    : makeAvatarDataUri(botAvatarFallback, '#f4a61b', '#763717');
 
   const [userData, setUserData] = useState<UserData>({
     id: 'anonymous',
@@ -254,10 +260,16 @@ export function ChatInterface() {
       typeof window !== 'undefined' &&
       new URLSearchParams(window.location.search).get('adminPreview') === '1';
 
-    const settingsRes = await fetch('/api/app-settings', { cache: 'no-store' });
+    const settingsRes = await fetch('/api/app-settings', {
+      cache: 'no-store',
+      credentials: 'same-origin'
+    });
 
     let usedPreview = false;
-    let menusRes = await fetch(previewRequested ? '/api/menus?adminPreview=1' : '/api/menus', { cache: 'no-store' });
+    let menusRes = await fetch(previewRequested ? '/api/menus?adminPreview=1' : '/api/menus', {
+      cache: 'no-store',
+      credentials: 'same-origin'
+    });
     if (previewRequested && !menusRes.ok) {
       menusRes = await fetch('/api/menus', { cache: 'no-store' });
     } else if (previewRequested && menusRes.ok) {
@@ -303,7 +315,10 @@ export function ChatInterface() {
     params.set('maxChars', String(args.maxChars ?? 2000));
     if (adminPreviewRequested) params.set('adminPreview', '1');
 
-    const res = await fetch(`/api/menus/${encodeURIComponent(args.menuId)}?${params.toString()}`, { cache: 'no-store' });
+    const res = await fetch(`/api/menus/${encodeURIComponent(args.menuId)}?${params.toString()}`, {
+      cache: 'no-store',
+      credentials: 'same-origin'
+    });
     const json = await res.json().catch(() => null);
     if (!res.ok || json?.status !== 'success') {
       const message = typeof json?.message === 'string' && json.message ? json.message : 'Failed to load content.';
@@ -438,13 +453,9 @@ export function ChatInterface() {
     const connect = () => {
       if (!active) return;
 
-      // Prefer websocket-only connections to avoid exposing session ids in query strings
-      // Allow fallback polling only when explicitly enabled via environment flag.
-      const transports =
-        typeof window !== 'undefined' &&
-          String(process.env.NEXT_PUBLIC_ENABLE_POLLING || 'false') === 'true'
-          ? ['polling', 'websocket']
-          : ['websocket'];
+      // Allow both polling and websocket by default for maximum compatibility.
+      // Socket.io will automatically upgrade to websocket when possible.
+      const transports = ['polling', 'websocket'];
 
       // Specify explicit origin and enable credentials so browser handshakes include cookies
       const socketUrl = typeof window !== 'undefined' ? window.location.origin : undefined;
@@ -1511,7 +1522,7 @@ export function ChatInterface() {
             onClick={handleHome}
             size="sm"
             variant="secondary"
-            className="rounded-full shadow-lg border bg-card/80 backdrop-blur-sm h-9 w-9 p-0 text-[#763717] hover:bg-transparent transition-colors"
+            className="rounded-full shadow-lg border-none bg-[#f4a61b] h-9 w-9 p-0 text-[#763717] hover:bg-[#f4a61b]/90 transition-colors"
           >
             <HomeIcon size={16} />
           </Button>
@@ -1520,7 +1531,7 @@ export function ChatInterface() {
             onClick={handleBack}
             size="sm"
             variant="secondary"
-            className="rounded-full shadow-lg border bg-card/80 backdrop-blur-sm h-9 w-9 p-0 text-[#763717] hover:bg-transparent transition-colors disabled:opacity-30"
+            className="rounded-full shadow-lg border-none bg-[#f4a61b] h-9 w-9 p-0 text-[#763717] hover:bg-[#f4a61b]/90 transition-colors disabled:opacity-30"
           >
             <ChevronLeft size={18} />
           </Button>
@@ -1560,23 +1571,28 @@ export function ChatInterface() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-muted-foreground h-9 px-1.5 hover:bg-primary/10 flex items-center gap-1"
+                className="text-[#763717] h-9 px-1.5 hover:bg-[#f4a61b]/10 flex items-center gap-1"
               >
-                <Globe size={16} className="text-primary shrink-0" />
-                <span className="text-xs font-semibold text-primary">
+                <Globe size={16} className="text-[#763717] shrink-0" />
+                <span className="text-xs font-semibold text-[#763717]">
                   {(currentLang?.code || 'EN').toUpperCase()}
                 </span>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-40">
+            <DropdownMenuContent align="end" className="w-40 bg-card border-[#f4a61b]/20">
               {languages.map(lang => (
                 <DropdownMenuItem
                   key={lang.code}
                   onClick={() => setCurrentLang(lang)}
-                  className={cn("flex items-center justify-between", currentLang?.code === lang.code && "bg-primary/10 text-primary")}
+                  className={cn(
+                    "flex items-center justify-between font-medium cursor-pointer transition-colors",
+                    currentLang?.code === lang.code
+                      ? "bg-[#f4a61b] text-[#763717] hover:bg-[#f4a61b] hover:text-[#763717]"
+                      : "text-[#763717] hover:bg-[#f4a61b]/10"
+                  )}
                 >
                   {lang.name}
-                  {currentLang?.code === lang.code && <CheckCircle2 size={12} />}
+                  {currentLang?.code === lang.code && <CheckCircle2 size={12} className="text-[#763717]" />}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
@@ -1584,9 +1600,9 @@ export function ChatInterface() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 p-0 border shadow-sm shrink-0">
-                <Avatar className="h-full w-full">
+                <Avatar className="h-full w-full border-[#f4a61b]/30">
                   <AvatarImage src={userAvatarUrl} loading="eager" decoding="async" fetchPriority="high" />
-                  <AvatarFallback className="bg-primary text-white text-[10px]">{userAvatarFallback}</AvatarFallback>
+                  <AvatarFallback className="bg-[#f4a61b] text-[#763717] text-[10px] font-bold">{userAvatarFallback}</AvatarFallback>
                 </Avatar>
               </Button>
             </DropdownMenuTrigger>
@@ -1610,8 +1626,8 @@ export function ChatInterface() {
             <ChatBubble
               key={msg.id}
               isBot={msg.sender === 'bot'}
-              botAvatar={{ type: appSettings?.botAvatarType, text: appSettings?.botAvatarText, image: appSettings?.botAvatarImage }}
-              userAvatar={{ type: appSettings?.userAvatarType, text: appSettings?.userAvatarText, image: appSettings?.userAvatarImage }}
+              botAvatar={{ type: appSettings?.botAvatarType, text: botAvatarFallback, image: appSettings?.botAvatarImage, url: botAvatarUrl }}
+              userAvatar={{ type: appSettings?.userAvatarType, text: userAvatarFallback, image: appSettings?.userAvatarImage, url: userAvatarUrl }}
             >
               {msg.id === 'welcome' && (
                 <div className="flex flex-col items-center justify-center pt-4 pb-6 space-y-4">
@@ -1626,8 +1642,8 @@ export function ChatInterface() {
                   </p>
                 </div>
               )}
-              {msg.id !== 'welcome' && msg.text && <div dangerouslySetInnerHTML={{ __html: msg.text }} />}
-              {msg.content && <div dangerouslySetInnerHTML={{ __html: msg.content }} />}
+              {msg.id !== 'welcome' && msg.text && <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(msg.text) }} />}
+              {msg.content && <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(msg.content) }} />}
               {msg.staticPage?.hasMore && (
                 <div className="mt-3 flex items-center justify-between gap-2">
                   <div className="text-[10px] text-muted-foreground font-bold tracking-widest">
@@ -1638,7 +1654,7 @@ export function ChatInterface() {
                     variant="secondary"
                     size="sm"
                     disabled={loadingMoreId === msg.id}
-                    className="rounded-full h-8 px-3 text-[11px] font-bold uppercase"
+                    className="rounded-full h-8 px-3 text-[11px] font-bold uppercase bg-[#f4a61b] text-[#763717] hover:bg-[#f4a61b]/90 border-none"
                     onClick={() => loadMoreStatic(msg)}
                   >
                     {loadingMoreId === msg.id ? t('ui_loading', 'Loading...') : t('ui_read_more', 'Read more')}
@@ -1754,7 +1770,7 @@ export function ChatInterface() {
                         type="button"
                         variant="secondary"
                         size="sm"
-                        className="rounded-full h-8 px-3 text-[11px] font-bold uppercase"
+                        className="rounded-full h-8 px-3 text-[11px] font-bold uppercase bg-[#f4a61b] text-[#763717] hover:bg-[#f4a61b]/90 border-none"
                         onClick={() => {
                           setHistory(prev => prev.map(m => {
                             if (m.id !== msg.id) return m;
@@ -1804,7 +1820,7 @@ export function ChatInterface() {
             placeholder={statusFlow ? t('ui_placeholder_report_id', 'Enter reference ID...') : (ratingFlow ? t('ui_placeholder_feedback', 'Enter feedback (optional)...') : t('ui_placeholder_input', 'Enter requested information...'))}
             className="flex-1 min-w-0 shadow-inner text-sm"
           />
-          <Button type="submit" size="icon" className="rounded-xl h-10 w-10 shrink-0"><Send size={18} /></Button>
+          <Button type="submit" size="icon" className="rounded-xl h-10 w-10 shrink-0 bg-[#f4a61b] text-[#763717] hover:bg-[#f4a61b]/90 border-none"><Send size={18} /></Button>
           {kycFlow && !kycFlow.fields[kycFlow.fieldIndex].required && (
             <Button type="button" variant="ghost" size="sm" onClick={() => handleKycSubmit(true)} className="text-[10px] font-bold uppercase text-muted-foreground hover:text-primary h-10 px-2 shrink-0">
               {t('ui_skip', 'Skip')}
@@ -1824,35 +1840,35 @@ export function ChatInterface() {
       </div>}
       <footer className="bg-card border-t px-3 py-2.5 grid grid-cols-3 items-center gap-2 sticky bottom-0 z-40 shadow-[0_-1px_3px_rgba(0,0,0,0.05)]">
         <Button
-          variant="ghost"
+          variant="secondary"
           size="sm"
-          className="hover:bg-transparent hover:text-[#763717] hover:opacity-70 rounded-full px-3 text-[#763717] font-medium text-sm transition-opacity justify-self-start"
+          className="rounded-full px-3 bg-[#f4a61b] text-[#763717] hover:bg-[#f4a61b]/90 font-bold text-[11px] h-9 transition-all border-none shadow-sm justify-self-start"
           onClick={handleHome}
         >
-          <HomeIcon className="mr-1.5" size={15} />
+          <HomeIcon className="mr-1.5" size={14} />
           {t('ui_home', 'Home')}
         </Button>
         {appSettings?.showAdminPanelIcon === true ? (
           <Button
-            variant="ghost"
+            variant="secondary"
             size="icon"
-            className="justify-self-center hover:bg-transparent hover:text-[#763717] rounded-full h-9 w-9 p-0 text-[#763717] transition-colors"
+            className="justify-self-center rounded-full h-9 w-9 p-0 bg-[#f4a61b] text-[#763717] hover:bg-[#f4a61b]/90 border-none shadow-sm transition-all"
             onClick={handleAdminPanel}
             title={t('ui_settings', 'Settings')}
           >
-            <Settings size={16} />
+            <Settings size={15} />
           </Button>
         ) : (
           <div />
         )}
         {(currentMenuId || menuHistory.length > 0) ? (
           <Button
-            variant="ghost"
+            variant="secondary"
             size="sm"
-            className="justify-self-end hover:bg-transparent hover:text-[#763717] hover:opacity-70 rounded-full px-3 text-[#763717] font-medium text-sm transition-opacity"
+            className="justify-self-end rounded-full px-3 bg-[#f4a61b] text-[#763717] hover:bg-[#f4a61b]/90 font-bold text-[11px] h-9 transition-all border-none shadow-sm"
             onClick={handleBack}
           >
-            <ChevronLeft className="mr-1" size={16} />
+            <ChevronLeft className="mr-0.5" size={15} />
             {t('ui_back', 'Back')}
           </Button>
         ) : (

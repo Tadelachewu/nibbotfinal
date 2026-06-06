@@ -27,7 +27,7 @@ export function AdminHeader() {
     <header className="border-b bg-card px-6 py-4 flex items-center justify-between sticky top-0 z-50 h-16">
       <div className="flex items-center gap-3">
         <Logo className="w-8 h-8" src={logo} />
-        <h1 className="text-lg font-extrabold text-[#763717] hidden sm:block">Nib International Bank Admin</h1>
+        <h1 className="text-lg font-extrabold text-[#763717] hidden sm:block">Nib InternationalBank Admin</h1>
         <h1 className="text-lg font-extrabold text-[#763717] sm:hidden">Nib Admin</h1>
       </div>
       <nav className="flex items-center gap-4">
