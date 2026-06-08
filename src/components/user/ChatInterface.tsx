@@ -1537,7 +1537,7 @@ export function ChatInterface() {
           </Button>
         </div>
       )}
-      <header className="bg-card border-b px-3 py-3 flex items-center justify-between sticky top-0 z-50 shadow-md min-w-0">
+      <header className="bg-[#f4a61b] border-b border-[#763717]/10 px-3 py-3 flex items-center justify-between sticky top-0 z-50 shadow-md min-w-0">
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <Logo className="h-10 w-14 sm:w-20 md:w-28 shrink-0 drop-shadow-lg" src={appSettings?.appLogo} />
           <div className="min-w-0">
@@ -1545,33 +1545,33 @@ export function ChatInterface() {
             <div className="flex items-center gap-1">
               {connectivity === 'checking' && (
                 <>
-                  <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" />
-                  <span className="text-[9px] uppercase tracking-wider font-bold text-amber-500 truncate">{t('ui_checking', 'Checking...')}</span>
+                  <div className="w-2 h-2 rounded-full bg-[#763717]/40 animate-pulse shrink-0" />
+                  <span className="text-[9px] uppercase tracking-wider font-bold text-[#763717]/60 truncate">{t('ui_checking', 'Checking...')}</span>
                 </>
               )}
               {connectivity === 'online' && (
                 <>
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                  <span className="text-[9px] uppercase tracking-wider font-bold text-emerald-600">{t('ui_online', 'Online')}</span>
+                  <div className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse shrink-0" />
+                  <span className="text-[9px] uppercase tracking-wider font-bold text-[#763717]">{t('ui_online', 'Online')}</span>
                 </>
               )}
               {connectivity === 'offline' && (
                 <>
-                  <div className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
-                  <span className="text-[9px] uppercase tracking-wider font-bold text-red-500">{t('ui_offline', 'Offline')}</span>
+                  <div className="w-2 h-2 rounded-full bg-red-600 shrink-0" />
+                  <span className="text-[9px] uppercase tracking-wider font-bold text-red-700">{t('ui_offline', 'Offline')}</span>
                 </>
               )}
             </div>
           </div>
         </div>
         <div className="flex items-center gap-0.5 shrink-0">
-          <ThemeToggle />
+          <ThemeToggle className="text-[#763717] hover:bg-[#763717]/10" />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-[#763717] h-9 px-1.5 hover:bg-[#f4a61b]/10 flex items-center gap-1"
+                className="text-[#763717] h-9 px-1.5 hover:bg-[#763717]/10 flex items-center gap-1"
               >
                 <Globe size={16} className="text-[#763717] shrink-0" />
                 <span className="text-xs font-semibold text-[#763717]">
@@ -1599,8 +1599,8 @@ export function ChatInterface() {
           </DropdownMenu>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 p-0 border shadow-sm shrink-0 overflow-hidden">
-                <Avatar className="h-full w-full border-[#f4a61b]/30 rounded-full">
+              <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 p-0 border border-[#763717]/20 shadow-sm shrink-0 overflow-hidden hover:bg-[#763717]/10">
+                <Avatar className="h-full w-full border-[#763717]/30 rounded-full">
                   <AvatarImage src={userAvatarUrl} className="object-cover" loading="eager" decoding="async" fetchPriority="high" />
                   <AvatarFallback className="bg-[#f4a61b] text-[#763717] text-[10px] font-bold">{userAvatarFallback}</AvatarFallback>
                 </Avatar>
@@ -1838,7 +1838,7 @@ export function ChatInterface() {
           )}
         </form>
       </div>}
-      <footer className="bg-card border-t px-3 py-2.5 grid grid-cols-3 items-center gap-2 sticky bottom-0 z-40 shadow-[0_-1px_3px_rgba(0,0,0,0.05)]">
+      <footer className="bg-[#f4a61b] border-t border-[#763717]/10 px-3 py-2.5 grid grid-cols-3 items-center gap-2 sticky bottom-0 z-40 shadow-[0_-1px_3px_rgba(0,0,0,0.05)]">
         <Button
           variant="secondary"
           size="sm"

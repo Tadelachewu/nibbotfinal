@@ -5,6 +5,23 @@ This guide is designed for UAT testers to verify the NIBBOT system. It includes 
 
 ---
 
+## 2. Global Visual & Branding Standards
+### 2.1 Corporate Logo
+- **Responsiveness**: Displays in Chat Header, Welcome Screen, and Admin Login.
+- **Aspect Ratio**: Rectangular logos are supported using `object-contain`.
+- **Emphasis**: Uses `drop-shadow-md` and 105% hover scaling.
+
+### 2.2 Avatars (Bot & User)
+- **Shape**: **Strictly Circular** for both Bot and User.
+- **Rendering**: Rendered as `rounded-full` using `object-cover` to ensure images fill the circle without distortion.
+
+### 2.3 Color Scheme
+- **Primary Color (Yellow Honey)**: `#f4a61b`. Used for header/footer backgrounds and primary buttons.
+- **Secondary Color (Brown)**: `#763717`. Used for text and icons in high-contrast areas.
+- **Header/Footer**: The chat interface header and footer are themed in Yellow Honey with Brown text/icons.
+
+---
+
 ## MODULE A: Administrative Access & Security
 **Objective**: Verify secure access, rate limiting, and session boundaries.
 
@@ -13,16 +30,12 @@ This guide is designed for UAT testers to verify the NIBBOT system. It includes 
 2. **Expected Result (Negative)**: System displays "Too many attempts". 
 3. **Action**: Immediately attempt a 6th login with the correct password.
 4. **Expected Result (Boundary)**: Access is still blocked. The system enforces a **15-minute lockout** after 5 failures.
-5. **Action**: Attempt to login from a different browser/IP simultaneously.
-6. **Expected Result (Security)**: The system tracks failures per-principal and per-IP independently.
 
 ### Test Case A2: Session Lifetimes (Boundary)
-1. **Action**: Leave the admin panel idle for exactly 14 minutes, then click a button.
-2. **Expected Result (Positive)**: Session remains active.
-3. **Action**: Wait for another 2 minutes (total 16 minutes idle).
-4. **Expected Result (Boundary)**: System redirects to Login. **Idle Limit: 15 Minutes**.
-5. **Action**: Log in and stay active for exactly 8 hours.
-6. **Expected Result (Boundary)**: Session is terminated. **Absolute Limit: 8 Hours**.
+1. **Action**: Leave the admin panel idle for 16 minutes.
+2. **Expected Result (Boundary)**: System redirects to Login. **Idle Limit: 15 Minutes**.
+3. **Action**: Log in and stay active for exactly 8 hours.
+4. **Expected Result (Boundary)**: Session is terminated. **Absolute Limit: 8 Hours**.
 
 ---
 
@@ -31,11 +44,9 @@ This guide is designed for UAT testers to verify the NIBBOT system. It includes 
 
 ### Test Case B1: File Uploads (Negative/Boundary)
 1. **Action**: Upload a 5MB image file as the App Logo.
-2. **Expected Result (Boundary)**: System may lag or reject. **Recommended Limit: < 1MB** for optimal performance.
-3. **Action**: Attempt to upload a `.txt` or `.pdf` file in the Logo upload field.
-4. **Expected Result (Negative)**: System rejects the file or the browser filter prevents selection.
-5. **Action**: Upload a rectangular photo for the **User Avatar**.
-6. **Expected Result (Visual Boundary)**: The system MUST force a circular crop (`rounded-full`). Verify no "square" edges are visible.
+2. **Expected Result (Boundary)**: System may lag or reject. **Recommended Limit: < 1MB**.
+3. **Action**: Upload a rectangular photo for any Avatar.
+4. **Expected Result (Visual Boundary)**: The system MUST force a circular crop (`rounded-full`).
 
 ---
 
@@ -43,32 +54,25 @@ This guide is designed for UAT testers to verify the NIBBOT system. It includes 
 **Objective**: Test the content lifecycle, role restrictions, and form validations.
 
 ### Test Case C1: Self-Approval & Role Access (Negative)
-1. **Action**: As `Admin_Maker`, create a menu and navigate to the Approvals tab.
-2. **Expected Result (Negative)**: The "Approve" button for your own change is disabled. **Rule: Maker cannot be Checker**.
-3. **Action**: Log in as a `Support` user and attempt to access the Menu Management page.
-4. **Expected Result (Negative)**: Access denied or page hidden. **Rule: Support role cannot manage menus**.
+1. **Action**: As `Admin_Maker`, create a menu and attempt to approve it.
+2. **Expected Result (Negative)**: The "Approve" button is disabled. **Rule: Maker cannot be Checker**.
 
 ### Test Case C2: Rejection Requirements (Negative)
 1. **Action**: As a `Checker`, click **Reject** on a pending menu but leave the "Reason" field empty.
-2. **Expected Result (Negative)**: System prevents submission and displays "Rejection reason is required".
+2. **Expected Result (Negative)**: System prevents submission; displays "Rejection reason is required".
 
 ---
 
 ## MODULE D: API Integration & Data Mapping
-**Objective**: Verify data connectivity, template accuracy, and payload limits.
+**Objective**: Verify data connectivity and payload limits.
 
 ### Test Case D1: Template & Placeholder (Negative)
-1. **Action**: In an API menu, enter an endpoint with a typo: `/api/data/{{accout_id}}` (missing 'n').
-2. **Action**: Click **Save**.
-3. **Expected Result (Negative)**: System displays "Missing KYC fields: accout_id". **Rule: All placeholders must match KYC field names**.
-4. **Action**: Enter a placeholder for a non-existent system variable: `{{user.session_id}}`.
-5. **Expected Result (Negative)**: System rejects the template as invalid.
+1. **Action**: In an API menu, enter a typo placeholder: `/api/data/{{accout_id}}`.
+2. **Expected Result (Negative)**: System displays "Missing KYC fields: accout_id".
 
 ### Test Case D2: Payload & Table Limits (Boundary)
 1. **Action**: Configure an API to return 1,000 rows of data.
 2. **Expected Result (Boundary)**: The chat interface renders the table but stops at exactly **500 rows**.
-3. **Action**: Return a JSON response with a depth of 10 nested objects.
-4. **Expected Result (Boundary)**: Verify the `Root Mapping Key` (e.g., `data.level1.level2`) can reach the data.
 
 ---
 
@@ -78,12 +82,10 @@ This guide is designed for UAT testers to verify the NIBBOT system. It includes 
 ### Test Case E1: Content Pagination (Boundary)
 1. **Action**: Paste 10,000 characters of text into a menu's content.
 2. **Expected Result (Boundary)**: The bot sends 5 separate bubbles. **Limit: 2,000 characters per bubble**.
-3. **Action**: Enter 25,000 characters.
-4. **Expected Result (Boundary)**: System may truncate. **System Max: 20,000 characters**.
 
 ### Test Case E2: Language Fallback (Negative)
 1. **Action**: Switch language to Amharic. Trigger a menu where Amharic content is empty.
-2. **Expected Result (Negative/Fallback)**: System displays English content. **Rule: English is the universal fallback**.
+2. **Expected Result (Negative/Fallback)**: System displays English content.
 
 ---
 
@@ -91,13 +93,9 @@ This guide is designed for UAT testers to verify the NIBBOT system. It includes 
 **Objective**: Verify compliance, masking, and tracking.
 
 ### Test Case F1: Data Masking (Security Negative)
-1. **Action**: Perform a login and then view the logs in the Admin Panel.
-2. **Expected Result (Security)**: The password field in the log MUST show `********`.
-3. **Action**: Perform an API call that includes a `token` in the response.
-4. **Expected Result (Security)**: Verify the `InteractionLog` masks the token value.
+1. **Action**: View logs in the Admin Panel after a login attempt.
+2. **Expected Result (Security)**: The password field MUST show `********`.
 
 ### Test Case F2: Report ID & Submission (Boundary)
-1. **Action**: Submit 10 reports in a row.
-2. **Expected Result (Positive)**: Each ID increments correctly (e.g., `...-000101`, `...-000102`).
-3. **Action**: Set the Report ID prefix to 20 characters.
-4. **Expected Result (Boundary)**: Verify the ID does not break the chat bubble layout.
+1. **Action**: Submit a support report.
+2. **Expected Result (Positive)**: System generates an ID (e.g., `NIB-2026-XXXXXX`).

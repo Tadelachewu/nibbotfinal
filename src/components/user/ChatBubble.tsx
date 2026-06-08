@@ -32,11 +32,8 @@ export function ChatBubble({ children, isBot = true, botAvatar, userAvatar }: Ch
       isBot ? "justify-start" : "justify-end"
     )}>
       {isBot && (
-        <Avatar className={cn(
-          "h-8 border-2 border-[#f4a61b]/20 shrink-0",
-          isBotImage ? "w-12 sm:w-16 rounded-lg bg-transparent" : "w-8 rounded-full"
-        )}>
-          <AvatarImage src={defaultBotAvatar} />
+        <Avatar className="h-8 w-8 border-2 border-[#f4a61b]/20 shrink-0 rounded-full">
+          <AvatarImage src={defaultBotAvatar} className="object-cover" />
           <AvatarFallback className="bg-[#f4a61b] text-[#763717] text-[10px] font-bold">{botAvatar?.text || 'NB'}</AvatarFallback>
         </Avatar>
       )}
