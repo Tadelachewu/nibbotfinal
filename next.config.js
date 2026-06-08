@@ -75,6 +75,21 @@ const nextConfig = {
         port: '',
         pathname: '/**',
       },
+      // Dynamic domains from environment variable
+      ...String(process.env.ALLOWED_IMAGE_DOMAINS || '')
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean)
+        .map(domain => {
+          // Handle cases where the domain might include protocol
+          const hostname = domain.replace(/^https?:\/\//i, '').split('/')[0];
+          return {
+            protocol: 'https',
+            hostname: hostname,
+            port: '',
+            pathname: '/**',
+          };
+        }),
     ],
   },
 };

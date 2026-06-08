@@ -14,8 +14,16 @@ This guide is designed for UAT testers to verify the NIBBOT system. It includes 
 ### 2.2 Avatars (Bot & User)
 - **Shape**: **Strictly Circular** for both Bot and User.
 - **Rendering**: Rendered as `rounded-full` using `object-cover` to ensure images fill the circle without distortion.
+- **URL Handling**: External URLs are loaded in `unoptimized` mode in some areas, but for production security (CSP and Next.js Image Optimization), the domains **must** be added to the `ALLOWED_IMAGE_DOMAINS` environment variable.
 
-### 2.3 Color Scheme
+### 2.3 Configuration for External URLs
+If using external images (e.g., from `https://mybank.com/logo.png`), the domain `mybank.com` must be added to the `.env` file:
+```env
+ALLOWED_IMAGE_DOMAINS=mybank.com,anotherdomain.org
+```
+This ensures the images are allowed by the **Content Security Policy (CSP)** and the **Next.js Image Optimizer**.
+
+### 2.4 Color Scheme
 - **Primary Color (Yellow Honey)**: `#f4a61b`. Used for header/footer backgrounds and primary buttons.
 - **Secondary Color (Brown)**: `#763717`. Used for text and icons in high-contrast areas.
 - **Header/Footer**: The chat interface header and footer are themed in Yellow Honey with Brown text/icons.
@@ -42,11 +50,15 @@ This guide is designed for UAT testers to verify the NIBBOT system. It includes 
 ## MODULE B: Branding & Image Management
 **Objective**: Validate visual identity and file upload constraints.
 
-### Test Case B1: File Uploads (Negative/Boundary)
+### Test Case B1: File Uploads & URLs (Negative/Boundary)
 1. **Action**: Upload a 5MB image file as the App Logo.
 2. **Expected Result (Boundary)**: System may lag or reject. **Recommended Limit: < 1MB**.
-3. **Action**: Upload a rectangular photo for any Avatar.
-4. **Expected Result (Visual Boundary)**: The system MUST force a circular crop (`rounded-full`).
+3. **Action**: Select "Image URL" as the source and enter a valid `https://` link to a rectangular logo.
+4. **Expected Result (Positive)**: Logo displays correctly in the header and preview.
+5. **Action**: Enter a broken URL (e.g., `https://example.com/not-found.png`).
+6. **Expected Result (Negative/Fallback)**: The system detects the error and displays the **Fallback SVG Logo** (the circular "N" icon) automatically.
+7. **Action**: Upload a rectangular photo for any Avatar via URL or Upload.
+8. **Expected Result (Visual Boundary)**: The system MUST force a circular crop (`rounded-full`).
 
 ---
 

@@ -96,6 +96,14 @@ app.prepare().then(async () => {
     const styleSrc = "'self' 'unsafe-inline'";
     const styleSrcElem = "'self' 'unsafe-inline' https://fonts.googleapis.com/";
 
+    // Support dynamic image domains from environment variables
+    const extraImageDomains = String(process.env.ALLOWED_IMAGE_DOMAINS || '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
+      .map(d => d.startsWith('http') ? d : `https://${d}`)
+      .join(' ');
+
     const directives = [
       "default-src 'self' http://localhost:3020/ https://nibterachatboat.nibbank.com.et/",
       "base-uri 'self'",
@@ -107,7 +115,7 @@ app.prepare().then(async () => {
       `style-src ${styleSrc}`,
       "style-src-attr 'unsafe-inline'",
       `style-src-elem ${styleSrcElem}`,
-      `img-src 'self' blob: data: https://placehold.co/ https://images.unsplash.com/ https://picsum.photos/`,
+      `img-src 'self' blob: data: https://placehold.co/ https://images.unsplash.com/ https://picsum.photos/ ${extraImageDomains}`,
       "font-src 'self'",
       "frame-src 'self' https://www.google.com/",
       ...(!dev ? ['upgrade-insecure-requests', 'block-all-mixed-content'] : []),
