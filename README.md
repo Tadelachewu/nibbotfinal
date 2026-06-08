@@ -316,3 +316,92 @@ on windows native (without linux)
     winget install -e --id Memurai.MemuraiDeveloper
     memurai-cli =>  so PING it says pong
 
+
+
+
+
+    if the windows at old versions if above failed 
+
+    use
+
+        Redis Full Setup Guide
+Windows 7  •  CMD / PowerShell
+
+This guide walks you through a complete Redis installation and setup on Windows 7 using the Command Prompt or PowerShell. Follow each step in order.
+
+⬇  Step 1
+Install Redis — Download via PowerShell (Admin)
+Open PowerShell as Administrator and run the following command to download the Redis installer:
+
+(New-Object Net.WebClient).DownloadFile(
+  'https://github.com/microsoftarchive/redis/releases/download/win-3.0.504/Redis-x64-3.0.504.msi',
+  'C:\Redis.msi'
+)
+
+📦  Step 2
+Run the Installer
+Standard install (opens installer UI):
+
+msiexec /i C:\Redis.msi
+
+Silent install (no UI prompt):
+
+msiexec /i C:\Redis.msi /quiet
+
+📁  Step 3
+Check the Installation Folder
+Verify that Redis was installed correctly:
+
+dir "C:\Program Files\Redis"
+
+You should see the following files:
+
+•	redis-server.exe
+•	redis-cli.exe
+•	redis.windows.conf
+
+🔍  Step 4
+Check Redis Service Status
+Check whether the Redis Windows service is currently running:
+
+sc query Redis
+
+▶  Step 5
+Start the Redis Service (if needed)
+Using net start:
+
+net start Redis
+
+Or using sc start:
+
+sc start Redis
+
+💻  Step 6
+Open the Redis CLI
+Navigate to the Redis folder and launch the command-line interface:
+
+cd "C:\Program Files\Redis"
+redis-cli.exe
+
+✅  Step 7
+Test the Connection
+Inside the Redis CLI, run the PING command:
+
+PING
+
+Expected response: PONG — This confirms Redis is running and responding correctly.
+
+Quick Reference Summary
+
+Step	Action	Command
+1	Download installer	(New-Object Net.WebClient).DownloadFile(...)
+2	Install Redis	msiexec /i C:\Redis.msi
+3	Verify files	dir "C:\Program Files\Redis"
+4	Check service	sc query Redis
+5	Start service	net start Redis
+6	Open CLI	redis-cli.exe
+7	Test connection	PING  →  PONG
+
+Redis v3.0.504  •  Windows 7  •  microsoftarchive/redis
+
+
