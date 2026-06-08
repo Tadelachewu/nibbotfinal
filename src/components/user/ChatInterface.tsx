@@ -1537,11 +1537,11 @@ export function ChatInterface() {
           </Button>
         </div>
       )}
-      <header className="bg-card border-b px-3 py-3 flex items-center justify-between sticky top-0 z-50 shadow-sm min-w-0">
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          <Logo className="w-9 h-9 shrink-0" src={appSettings?.appLogo} />
+      <header className="bg-card border-b px-3 py-3 flex items-center justify-between sticky top-0 z-50 shadow-md min-w-0">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <Logo className="h-10 w-14 sm:w-20 md:w-28 shrink-0 drop-shadow-lg" src={appSettings?.appLogo} />
           <div className="min-w-0">
-            <h1 className="font-bold text-sm sm:text-base md:text-lg text-[#763717] truncate leading-tight">{t('ui_bank_name', 'Nib International Bank')}</h1>
+            <h1 className="font-extrabold text-sm sm:text-base md:text-lg text-[#763717] truncate leading-tight tracking-tight">{t('ui_bank_name', 'Nib International Bank')}</h1>
             <div className="flex items-center gap-1">
               {connectivity === 'checking' && (
                 <>
@@ -1599,9 +1599,9 @@ export function ChatInterface() {
           </DropdownMenu>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 p-0 border shadow-sm shrink-0">
-                <Avatar className="h-full w-full border-[#f4a61b]/30">
-                  <AvatarImage src={userAvatarUrl} loading="eager" decoding="async" fetchPriority="high" />
+              <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 p-0 border shadow-sm shrink-0 overflow-hidden">
+                <Avatar className="h-full w-full border-[#f4a61b]/30 rounded-full">
+                  <AvatarImage src={userAvatarUrl} className="object-cover" loading="eager" decoding="async" fetchPriority="high" />
                   <AvatarFallback className="bg-[#f4a61b] text-[#763717] text-[10px] font-bold">{userAvatarFallback}</AvatarFallback>
                 </Avatar>
               </Button>
@@ -1630,11 +1630,11 @@ export function ChatInterface() {
               userAvatar={{ type: appSettings?.userAvatarType, text: userAvatarFallback, image: appSettings?.userAvatarImage, url: userAvatarUrl }}
             >
               {msg.id === 'welcome' && (
-                <div className="flex flex-col items-center justify-center pt-4 pb-6 space-y-4">
-                  <div className="w-28 h-28 rounded-full border-4 border-[#f4a61b] shadow-xl flex items-center justify-center bg-card p-1 overflow-hidden">
+                <div className="flex flex-col items-center justify-center pt-6 pb-8 space-y-6">
+                  <div className="w-full max-w-[240px] h-28 sm:h-36 flex items-center justify-center bg-transparent p-2 overflow-hidden drop-shadow-2xl">
                     <Logo className="w-full h-full scale-110" src={appSettings?.appLogo} />
                   </div>
-                  <h2 className="text-xl font-extrabold text-center text-[#763717] px-2">
+                  <h2 className="text-2xl font-black text-center text-[#763717] px-4 leading-tight tracking-tight">
                     {currentLang?.code === 'am' ? t('ui_welcome_am', 'Welcome to Nib International Bank') : t('ui_welcome_en', 'Welcome to Nib International Bank')}
                   </h2>
                   <p className="text-sm font-medium text-center text-muted-foreground">
@@ -1676,7 +1676,7 @@ export function ChatInterface() {
                     <div className="text-[10px] uppercase font-bold text-muted-foreground">{t('ui_original_request', 'Original Request')}</div>
                     <div className="text-sm font-semibold">{getLocalizedReportMenuName(msg.reportStatus)}</div>
                   </div>
-                  {msg.reportStatus.adminResponse && (
+                  {msg.reportStatus?.adminResponse && (
                     <div className="mt-2 p-3 bg-card rounded-lg border border-primary/20">
                       <div className="text-[10px] uppercase font-bold text-primary flex items-center gap-1">
                         <CornerDownRight size={10} /> {t('ui_admin_feedback', 'Admin Feedback')}
@@ -1684,7 +1684,7 @@ export function ChatInterface() {
                       <div className="text-sm italic text-muted-foreground">{msg.reportStatus.adminResponse}</div>
                     </div>
                   )}
-                  {msg.reportStatus.status === 'resolved' && (
+                  {msg.reportStatus?.status === 'resolved' && (
                     <div className="mt-2 p-3 bg-card rounded-lg border border-primary/20">
                       {typeof msg.reportStatus.serviceRating === 'number' ? (
                         <div className="space-y-2">
@@ -1692,7 +1692,7 @@ export function ChatInterface() {
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-1 text-amber-600">
                               {Array.from({ length: 5 }).map((_, i) => (
-                                <Star key={i} size={14} className={i < msg.reportStatus.serviceRating! ? 'fill-amber-500 text-amber-500' : 'text-muted-foreground/40'} />
+                                <Star key={i} size={14} className={i < msg.reportStatus!.serviceRating! ? 'fill-amber-500 text-amber-500' : 'text-muted-foreground/40'} />
                               ))}
                             </div>
                             <div className="text-xs font-semibold">{msg.reportStatus.serviceRating} / 5</div>

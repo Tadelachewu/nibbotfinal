@@ -12,7 +12,8 @@ const Avatar = React.forwardRef<
   <AvatarPrimitive.Root
     ref={ref}
     className={cn(
-      "relative flex h-10 w-10 shrink-0 overflow-hidden rounded-full",
+      "relative flex h-10 w-10 shrink-0 overflow-hidden",
+      className?.includes("rounded-") ? "" : "rounded-full",
       className
     )}
     {...props}
@@ -26,7 +27,7 @@ const AvatarImage = React.forwardRef<
 >(({ className, loading, decoding, ...props }, ref) => (
   <AvatarPrimitive.Image
     ref={ref}
-    className={cn("aspect-square h-full w-full", className)}
+    className={cn("h-full w-full object-contain", className)}
     loading={loading ?? "lazy"}
     decoding={decoding ?? "async"}
     {...props}

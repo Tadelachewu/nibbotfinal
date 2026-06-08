@@ -17,13 +17,13 @@ export function Logo({ className, src = '/logo.png', alt = 'Logo', priority = tr
   const finalSrc = (src && src.trim() !== '') ? src : '/logo.png';
 
   return (
-    <div className={cn("relative flex items-center justify-center rounded-full overflow-hidden bg-transparent", className)}>
+    <div className={cn("relative flex items-center justify-center bg-transparent drop-shadow-md filter transition-transform hover:scale-105 duration-300", className)}>
       {!imageError ? (
         <Image
           src={finalSrc}
           alt={alt}
           fill
-          sizes="256px"
+          sizes="(max-width: 768px) 100vw, 256px"
           priority={priority}
           className="object-contain"
           onError={() => setImageError(true)}

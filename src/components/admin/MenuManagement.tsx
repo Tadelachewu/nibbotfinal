@@ -57,6 +57,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
   Accordion,
   AccordionContent,
   AccordionItem,
@@ -1980,6 +1987,23 @@ export function MenuManagement() {
                           <p className="text-[10px] text-muted-foreground italic">Will fallback to 'TT' if not provided.</p>
                         </div>
                       )}
+
+                      {settings.botAvatarType === 'image' && settings.botAvatarImage && (
+                        <div className="pt-4 border-t">
+                          <Label className="text-[10px] uppercase font-bold text-muted-foreground block mb-2">Avatar Preview</Label>
+                          <div className="relative w-full max-w-[150px] h-16 rounded-lg border bg-muted/5 flex items-center justify-center p-2 overflow-hidden shadow-inner">
+                            <Image
+                              src={settings.botAvatarImage}
+                              alt="Bot Avatar Preview"
+                              fill
+                              sizes="150px"
+                              className="object-contain"
+                              loader={({ src }) => src}
+                              unoptimized
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* User Avatar Config */}
@@ -2074,6 +2098,23 @@ export function MenuManagement() {
                           <p className="text-[10px] text-muted-foreground italic">Will fallback to 'ME' if not provided.</p>
                         </div>
                       )}
+
+                      {settings.userAvatarType === 'image' && settings.userAvatarImage && (
+                        <div className="pt-4 border-t">
+                          <Label className="text-[10px] uppercase font-bold text-muted-foreground block mb-2">Avatar Preview</Label>
+                          <div className="relative w-full max-w-[150px] h-16 rounded-lg border bg-muted/5 flex items-center justify-center p-2 overflow-hidden shadow-inner">
+                            <Image
+                              src={settings.userAvatarImage}
+                              alt="User Avatar Preview"
+                              fill
+                              sizes="150px"
+                              className="object-contain"
+                              loader={({ src }) => src}
+                              unoptimized
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </TabsContent>
@@ -2148,12 +2189,12 @@ export function MenuManagement() {
                         {settings.appLogo && (
                           <div className="pt-4 border-t">
                             <Label className="text-[10px] uppercase font-bold text-muted-foreground block mb-2">Logo Preview</Label>
-                            <div className="relative w-24 h-24 rounded-lg border bg-muted/5 flex items-center justify-center p-2 overflow-hidden shadow-inner">
+                            <div className="relative w-full max-w-[200px] h-24 rounded-lg border bg-muted/5 flex items-center justify-center p-2 overflow-hidden shadow-inner">
                               <Image
                                 src={settings.appLogo}
                                 alt="Logo Preview"
                                 fill
-                                sizes="96px"
+                                sizes="200px"
                                 className="object-contain"
                                 loader={({ src }) => src}
                                 unoptimized
@@ -2982,25 +3023,6 @@ export function CheckerMenuReview() {
             </Card>
           </div>
         )}
-
-        <div className="space-y-3">
-          <Label className="text-sm font-bold flex items-center gap-2"><ListTree size={16} /> Attach Related Menus</Label>
-          <div className="bg-card rounded-xl border p-4 shadow-sm">
-            <div className="relative mb-4">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search menus..." value="" disabled className="pl-8 h-9 text-sm" />
-            </div>
-            {attachedNames.length === 0 ? (
-              <div className="text-sm text-muted-foreground">No attached menus.</div>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {attachedNames.map((n, idx) => (
-                  <Badge key={`${n}-${idx}`} variant="secondary" className="text-[10px] h-5 px-2">{n}</Badge>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
       </div>
     );
   };

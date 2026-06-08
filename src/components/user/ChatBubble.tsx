@@ -23,13 +23,19 @@ export function ChatBubble({ children, isBot = true, botAvatar, userAvatar }: Ch
   const defaultBotAvatar = botAvatar?.url || (botAvatar?.type === 'image' && botAvatar.image ? botAvatar.image : makeAvatarDataUri(botAvatar?.text || 'NB', '#f4a61b', '#763717'));
   const defaultUserAvatar = userAvatar?.url || (userAvatar?.type === 'image' && userAvatar.image ? userAvatar.image : makeAvatarDataUri(userAvatar?.text || 'U', '#f4a61b', '#763717'));
 
+  const isBotImage = botAvatar?.type === 'image' || botAvatar?.url;
+  const isUserImage = userAvatar?.type === 'image' || userAvatar?.url;
+
   return (
     <div className={cn(
       "flex gap-3 w-full mb-6 animate-in fade-in slide-in-from-bottom-2 duration-500",
       isBot ? "justify-start" : "justify-end"
     )}>
       {isBot && (
-        <Avatar className="h-8 w-8 border-2 border-[#f4a61b]/20 shrink-0">
+        <Avatar className={cn(
+          "h-8 border-2 border-[#f4a61b]/20 shrink-0",
+          isBotImage ? "w-12 sm:w-16 rounded-lg bg-transparent" : "w-8 rounded-full"
+        )}>
           <AvatarImage src={defaultBotAvatar} />
           <AvatarFallback className="bg-[#f4a61b] text-[#763717] text-[10px] font-bold">{botAvatar?.text || 'NB'}</AvatarFallback>
         </Avatar>
@@ -47,8 +53,8 @@ export function ChatBubble({ children, isBot = true, botAvatar, userAvatar }: Ch
       </div>
 
       {!isBot && (
-        <Avatar className="h-8 w-8 border-2 border-[#f4a61b]/20 shrink-0">
-          <AvatarImage src={defaultUserAvatar} />
+        <Avatar className="h-8 w-8 border-2 border-[#f4a61b]/20 shrink-0 rounded-full">
+          <AvatarImage src={defaultUserAvatar} className="object-cover" />
           <AvatarFallback className="bg-[#f4a61b] text-[#763717] text-[10px] font-bold">{userAvatar?.text || 'U'}</AvatarFallback>
         </Avatar>
       )}

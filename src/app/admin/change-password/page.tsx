@@ -130,18 +130,18 @@ export default function ChangePasswordPage() {
       </div>
 
       <Card className="w-full max-w-md relative z-10 border-border bg-card/80 backdrop-blur-sm shadow-2xl shadow-black/10">
-        <CardHeader className="text-center space-y-4 pb-2">
+        <CardHeader className="text-center space-y-6 pb-4">
           <div className="flex justify-center">
-            <Logo className="w-16 h-16" src={logo} />
+            <Logo className="h-20 w-40 sm:w-64 drop-shadow-2xl filter brightness-110" src={logo} />
           </div>
-          <div>
-            <CardTitle className="text-2xl font-bold text-foreground">
-              Change Password
+          <div className="space-y-1">
+            <CardTitle className="text-3xl font-black text-[#763717] tracking-tight">
+              Security Update
             </CardTitle>
-            <CardDescription className="text-muted-foreground mt-1">
+            <CardDescription className="text-muted-foreground font-medium uppercase tracking-widest text-[10px] opacity-80">
               {mustChangePassword
-                ? 'You must update your password to proceed'
-                : 'Update your admin credentials'}
+                ? 'Mandatory Password Reset'
+                : 'Update Admin Credentials'}
             </CardDescription>
           </div>
         </CardHeader>
