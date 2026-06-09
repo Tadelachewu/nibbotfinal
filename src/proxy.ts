@@ -18,6 +18,8 @@ export function proxy(request: NextRequest) {
   const allowedAncestors = rawAncestors.split(/[,\s]+/).filter(Boolean)
   const frameAncestors = ["'self'", ...allowedAncestors].join(' ')
 
+  const allowHttp = process.env.ALLOW_HTTP === 'true'
+
   // Static/default connect-src entries
   const staticConnect = [
     "'self'",
@@ -30,8 +32,13 @@ export function proxy(request: NextRequest) {
     'ws://localhost:3020',
     'ws://127.0.0.1:9002',
     'wss://localhost:3020',
-    'wss://nibterachatboat.nibbank.com.et'
+    'wss://nibterachatboat.nibbank.com.et',
+    'https://192.168.100.56:8280'
   ]
+
+  if (allowHttp) {
+    staticConnect.push('http://192.168.100.56:8280')
+  }
 
   // Additional connect-src entries from environment (comma/space-separated)
   const extraConnectRaw = process.env.ALLOWED_CONNECT_SRC || ''

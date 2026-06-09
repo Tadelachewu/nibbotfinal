@@ -78,9 +78,10 @@ app.prepare().then(async () => {
   }
 
   function buildContentSecurityPolicy(nonce) {
+    const allowHttp = process.env.ALLOW_HTTP === 'true';
     // Restrict connect-src to self, trusted APIs, and WebSockets.
     // Using a whitelist prevents XSS from exfiltrating data to arbitrary origins.
-    const connectSrc = [
+    const connectSrcBase = [
       "'self'",
       "https://www.google.com/",
       "ws://localhost:9002",
@@ -89,8 +90,15 @@ app.prepare().then(async () => {
       "ws://127.0.0.1:9004",
       "wss://localhost:3020",
       "ws://127.0.0.1:3000",
-      "ws://127.0.0.1:3001"
-    ].join(' ');
+      "ws://127.0.0.1:3001",
+      "https://192.168.100.56:8280"
+    ];
+
+    if (allowHttp) {
+      connectSrcBase.push("http://192.168.100.56:8280");
+    }
+
+    const connectSrc = connectSrcBase.join(' ');
 
     const scriptSrc = nonce ? `'self' 'nonce-${nonce}'` : "'self'";
     const styleSrc = "'self' 'unsafe-inline'";
