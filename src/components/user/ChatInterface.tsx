@@ -134,7 +134,7 @@ function MessageOptionsList({
         <Button
           key={opt.id}
           variant="outline"
-          className="rounded-[1.25rem] bg-[#f4a61b] hover:bg-[#f4a61b]/90 border-[#f4a61b] text-[#763717] h-auto py-3 px-4 flex items-center justify-start text-left w-fit max-w-full shadow-md transition-all active:scale-[0.98]"
+          className="rounded-[1.25rem] bg-card hover:bg-[#f4a61b]/10 border-[#f4a61b] text-[#763717] hover:text-[#763717] h-auto py-3 px-4 flex items-center justify-start text-left w-fit max-w-full shadow-md transition-all active:scale-[0.98]"
           onClick={() => navigateTo(opt)}
         >
           <span className="whitespace-normal break-words font-bold text-[13px] leading-snug">{getLocalizedName(opt)}</span>
@@ -182,8 +182,8 @@ function MessageOptionsList({
       {relatedOptions?.map(opt => (
         <Button
           key={opt.id}
-          variant="secondary"
-          className="rounded-[1.25rem] shadow-sm flex items-center justify-start text-left w-fit max-w-full h-auto py-3 px-4 gap-2 bg-[#f4a61b]/80 hover:bg-[#f4a61b] text-[#763717]"
+          variant="outline"
+          className="rounded-[1.25rem] shadow-sm flex items-center justify-start text-left w-fit max-w-full h-auto py-3 px-4 gap-2 bg-card hover:bg-[#f4a61b]/10 border-[#f4a61b]/50 text-[#763717] hover:text-[#763717]"
           onClick={() => navigateTo(opt)}
         >
           <ClipboardCheck size={16} className="shrink-0 opacity-70" />
@@ -1521,8 +1521,8 @@ export function ChatInterface() {
           <Button
             onClick={handleHome}
             size="sm"
-            variant="secondary"
-            className="rounded-full shadow-lg border-none bg-[#f4a61b] h-9 w-9 p-0 text-[#763717] hover:bg-[#f4a61b]/90 transition-colors"
+            variant="outline"
+            className="rounded-full shadow-lg border-[#f4a61b] bg-card h-9 w-9 p-0 text-[#763717] hover:text-[#763717] hover:bg-[#f4a61b]/10 transition-colors"
           >
             <HomeIcon size={16} />
           </Button>
@@ -1530,14 +1530,14 @@ export function ChatInterface() {
             disabled={menuHistory.length === 0}
             onClick={handleBack}
             size="sm"
-            variant="secondary"
-            className="rounded-full shadow-lg border-none bg-[#f4a61b] h-9 w-9 p-0 text-[#763717] hover:bg-[#f4a61b]/90 transition-colors disabled:opacity-30"
+            variant="outline"
+            className="rounded-full shadow-lg border-[#f4a61b] bg-card h-9 w-9 p-0 text-[#763717] hover:text-[#763717] hover:bg-[#f4a61b]/10 transition-colors disabled:opacity-30"
           >
             <ChevronLeft size={18} />
           </Button>
         </div>
       )}
-      <header className="bg-[#f4a61b] border-b border-[#763717]/10 px-3 py-3 flex items-center justify-between sticky top-0 z-50 shadow-md min-w-0">
+      <header className="bg-card border-b border-[#763717]/10 px-3 py-3 flex items-center justify-between sticky top-0 z-50 shadow-sm min-w-0">
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <Logo className="h-10 w-14 sm:w-20 md:w-28 shrink-0 drop-shadow-lg" src={appSettings?.appLogo} />
           <div className="min-w-0">
@@ -1565,13 +1565,13 @@ export function ChatInterface() {
           </div>
         </div>
         <div className="flex items-center gap-0.5 shrink-0">
-          <ThemeToggle className="text-[#763717] hover:bg-[#763717]/10" />
+          <ThemeToggle className="text-[#763717] hover:text-[#763717] hover:bg-[#763717]/10" />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-[#763717] h-9 px-1.5 hover:bg-[#763717]/10 flex items-center gap-1"
+                className="text-[#763717] hover:text-[#763717] h-9 px-1.5 hover:bg-[#763717]/10 flex items-center gap-1"
               >
                 <Globe size={16} className="text-[#763717] shrink-0" />
                 <span className="text-xs font-semibold text-[#763717]">
@@ -1587,8 +1587,8 @@ export function ChatInterface() {
                   className={cn(
                     "flex items-center justify-between font-medium cursor-pointer transition-colors",
                     currentLang?.code === lang.code
-                      ? "bg-[#f4a61b] text-[#763717] hover:bg-[#f4a61b] hover:text-[#763717]"
-                      : "text-[#763717] hover:bg-[#f4a61b]/10"
+                      ? "bg-[#f4a61b]/20 text-[#763717] hover:bg-[#f4a61b]/30 hover:text-[#763717]"
+                      : "text-[#763717] hover:text-[#763717] hover:bg-[#f4a61b]/10"
                   )}
                 >
                   {lang.name}
@@ -1651,10 +1651,10 @@ export function ChatInterface() {
                   </div>
                   <Button
                     type="button"
-                    variant="secondary"
+                    variant="outline"
                     size="sm"
                     disabled={loadingMoreId === msg.id}
-                    className="rounded-full h-8 px-3 text-[11px] font-bold uppercase bg-[#f4a61b] text-[#763717] hover:bg-[#f4a61b]/90 border-none"
+                    className="rounded-full h-8 px-3 text-[11px] font-bold uppercase bg-card text-[#763717] hover:text-[#763717] hover:bg-[#f4a61b]/10 border-[#f4a61b]"
                     onClick={() => loadMoreStatic(msg)}
                   >
                     {loadingMoreId === msg.id ? t('ui_loading', 'Loading...') : t('ui_read_more', 'Read more')}
@@ -1768,9 +1768,9 @@ export function ChatInterface() {
                       </div>
                       <Button
                         type="button"
-                        variant="secondary"
+                        variant="outline"
                         size="sm"
-                        className="rounded-full h-8 px-3 text-[11px] font-bold uppercase bg-[#f4a61b] text-[#763717] hover:bg-[#f4a61b]/90 border-none"
+                        className="rounded-full h-8 px-3 text-[11px] font-bold uppercase bg-card text-[#763717] hover:text-[#763717] hover:bg-[#f4a61b]/10 border-[#f4a61b]"
                         onClick={() => {
                           setHistory(prev => prev.map(m => {
                             if (m.id !== msg.id) return m;
@@ -1820,7 +1820,7 @@ export function ChatInterface() {
             placeholder={statusFlow ? t('ui_placeholder_report_id', 'Enter reference ID...') : (ratingFlow ? t('ui_placeholder_feedback', 'Enter feedback (optional)...') : t('ui_placeholder_input', 'Enter requested information...'))}
             className="flex-1 min-w-0 shadow-inner text-sm"
           />
-          <Button type="submit" size="icon" className="rounded-xl h-10 w-10 shrink-0 bg-[#f4a61b] text-[#763717] hover:bg-[#f4a61b]/90 border-none"><Send size={18} /></Button>
+          <Button type="submit" size="icon" variant="outline" className="rounded-xl h-10 w-10 shrink-0 bg-card text-[#763717] hover:text-[#763717] hover:bg-[#f4a61b]/10 border-[#f4a61b]"><Send size={18} /></Button>
           {kycFlow && !kycFlow.fields[kycFlow.fieldIndex].required && (
             <Button type="button" variant="ghost" size="sm" onClick={() => handleKycSubmit(true)} className="text-[10px] font-bold uppercase text-muted-foreground hover:text-primary h-10 px-2 shrink-0">
               {t('ui_skip', 'Skip')}
@@ -1838,11 +1838,11 @@ export function ChatInterface() {
           )}
         </form>
       </div>}
-      <footer className="bg-[#f4a61b] border-t border-[#763717]/10 px-3 py-2.5 grid grid-cols-3 items-center gap-2 sticky bottom-0 z-40 shadow-[0_-1px_3px_rgba(0,0,0,0.05)]">
+      <footer className="bg-card border-t border-[#763717]/10 px-3 py-2.5 grid grid-cols-3 items-center gap-2 sticky bottom-0 z-40 shadow-[0_-1px_3px_rgba(0,0,0,0.05)]">
         <Button
-          variant="secondary"
+          variant="outline"
           size="sm"
-          className="rounded-full px-3 bg-[#f4a61b] text-[#763717] hover:bg-[#f4a61b]/90 font-bold text-[11px] h-9 transition-all border-none shadow-sm justify-self-start"
+          className="rounded-full px-3 bg-card text-[#763717] hover:text-[#763717] hover:bg-[#f4a61b]/10 font-bold text-[11px] h-9 transition-all border-[#f4a61b] shadow-sm justify-self-start"
           onClick={handleHome}
         >
           <HomeIcon className="mr-1.5" size={14} />
@@ -1850,9 +1850,9 @@ export function ChatInterface() {
         </Button>
         {appSettings?.showAdminPanelIcon === true ? (
           <Button
-            variant="secondary"
+            variant="outline"
             size="icon"
-            className="justify-self-center rounded-full h-9 w-9 p-0 bg-[#f4a61b] text-[#763717] hover:bg-[#f4a61b]/90 border-none shadow-sm transition-all"
+            className="justify-self-center rounded-full h-9 w-9 p-0 bg-card text-[#763717] hover:text-[#763717] hover:bg-[#f4a61b]/10 border-[#f4a61b] shadow-sm transition-all"
             onClick={handleAdminPanel}
             title={t('ui_settings', 'Settings')}
           >
@@ -1863,9 +1863,9 @@ export function ChatInterface() {
         )}
         {(currentMenuId || menuHistory.length > 0) ? (
           <Button
-            variant="secondary"
+            variant="outline"
             size="sm"
-            className="justify-self-end rounded-full px-3 bg-[#f4a61b] text-[#763717] hover:bg-[#f4a61b]/90 font-bold text-[11px] h-9 transition-all border-none shadow-sm"
+            className="justify-self-end rounded-full px-3 bg-card text-[#763717] hover:text-[#763717] hover:bg-[#f4a61b]/10 font-bold text-[11px] h-9 transition-all border-[#f4a61b] shadow-sm"
             onClick={handleBack}
           >
             <ChevronLeft className="mr-0.5" size={15} />

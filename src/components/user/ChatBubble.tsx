@@ -42,7 +42,7 @@ export function ChatBubble({ children, isBot = true, botAvatar, userAvatar }: Ch
         "max-w-[80%] rounded-2xl p-3 sm:p-4 shadow-sm transition-all hover:shadow-md overflow-hidden min-w-0",
         isBot
           ? "bg-card text-[#763717] rounded-tl-none border border-border"
-          : "bg-[#f4a61b] text-[#763717] rounded-tr-none"
+          : "bg-card text-[#763717] rounded-tr-none border border-[#f4a61b]/30"
       )}>
         <div className="wysiwyg-content break-words whitespace-pre-wrap [word-break:break-word] [overflow-wrap:anywhere] min-w-0">
           {children}
