@@ -55,6 +55,8 @@ At minimum the following must be defined in production and development:
 - `DATABASE_URL`
 - `SECRET_COOKIE_PASSWORD`
 - `REDIS_URL` (recommended for online presence)
+- `ALLOW_HTTP` (set to `true` if your internal banking APIs do not support HTTPS)
+- `ALLOW_SELF_SIGNED_CERTS` (set to `true` if internal banking APIs use self-signed certificates)
 
 ### Hosting considerations
 
@@ -62,7 +64,15 @@ At minimum the following must be defined in production and development:
 - `apphosting.yaml` is present, but this project is not a simple static Firebase Hosting deployment because it relies on `server.js` and Socket.io.
 - If you deploy to a platform that does not support long-running Node processes or Redis, real-time presence and Socket.io features will not work.
 
-## 3. Database deployment
+### 3. Internal Network Connectivity (Crucial)
+
+If your chatbot is calling internal bank APIs (e.g., `192.168.x.x`), the **deployed server** must have physical network access to those IPs.
+
+- **On-Premise Deployment**: If you deploy on a server inside the bank's network, connectivity should work automatically.
+- **Cloud Deployment**: If you deploy to the cloud (AWS, Azure, etc.), you must set up a **Site-to-Site VPN** or an **SSH Tunnel** so the cloud server can "see" the internal bank IPs.
+- **Firewall**: Ensure the bank's internal firewall allows traffic from the Chatbot Server's IP address on the required API ports (e.g., `8280`).
+
+## 4. Database deployment
 
 ### Development database flow
 

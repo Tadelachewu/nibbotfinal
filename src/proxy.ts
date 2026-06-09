@@ -75,7 +75,7 @@ export function proxy(request: NextRequest) {
       frame-src 'self';
       media-src 'self' blob: data:;
       connect-src ${connectSrc};
-      ${isProd ? 'upgrade-insecure-requests;' : ''}
+      ${isProd && !allowHttp ? 'upgrade-insecure-requests;' : ''}
     `.replace(/\s{2,}/g, ' ').trim()
 
   const requestHeaders = new Headers(request.headers)

@@ -567,25 +567,30 @@ export function MenuManagement() {
         ? `${endpoint}${endpoint.includes('?') ? '&' : '?'}${new URLSearchParams(requestPayload).toString()}`
         : endpoint;
 
-      const response = await fetch(fetchUrl, {
-        method: editForm.apiConfig.method,
-        headers,
-        body: editForm.apiConfig.method === 'POST' ? JSON.stringify(requestPayload) : undefined,
+      const response = await fetch('/api/proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: fetchUrl,
+          method: editForm.apiConfig.method,
+          headers,
+          payload: editForm.apiConfig.method === 'POST' ? requestPayload : undefined
+        }),
         cache: 'no-store'
       });
 
-      const responseText = await response.text();
+      const proxyJson = await response.json();
       let data;
-      try {
-        data = JSON.parse(responseText);
-      } catch (e) {
+      if (proxyJson.status === 'success') {
+        data = proxyJson.data;
+      } else {
         data = {
           status: 'error',
-          message: 'The API returned a non-JSON response.',
+          message: proxyJson.message || 'The API proxy failed.',
           debug: {
             status: response.status,
             statusText: response.statusText,
-            preview: responseText.substring(0, 300) + (responseText.length > 300 ? '...' : '')
+            preview: proxyJson.debug || ''
           }
         };
       }

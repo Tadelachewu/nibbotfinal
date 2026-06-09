@@ -112,48 +112,71 @@ Decide how the bot should display the API results to the user.
 
 ---
 
-## �️ 4. Troubleshooting: CSP & Protocol Errors
+## 💎 4. Example: Configuring Exchange Rate API
 
-If you see an error like `violates the following Content Security Policy directive: "connect-src..."`, follow these steps:
+For the endpoint `http://192.168.100.56:8280/nib/exchangeRate`, the **Result Table** is the best response type.
 
-### 1. Protocol Mismatch (HTTP vs HTTPS)
-**Reason**: You are trying to connect to `http://192.168.100.56...` but the security policy (CSP) only allows `https` by default for production safety.
-**Fix**: 
-- **Recommended**: Use `https://192.168.100.56:8280` in your Admin Console configuration.
-- **Alternative (Enable HTTP)**: If your internal API does not support HTTPS, you can enable HTTP support via environment variables:
-  1. Open your `.env` file.
-  2. Set `ALLOW_HTTP=true`.
-  3. Restart the server.
-  4. Once enabled, the CSP will allow both `http` and `https` for the internal bank API.
-  5. If `ALLOW_HTTP` is `false` or not set, only `https` is allowed.
+**Why Result Table?**
+Exchange rate APIs usually return a list of many currencies (USD, EUR, GBP, etc.). A table allows the user to compare all rates at once in a professional, organized layout rather than reading a long, messy text message.
 
-### 2. Updating Allowed Origins (CSP)
-**Reason**: The external API domain/IP is not in the "Whitelist".
-**Fix**:
-1.  Open your environment configuration (e.g., `.env` file or server environment variables).
-2.  Locate the `ALLOWED_CONNECT_SRC` variable.
-3.  Add the new API origin (including protocol and port).
-    - **Example**: `ALLOWED_CONNECT_SRC="https://api.external.com http://192.168.100.56:8280 https://192.168.100.56:8280"`
-4.  Restart the application server for changes to take effect.
+### Step-by-Step Configuration:
 
-### 3. Mixed Content Warnings
-**Reason**: The main app is running on `https`, but you are trying to call an `http` API.
-**Fix**: Browsers often block `http` calls from `https` sites for security. Always prefer `https` for your API endpoints if available.
-
-### 4. Network Timeout (ERR_TIMED_OUT)
-**Reason**: The browser tried to connect to the API but received no response within the time limit. This is a network connectivity issue, not a code error.
-**Fix**:
-1.  **Check IP Accessibility**: Try to "ping" the IP address `192.168.100.56` from your command prompt. If it fails, you are not on the same network.
-2.  **Verify Server Status**: Ensure the API service is actually running on the target machine.
-3.  **Check Port & Protocol**: 
-    - Ensure port `8280` is open.
-    - If the server only supports HTTP, make sure you are using `http://` (and have `ALLOW_HTTP=true` set in your `.env`).
-    - Using `https://` on a port that only supports `http` will often cause a timeout.
-4.  **Firewall**: Ensure that the firewall on the server (192.168.100.56) allows incoming connections on port `8280`.
+1.  **General Tab**:
+    - **Menu Name**: `Daily Exchange Rates`
+    - **Response Type**: Select `API Call`.
+2.  **Connectivity Tab**:
+    - **Method**: `GET`
+    - **Endpoint URL**: `http://192.168.100.56:8280/nib/exchangeRate`
+    - **Authorization**: `None` (assuming it's an internal open API).
+3.  **Response View Mapping**:
+    - Select the **Result Table** tab.
+    - **Response Root**: Enter the path to the currency array. 
+      - *Common values*: `data`, `rates`, or `exchangeRates`. Use **Live Preview** to find the exact key.
+    - **Table Columns**: Add columns for the data you want to show:
+      - Header: `Currency` | Data Key: `currencyCode`
+      - Header: `Buying` | Data Key: `buyRate`
+      - Header: `Selling` | Data Key: `sellRate`
 
 ---
 
-## �📝 Demo Account Registry
+## 🛡️ 5. Troubleshooting: Common API Errors
+
+### 1. Protocol Mismatch (Automatic HTTPS Upgrade)
+**Reason**: Your browser is automatically changing your `http://` link to `https://`. This is caused by a security directive called `upgrade-insecure-requests`.
+**Fix**: 
+1.  **Environment Fix**: Ensure you have `ALLOW_HTTP=true` in your `.env` file.
+    - When `ALLOW_HTTP=true`, the system automatically disables the "Automatic HTTPS Upgrade" directive, allowing the browser to respect your `http://` choice.
+2.  **Browser Cache**: If it still upgrades, your browser might have "remembered" that the site should be secure. Try:
+    - Clearing your browser cache for the site.
+    - Testing in an **Incognito/Private** window.
+3.  **Check Admin Console**: Verify the **Endpoint URL** definitely starts with `http://`.
+
+### 2. CORS Policy Block (ERR_FAILED)
+**Reason**: This is a **Cross-Origin Resource Sharing (CORS)** error. Your browser is blocking the request because the bank's API server has not given "permission" to your chatbot's domain to access its data.
+
+**The Fix (Integrated Proxy)**:
+To solve this without needing any changes on the banking API server, this application now includes an **Internal API Proxy**.
+1.  **How it works**: The chatbot sends requests to our own server-side proxy (`/api/proxy`).
+2.  **Bypassing CORS**: Since our server calls the banking API server (server-to-server), the browser's CORS rules are completely bypassed.
+3.  **No Action Required**: This mechanism is automatically used by the **Live Preview** and the **Chatbot**.
+
+### 3. Network Timeout (ERR_TIMED_OUT)
+**Reason**: The browser tried to connect to the API but received no response within the time limit.
+**Fix**:
+1.  **Check IP Accessibility**: Try to `ping 192.168.100.56`. If it fails, you are not on the same network.
+2.  **Check Port**: Ensure port `8280` is open and the service is running.
+3.  **Firewall**: Ensure the server firewall allows incoming connections on port `8280`.
+
+### 4. SSL/Self-Signed Certificate Error (DEPTH_ZERO_SELF_SIGNED_CERT)
+**Reason**: The banking API uses an `https` certificate that is not recognized by a global certificate authority (it is "self-signed"). By default, Node.js blocks these connections.
+**Fix**:
+1.  Open your `.env` file.
+2.  Set `ALLOW_SELF_SIGNED_CERTS=true`.
+3.  Restart the application server.
+
+---
+
+## 📝 Demo Account Registry
 
 | Account ID | Holder | Balance |
 | :--- | :--- | :--- |

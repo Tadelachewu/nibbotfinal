@@ -1159,21 +1159,26 @@ export function ChatInterface() {
         if (params.toString()) url += (url.includes('?') ? '&' : '?') + params.toString();
         assertNoUnresolvedTemplate(url, 'final URL');
       } else { options.body = JSON.stringify(requestPayload); }
-      const res = await fetch(url, options);
-      const responseText = await res.text().catch(() => '');
-      let parsed: any = null;
-      try {
-        parsed = responseText ? JSON.parse(responseText) : null;
-      } catch (e) {
-        parsed = null;
-      }
-      apiResponse = parsed;
-      success = res.ok && parsed?.status !== 'error';
+      const proxyRes = await fetch('/api/proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url,
+          method: menu.apiConfig.method,
+          headers: options.headers,
+          payload: menu.apiConfig.method === 'POST' ? requestPayload : undefined
+        }),
+        cache: 'no-store'
+      });
+      const proxyJson = await proxyRes.json();
+
+      apiResponse = proxyJson.data;
+      success = proxyRes.ok && proxyJson.status === 'success' && proxyJson.ok;
       if (!success) {
         const parts: string[] = [];
-        parts.push(`HTTP ${res.status} ${res.statusText}`.trim());
-        if (parsed?.message) parts.push(`Message: ${String(parsed.message)}`);
-        if (!parsed && responseText) parts.push(`Body: ${responseText.substring(0, 500)}${responseText.length > 500 ? '...' : ''}`);
+        parts.push(`Proxy Status: ${proxyRes.status}`.trim());
+        if (proxyJson?.message) parts.push(`Message: ${String(proxyJson.message)}`);
+        if (proxyJson?.statusCode) parts.push(`Remote Status: ${proxyJson.statusCode}`);
         errorDetails = parts.filter(Boolean).join(' | ') || undefined;
       }
     } catch (e) {
