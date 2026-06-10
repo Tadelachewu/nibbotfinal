@@ -454,6 +454,8 @@ const MenuBar = ({ editor }: { editor: any }) => {
     { name: 'Montserrat', value: 'Montserrat, sans-serif' },
     { name: 'Oswald', value: 'Oswald, sans-serif' },
     { name: 'Playfair Display', value: '"Playfair Display", serif' },
+    { name: 'Myriad Pro', value: '"Myriad Pro", "Myriad", sans-serif' },
+    { name: 'Verdana', value: 'Verdana, Geneva, sans-serif' },
   ];
 
   const fileInputRef = useRef<HTMLInputElement>(null);

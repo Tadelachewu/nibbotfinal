@@ -1,4 +1,4 @@
-import type {Config} from 'tailwindcss';
+import type { Config } from 'tailwindcss';
 
 export default {
   darkMode: ['class'],
@@ -19,6 +19,8 @@ export default {
         body: ['Inter', 'sans-serif'],
         headline: ['Inter', 'sans-serif'],
         code: ['monospace'],
+        myriad: ['"Myriad Pro"', 'Myriad', 'sans-serif'],
+        verdana: ['Verdana', 'Geneva', 'sans-serif'],
       },
       colors: {
         background: 'hsl(var(--background))',
