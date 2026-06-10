@@ -190,7 +190,7 @@ export async function POST(req: Request) {
       actor: session.username,
       action: 'CREATE_USER',
       target: `user:${username}`,
-      details: { role, email, groupName },
+      details: { name: username, role, email, groupName },
       ip: session.ip,
       userAgent: session.userAgent
     });
@@ -337,7 +337,8 @@ export async function PATCH(req: Request) {
       action: 'UPDATE_USER',
       target: `user:${updated.username}`,
       details: {
-        fieldsChanged: Object.keys(data).filter(k => k !== 'passwordHash' && k !== 'sessionVersion'),
+        name: updated.username,
+        fieldsChanged: Object.keys(data).filter(k => k !== 'passwordHash' && k !== 'sessionVersion' && k !== 'passwordExpiresAt' && k !== 'mustChangePassword'),
         roleChanged: 'role' in data,
         passwordChanged: 'passwordHash' in data
       },
@@ -414,7 +415,7 @@ export async function DELETE(req: Request) {
     actor: session.username,
     action: 'DELETE_USER',
     target: `user:${target.username}`,
-    details: { role: target.role },
+    details: { name: target.username, role: target.role },
     ip: session.ip,
     userAgent: session.userAgent
   });

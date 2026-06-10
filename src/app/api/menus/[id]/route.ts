@@ -415,7 +415,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   }
 
   const reviewedAt = new Date();
-  let auditDetails: any = { action };
+  let auditDetails: any = { action, name: existing.name };
   if (isNewMenuPending) {
     const data: any = { reviewedBy: session.username, reviewedAt };
     if (action === 'approve') {
@@ -819,6 +819,7 @@ export async function DELETE(_: Request, ctx: { params: Promise<{ id: string }> 
   }
 
   const { id } = await ctx.params;
+  const existing = await prisma.menuItem.findUnique({ where: { id }, select: { name: true } });
   await prisma.menuItem.delete({ where: { id } });
 
   // Audit Log: Menu Deletion
@@ -826,6 +827,7 @@ export async function DELETE(_: Request, ctx: { params: Promise<{ id: string }> 
     actor: session.username ?? 'unknown',
     action: 'DELETE_MENU',
     target: `menu:${id}`,
+    details: { name: existing?.name },
     ip: session.ip,
     userAgent: session.userAgent
   });
