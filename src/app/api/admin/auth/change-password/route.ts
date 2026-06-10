@@ -6,6 +6,7 @@ import { getAdminSession, getValidatedAdminSession, rotateCsrfToken, verifyCsrfT
 
 import { Prisma } from '@prisma/client';
 import { checkLock, clearKey, enforceRateLimit, getClientIp, incrementCounter, normalizePrincipal, setLock } from '@/lib/rateLimit';
+import { logSecurityEvent } from '@/lib/logger';
 
 export async function POST(req: Request) {
   const session = await getValidatedAdminSession(true);
@@ -111,6 +112,16 @@ export async function POST(req: Request) {
       where: { username: session.username },
       data,
       select: { username: true, role: true, sessionVersion: true }
+    });
+
+    // Global Audit Log
+    await logSecurityEvent({
+      actor: session.username,
+      action: 'CHANGE_PASSWORD',
+      target: `user:${updated.username}`,
+      details: { usernameChanged: session.username !== updated.username },
+      ip: ip,
+      userAgent: req.headers.get('user-agent') || 'unknown'
     });
 
     // Invalidate existing session and rotate identity to prevent token reuse

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
 import { getValidatedAdminSession, rotateCsrfToken, verifyCsrfToken } from '@/lib/session';
+import { logSecurityEvent } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -323,6 +324,21 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     }
   });
 
+  // Global Audit Log
+  await logSecurityEvent({
+    actor: session.username,
+    action: isSupportAssignmentChange ? 'ASSIGN_REPORT' : 'UPDATE_REPORT',
+    target: `report:${id}`,
+    details: {
+      status: nextStatus,
+      priority: nextPriority,
+      hasResponse: !!nextAdminResponse,
+      assignee: nextSupportAssignee
+    },
+    ip: session.ip,
+    userAgent: session.userAgent
+  });
+
   const nextToken = await rotateCsrfToken(session);
   const res = NextResponse.json({
     status: 'success',
@@ -367,7 +383,18 @@ export async function DELETE(_: Request, ctx: { params: Promise<{ id: string }> 
   if (!id) {
     return NextResponse.json({ status: 'error', message: 'Invalid report id.' }, { status: 400 });
   }
+
   await prisma.userReport.delete({ where: { id } });
+
+  // Global Audit Log
+  await logSecurityEvent({
+    actor: session.username,
+    action: 'DELETE_REPORT',
+    target: `report:${id}`,
+    ip: session.ip,
+    userAgent: session.userAgent
+  });
+
   const nextToken = await rotateCsrfToken(session);
   const res = NextResponse.json({ status: 'success' });
   res.headers.set('x-csrf-token', nextToken);

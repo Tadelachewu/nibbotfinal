@@ -126,7 +126,8 @@ app.prepare().then(async () => {
       `img-src 'self' blob: data: https://placehold.co/ https://images.unsplash.com/ https://picsum.photos/ ${extraImageDomains}`,
       "font-src 'self'",
       "frame-src 'self' https://www.google.com/",
-      ...(!dev ? ['upgrade-insecure-requests', 'block-all-mixed-content'] : []),
+      ...(!dev && !allowHttp ? ['upgrade-insecure-requests'] : []),
+      ...(!dev ? ['block-all-mixed-content'] : []),
     ];
 
     return directives.join('; ');
