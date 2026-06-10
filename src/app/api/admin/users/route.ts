@@ -259,7 +259,16 @@ export async function PATCH(req: Request) {
     );
   }
 
-  const data: { username?: string; email?: string; role?: 'admin' | 'checker' | 'support'; passwordHash?: string; groupName?: string | null; sessionVersion?: { increment: number } } = {};
+  const data: {
+    username?: string;
+    email?: string;
+    role?: 'admin' | 'checker' | 'support';
+    passwordHash?: string;
+    groupName?: string | null;
+    sessionVersion?: { increment: number };
+    passwordExpiresAt?: null;
+    mustChangePassword?: boolean;
+  } = {};
 
   if ('username' in (body || {})) {
     const nextUsername = typeof body?.username === 'string' ? body.username.trim() : '';
@@ -304,6 +313,11 @@ export async function PATCH(req: Request) {
     data.passwordHash = await hashPassword(password);
     // Invalidate sessions for this user if password is changed by admin
     data.sessionVersion = { increment: 1 };
+
+    // RESET security flags: when an admin sets a password, it's no longer "expired"
+    // and we don't necessarily force them to change it again if the admin just set it.
+    data.passwordExpiresAt = null;
+    data.mustChangePassword = false;
   }
 
   if (Object.keys(data).length === 0) {
