@@ -94,6 +94,7 @@ export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) 
       menuId: report.menuId ?? undefined,
       menuName: report.menuName,
       data: (report.data as any) ?? {},
+      assignmentHistory: (report.data as any)?.assignmentHistory ?? [],
       status: report.status,
       priority: report.priority,
       adminResponse: report.adminResponse ?? undefined,
@@ -247,6 +248,11 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       ? (typeof body.supportAssignee === 'string' && body.supportAssignee.trim() ? body.supportAssignee.trim() : null)
       : undefined;
 
+  const nextAssignmentHistory =
+    role === 'admin' && Array.isArray(body.assignmentHistory)
+      ? body.assignmentHistory
+      : undefined;
+
   const isSupportAssignmentChange =
     role === 'admin' &&
     typeof nextSupportAssignee !== 'undefined' &&
@@ -259,8 +265,8 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     if (assignmentTypeRaw !== expectedType) {
       return NextResponse.json({ status: 'error', message: 'Invalid assignment type.' }, { status: 400 });
     }
-    if (!assignmentReason) {
-      return NextResponse.json({ status: 'error', message: 'Assignment reason is required.' }, { status: 400 });
+    if (expectedType === 'escalation' && !assignmentReason) {
+      return NextResponse.json({ status: 'error', message: 'Assignment reason is required for escalations.' }, { status: 400 });
     }
   }
 
@@ -318,6 +324,10 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       adminResponse: typeof nextAdminResponse === 'string' ? nextAdminResponse : undefined,
       internalNotes: typeof nextInternalNotes === 'string' ? nextInternalNotes : undefined,
       supportAssignee: nextSupportAssignee,
+      data: nextAssignmentHistory ? {
+        ...(existing.data as any ?? {}),
+        assignmentHistory: nextAssignmentHistory
+      } : undefined,
       activities: activitiesToCreate.length > 0 ? {
         create: activitiesToCreate
       } : undefined
@@ -348,6 +358,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       menuId: updated.menuId ?? undefined,
       menuName: updated.menuName,
       data: (updated.data as any) ?? {},
+      assignmentHistory: (updated.data as any)?.assignmentHistory ?? [],
       status: updated.status,
       priority: updated.priority,
       adminResponse: updated.adminResponse ?? undefined,

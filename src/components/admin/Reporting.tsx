@@ -673,9 +673,7 @@ export function Reporting() {
                   <TableHeader className="bg-muted/30 sticky top-0 z-10 backdrop-blur-md">
                     <TableRow className="group hover:bg-transparent border-none">
                       <TableHead className="text-[10px] font-black uppercase tracking-widest py-5 px-8">Submission Info</TableHead>
-                      <TableHead className="text-[10px] font-black uppercase tracking-widest text-center">Support Assignee</TableHead>
-                      <TableHead className="text-[10px] font-black uppercase tracking-widest text-center">Escalation</TableHead>
-                      <TableHead className="text-[10px] font-black uppercase tracking-widest text-center">Resolved By</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-widest text-center">Escalation Path</TableHead>
                       <TableHead className="text-[10px] font-black uppercase tracking-widest text-center">User Rating</TableHead>
                       <TableHead className="text-[10px] font-black uppercase tracking-widest text-right px-8">Feedback</TableHead>
                     </TableRow>
@@ -683,7 +681,7 @@ export function Reporting() {
                   <TableBody>
                     {stats.reports.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="h-64 text-center">
+                        <TableCell colSpan={4} className="h-64 text-center">
                           <div className="flex flex-col items-center justify-center space-y-2 opacity-40">
                             <ClipboardList size={48} />
                             <p className="italic text-sm">No submissions found in this time range.</p>
@@ -700,50 +698,84 @@ export function Reporting() {
                             </div>
                           </TableCell>
                           <TableCell className="text-center">
-                            <div className="flex flex-col items-center gap-1">
-                              {r.supportAssignee ? (
-                                <>
-                                  <div className="flex items-center gap-1.5 bg-blue-50 text-blue-700 px-3 py-1 rounded-full border border-blue-100">
-                                    <UserIcon size={12} />
-                                    <span className="text-[11px] font-black">{r.supportAssignee}</span>
-                                  </div>
-                                  {r.assignmentHistory && r.assignmentHistory.length > 1 && (
-                                    <div className="flex items-center gap-1 text-[8px] font-bold text-muted-foreground uppercase mt-1">
-                                      <History size={10} />
-                                      <span>{r.assignmentHistory.length} Assignments</span>
+                            <div className="flex flex-col items-center gap-2 min-w-[300px]">
+                              {/* Escalation Path: User1 -> User2 -> Resolved */}
+                              {r.assignmentHistory && r.assignmentHistory.length > 0 ? (
+                                <div className="flex flex-wrap items-center justify-center gap-1.5 p-3 rounded-2xl bg-muted/30 border border-muted-foreground/10 w-full">
+                                  {r.assignmentHistory.map((assignment: any, index: number) => (
+                                    <React.Fragment key={index}>
+                                      <div className="flex flex-col items-center group/item relative">
+                                        <div className={`px-2.5 py-1 rounded-lg border text-[10px] font-black transition-all ${assignment.type === 'escalation'
+                                            ? 'bg-red-50 text-red-700 border-red-100 shadow-[0_2px_4px_rgba(239,68,68,0.1)]'
+                                            : 'bg-blue-50 text-blue-700 border-blue-100'
+                                          }`}>
+                                          {assignment.assignee}
+                                        </div>
+                                        {/* Hover reason for escalations */}
+                                        {assignment.type === 'escalation' && assignment.reason && (
+                                          <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-popover text-popover-foreground text-[8px] px-2 py-1 rounded shadow-lg border opacity-0 group-hover/item:opacity-100 transition-opacity z-50 whitespace-nowrap pointer-events-none">
+                                            {assignment.reason}
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      {/* Arrow step */}
+                                      <span className="text-muted-foreground/40 font-black text-xs">→</span>
+                                    </React.Fragment>
+                                  ))}
+
+                                  {/* Final Resolution Node */}
+                                  {r.status === 'resolved' ? (
+                                    <div className="flex flex-col items-center">
+                                      <div className="px-2.5 py-1 rounded-lg border bg-emerald-600 text-white border-emerald-700 text-[10px] font-black shadow-[0_4px_12px_rgba(16,185,129,0.2)] flex items-center gap-1.5">
+                                        <CheckCircle2 size={10} />
+                                        {r.resolvedBy || r.supportAssignee || 'System'}
+                                      </div>
+                                      <span className="text-[7px] font-black uppercase text-emerald-600 mt-0.5 tracking-widest">Resolved</span>
+                                    </div>
+                                  ) : (
+                                    <div className="flex flex-col items-center">
+                                      <div className="px-2.5 py-1 rounded-lg border bg-amber-50 text-amber-700 border-amber-200 text-[10px] font-black animate-pulse">
+                                        {r.status.toUpperCase()}
+                                      </div>
                                     </div>
                                   )}
-                                </>
+                                </div>
                               ) : (
-                                <span className="text-[10px] text-muted-foreground font-bold uppercase opacity-30">Unassigned</span>
+                                /* Fallback if no assignment history (Auto-assigned or just created) */
+                                <div className="flex flex-wrap items-center justify-center gap-1.5 p-3 rounded-2xl bg-muted/30 border border-muted-foreground/10 w-full">
+                                  {r.supportAssignee ? (
+                                    <>
+                                      <div className="px-2.5 py-1 rounded-lg border bg-blue-50 text-blue-700 border-blue-100 text-[10px] font-black">
+                                        {r.supportAssignee}
+                                      </div>
+                                      <span className="text-muted-foreground/40 font-black text-xs">→</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <div className="px-2.5 py-1 rounded-lg border bg-slate-100 text-slate-500 border-slate-200 text-[10px] font-black italic">
+                                        Unassigned
+                                      </div>
+                                      <span className="text-muted-foreground/40 font-black text-xs">→</span>
+                                    </>
+                                  )}
+
+                                  {r.status === 'resolved' ? (
+                                    <div className="flex flex-col items-center">
+                                      <div className="px-2.5 py-1 rounded-lg border bg-emerald-600 text-white border-emerald-700 text-[10px] font-black flex items-center gap-1.5">
+                                        <CheckCircle2 size={10} />
+                                        {r.resolvedBy || r.supportAssignee || 'System'}
+                                      </div>
+                                      <span className="text-[7px] font-black uppercase text-emerald-600 mt-0.5 tracking-widest">Resolved</span>
+                                    </div>
+                                  ) : (
+                                    <div className="px-2.5 py-1 rounded-lg border bg-amber-50 text-amber-700 border-amber-200 text-[10px] font-black animate-pulse uppercase">
+                                      {r.status}
+                                    </div>
+                                  )}
+                                </div>
                               )}
                             </div>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {r.supportAssignmentType === 'escalation' ? (
-                              <div className="flex flex-col items-center gap-1">
-                                <Badge className="bg-red-50 text-red-700 border-red-100 text-[10px] font-black uppercase rounded-lg px-2">Escalated</Badge>
-                                {r.supportAssignmentReason && (
-                                  <span className="text-[9px] text-muted-foreground italic max-w-[120px] truncate" title={r.supportAssignmentReason}>
-                                    {r.supportAssignmentReason}
-                                  </span>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-[10px] text-muted-foreground font-bold uppercase opacity-30">—</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {r.status === 'resolved' ? (
-                              <div className="flex flex-col items-center gap-1">
-                                <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full border border-emerald-100">
-                                  <CheckCircle2 size={12} />
-                                  <span className="text-[11px] font-black">{r.resolvedBy || r.supportAssignee || 'System'}</span>
-                                </div>
-                              </div>
-                            ) : (
-                              <Badge variant="outline" className="text-[10px] font-black uppercase rounded-lg px-2 opacity-50">{r.status}</Badge>
-                            )}
                           </TableCell>
                           <TableCell className="text-center">
                             {typeof r.serviceRating === 'number' ? (

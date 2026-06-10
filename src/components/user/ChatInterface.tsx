@@ -1636,9 +1636,6 @@ export function ChatInterface() {
             >
               {msg.id === 'welcome' && (
                 <div className="flex flex-col items-center justify-center pt-6 pb-8 space-y-6">
-                  <div className="w-full max-w-[240px] h-28 sm:h-36 flex items-center justify-center bg-transparent p-2 overflow-hidden drop-shadow-2xl">
-                    <Logo className="w-full h-full scale-110" src={appSettings?.appLogo} />
-                  </div>
                   <h2 className="text-2xl font-black text-center text-[#763717] px-4 leading-tight tracking-tight">
                     {currentLang?.code === 'am' ? t('ui_welcome_am', 'Welcome to Nib International Bank') : t('ui_welcome_en', 'Welcome to Nib International Bank')}
                   </h2>

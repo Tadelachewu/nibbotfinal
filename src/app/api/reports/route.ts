@@ -131,6 +131,7 @@ export async function GET(req: Request) {
         menuId: r.menuId ?? undefined,
         menuName: r.menuName,
         data: (r.data as any) ?? {},
+        assignmentHistory: (r.data as any)?.assignmentHistory ?? [],
         status: r.status,
         priority: r.priority,
         adminResponse: r.adminResponse ?? undefined,
@@ -211,7 +212,18 @@ export async function POST(req: Request) {
         userId,
         menuId,
         menuName,
-        data: reportData,
+        data: {
+          ...reportData,
+          ...(menu?.supportAssignee ? {
+            assignmentHistory: [{
+              assignee: menu.supportAssignee,
+              assignedBy: 'system',
+              assignedAt: new Date().toISOString(),
+              type: 'first_assignment',
+              reason: 'Auto-assigned from menu configuration'
+            }]
+          } : {})
+        },
         status: 'pending',
         priority,
         adminResponse: null,
