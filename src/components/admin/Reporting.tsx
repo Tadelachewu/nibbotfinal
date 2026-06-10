@@ -33,12 +33,14 @@ import {
   Users,
   MousePointerClick,
   ClipboardList,
-  ChevronDown,
   LayoutDashboard,
   Search,
   Globe,
   Zap,
-  Info
+  Info,
+  History,
+  User as UserIcon,
+  Star
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -51,12 +53,6 @@ import {
   startOfMonth,
 } from 'date-fns';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -291,6 +287,7 @@ export function Reporting() {
       totalReports: filteredReports.length,
       activityByType: flattenedActivity,
       dailyData,
+      reports: filteredReports,
       statusStats: [
         { name: 'Pending', value: filteredReports.filter(r => r.status === 'pending').length, color: '#f59e0b' },
         { name: 'Reviewed', value: filteredReports.filter(r => r.status === 'reviewed').length, color: '#3b82f6' },
@@ -299,29 +296,30 @@ export function Reporting() {
     };
   }, [logs, reports, menus, timeRange, customStartDate, customEndDate]);
 
-  const handleExport = (format: 'csv' | 'json') => {
-    const dataToExport = {
-      summary: {
-        timeRange,
-        totalInteractions: stats.totalInteractions,
-        uniqueUsers: stats.uniqueUsers,
-        totalSubmissions: stats.totalReports
-      },
-      activityByType: stats.activityByType
-    };
+  const handleExport = () => {
+    let content = '';
+    let filename = '';
 
-    const blob = format === 'json'
-      ? new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' })
-      : new Blob([generateCSV(stats.activityByType)], { type: 'text/csv' });
+    if (activeTab === 'activity') {
+      content = generateMenuCSV(stats.activityByType);
+      filename = `nibbot-menu-activity-${timeRange}.csv`;
+    } else if (activeTab === 'submissions') {
+      content = generateSubmissionCSV(stats.reports);
+      filename = `nibbot-submissions-depth-${timeRange}.csv`;
+    } else {
+      content = generateMenuCSV(stats.activityByType);
+      filename = `nibbot-general-report-${timeRange}.csv`;
+    }
 
+    const blob = new Blob([content], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `nibbot-professional-report-${timeRange}.${format}`;
+    a.download = filename;
     a.click();
   };
 
-  const generateCSV = (activity: any[]) => {
+  const generateMenuCSV = (activity: any[]) => {
     let csv = 'Level,Category/Menu,Total Interactions,Unique Users,Submissions,Pending,Reviewed,Resolved,Success Rate (%),Avg Latency (ms),Conversion (%)\n';
 
     activity.forEach(group => {
@@ -336,6 +334,22 @@ export function Reporting() {
       // Blank line between categories
       csv += '\n';
     });
+    return csv;
+  };
+
+  const generateSubmissionCSV = (reports: any[]) => {
+    let csv = 'Report ID,Timestamp,Menu Name,User ID,Status,Priority,Assignee,Assignment Type,Escalated,Escalation Reason,Resolved By,Rating,Feedback\n';
+
+    reports.forEach(r => {
+      const isEscalated = r.supportAssignmentType === 'escalation' ? 'YES' : 'NO';
+      const rating = typeof r.serviceRating === 'number' ? r.serviceRating : 'N/A';
+      const feedback = r.serviceFeedback ? `"${r.serviceFeedback.replace(/"/g, '""')}"` : '';
+      const escalationReason = r.supportAssignmentReason ? `"${r.supportAssignmentReason.replace(/"/g, '""')}"` : '';
+      const resolver = r.resolvedBy || (r.status === 'resolved' ? (r.supportAssignee || 'System') : '');
+
+      csv += `"${r.id}","${format(new Date(r.timestamp), 'yyyy-MM-dd HH:mm:ss')}","${r.menuName}","${r.userId}","${r.status}","${r.priority || 'medium'}","${r.supportAssignee || ''}","${r.supportAssignmentType || ''}","${isEscalated}",${escalationReason},"${resolver}","${rating}",${feedback}\n`;
+    });
+
     return csv;
   };
 
@@ -385,25 +399,12 @@ export function Reporting() {
             ))}
           </div>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-10 rounded-2xl border-primary/20 hover:bg-primary/5 text-primary font-black uppercase text-[10px] px-6 shadow-sm">
-                <Download size={14} className="mr-2" />
-                Export Data
-                <ChevronDown size={12} className="ml-2 opacity-50" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 rounded-2xl p-2">
-              <DropdownMenuItem onClick={() => handleExport('csv')} className="gap-3 cursor-pointer py-3 rounded-xl focus:bg-emerald-50 focus:text-emerald-700">
-                <div className="p-2 rounded-lg bg-emerald-100 text-emerald-600"><FileText size={16} /></div>
-                <div className="flex flex-col"><span className="font-bold text-xs">Spreadsheet (CSV)</span><span className="text-[9px] opacity-70">Best for Excel/Analysis</span></div>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExport('json')} className="gap-3 cursor-pointer py-3 rounded-xl focus:bg-blue-50 focus:text-blue-700">
-                <div className="p-2 rounded-lg bg-blue-100 text-blue-600"><FileText size={16} /></div>
-                <div className="flex flex-col"><span className="font-bold text-xs">Raw Data (JSON)</span><span className="text-[9px] opacity-70">Best for Developers</span></div>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {(activeTab === 'activity' || activeTab === 'submissions') && (
+            <Button variant="outline" size="sm" onClick={handleExport} className="h-10 rounded-2xl border-primary/20 hover:bg-primary/5 text-primary font-black uppercase text-[10px] px-6 shadow-sm">
+              <Download size={14} className="mr-2" />
+              Export CSV
+            </Button>
+          )}
         </div>
       </div>
 
@@ -419,7 +420,7 @@ export function Reporting() {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="bg-muted/20 p-1.5 rounded-3xl border w-full max-w-[450px] shadow-inner">
+        <TabsList className="bg-muted/20 p-1.5 rounded-3xl border w-full max-w-[650px] shadow-inner">
           <TabsTrigger value="overview" className="flex-1 gap-2 rounded-2xl data-[state=active]:bg-card data-[state=active]:shadow-xl py-2.5">
             <LayoutDashboard size={14} />
             <span className="text-[11px] font-black uppercase tracking-tight">General Report</span>
@@ -427,6 +428,10 @@ export function Reporting() {
           <TabsTrigger value="activity" className="flex-1 gap-2 rounded-2xl data-[state=active]:bg-card data-[state=active]:shadow-xl py-2.5">
             <Users size={14} />
             <span className="text-[11px] font-black uppercase tracking-tight">Detail Report</span>
+          </TabsTrigger>
+          <TabsTrigger value="submissions" className="flex-1 gap-2 rounded-2xl data-[state=active]:bg-card data-[state=active]:shadow-xl py-2.5">
+            <ClipboardList size={14} />
+            <span className="text-[11px] font-black uppercase tracking-tight">Submission Analytics</span>
           </TabsTrigger>
         </TabsList>
 
@@ -644,6 +649,123 @@ export function Reporting() {
                           ))}
                         </React.Fragment>
                       ))}
+                  </TableBody>
+                </Table>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="submissions" className="space-y-6 m-0 outline-none">
+          <Card className="shadow-2xl rounded-[2.5rem] overflow-hidden border-none bg-card ring-1 ring-border/50">
+            <CardHeader className="bg-muted/10 border-b p-8 flex flex-row items-center justify-between">
+              <div className="space-y-1">
+                <CardTitle className="text-lg font-black flex items-center gap-3 uppercase tracking-tight">
+                  <ClipboardList size={22} className="text-primary" />
+                  Submission Depth Analytics
+                </CardTitle>
+                <CardDescription className="text-[11px] font-bold text-muted-foreground">Detailed view of internal support reports, assignments, and outcomes.</CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <ScrollArea className="h-[600px]">
+                <Table>
+                  <TableHeader className="bg-muted/30 sticky top-0 z-10 backdrop-blur-md">
+                    <TableRow className="group hover:bg-transparent border-none">
+                      <TableHead className="text-[10px] font-black uppercase tracking-widest py-5 px-8">Submission Info</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-widest text-center">Support Assignee</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-widest text-center">Escalation</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-widest text-center">Resolved By</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-widest text-center">User Rating</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-widest text-right px-8">Feedback</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {stats.reports.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="h-64 text-center">
+                          <div className="flex flex-col items-center justify-center space-y-2 opacity-40">
+                            <ClipboardList size={48} />
+                            <p className="italic text-sm">No submissions found in this time range.</p>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      stats.reports.map((r, idx) => (
+                        <TableRow key={idx} className="group hover:bg-primary/5 transition-all border-muted/10 border-b">
+                          <TableCell className="py-6 px-8">
+                            <div className="flex flex-col">
+                              <span className="text-sm font-black text-foreground group-hover:text-primary transition-colors tracking-tight">{r.menuName}</span>
+                              <span className="text-[9px] font-bold text-muted-foreground uppercase mt-0.5 opacity-50">#{r.id.split('_')[1] || r.id} • {format(new Date(r.timestamp), 'MMM dd, HH:mm')}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <div className="flex flex-col items-center gap-1">
+                              {r.supportAssignee ? (
+                                <>
+                                  <div className="flex items-center gap-1.5 bg-blue-50 text-blue-700 px-3 py-1 rounded-full border border-blue-100">
+                                    <UserIcon size={12} />
+                                    <span className="text-[11px] font-black">{r.supportAssignee}</span>
+                                  </div>
+                                  {r.assignmentHistory && r.assignmentHistory.length > 1 && (
+                                    <div className="flex items-center gap-1 text-[8px] font-bold text-muted-foreground uppercase mt-1">
+                                      <History size={10} />
+                                      <span>{r.assignmentHistory.length} Assignments</span>
+                                    </div>
+                                  )}
+                                </>
+                              ) : (
+                                <span className="text-[10px] text-muted-foreground font-bold uppercase opacity-30">Unassigned</span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {r.supportAssignmentType === 'escalation' ? (
+                              <div className="flex flex-col items-center gap-1">
+                                <Badge className="bg-red-50 text-red-700 border-red-100 text-[10px] font-black uppercase rounded-lg px-2">Escalated</Badge>
+                                {r.supportAssignmentReason && (
+                                  <span className="text-[9px] text-muted-foreground italic max-w-[120px] truncate" title={r.supportAssignmentReason}>
+                                    {r.supportAssignmentReason}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground font-bold uppercase opacity-30">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {r.status === 'resolved' ? (
+                              <div className="flex flex-col items-center gap-1">
+                                <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full border border-emerald-100">
+                                  <CheckCircle2 size={12} />
+                                  <span className="text-[11px] font-black">{r.resolvedBy || r.supportAssignee || 'System'}</span>
+                                </div>
+                              </div>
+                            ) : (
+                              <Badge variant="outline" className="text-[10px] font-black uppercase rounded-lg px-2 opacity-50">{r.status}</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {typeof r.serviceRating === 'number' ? (
+                              <div className="flex items-center justify-center gap-0.5">
+                                {Array.from({ length: 5 }).map((_, i) => (
+                                  <Star key={i} size={12} className={i < r.serviceRating! ? 'fill-amber-500 text-amber-500' : 'text-muted-foreground/20'} />
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground font-bold uppercase opacity-30">Not Rated</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right px-8">
+                            <div className="max-w-[200px] ml-auto">
+                              <p className="text-[11px] font-medium text-foreground line-clamp-2 italic">
+                                {r.serviceFeedback ? `"${r.serviceFeedback}"` : <span className="text-muted-foreground opacity-30 uppercase font-bold text-[10px]">No Feedback</span>}
+                              </p>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </ScrollArea>

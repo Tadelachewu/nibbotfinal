@@ -245,6 +245,7 @@ export function ReportsManagement() {
               ...(currentRole === 'admin' ? { priority: editingPriority } : {}),
               adminResponse: editingResponse,
               internalNotes: editingNotes,
+              ...(finalStatus === 'resolved' && !selectedReport?.resolvedBy ? { resolvedBy: currentUsername } : {}),
               ...(currentRole === 'admin'
                 ? {
                   supportAssignee: editingSupportAssignee === '__none__' ? null : editingSupportAssignee,
@@ -409,26 +410,50 @@ export function ReportsManagement() {
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] font-bold uppercase text-muted-foreground">Support</span>
                   {currentRole === 'admin' ? (
-                    <Select value={editingSupportAssignee} onValueChange={(val) => {
-                      setEditingSupportAssignee(val);
-                      const existing = selectedReport?.supportAssignee;
-                      const hadAssignee = typeof existing === 'string' && existing.trim().length > 0;
-                      if (val === '__none__') {
-                        setEditingSupportAssignmentType('first_assignment');
-                        setEditingSupportAssignmentReason('');
-                        return;
-                      }
-                      setEditingSupportAssignmentType(hadAssignee ? 'escalation' : 'first_assignment');
-                      setEditingSupportAssignmentReason('');
-                    }}>
-                      <SelectTrigger className="h-7 w-44 text-[10px]"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">Unassigned</SelectItem>
-                        {supportUsers.map(u => (
-                          <SelectItem key={u.username} value={u.username}>{u.username}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="flex items-center gap-3">
+                      <Select value={editingSupportAssignee} onValueChange={(val) => {
+                        setEditingSupportAssignee(val);
+                        const existing = selectedReport?.supportAssignee;
+                        const hadAssignee = typeof existing === 'string' && existing.trim().length > 0;
+                        if (val === '__none__') {
+                          setEditingSupportAssignmentType('first_assignment');
+                          setEditingSupportAssignmentReason('');
+                          return;
+                        }
+                        // If it was unassigned and we're assigning for first time
+                        if (!hadAssignee) {
+                          setEditingSupportAssignmentType('first_assignment');
+                        }
+                      }}>
+                        <SelectTrigger className="h-7 w-44 text-[10px]"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Unassigned</SelectItem>
+                          {supportUsers.map(u => (
+                            <SelectItem key={u.username} value={u.username}>{u.username}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {editingSupportAssignee !== '__none__' && (
+                        <Select value={editingSupportAssignmentType} onValueChange={(val: any) => setEditingSupportAssignmentType(val)}>
+                          <SelectTrigger className="h-7 w-40 text-[10px]"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="first_assignment">First Assignment</SelectItem>
+                            <SelectItem value="escalation">Escalation</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                      {editingSupportAssignmentType === 'escalation' && (
+                        <div className="flex items-center gap-2">
+                          <Label className="text-[10px] font-bold uppercase text-muted-foreground whitespace-nowrap">Escalation Reason</Label>
+                          <Input
+                            value={editingSupportAssignmentReason}
+                            onChange={(e) => setEditingSupportAssignmentReason(e.target.value)}
+                            placeholder="Why was this escalated?"
+                            className="h-7 text-[11px] w-64 bg-card"
+                          />
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <Badge variant="outline" className="text-[10px]">
                       {editingSupportAssignee === '__none__' ? 'Unassigned' : (editingSupportAssignee === currentUsername ? 'Assigned to you' : editingSupportAssignee)}
@@ -783,8 +808,8 @@ export function ReportsManagement() {
                                     setEditingStatus(report.status);
                                     setEditingPriority(report.priority || 'medium');
                                     setEditingSupportAssignee(report.supportAssignee || '__none__');
-                                    setEditingSupportAssignmentType(report.supportAssignee ? 'escalation' : 'first_assignment');
-                                    setEditingSupportAssignmentReason('');
+                                    setEditingSupportAssignmentType(report.supportAssignmentType || 'first_assignment');
+                                    setEditingSupportAssignmentReason(report.supportAssignmentReason || '');
                                   }
                                   setIsInspectOpen(true);
                                 }}>

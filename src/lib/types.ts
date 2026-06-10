@@ -171,6 +171,16 @@ export interface UserReport {
   adminResponse?: string;
   internalNotes?: string;
   supportAssignee?: string;
+  supportAssignmentType?: 'first_assignment' | 'escalation';
+  supportAssignmentReason?: string;
+  resolvedBy?: string;
+  assignmentHistory?: Array<{
+    assignee: string;
+    assignedBy: string;
+    assignedAt: string;
+    type: 'first_assignment' | 'escalation';
+    reason?: string;
+  }>;
   serviceRating?: number;
   serviceFeedback?: string;
   serviceRatedAt?: string;
