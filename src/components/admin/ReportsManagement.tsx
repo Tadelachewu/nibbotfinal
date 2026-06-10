@@ -234,6 +234,21 @@ export function ReportsManagement() {
   const handleSaveAdminData = (overrideStatus?: UserReport['status']) => {
     if (selectedReportId) {
       const finalStatus = overrideStatus || editingStatus;
+      const newAssignee = editingSupportAssignee === '__none__' ? null : editingSupportAssignee;
+      const oldAssignee = selectedReport?.supportAssignee;
+      const isSupportAssignmentChange = currentRole === 'admin' && newAssignee !== oldAssignee && newAssignee !== null;
+
+      let updatedAssignmentHistory = selectedReport?.assignmentHistory || [];
+      if (isSupportAssignmentChange) {
+        const newAssignment = {
+          assignee: newAssignee,
+          assignedBy: currentUsername,
+          assignedAt: new Date().toISOString(),
+          type: editingSupportAssignmentType,
+          reason: editingSupportAssignmentReason
+        };
+        updatedAssignmentHistory = [...updatedAssignmentHistory, newAssignment];
+      }
 
       (async () => {
         try {
@@ -248,8 +263,9 @@ export function ReportsManagement() {
               ...(finalStatus === 'resolved' && !selectedReport?.resolvedBy ? { resolvedBy: currentUsername } : {}),
               ...(currentRole === 'admin'
                 ? {
-                  supportAssignee: editingSupportAssignee === '__none__' ? null : editingSupportAssignee,
-                  ...(editingSupportAssignee !== '__none__' ? { supportAssignmentType: editingSupportAssignmentType, supportAssignmentReason: editingSupportAssignmentReason } : {})
+                  supportAssignee: newAssignee,
+                  ...(newAssignee ? { supportAssignmentType: editingSupportAssignmentType, supportAssignmentReason: editingSupportAssignmentReason } : {}),
+                  assignmentHistory: updatedAssignmentHistory
                 }
                 : {})
             })

@@ -338,16 +338,31 @@ export function Reporting() {
   };
 
   const generateSubmissionCSV = (reports: any[]) => {
-    let csv = 'Report ID,Timestamp,Menu Name,User ID,Status,Priority,Assignee,Assignment Type,Escalated,Escalation Reason,Resolved By,Rating,Feedback\n';
+    let csv = 'Report ID,Timestamp,Menu Name,User ID,Status,Priority,Escalation Path,Resolved By,Rating,Feedback\n';
 
     reports.forEach(r => {
-      const isEscalated = r.supportAssignmentType === 'escalation' ? 'YES' : 'NO';
       const rating = typeof r.serviceRating === 'number' ? r.serviceRating : 'N/A';
       const feedback = r.serviceFeedback ? `"${r.serviceFeedback.replace(/"/g, '""')}"` : '';
-      const escalationReason = r.supportAssignmentReason ? `"${r.supportAssignmentReason.replace(/"/g, '""')}"` : '';
       const resolver = r.resolvedBy || (r.status === 'resolved' ? (r.supportAssignee || 'System') : '');
 
-      csv += `"${r.id}","${format(new Date(r.timestamp), 'yyyy-MM-dd HH:mm:ss')}","${r.menuName}","${r.userId}","${r.status}","${r.priority || 'medium'}","${r.supportAssignee || ''}","${r.supportAssignmentType || ''}","${isEscalated}",${escalationReason},"${resolver}","${rating}",${feedback}\n`;
+      // Build clean Escalation Path
+      let pathSteps: string[] = [];
+      if (r.assignmentHistory && r.assignmentHistory.length > 0) {
+        pathSteps = r.assignmentHistory.map((assn: any) => assn.assignee);
+      } else if (r.supportAssignee) {
+        pathSteps = [r.supportAssignee];
+      } else {
+        pathSteps = ['Unassigned'];
+      }
+
+      // Add resolver if resolved and not already in path
+      if (r.status === 'resolved' && resolver && !pathSteps.includes(resolver)) {
+        pathSteps.push(resolver + ' (Resolved)');
+      }
+
+      const escalationPath = `"${pathSteps.join(' -> ')}"`;
+
+      csv += `"${r.id}","${format(new Date(r.timestamp), 'yyyy-MM-dd HH:mm:ss')}","${r.menuName}","${r.userId}","${r.status}","${r.priority || 'medium'}",${escalationPath},"${resolver}","${rating}",${feedback}\n`;
     });
 
     return csv;
@@ -706,8 +721,8 @@ export function Reporting() {
                                     <React.Fragment key={index}>
                                       <div className="flex flex-col items-center group/item relative">
                                         <div className={`px-2.5 py-1 rounded-lg border text-[10px] font-black transition-all ${assignment.type === 'escalation'
-                                            ? 'bg-red-50 text-red-700 border-red-100 shadow-[0_2px_4px_rgba(239,68,68,0.1)]'
-                                            : 'bg-blue-50 text-blue-700 border-blue-100'
+                                          ? 'bg-red-50 text-red-700 border-red-100 shadow-[0_2px_4px_rgba(239,68,68,0.1)]'
+                                          : 'bg-blue-50 text-blue-700 border-blue-100'
                                           }`}>
                                           {assignment.assignee}
                                         </div>
