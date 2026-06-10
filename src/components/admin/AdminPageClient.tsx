@@ -6,9 +6,10 @@ import { ReportsManagement } from '@/components/admin/ReportsManagement';
 import { Dashboard } from '@/components/admin/Dashboard';
 import { Toaster } from '@/components/ui/toaster';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ListTree, ClipboardList, LayoutDashboard, Globe, Activity, Users } from 'lucide-react';
+import { ListTree, ClipboardList, LayoutDashboard, Globe, Activity, Users, BarChart3 } from 'lucide-react';
 import { LocalizationManagement } from '@/components/admin/LocalizationManagement';
 import { LogViewer } from '@/components/admin/LogViewer';
+import { Reporting } from '@/components/admin/Reporting';
 import { AdminAuthProvider, useAdminAuth } from '@/components/admin/AdminAuthContext';
 import { AdminLoginPage } from '@/components/admin/AdminLoginPage';
 import { UsersManagement } from '@/components/admin/UsersManagement';
@@ -71,7 +72,7 @@ function AdminConsole() {
               <h2 className="text-2xl font-bold tracking-tight">System Console</h2>
               <p className="text-muted-foreground">Monitor performance and manage your conversational platform.</p>
             </div>
-            <TabsList className="grid grid-cols-6 w-full md:w-[900px] bg-muted/20 p-1 border shadow-sm">
+            <TabsList className="grid grid-cols-7 w-full md:w-[1050px] bg-muted/20 p-1 border shadow-sm">
               <TabsTrigger value="dashboard" className="flex items-center gap-2 text-xs md:text-sm">
                 <LayoutDashboard size={14} />
                 Dashboard
@@ -95,6 +96,10 @@ function AdminConsole() {
               <TabsTrigger value="logs" className="flex items-center gap-2 text-xs md:text-sm">
                 <Activity size={14} />
                 Logs
+              </TabsTrigger>
+              <TabsTrigger value="reporting" className="flex items-center gap-2 text-xs md:text-sm">
+                <BarChart3 size={14} />
+                Reporting
               </TabsTrigger>
             </TabsList>
           </div>
@@ -121,6 +126,10 @@ function AdminConsole() {
 
           <TabsContent value="logs" className="m-0 border-none p-0 outline-none">
             <LogViewer />
+          </TabsContent>
+
+          <TabsContent value="reporting" className="m-0 border-none p-0 outline-none">
+            <Reporting />
           </TabsContent>
         </Tabs>
       </main>
