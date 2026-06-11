@@ -40,7 +40,8 @@ import {
   Info,
   History,
   User as UserIcon,
-  Star
+  Star,
+  XCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -153,6 +154,8 @@ export function Reporting() {
     };
 
     let countedInteractions = 0;
+    let countedSuccesses = 0;
+    let countedFailures = 0;
     const countedUniqueUsers = new Set<string>();
 
     filteredLogs.forEach(log => {
@@ -203,6 +206,11 @@ export function Reporting() {
       // Count this log in total stats (only if we didn't skip it)
       countedInteractions += 1;
       countedUniqueUsers.add(log.sessionId);
+      if (log.status === 'error' || log.status === 'failed') {
+        countedFailures += 1;
+      } else {
+        countedSuccesses += 1;
+      }
     });
 
     const totalInteractions = countedInteractions;
@@ -292,6 +300,8 @@ export function Reporting() {
       totalInteractions,
       uniqueUsers,
       totalReports: filteredReports.length,
+      successCount: countedSuccesses,
+      failureCount: countedFailures,
       activityByType: flattenedActivity,
       dailyData,
       reports: filteredReports,
@@ -458,12 +468,31 @@ export function Reporting() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6 m-0 outline-none">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {[
               { label: 'Interactions', value: stats.totalInteractions, sub: 'Total system events', icon: Activity, color: 'border-t-primary' },
               { label: 'Unique Users', value: stats.uniqueUsers, sub: 'Individual sessions', icon: Users, color: 'border-t-blue-500' },
-              { label: 'Submissions', value: stats.totalReports, sub: 'Completed KYC/Reports', icon: ClipboardList, color: 'border-t-emerald-500' },
-              { label: 'Success Rate', value: `${((stats.totalInteractions - stats.activityByType.reduce((a, b) => a + b.menus.reduce((x: any, y: any) => x + y.errors, 0), 0)) / (stats.totalInteractions || 1) * 100).toFixed(1)}%`, sub: 'Optimal performance', icon: CheckCircle2, color: 'border-t-amber-500' }
+              { label: 'Submissions', value: stats.totalReports, sub: 'Completed KYC/Reports', icon: ClipboardList, color: 'border-t-emerald-500' }
+            ].map((stat, i) => (
+              <Card key={i} className={`bg-card shadow-sm border-t-4 ${stat.color} rounded-3xl overflow-hidden hover:shadow-lg transition-all group`}>
+                <CardHeader className="pb-2">
+                  <CardDescription className="text-[10px] font-black uppercase flex items-center gap-2 tracking-widest group-hover:text-primary transition-colors">
+                    <stat.icon size={12} />
+                    {stat.label}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-black tracking-tighter">{stat.value.toLocaleString()}</div>
+                  <p className="text-[10px] text-muted-foreground mt-1 font-bold opacity-70">{stat.sub}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[
+              { label: 'Successful', value: stats.successCount, sub: 'Successful interactions', icon: CheckCircle2, color: 'border-t-green-500' },
+              { label: 'Failed', value: stats.failureCount, sub: 'Failed interactions', icon: XCircle, color: 'border-t-red-500' },
+              { label: 'Success Rate', value: `${((stats.successCount || 0) / (stats.totalInteractions || 1) * 100).toFixed(1)}%`, sub: 'Optimal performance', icon: TrendingUp, color: 'border-t-amber-500' }
             ].map((stat, i) => (
               <Card key={i} className={`bg-card shadow-sm border-t-4 ${stat.color} rounded-3xl overflow-hidden hover:shadow-lg transition-all group`}>
                 <CardHeader className="pb-2">
