@@ -78,7 +78,9 @@ export function Reporting() {
   const [isLoading, setIsLoading] = useState(true);
   const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month' | 'custom'>('week');
   const [customStartDate, setCustomStartDate] = useState(format(subDays(new Date(), 30), 'yyyy-MM-dd'));
+  const [customStartTime, setCustomStartTime] = useState('00:00');
   const [customEndDate, setCustomEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [customEndTime, setCustomEndTime] = useState('23:59');
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedActionType, setSelectedActionType] = useState<'all' | 'static' | 'api' | 'report'>('all');
 
@@ -127,8 +129,13 @@ export function Reporting() {
     } else if (timeRange === 'month') {
       startDate = startOfMonth(now);
     } else {
-      startDate = startOfDay(new Date(customStartDate));
-      endDate = endOfDay(new Date(customEndDate));
+      // Custom range with date and time
+      const [startHour, startMin] = customStartTime.split(':').map(Number);
+      const [endHour, endMin] = customEndTime.split(':').map(Number);
+      startDate = new Date(customStartDate);
+      startDate.setHours(startHour, startMin, 0, 0);
+      endDate = new Date(customEndDate);
+      endDate.setHours(endHour, endMin, 59, 999);
     }
 
     const filteredLogs = logs.filter(log => {
@@ -325,21 +332,41 @@ export function Reporting() {
         { name: 'Resolved', value: filteredReports.filter(r => r.status === 'resolved').length, color: '#10b981' }
       ]
     };
-  }, [logs, reports, menus, timeRange, customStartDate, customEndDate]);
+  }, [logs, reports, menus, timeRange, customStartDate, customStartTime, customEndDate, customEndTime]);
 
   const handleExport = () => {
     let content = '';
     let filename = '';
+    let reportName = '';
+    const now = new Date();
+
+    // Get time range string for header
+    let timeRangeStr = '';
+    if (timeRange === 'today') {
+      timeRangeStr = `${format(now, 'yyyy-MM-dd')} 00:00 to ${format(now, 'yyyy-MM-dd HH:mm:ss')}`;
+    } else if (timeRange === 'custom') {
+      timeRangeStr = `${customStartDate} ${customStartTime} to ${customEndDate} ${customEndTime}`;
+    } else {
+      const start = timeRange === 'week' ? startOfWeek(now) : startOfMonth(now);
+      timeRangeStr = `${format(start, 'yyyy-MM-dd HH:mm')} to ${format(now, 'yyyy-MM-dd HH:mm:ss')}`;
+    }
 
     if (activeTab === 'activity') {
-      content = generateMenuCSV(stats.activityByType);
-      filename = `nibbot-menu-activity-${timeRange}.csv`;
+      reportName = 'Detail Report';
+      // Filter activity by selectedActionType
+      const filteredActivity = selectedActionType === 'all'
+        ? stats.activityByType
+        : stats.activityByType.filter(g => g.type === selectedActionType);
+      content = generateMenuCSV(filteredActivity, reportName, timeRangeStr);
+      filename = `nibbot-detail-report-${selectedActionType}-${format(now, 'yyyyMMddHHmmss')}.csv`;
     } else if (activeTab === 'submissions') {
-      content = generateSubmissionCSV(stats.reports);
-      filename = `nibbot-submissions-depth-${timeRange}.csv`;
+      reportName = 'Submission Analytics';
+      content = generateSubmissionCSV(stats.reports, reportName, timeRangeStr);
+      filename = `nibbot-submission-report-${format(now, 'yyyyMMddHHmmss')}.csv`;
     } else {
-      content = generateMenuCSV(stats.activityByType);
-      filename = `nibbot-general-report-${timeRange}.csv`;
+      reportName = 'General Report';
+      content = generateMenuCSV(stats.activityByType, reportName, timeRangeStr);
+      filename = `nibbot-general-report-${format(now, 'yyyyMMddHHmmss')}.csv`;
     }
 
     const blob = new Blob([content], { type: 'text/csv' });
@@ -350,16 +377,25 @@ export function Reporting() {
     a.click();
   };
 
-  const generateMenuCSV = (activity: any[]) => {
-    let csv = 'Level,Category/Menu,Total Interactions,Unique Users,Submissions,Pending,Reviewed,Resolved,Success Rate (%),Avg Latency (ms),Conversion (%)\n';
+  const generateMenuCSV = (activity: any[], reportName: string, timeRangeStr: string) => {
+    let csv = '';
+    // Add report header
+    csv += `"Nib International Bank","${reportName}","${timeRangeStr}"\n`;
+    csv += '\n'; // Blank line after header
+    // Add column headers
+    csv += 'Level,Category/Menu,Total Interactions,Unique Users,Submissions,Pending,Reviewed,Resolved,Success Rate (%),Avg Latency (ms),Conversion (%)\n';
 
     activity.forEach(group => {
       // Category Level Row
-      csv += `Category,${group.label},${group.totalInteractions},-,${group.totalSubmissions},${group.totalPending || 0},${group.totalReviewed || 0},${group.totalResolved || 0},-, -, -\n`;
+      csv += `Category,${group.label},${group.totalInteractions},-,${group.totalSubmissions || ''},${group.totalPending || ''},${group.totalReviewed || ''},${group.totalResolved || ''},-, -, -\n`;
 
       // Specific Menu Rows
       group.menus.forEach((m: any) => {
-        csv += `Menu,"${m.name}",${m.interactions},${m.uniqueUsers},${m.submissions},${m.pendingCount || 0},${m.reviewedCount || 0},${m.resolvedCount || 0},${m.successRate.toFixed(2)},${Math.round(m.avgLatency)},${m.conversionRate.toFixed(2)}\n`;
+        const successRate = m.successRate !== undefined ? m.successRate.toFixed(2) : '';
+        const avgLatency = m.avgLatency !== undefined && m.avgLatency !== null ? Math.round(m.avgLatency) : '';
+        const conversionRate = m.conversionRate !== undefined ? m.conversionRate.toFixed(2) : '';
+
+        csv += `Menu,"${m.name}",${m.interactions},${m.uniqueUsers},${m.submissions || ''},${m.pendingCount || ''},${m.reviewedCount || ''},${m.resolvedCount || ''},${successRate},${avgLatency},${conversionRate}\n`;
       });
 
       // Blank line between categories
@@ -368,12 +404,33 @@ export function Reporting() {
     return csv;
   };
 
-  const generateSubmissionCSV = (reports: any[]) => {
-    let csv = 'Report ID,Timestamp,Menu Name,User ID,Status,Priority,Escalation Path,Resolved By,Rating,Feedback\n';
+  const generateSubmissionCSV = (reports: any[], reportName: string, timeRangeStr: string) => {
+    let csv = '';
+    // Add report header
+    csv += `"Nib International Bank","${reportName}","${timeRangeStr}"\n`;
+    csv += '\n'; // Blank line after header
+
+    // Collect all unique form fields from all reports
+    const allFieldKeys = new Set<string>();
+    reports.forEach(r => {
+      if (r.data && typeof r.data === 'object') {
+        Object.keys(r.data).forEach(key => allFieldKeys.add(key));
+      }
+    });
+    const fieldKeysArray = Array.from(allFieldKeys);
+
+    // Build column headers with dynamic fields
+    let headers = [
+      'Report ID', 'Timestamp', 'Menu Name', 'User ID', 'Status', 'Priority',
+      'Escalation Path', 'Resolved By', 'Rating', 'Feedback', 'Admin Response'
+    ];
+    headers = headers.concat(fieldKeysArray);
+    csv += headers.map(h => `"${h}"`).join(',') + '\n';
 
     reports.forEach(r => {
       const rating = typeof r.serviceRating === 'number' ? r.serviceRating : 'N/A';
       const feedback = r.serviceFeedback ? `"${r.serviceFeedback.replace(/"/g, '""')}"` : '';
+      const adminResponse = r.adminResponse ? `"${r.adminResponse.replace(/"/g, '""')}"` : '';
       const resolver = r.resolvedBy || (r.status === 'resolved' ? (r.supportAssignee || 'System') : '');
 
       // Build clean Escalation Path
@@ -393,7 +450,34 @@ export function Reporting() {
 
       const escalationPath = `"${pathSteps.join(' -> ')}"`;
 
-      csv += `"${r.id}","${format(new Date(r.timestamp), 'yyyy-MM-dd HH:mm:ss')}","${r.menuName}","${r.userId}","${r.status}","${r.priority || 'medium'}",${escalationPath},"${resolver}","${rating}",${feedback}\n`;
+      // Build row with base fields
+      let row = [
+        `"${r.id}"`,
+        `"${format(new Date(r.timestamp), 'yyyy-MM-dd HH:mm:ss')}"`,
+        `"${r.menuName}"`,
+        `"${r.userId}"`,
+        `"${r.status}"`,
+        `"${r.priority || 'medium'}"`,
+        escalationPath,
+        `"${resolver}"`,
+        `"${rating}"`,
+        feedback,
+        adminResponse
+      ];
+
+      // Add dynamic form fields
+      fieldKeysArray.forEach(key => {
+        const value = r.data?.[key];
+        if (typeof value === 'string') {
+          row.push(`"${value.replace(/"/g, '""')}"`);
+        } else if (value !== undefined && value !== null) {
+          row.push(`"${String(value)}"`);
+        } else {
+          row.push('');
+        }
+      });
+
+      csv += row.join(',') + '\n';
     });
 
     return csv;
@@ -457,10 +541,14 @@ export function Reporting() {
       {timeRange === 'custom' && (
         <Card className="p-4 bg-primary/5 border-primary/10 animate-in slide-in-from-top-2 duration-300 rounded-2xl flex flex-wrap gap-4 items-center">
           <div className="flex items-center gap-3">
-            <span className="text-[10px] font-black uppercase text-muted-foreground">Range:</span>
+            <span className="text-[10px] font-black uppercase text-muted-foreground">From:</span>
             <Input type="date" value={customStartDate} onChange={(e) => setCustomStartDate(e.target.value)} className="h-9 w-40 text-xs bg-card rounded-xl" />
-            <span className="text-muted-foreground">to</span>
+            <Input type="time" value={customStartTime} onChange={(e) => setCustomStartTime(e.target.value)} className="h-9 w-32 text-xs bg-card rounded-xl" />
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-[10px] font-black uppercase text-muted-foreground">To:</span>
             <Input type="date" value={customEndDate} onChange={(e) => setCustomEndDate(e.target.value)} className="h-9 w-40 text-xs bg-card rounded-xl" />
+            <Input type="time" value={customEndTime} onChange={(e) => setCustomEndTime(e.target.value)} className="h-9 w-32 text-xs bg-card rounded-xl" />
           </div>
         </Card>
       )}
@@ -760,13 +848,15 @@ export function Reporting() {
                       <TableHead className="text-[10px] font-black uppercase tracking-widest py-5 px-8">Submission Info</TableHead>
                       <TableHead className="text-[10px] font-black uppercase tracking-widest text-center">Escalation Path</TableHead>
                       <TableHead className="text-[10px] font-black uppercase tracking-widest text-center">User Rating</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-widest">Data Preview</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-widest">Admin Response</TableHead>
                       <TableHead className="text-[10px] font-black uppercase tracking-widest text-right px-8">Feedback</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {stats.reports.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={4} className="h-64 text-center">
+                        <TableCell colSpan={6} className="h-64 text-center">
                           <div className="flex flex-col items-center justify-center space-y-2 opacity-40">
                             <ClipboardList size={48} />
                             <p className="italic text-sm">No submissions found in this time range.</p>
@@ -872,6 +962,28 @@ export function Reporting() {
                             ) : (
                               <span className="text-[10px] text-muted-foreground font-bold uppercase opacity-30">Not Rated</span>
                             )}
+                          </TableCell>
+                          <TableCell className="px-2">
+                            <div className="flex flex-wrap gap-1.5 max-w-[250px]">
+                              {r.data && Object.entries(r.data).slice(0, 4).map(([key, value]) => (
+                                <Badge key={key} variant="secondary" className="text-[9px] font-bold truncate bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700">
+                                  {key}: {String(value).length > 15 ? String(value).substring(0, 15) + '...' : String(value)}
+                                </Badge>
+                              ))}
+                              {r.data && Object.keys(r.data).length > 4 && (
+                                <span className="text-[9px] text-muted-foreground font-bold">+{Object.keys(r.data).length - 4} more</span>
+                              )}
+                              {!r.data || Object.keys(r.data).length === 0 && (
+                                <span className="text-[9px] text-muted-foreground/30 font-bold uppercase">No Data</span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="px-2">
+                            <div className="max-w-[200px]">
+                              <p className="text-[11px] font-medium text-foreground line-clamp-2 italic">
+                                {r.adminResponse ? `"${r.adminResponse}"` : <span className="text-muted-foreground opacity-30 uppercase font-bold text-[10px]">No Response</span>}
+                              </p>
+                            </div>
                           </TableCell>
                           <TableCell className="text-right px-8">
                             <div className="max-w-[200px] ml-auto">
