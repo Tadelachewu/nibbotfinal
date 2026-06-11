@@ -138,9 +138,6 @@ export function Reporting() {
       return d >= startDate && d <= endDate;
     });
 
-    const totalInteractions = filteredLogs.length;
-    const uniqueUsers = new Set(filteredLogs.map(l => l.sessionId)).size;
-
     // Create Menu Lookup (Normalized for robustness)
     const menuLookup = new Map<string, MenuItem>();
     menus.forEach(m => {
@@ -154,6 +151,9 @@ export function Reporting() {
       api: { label: 'API Menu', icon: Zap, color: 'text-amber-500', menus: new Map() },
       report: { label: 'Internal Support Menu', icon: ClipboardList, color: 'text-emerald-500', menus: new Map() }
     };
+
+    let countedInteractions = 0;
+    const countedUniqueUsers = new Set<string>();
 
     filteredLogs.forEach(log => {
       // Find menu name from tags
@@ -199,7 +199,14 @@ export function Reporting() {
       if (log.responseTime) menuStats.latency.push(log.responseTime);
 
       targetGroup.menus.set(name, menuStats);
+
+      // Count this log in total stats (only if we didn't skip it)
+      countedInteractions += 1;
+      countedUniqueUsers.add(log.sessionId);
     });
+
+    const totalInteractions = countedInteractions;
+    const uniqueUsers = countedUniqueUsers.size;
 
     // Count submissions per menu
     filteredReports.forEach(r => {
