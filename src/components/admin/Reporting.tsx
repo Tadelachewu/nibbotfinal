@@ -414,7 +414,11 @@ export function Reporting() {
     const allFieldKeys = new Set<string>();
     reports.forEach(r => {
       if (r.data && typeof r.data === 'object') {
-        Object.keys(r.data).forEach(key => allFieldKeys.add(key));
+        Object.keys(r.data).forEach(key => {
+          if (key !== 'assignmentHistory') {
+            allFieldKeys.add(key);
+          }
+        });
       }
     });
     const fieldKeysArray = Array.from(allFieldKeys);
@@ -467,6 +471,8 @@ export function Reporting() {
 
       // Add dynamic form fields
       fieldKeysArray.forEach(key => {
+        // fieldKeysArray already excludes assignmentHistory, but just to be safe
+        if (key === 'assignmentHistory') return;
         const value = r.data?.[key];
         if (typeof value === 'string') {
           row.push(`"${value.replace(/"/g, '""')}"`);
@@ -965,17 +971,26 @@ export function Reporting() {
                           </TableCell>
                           <TableCell className="px-2">
                             <div className="flex flex-wrap gap-1.5 max-w-[250px]">
-                              {r.data && Object.entries(r.data).slice(0, 4).map(([key, value]) => (
-                                <Badge key={key} variant="secondary" className="text-[9px] font-bold truncate bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700">
-                                  {key}: {String(value).length > 15 ? String(value).substring(0, 15) + '...' : String(value)}
-                                </Badge>
-                              ))}
-                              {r.data && Object.keys(r.data).length > 4 && (
-                                <span className="text-[9px] text-muted-foreground font-bold">+{Object.keys(r.data).length - 4} more</span>
-                              )}
-                              {!r.data || Object.keys(r.data).length === 0 && (
-                                <span className="text-[9px] text-muted-foreground/30 font-bold uppercase">No Data</span>
-                              )}
+                              {r.data && Object.entries(r.data)
+                                .filter(([key]) => key !== 'assignmentHistory')
+                                .slice(0, 4)
+                                .map(([key, value]) => (
+                                  <Badge key={key} variant="secondary" className="text-[9px] font-bold truncate bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700">
+                                    {key}: {String(value).length > 15 ? String(value).substring(0, 15) + '...' : String(value)}
+                                  </Badge>
+                                ))}
+                              {(() => {
+                                const filteredKeys = r.data ? Object.keys(r.data).filter(k => k !== 'assignmentHistory') : [];
+                                return filteredKeys.length > 4 && (
+                                  <span className="text-[9px] text-muted-foreground font-bold">+{filteredKeys.length - 4} more</span>
+                                );
+                              })()}
+                              {(() => {
+                                const filteredKeys = r.data ? Object.keys(r.data).filter(k => k !== 'assignmentHistory') : [];
+                                return (!r.data || filteredKeys.length === 0) && (
+                                  <span className="text-[9px] text-muted-foreground/30 font-bold uppercase">No Data</span>
+                                );
+                              })()}
                             </div>
                           </TableCell>
                           <TableCell className="px-2">
