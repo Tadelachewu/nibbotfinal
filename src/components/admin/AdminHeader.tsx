@@ -28,7 +28,6 @@ export function AdminHeader() {
       <div className="flex items-center gap-4">
         <Logo className="h-10 w-16 sm:w-24 md:w-32 drop-shadow-md" src={logo} />
         <div className="flex flex-col">
-          <h1 className="text-xl font-black text-[#763717] hidden sm:block leading-none tracking-tight">Nib InternationalBank</h1>
           <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground hidden sm:block opacity-70">Administrative Portal</p>
           <h1 className="text-lg font-black text-[#763717] sm:hidden">Nib Admin</h1>
         </div>

@@ -15,6 +15,7 @@ The Reporting Console is designed for high-level performance monitoring and deep
 - **Success Rate**: The percentage of interactions that completed without a system error or failure.
 - **Latency (ms)**: The time taken by the server to process a request, specifically for **API Menus**.
 - **Conversion Rate**: The percentage of users who opened an **Internal Support Menu** and successfully completed a submission.
+- **Escalation Path**: The complete history of support user assignments for a single submission, from first assignment to resolution.
 
 ---
 
@@ -37,21 +38,66 @@ Activity is automatically grouped into three professional categories:
    - **Category Level**: Displays the total sum of Pending, Reviewed, and Resolved cases for all support menus.
    - **Menu Level**: Displays specific status counts (PND, REV, RES) for each individual support node.
 
-### **2.3 Date Filtering**
+### **2.3 Submission Analytics (Deep Insights View)**
+The **Submission Analytics** tab provides detailed, report-level insights, including support workflow tracking.
+
+#### **Key Features**
+- **Submission Info**: Basic details including report ID, menu name, and timestamp.
+- **Escalation Path**: Visual timeline of all support user assignments, showing:
+  - Color-coded badges for first assignments (blue) and escalations (red).
+  - Hover tooltips for escalation reasons.
+  - Visual arrows (`→`) indicating the progression.
+  - Final resolution status and resolver information (green).
+- **User Rating**: Star rating (1-5 stars) provided by the user after the report is resolved.
+- **Feedback**: Verbatim user feedback about their support experience.
+
+### **2.4 Date Filtering**
 Users can toggle data views between:
 - **Today**: Data from 00:00 to the current time.
 - **Week**: Data from the start of the current week.
 - **Month**: Data from the start of the current month.
 - **Custom**: A flexible date picker for historical analysis.
 
-### **2.4 Data Export**
-Professional data extraction in two formats:
-- **Spreadsheet (CSV)**: A hierarchical file containing Category totals followed by granular Menu details.
-- **Raw Data (JSON)**: Full data dump for developer use or external system integration.
+### **2.5 Data Export**
+Professional data extraction in CSV format for both report types:
+- **Detail Report CSV**: Hierarchical file containing Category totals followed by granular Menu details.
+- **Submission Analytics CSV**: Clean, report-by-report export including:
+  - Report ID, Timestamp, Menu Name, User ID
+  - Status, Priority
+  - **Escalation Path** (formatted as `User1 -> User2 -> User3 (Resolved)`)
+  - Resolved By, Rating, Feedback
 
 ---
 
-## **3. Test Cases**
+## **3. Escalation Path Workflow**
+
+### **How it Works**
+The Escalation Path tracks every assignment change made to a report:
+
+1. **Initial Assignment**
+   - If a menu is configured with a default support user, this is automatically recorded as the first assignment.
+   - If a report is initially unassigned, the first manual assignment is recorded as the "first_assignment".
+
+2. **Reassignments (Escalations)**
+   - When a report is moved from one support user to another, it's recorded as an "escalation".
+   - An escalation reason is **required** for manual escalations.
+   - The reason is stored and visible in the Escalation Path.
+
+3. **Resolution**
+   - When a report is marked as "Resolved", the resolver is recorded.
+   - If the resolver is not already in the Escalation Path, they are added as the final step.
+
+### **Data Storage**
+The assignment history is stored in the `UserReport.data.assignmentHistory` array with:
+- `assignee`: The support user assigned
+- `assignedBy`: The admin who made the assignment
+- `assignedAt`: Timestamp of the assignment
+- `type`: "first_assignment" or "escalation"
+- `reason`: Reason for escalation (if applicable)
+
+---
+
+## **4. Test Cases**
 
 Use these test cases to verify the integrity of the reporting data.
 
@@ -62,13 +108,18 @@ Use these test cases to verify the integrity of the reporting data.
   - **Detail Report**: Under "Static Menu", the specific menu node's "Volume" increases by 1.
 
 ### **Test Case 2: Support Lifecycle Tracking**
-- **Action**: Submit a new report via an **Internal Support Menu**.
+- **Action**: Submit a new report via an **Internal Support Menu** configured with a default support user.
 - **Expected Result**: 
   - **General Report**: "Submissions" count increases by 1.
   - **Detail Report**: Under "Internal Support Menu", the category-level "Pending" count increases by 1, and the specific menu's "PND" badge increases by 1.
-- **Follow-up**: Update the report status to "Resolved" in the Support Tab.
+  - **Submission Analytics**: The report appears with the default support user in the Escalation Path.
+- **Follow-up**: Assign the report to a different support user (escalation) with a reason.
 - **Expected Result**: 
-  - **Detail Report**: "Pending" count decreases and "Resolved" count increases.
+  - Submission Analytics shows the escalation in the Escalation Path with the reason available on hover.
+- **Follow-up**: Update the report status to "Resolved".
+- **Expected Result**: 
+  - Detail Report: "Pending" count decreases and "Resolved" count increases.
+  - Submission Analytics: Shows the resolver as the final step.
 
 ### **Test Case 3: API Performance Monitoring**
 - **Action**: Trigger an **API Menu** that connects to a slow external service.
@@ -81,13 +132,22 @@ Use these test cases to verify the integrity of the reporting data.
   - **General Report**: "Interactions" increases by 5, but "Unique Users" increases by only 1.
 
 ### **Test Case 5: Export Consistency**
-- **Action**: Click "Export Data" -> "Download as CSV".
-- **Expected Result**: The downloaded file must contain a "Category" row for **Internal Support Menu** showing the sum of all its children's pending/resolved counts.
+- **Action**: Click "Export Data" -> "Download as CSV" while on "Submission Analytics".
+- **Expected Result**: 
+  - The downloaded CSV contains a column named "Escalation Path".
+  - The path shows the complete assignment history in a clean `User1 -> User2` format.
+  - Resolved reports show `(Resolved)` next to the final resolver.
 
 ---
 
-## **4. Technical Implementation Notes**
+## **5. Technical Implementation Notes**
 
 - **Matching Logic**: The system uses case-insensitive, normalized matching for menu names to ensure logs and database records align perfectly.
 - **Security**: Data fetching is role-aware. Non-admin users are restricted to data they have permission to view.
 - **Performance**: Large datasets (up to 500 records per fetch) are optimized using synchronized time windows to ensure charts and tables remain in sync.
+- **Escalation Validation**: The system validates that:
+  - First assignments do not require a reason.
+  - Escalations **do** require a reason.
+  - The assignment type is appropriate for the report's current state.
+- **Data Persistence**: Assignment history is stored within the report's `data` JSON field for durability and easy retrieval.
+- **CSV Safety**: All exported fields are properly escaped to handle special characters, spaces, and quotes.

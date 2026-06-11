@@ -1546,7 +1546,6 @@ export function ChatInterface() {
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <Logo className="h-10 w-14 sm:w-20 md:w-28 shrink-0 drop-shadow-lg" src={appSettings?.appLogo} />
           <div className="min-w-0">
-            <h1 className="font-extrabold text-sm sm:text-base md:text-lg text-[#763717] truncate leading-tight tracking-tight">{t('ui_bank_name', 'Nib International Bank')}</h1>
             <div className="flex items-center gap-1">
               {connectivity === 'checking' && (
                 <>
