@@ -41,7 +41,9 @@ import {
   History,
   User as UserIcon,
   Star,
-  XCircle
+  XCircle,
+  DoorOpen,
+  UserCheck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -137,6 +139,16 @@ export function Reporting() {
     const filteredReports = reports.filter(r => {
       const d = new Date(r.timestamp);
       return d >= startDate && d <= endDate;
+    });
+
+    // Calculate Visit Counts (All Visits & Unique Visits)
+    let allVisits = 0;
+    const uniqueVisitSessionIds = new Set<string>();
+    filteredLogs.forEach(log => {
+      if (log.tags && log.tags.includes('session_start')) {
+        allVisits += 1;
+        if (log.sessionId) uniqueVisitSessionIds.add(log.sessionId);
+      }
     });
 
     // Create Menu Lookup (Normalized for robustness)
@@ -302,6 +314,8 @@ export function Reporting() {
       totalReports: filteredReports.length,
       successCount: countedSuccesses,
       failureCount: countedFailures,
+      allVisits,
+      uniqueVisits: uniqueVisitSessionIds.size,
       activityByType: flattenedActivity,
       dailyData,
       reports: filteredReports,
@@ -493,6 +507,26 @@ export function Reporting() {
               { label: 'Successful', value: stats.successCount, sub: 'Successful interactions', icon: CheckCircle2, color: 'border-t-green-500' },
               { label: 'Failed', value: stats.failureCount, sub: 'Failed interactions', icon: XCircle, color: 'border-t-red-500' },
               { label: 'Success Rate', value: `${((stats.successCount || 0) / (stats.totalInteractions || 1) * 100).toFixed(1)}%`, sub: 'Optimal performance', icon: TrendingUp, color: 'border-t-amber-500' }
+            ].map((stat, i) => (
+              <Card key={i} className={`bg-card shadow-sm border-t-4 ${stat.color} rounded-3xl overflow-hidden hover:shadow-lg transition-all group`}>
+                <CardHeader className="pb-2">
+                  <CardDescription className="text-[10px] font-black uppercase flex items-center gap-2 tracking-widest group-hover:text-primary transition-colors">
+                    <stat.icon size={12} />
+                    {stat.label}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-black tracking-tighter">{stat.value.toLocaleString()}</div>
+                  <p className="text-[10px] text-muted-foreground mt-1 font-bold opacity-70">{stat.sub}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          {/* New Visit Metrics Row - All Visits & Unique Visits */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[
+              { label: 'All Visits', value: stats.allVisits, sub: 'Total app opens', icon: DoorOpen, color: 'border-t-purple-500' },
+              { label: 'Unique Visits', value: stats.uniqueVisits, sub: 'Distinct users/sessions', icon: UserCheck, color: 'border-t-indigo-500' }
             ].map((stat, i) => (
               <Card key={i} className={`bg-card shadow-sm border-t-4 ${stat.color} rounded-3xl overflow-hidden hover:shadow-lg transition-all group`}>
                 <CardHeader className="pb-2">

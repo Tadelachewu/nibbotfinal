@@ -50,6 +50,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { UserReport, ReportPriority } from '@/lib/types';
 import { format } from 'date-fns';
 import { toast } from '@/hooks/use-toast';
@@ -81,6 +91,7 @@ export function ReportsManagement() {
   const [editingSupportAssignmentReason, setEditingSupportAssignmentReason] = useState<string>('');
   const [isInspectOpen, setIsInspectOpen] = useState(false);
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
+  const [pendingReportDelete, setPendingReportDelete] = useState<string | null>(null);
 
   const inspectForm = useMemo(() => ({
     editingResponse, editingNotes, editingStatus, editingPriority, editingSupportAssignee, editingSupportAssignmentType, editingSupportAssignmentReason
@@ -385,7 +396,7 @@ export function ReportsManagement() {
                   <Download size={14} className="mr-2" /> Export JSON
                 </Button>
                 {currentRole === 'admin' && (
-                  <Button variant="ghost" size="icon" className="text-destructive" onClick={() => { handleDeleteReport(selectedReport.id); setIsInspectOpen(false); }}>
+                  <Button variant="ghost" size="icon" className="text-destructive" onClick={() => setPendingReportDelete(selectedReport.id)}>
                     <Trash2 size={18} />
                   </Button>
                 )}
@@ -1104,6 +1115,32 @@ export function ReportsManagement() {
           </Tabs>
         </>
       )}
+
+      <AlertDialog open={!!pendingReportDelete} onOpenChange={(open) => !open && setPendingReportDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Report Deletion</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this report? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingReportDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive"
+              onClick={() => {
+                if (pendingReportDelete) {
+                  handleDeleteReport(pendingReportDelete);
+                  setIsInspectOpen(false);
+                  setPendingReportDelete(null);
+                }
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

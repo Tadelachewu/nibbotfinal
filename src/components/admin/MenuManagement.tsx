@@ -108,6 +108,7 @@ export function MenuManagement() {
   const [pendingDiscardId, setPendingDiscardId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState<string>('');
+  const [pendingDelete, setPendingDelete] = useState<{ type: 'header' | 'kyc_field' | 'request_param' | 'table_column'; data: any } | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -1195,11 +1196,7 @@ export function MenuManagement() {
                                     }}
                                     className="flex-1 font-mono text-xs"
                                   />
-                                  <Button variant="ghost" size="icon" className="text-destructive h-8 w-8 shrink-0" onClick={() => {
-                                    const h = { ...(editForm.apiConfig?.headers || {}) };
-                                    delete h[key];
-                                    deepUpdate(['apiConfig', 'headers'], h);
-                                  }}><Trash2 size={14} /></Button>
+                                  <Button variant="ghost" size="icon" className="text-destructive h-8 w-8 shrink-0" onClick={() => setPendingDelete({ type: 'header', data: key })}><Trash2 size={14} /></Button>
                                 </div>
                               ))}
                             </div>
@@ -1310,7 +1307,7 @@ export function MenuManagement() {
                                   }} />
                                 </div>
                               </div>
-                              <Button variant="ghost" size="icon" className="absolute -right-2 -top-2 h-7 w-7 rounded-full bg-card border text-destructive opacity-0 group-hover:opacity-100" onClick={() => { const fields = editForm.apiConfig!.kycFields.filter((_, i) => i !== idx); deepUpdate(['apiConfig', 'kycFields'], fields); }}><Trash2 size={12} /></Button>
+                              <Button variant="ghost" size="icon" className="absolute -right-2 -top-2 h-7 w-7 rounded-full bg-card border text-destructive opacity-0 group-hover:opacity-100" onClick={() => setPendingDelete({ type: 'kyc_field', data: idx })}><Trash2 size={12} /></Button>
                             </div>
                           );
                         })}
@@ -1381,10 +1378,7 @@ export function MenuManagement() {
                                     variant="ghost"
                                     size="icon"
                                     className="text-destructive h-8 w-8 shrink-0"
-                                    onClick={() => {
-                                      const params = editForm.apiConfig!.requestParameters.filter((_, i) => i !== idx);
-                                      deepUpdate(['apiConfig', 'requestParameters'], params);
-                                    }}
+                                    onClick={() => setPendingDelete({ type: 'request_param', data: idx })}
                                   >
                                     <Trash2 size={14} />
                                   </Button>
@@ -1676,7 +1670,7 @@ export function MenuManagement() {
                                           </div>
                                           <Input className="h-8 text-xs font-mono" value={col.key || ''} onChange={e => { const cols = [...editForm.apiConfig!.responseMapping.tableColumns!]; cols[idx].key = e.target.value; deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], cols); }} />
                                         </div>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100" onClick={() => { const cols = editForm.apiConfig!.responseMapping.tableColumns!.filter((_, i) => i !== idx); deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], cols); }}><Trash2 size={14} /></Button>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100" onClick={() => setPendingDelete({ type: 'table_column', data: idx })}><Trash2 size={14} /></Button>
                                       </div>
                                     );
                                   })}
@@ -2267,6 +2261,46 @@ export function MenuManagement() {
               }}
             >
               Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!pendingDelete} onOpenChange={(open) => { if (!open) setPendingDelete(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Delete</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDelete?.type === 'header' && `Are you sure you want to delete header "${pendingDelete.data}"?`}
+              {pendingDelete?.type === 'kyc_field' && `Are you sure you want to delete this KYC field?`}
+              {pendingDelete?.type === 'request_param' && `Are you sure you want to delete this API request parameter?`}
+              {pendingDelete?.type === 'table_column' && `Are you sure you want to delete this table column?`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive"
+              onClick={() => {
+                if (!pendingDelete) return;
+                if (pendingDelete.type === 'header') {
+                  const h = { ...(editForm.apiConfig?.headers || {}) };
+                  delete h[pendingDelete.data];
+                  deepUpdate(['apiConfig', 'headers'], h);
+                } else if (pendingDelete.type === 'kyc_field') {
+                  const fields = editForm.apiConfig!.kycFields.filter((_, i) => i !== pendingDelete.data);
+                  deepUpdate(['apiConfig', 'kycFields'], fields);
+                } else if (pendingDelete.type === 'request_param') {
+                  const params = editForm.apiConfig!.requestParameters.filter((_, i) => i !== pendingDelete.data);
+                  deepUpdate(['apiConfig', 'requestParameters'], params);
+                } else if (pendingDelete.type === 'table_column') {
+                  const cols = editForm.apiConfig!.responseMapping.tableColumns!.filter((_, i) => i !== pendingDelete.data);
+                  deepUpdate(['apiConfig', 'responseMapping', 'tableColumns'], cols);
+                }
+                setPendingDelete(null);
+              }}
+            >
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
