@@ -426,7 +426,7 @@ export function ChatInterface() {
   };
 
   useEffect(() => {
-    if (!userData.id || typeof window === 'undefined') return;
+    if (!userData.id || userData.id === 'anonymous' || typeof window === 'undefined') return;
     const key = `nib_session_logged:${userData.id}`;
     if (localStorage.getItem(key)) return;
     localStorage.setItem(key, '1');
