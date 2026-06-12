@@ -97,9 +97,9 @@ export function Reporting() {
 
   // Pagination state
   const [logsPage, setLogsPage] = useState(0);
-  const [logsPageSize, setLogsPageSize] = useState(50);
+  const [logsPageSize, setLogsPageSize] = useState(10);
   const [reportsPage, setReportsPage] = useState(0);
-  const [reportsPageSize, setReportsPageSize] = useState(50);
+  const [reportsPageSize, setReportsPageSize] = useState(10);
 
   // Get time range dates
   const getTimeRangeDates = useCallback(() => {
@@ -828,8 +828,8 @@ export function Reporting() {
                 className="h-10 text-xs w-80 rounded-2xl bg-muted/20 border-none focus-visible:ring-2 focus-visible:ring-primary/20"
               />
             </CardHeader>
-            <CardContent className="p-0">
-              <ScrollArea className="h-[500px]">
+            <CardContent className="p-0 flex flex-col h-[600px]">
+              <ScrollArea className="flex-1">
                 <Table>
                   <TableHeader className="bg-muted/30 sticky top-0 z-10 backdrop-blur-md">
                     <TableRow className="hover:bg-transparent border-none">
@@ -931,7 +931,7 @@ export function Reporting() {
                 </Table>
               </ScrollArea>
               {logsMeta && (
-                <div className="p-4 border-t">
+                <div className="p-4 border-t bg-card sticky bottom-0 z-10">
                   <Pagination
                     currentPage={logsPage}
                     pageSize={logsPageSize}
@@ -970,8 +970,8 @@ export function Reporting() {
                 className="h-10 text-xs w-80 rounded-2xl bg-muted/20 border-none focus-visible:ring-2 focus-visible:ring-primary/20"
               />
             </CardHeader>
-            <CardContent className="p-0">
-              <ScrollArea className="h-[500px]">
+            <CardContent className="p-0 flex flex-col h-[600px]">
+              <ScrollArea className="flex-1">
                 <Table>
                   <TableHeader className="bg-muted/30 sticky top-0 z-10 backdrop-blur-md">
                     <TableRow className="group hover:bg-transparent border-none">
@@ -1133,7 +1133,7 @@ export function Reporting() {
                 </Table>
               </ScrollArea>
               {reportsMeta && (
-                <div className="p-4 border-t">
+                <div className="p-4 border-t bg-card sticky bottom-0 z-10">
                   <Pagination
                     currentPage={reportsPage}
                     pageSize={reportsPageSize}

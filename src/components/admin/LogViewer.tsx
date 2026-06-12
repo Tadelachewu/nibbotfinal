@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SearchInput } from '@/components/ui/search-input';
 import { Pagination } from '@/components/ui/pagination';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { RotateCcw, CheckCircle2, Info, Clock, ShieldCheck, UserCog, Filter } from 'lucide-react';
 import { format, subDays, startOfDay, endOfDay, startOfWeek, startOfMonth } from 'date-fns';
 import { useAdminAuth } from './AdminAuthContext';
@@ -48,7 +49,7 @@ export function LogViewer() {
   const [meta, setMeta] = useState<{ page: number; pageSize: number; total: number; totalPages: number; hasMore: boolean } | null>(null);
   const [interactionError, setInteractionError] = useState<string | null>(null);
   const [interactionCurrentPage, setInteractionCurrentPage] = useState(0);
-  const [interactionPageSize, setInteractionPageSize] = useState(100);
+  const [interactionPageSize, setInteractionPageSize] = useState(10);
 
   // Audit Logs State
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
@@ -59,7 +60,7 @@ export function LogViewer() {
   const [auditMeta, setAuditMeta] = useState<{ page: number; pageSize: number; total: number; totalPages: number; hasMore: boolean } | null>(null);
   const [auditError, setAuditError] = useState<string | null>(null);
   const [auditCurrentPage, setAuditCurrentPage] = useState(0);
-  const [auditPageSize, setAuditPageSize] = useState(50);
+  const [auditPageSize, setAuditPageSize] = useState(10);
 
   const toPlainText = (input: string) => {
     const str = String(input || '');
@@ -296,85 +297,85 @@ export function LogViewer() {
                 Recent Interaction Logs
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader className="bg-card/95 backdrop-blur-sm sticky top-16 z-10 border-b">
-                    <TableRow>
-                      <TableHead className="w-[180px]">Timestamp (UTC)</TableHead>
-                      <TableHead>Session ID</TableHead>
-                      <TableHead>Activity</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Response Time</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {logs.length === 0 ? (
+            <CardContent className="p-0 flex flex-col h-[600px]">
+              <div className="rounded-md border flex-1 flex flex-col">
+                <ScrollArea className="flex-1">
+                  <Table>
+                    <TableHeader className="bg-card/95 backdrop-blur-sm sticky top-0 z-10 border-b">
                       <TableRow>
-                        <TableCell colSpan={5} className="h-24 text-center text-muted-foreground italic">
-                          {isLoading ? 'Loading logs...' : 'No interaction logs found.'}
-                        </TableCell>
+                        <TableHead className="w-[180px]">Timestamp (UTC)</TableHead>
+                        <TableHead>Session ID</TableHead>
+                        <TableHead>Activity</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Response Time</TableHead>
                       </TableRow>
-                    ) : (
-                      logs.map((log, index) => (
-                        <TableRow key={index} className="group hover:bg-muted/30 transition-colors">
-                          <TableCell className="font-mono text-[10px] text-muted-foreground">
-                            {log.timestamp ? format(new Date(log.timestamp), 'yyyy-MM-dd HH:mm:ss') : 'N/A'}
-                          </TableCell>
-                          <TableCell>
-                            <span className="font-mono text-xs font-bold truncate max-w-[120px] block" title={log.sessionId}>
-                              {log.sessionId.substring(5, 13)}...
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2">
-                                <Badge variant="outline" className="text-[9px] uppercase tracking-tighter h-4 px-1">
-                                  {log.endpoint?.split(':').pop()}
-                                </Badge>
-                                <span className="text-xs font-medium truncate max-w-[300px]" title={log.userMessage}>
-                                  {toPlainText(log.userMessage)}
-                                </span>
-                              </div>
-                              <p className="text-[10px] text-muted-foreground line-clamp-1 italic">
-                                Bot: {toPlainText(log.botResponse)}
-                              </p>
-                              {(log.status === 'error' || log.status === 'failed') && log.errorDetails && (
-                                <p className="text-[10px] text-red-700 line-clamp-2">
-                                  Error: {log.errorDetails}
-                                </p>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>{getStatusBadge(log.status)}</TableCell>
-                          <TableCell className="text-right font-mono text-xs">
-                            {Number.isFinite(log.responseTime) ? `${Math.max(0, Math.round(log.responseTime))}ms` : '0ms'}
+                    </TableHeader>
+                    <TableBody>
+                      {logs.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="h-24 text-center text-muted-foreground italic">
+                            {isLoading ? 'Loading logs...' : 'No interaction logs found.'}
                           </TableCell>
                         </TableRow>
-                      ))
+                      ) : (
+                        logs.map((log, index) => (
+                          <TableRow key={index} className="group hover:bg-muted/30 transition-colors">
+                            <TableCell className="font-mono text-[10px] text-muted-foreground">
+                              {log.timestamp ? format(new Date(log.timestamp), 'yyyy-MM-dd HH:mm:ss') : 'N/A'}
+                            </TableCell>
+                            <TableCell>
+                              <span className="font-mono text-xs font-bold truncate max-w-[120px] block" title={log.sessionId}>
+                                {log.sessionId.substring(5, 13)}...
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline" className="text-[9px] uppercase tracking-tighter h-4 px-1">
+                                    {log.endpoint?.split(':').pop()}
+                                  </Badge>
+                                  <span className="text-xs font-medium truncate max-w-[300px]" title={log.userMessage}>
+                                    {toPlainText(log.userMessage)}
+                                  </span>
+                                </div>
+                                <p className="text-[10px] text-muted-foreground line-clamp-1 italic">
+                                  Bot: {toPlainText(log.botResponse)}
+                                </p>
+                                {(log.status === 'error' || log.status === 'failed') && log.errorDetails && (
+                                  <p className="text-[10px] text-red-700 line-clamp-2">
+                                    Error: {log.errorDetails}
+                                  </p>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>{getStatusBadge(log.status)}</TableCell>
+                            <TableCell className="text-right font-mono text-xs">
+                              {Number.isFinite(log.responseTime) ? `${Math.max(0, Math.round(log.responseTime))}ms` : '0ms'}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+                {meta && (
+                  <div className="p-4 border-t bg-card sticky bottom-0 z-10">
+                    {interactionError ? (
+                      <div className="flex flex-col items-center justify-center gap-2 text-center">
+                        <p className="text-sm text-destructive">{interactionError}</p>
+                        <Button variant="outline" onClick={() => fetchLogs(interactionCurrentPage, interactionPageSize)}>Retry</Button>
+                      </div>
+                    ) : (
+                      <Pagination
+                        currentPage={interactionCurrentPage}
+                        pageSize={interactionPageSize}
+                        totalItems={meta.total}
+                        onPageChange={handleInteractionPageChange}
+                        onPageSizeChange={handleInteractionPageSizeChange}
+                      />
                     )}
-                    {meta && (
-                      <TableRow>
-                        <TableCell colSpan={5} className="py-6">
-                          {interactionError ? (
-                            <div className="flex flex-col items-center justify-center gap-2 text-center">
-                              <p className="text-sm text-destructive">{interactionError}</p>
-                              <Button variant="outline" onClick={() => fetchLogs(interactionCurrentPage, interactionPageSize)}>Retry</Button>
-                            </div>
-                          ) : (
-                            <Pagination
-                              currentPage={interactionCurrentPage}
-                              pageSize={interactionPageSize}
-                              totalItems={meta.total}
-                              onPageChange={handleInteractionPageChange}
-                              onPageSizeChange={handleInteractionPageSizeChange}
-                            />
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -388,73 +389,73 @@ export function LogViewer() {
                 System Audit Logs
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader className="bg-card/95 backdrop-blur-sm sticky top-16 z-10 border-b">
-                    <TableRow>
-                      <TableHead className="w-[180px]">Timestamp (UTC)</TableHead>
-                      <TableHead className="w-[120px]">Actor</TableHead>
-                      <TableHead className="w-[150px]">Action</TableHead>
-                      <TableHead className="w-[150px]">Target</TableHead>
-                      <TableHead>Details</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {auditLogs.length === 0 ? (
+            <CardContent className="p-0 flex flex-col h-[600px]">
+              <div className="rounded-md border flex-1 flex flex-col">
+                <ScrollArea className="flex-1">
+                  <Table>
+                    <TableHeader className="bg-card/95 backdrop-blur-sm sticky top-0 z-10 border-b">
                       <TableRow>
-                        <TableCell colSpan={5} className="h-24 text-center text-muted-foreground italic">
-                          {isAuditLoading ? 'Loading audit logs...' : 'No audit logs found.'}
-                        </TableCell>
+                        <TableHead className="w-[180px]">Timestamp (UTC)</TableHead>
+                        <TableHead className="w-[120px]">Actor</TableHead>
+                        <TableHead className="w-[150px]">Action</TableHead>
+                        <TableHead className="w-[150px]">Target</TableHead>
+                        <TableHead>Details</TableHead>
                       </TableRow>
-                    ) : (
-                      auditLogs.map((log) => (
-                        <TableRow key={log.id} className="group hover:bg-muted/30 transition-colors">
-                          <TableCell className="font-mono text-[10px] text-muted-foreground">
-                            {format(new Date(log.timestamp), 'yyyy-MM-dd HH:mm:ss')}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-1.5">
-                              <UserCog size={12} className="text-muted-foreground" />
-                              <span className="text-xs font-bold">{log.actor}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>{getActionBadge(log.action)}</TableCell>
-                          <TableCell>
-                            <code className="text-[10px] bg-muted px-1 py-0.5 rounded truncate max-w-[140px] block" title={log.target}>
-                              {log.target}
-                            </code>
-                          </TableCell>
-                          <TableCell>
-                            <p className="text-[11px] text-muted-foreground line-clamp-2" title={log.details}>
-                              {log.details || 'No details provided.'}
-                            </p>
+                    </TableHeader>
+                    <TableBody>
+                      {auditLogs.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="h-24 text-center text-muted-foreground italic">
+                            {isAuditLoading ? 'Loading audit logs...' : 'No audit logs found.'}
                           </TableCell>
                         </TableRow>
-                      ))
+                      ) : (
+                        auditLogs.map((log) => (
+                          <TableRow key={log.id} className="group hover:bg-muted/30 transition-colors">
+                            <TableCell className="font-mono text-[10px] text-muted-foreground">
+                              {format(new Date(log.timestamp), 'yyyy-MM-dd HH:mm:ss')}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1.5">
+                                <UserCog size={12} className="text-muted-foreground" />
+                                <span className="text-xs font-bold">{log.actor}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>{getActionBadge(log.action)}</TableCell>
+                            <TableCell>
+                              <code className="text-[10px] bg-muted px-1 py-0.5 rounded truncate max-w-[140px] block" title={log.target}>
+                                {log.target}
+                              </code>
+                            </TableCell>
+                            <TableCell>
+                              <p className="text-[11px] text-muted-foreground line-clamp-2" title={log.details}>
+                                {log.details || 'No details provided.'}
+                              </p>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+                {auditMeta && (
+                  <div className="p-4 border-t bg-card sticky bottom-0 z-10">
+                    {auditError ? (
+                      <div className="flex flex-col items-center justify-center gap-2 text-center">
+                        <p className="text-sm text-destructive">{auditError}</p>
+                        <Button variant="outline" onClick={() => fetchAuditLogs(auditCurrentPage, auditPageSize)}>Retry</Button>
+                      </div>
+                    ) : (
+                      <Pagination
+                        currentPage={auditCurrentPage}
+                        pageSize={auditPageSize}
+                        totalItems={auditMeta.total}
+                        onPageChange={handleAuditPageChange}
+                        onPageSizeChange={handleAuditPageSizeChange}
+                      />
                     )}
-                    {auditMeta && (
-                      <TableRow>
-                        <TableCell colSpan={5} className="py-6">
-                          {auditError ? (
-                            <div className="flex flex-col items-center justify-center gap-2 text-center">
-                              <p className="text-sm text-destructive">{auditError}</p>
-                              <Button variant="outline" onClick={() => fetchAuditLogs(auditCurrentPage, auditPageSize)}>Retry</Button>
-                            </div>
-                          ) : (
-                            <Pagination
-                              currentPage={auditCurrentPage}
-                              pageSize={auditPageSize}
-                              totalItems={auditMeta.total}
-                              onPageChange={handleAuditPageChange}
-                              onPageSizeChange={handleAuditPageSizeChange}
-                            />
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

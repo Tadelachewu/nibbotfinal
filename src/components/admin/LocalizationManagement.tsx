@@ -28,7 +28,7 @@ export function LocalizationManagement() {
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [currentPage, setCurrentPage] = useState(0);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(10);
 
   const { activeDraftIds, getDraft, discardDraft } = usePerEntityDrafts('translations', 'global', translations, true);
 
@@ -261,8 +261,8 @@ export function LocalizationManagement() {
             />
           </div>
         </CardHeader>
-        <CardContent className="p-0">
-          <ScrollArea className="h-[600px]">
+        <CardContent className="p-0 flex flex-col h-[700px]">
+          <ScrollArea className="flex-1">
             <div className="p-6 space-y-8">
               {paginatedKeys.map((key) => {
                 const info = stringLabels[key] || { label: key, description: 'System-generated key' };
@@ -301,7 +301,7 @@ export function LocalizationManagement() {
               })}
             </div>
           </ScrollArea>
-          <div className="p-4 border-t">
+          <div className="p-4 border-t bg-card sticky bottom-0 z-10">
             <Pagination
               currentPage={currentPage}
               pageSize={pageSize}

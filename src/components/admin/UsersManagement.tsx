@@ -25,6 +25,7 @@ import { usePerEntityDrafts } from '@/hooks/usePerEntityDrafts';
 import { useDebounce } from '@/hooks/use-debounce';
 import { SearchInput } from '@/components/ui/search-input';
 import { Pagination } from '@/components/ui/pagination';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 type AdminUser = {
   id: number;
@@ -80,7 +81,7 @@ export function UsersManagement() {
   const debouncedQuery = useDebounce(query, 300);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [currentPage, setCurrentPage] = useState(0);
-  const [pageSize, setPageSize] = useState(50);
+  const [pageSize, setPageSize] = useState(10);
 
   const loadUsers = useCallback(async (page: number = 0, size: number = pageSize) => {
     setError(null);
@@ -289,108 +290,110 @@ export function UsersManagement() {
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="p-0 flex flex-col h-[700px]">
           {initialLoading ? (
             <div className="p-6 text-sm text-muted-foreground">Loading users...</div>
           ) : (
-            <div className="p-6">
-              <div className="mb-4 flex items-center gap-3">
-                <SearchInput
-                  ref={searchInputRef}
-                  value={query}
-                  onChange={setQuery}
-                  placeholder="Search users by username, email, or group name..."
-                  className="flex-1"
-                />
+            <>
+              <div className="p-6">
+                <div className="mb-4 flex items-center gap-3">
+                  <SearchInput
+                    ref={searchInputRef}
+                    value={query}
+                    onChange={setQuery}
+                    placeholder="Search users by username, email, or group name..."
+                    className="flex-1"
+                  />
+                </div>
               </div>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Username</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Group</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredUsers.length === 0 ? (
+              <ScrollArea className="flex-1">
+                <Table>
+                  <TableHeader className="sticky top-0 bg-card z-10">
                     <TableRow>
-                      <TableCell colSpan={6} className="text-sm text-muted-foreground">
-                        {query.trim() ? 'No users match your search.' : 'No users found.'}
-                      </TableCell>
+                      <TableHead>Username</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Group</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Created</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
-                  ) : (
-                    filteredUsers.map(u => (
-                      <TableRow key={u.id}>
-                        <TableCell className="font-medium">{u.username}</TableCell>
-                        <TableCell>{u.email}</TableCell>
-                        <TableCell className="max-w-[200px] truncate">{u.groupName || '-'}</TableCell>
-                        <TableCell className="capitalize">{u.role}</TableCell>
-                        <TableCell>{new Date(u.createdAt).toLocaleString()}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="inline-flex gap-2 items-center">
-                            {activeEditDrafts.includes(String(u.id)) && (
-                              <>
-                                <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-500" onClick={() => {
-                                  const draft = getEditDraft(String(u.id));
-                                  if (draft) {
-                                    setEditForm(draft as any);
-                                    setIsEditOpen(true);
-                                  }
-                                }} title="Resume Draft">
-                                  <FileCode size={14} />
-                                </Button>
-                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => discardEditDraft(String(u.id))} title="Discard Draft">
-                                  <X size={14} />
-                                </Button>
-                              </>
-                            )}
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => openEdit(u)}
-                              disabled={u.username === currentUsername || isLoading || isRefreshing}
-                            >
-                              <Edit2 size={14} className="mr-2" /> Edit
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => setUserToDelete(u)}
-                              disabled={u.username === currentUsername || isLoading || isRefreshing}
-                            >
-                              <Trash2 size={14} className="mr-2" /> Delete
-                            </Button>
-                          </div>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredUsers.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-sm text-muted-foreground">
+                          {query.trim() ? 'No users match your search.' : 'No users found.'}
                         </TableCell>
                       </TableRow>
-                    ))
+                    ) : (
+                      filteredUsers.map(u => (
+                        <TableRow key={u.id}>
+                          <TableCell className="font-medium">{u.username}</TableCell>
+                          <TableCell>{u.email}</TableCell>
+                          <TableCell className="max-w-[200px] truncate">{u.groupName || '-'}</TableCell>
+                          <TableCell className="capitalize">{u.role}</TableCell>
+                          <TableCell>{new Date(u.createdAt).toLocaleString()}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="inline-flex gap-2 items-center">
+                              {activeEditDrafts.includes(String(u.id)) && (
+                                <>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-500" onClick={() => {
+                                    const draft = getEditDraft(String(u.id));
+                                    if (draft) {
+                                      setEditForm(draft as any);
+                                      setIsEditOpen(true);
+                                    }
+                                  }} title="Resume Draft">
+                                    <FileCode size={14} />
+                                  </Button>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => discardEditDraft(String(u.id))} title="Discard Draft">
+                                    <X size={14} />
+                                  </Button>
+                                </>
+                              )}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openEdit(u)}
+                                disabled={u.username === currentUsername || isLoading || isRefreshing}
+                              >
+                                <Edit2 size={14} className="mr-2" /> Edit
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => setUserToDelete(u)}
+                                disabled={u.username === currentUsername || isLoading || isRefreshing}
+                              >
+                                <Trash2 size={14} className="mr-2" /> Delete
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </ScrollArea>
+              {meta && (
+                <div className="p-4 border-t bg-card sticky bottom-0 z-10">
+                  {error ? (
+                    <div className="flex flex-col items-center justify-center gap-2 text-center">
+                      <p className="text-sm text-destructive">{error}</p>
+                      <Button variant="outline" onClick={() => loadUsers(currentPage, pageSize)}>Retry</Button>
+                    </div>
+                  ) : (
+                    <Pagination
+                      currentPage={currentPage}
+                      pageSize={pageSize}
+                      totalItems={meta.total}
+                      onPageChange={handlePageChange}
+                      onPageSizeChange={handlePageSizeChange}
+                    />
                   )}
-                  {meta && (
-                    <TableRow>
-                      <TableCell colSpan={6} className="py-6">
-                        {error ? (
-                          <div className="flex flex-col items-center justify-center gap-2 text-center">
-                            <p className="text-sm text-destructive">{error}</p>
-                            <Button variant="outline" onClick={() => loadUsers(currentPage, pageSize)}>Retry</Button>
-                          </div>
-                        ) : (
-                          <Pagination
-                            currentPage={currentPage}
-                            pageSize={pageSize}
-                            totalItems={meta.total}
-                            onPageChange={handlePageChange}
-                            onPageSizeChange={handlePageSizeChange}
-                          />
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>

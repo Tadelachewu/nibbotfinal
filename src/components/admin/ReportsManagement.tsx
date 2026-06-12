@@ -79,7 +79,7 @@ export function ReportsManagement() {
   const [reportsMeta, setReportsMeta] = useState<{ page: number; pageSize: number; total: number; totalPages: number; hasMore: boolean } | null>(null);
   const [reportsError, setReportsError] = useState<string | null>(null);
   const [reportsCurrentPage, setReportsCurrentPage] = useState(0);
-  const [reportsPageSize, setReportsPageSize] = useState(50);
+  const [reportsPageSize, setReportsPageSize] = useState(10);
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
   const submissionsSearchInputRef = useRef<HTMLInputElement>(null);
@@ -147,7 +147,7 @@ export function ReportsManagement() {
   const [activityMeta, setActivityMeta] = useState<{ page: number; pageSize: number; total: number; totalPages: number; hasMore: boolean } | null>(null);
   const [activityError, setActivityError] = useState<string | null>(null);
   const [activityCurrentPage, setActivityCurrentPage] = useState(0);
-  const [activityPageSize, setActivityPageSize] = useState(100);
+  const [activityPageSize, setActivityPageSize] = useState(10);
   const [activitySearch, setActivitySearch] = useState('');
   const debouncedActivitySearch = useDebounce(activitySearch, 300);
   const activitySearchInputRef = useRef<HTMLInputElement>(null);
@@ -820,8 +820,8 @@ export function ReportsManagement() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="p-0">
-                  <ScrollArea className="h-[550px]">
+                <CardContent className="p-0 flex flex-col h-[600px]">
+                  <ScrollArea className="flex-1">
                     <Table>
                       <TableHeader className="bg-card/95 backdrop-blur-sm sticky top-0 z-20 border-b">
                         <TableRow>
@@ -941,29 +941,27 @@ export function ReportsManagement() {
                             </TableCell>
                           </TableRow>
                         )}
-                        {reportsMeta && (
-                          <TableRow>
-                            <TableCell colSpan={8} className="py-6">
-                              {reportsError ? (
-                                <div className="flex flex-col items-center justify-center gap-2 text-center">
-                                  <p className="text-sm text-destructive">{reportsError}</p>
-                                  <Button variant="outline" onClick={() => fetchReports(reportsCurrentPage, reportsPageSize)}>Retry</Button>
-                                </div>
-                              ) : (
-                                <Pagination
-                                  currentPage={reportsCurrentPage}
-                                  pageSize={reportsPageSize}
-                                  totalItems={reportsMeta.total}
-                                  onPageChange={handleReportsPageChange}
-                                  onPageSizeChange={handleReportsPageSizeChange}
-                                />
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        )}
                       </TableBody>
                     </Table>
                   </ScrollArea>
+                  {reportsMeta && (
+                    <div className="p-4 border-t bg-card sticky bottom-0 z-10">
+                      {reportsError ? (
+                        <div className="flex flex-col items-center justify-center gap-2 text-center">
+                          <p className="text-sm text-destructive">{reportsError}</p>
+                          <Button variant="outline" onClick={() => fetchReports(reportsCurrentPage, reportsPageSize)}>Retry</Button>
+                        </div>
+                      ) : (
+                        <Pagination
+                          currentPage={reportsCurrentPage}
+                          pageSize={reportsPageSize}
+                          totalItems={reportsMeta.total}
+                          onPageChange={handleReportsPageChange}
+                          onPageSizeChange={handleReportsPageSizeChange}
+                        />
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -1002,8 +1000,8 @@ export function ReportsManagement() {
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent className="p-0">
-                    <ScrollArea className="h-[550px]">
+                  <CardContent className="p-0 flex flex-col h-[600px]">
+                    <ScrollArea className="flex-1">
                       {isLoadingRatings && (
                         <div className="flex items-center justify-center h-64">
                           <div className="text-xs text-muted-foreground animate-pulse">Loading ratings...</div>
@@ -1063,23 +1061,21 @@ export function ReportsManagement() {
                                 </TableCell>
                               </TableRow>
                             )}
-                            {ratingsMeta && (
-                              <TableRow>
-                                <TableCell colSpan={5} className="py-6">
-                                  <Pagination
-                                    currentPage={ratingsCurrentPage}
-                                    pageSize={ratingsPageSize}
-                                    totalItems={ratingsMeta.total}
-                                    onPageChange={handleRatingsPageChange}
-                                    onPageSizeChange={handleRatingsPageSizeChange}
-                                  />
-                                </TableCell>
-                              </TableRow>
-                            )}
                           </TableBody>
                         </Table>
                       )}
                     </ScrollArea>
+                    {ratingsMeta && (
+                      <div className="p-4 border-t bg-card sticky bottom-0 z-10">
+                        <Pagination
+                          currentPage={ratingsCurrentPage}
+                          pageSize={ratingsPageSize}
+                          totalItems={ratingsMeta.total}
+                          onPageChange={handleRatingsPageChange}
+                          onPageSizeChange={handleRatingsPageSizeChange}
+                        />
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -1117,8 +1113,8 @@ export function ReportsManagement() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="p-0">
-                  <ScrollArea className="h-[600px]">
+                <CardContent className="p-0 flex flex-col h-[600px]">
+                  <ScrollArea className="flex-1">
                     <div className="p-0">
                       <Table>
                         <TableHeader className="bg-card/95 backdrop-blur-sm sticky top-0 z-20 border-b">
@@ -1186,30 +1182,28 @@ export function ReportsManagement() {
                               </TableCell>
                             </TableRow>
                           )}
-                          {activityMeta && (
-                            <TableRow>
-                              <TableCell colSpan={5} className="py-6">
-                                {activityError ? (
-                                  <div className="flex flex-col items-center justify-center gap-2 text-center">
-                                    <p className="text-sm text-destructive">{activityError}</p>
-                                    <Button variant="outline" onClick={() => fetchActivityLogs(activityCurrentPage, activityPageSize)}>Retry</Button>
-                                  </div>
-                                ) : (
-                                  <Pagination
-                                    currentPage={activityCurrentPage}
-                                    pageSize={activityPageSize}
-                                    totalItems={activityMeta.total}
-                                    onPageChange={handleActivityPageChange}
-                                    onPageSizeChange={handleActivityPageSizeChange}
-                                  />
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          )}
                         </TableBody>
                       </Table>
                     </div>
                   </ScrollArea>
+                  {activityMeta && (
+                    <div className="p-4 border-t bg-card sticky bottom-0 z-10">
+                      {activityError ? (
+                        <div className="flex flex-col items-center justify-center gap-2 text-center">
+                          <p className="text-sm text-destructive">{activityError}</p>
+                          <Button variant="outline" onClick={() => fetchActivityLogs(activityCurrentPage, activityPageSize)}>Retry</Button>
+                        </div>
+                      ) : (
+                        <Pagination
+                          currentPage={activityCurrentPage}
+                          pageSize={activityPageSize}
+                          totalItems={activityMeta.total}
+                          onPageChange={handleActivityPageChange}
+                          onPageSizeChange={handleActivityPageSizeChange}
+                        />
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
