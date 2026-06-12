@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useEffect, useState } from 'react';
+import { useMemo, useEffect, useState, useCallback, useRef } from 'react';
+import { useDebounce } from '@/hooks/use-debounce';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import {
   BarChart,
@@ -34,7 +35,6 @@ import {
   MousePointerClick,
   ClipboardList,
   LayoutDashboard,
-  Search,
   Globe,
   Zap,
   Info,
@@ -43,10 +43,12 @@ import {
   Star,
   XCircle,
   DoorOpen,
-  UserCheck
+  UserCheck,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import {
   format,
   subDays,
@@ -56,8 +58,9 @@ import {
   startOfMonth,
 } from 'date-fns';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Input } from '@/components/ui/input';
+import { SearchInput } from '@/components/ui/search-input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Pagination } from '@/components/ui/pagination';
 import {
   Table,
   TableBody,
@@ -73,7 +76,9 @@ import React from 'react';
 export function Reporting() {
   const { csrfFetch, currentRole } = useAdminAuth();
   const [logs, setLogs] = useState<any[]>([]);
+  const [logsMeta, setLogsMeta] = useState<{ page: number; pageSize: number; total: number; totalPages: number; hasMore: boolean } | null>(null);
   const [reports, setReports] = useState<UserReport[]>([]);
+  const [reportsMeta, setReportsMeta] = useState<{ page: number; pageSize: number; total: number; totalPages: number; hasMore: boolean } | null>(null);
   const [menus, setMenus] = useState<MenuItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month' | 'custom'>('week');
@@ -83,39 +88,125 @@ export function Reporting() {
   const [customEndTime, setCustomEndTime] = useState('23:59');
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedActionType, setSelectedActionType] = useState<'all' | 'static' | 'api' | 'report'>('all');
+  const [menuSearchQuery, setMenuSearchQuery] = useState('');
+  const debouncedMenuSearchQuery = useDebounce(menuSearchQuery, 300);
+  const menuSearchInputRef = useRef<HTMLInputElement>(null);
+  const [submissionSearchQuery, setSubmissionSearchQuery] = useState('');
+  const debouncedSubmissionSearchQuery = useDebounce(submissionSearchQuery, 300);
+  const submissionSearchInputRef = useRef<HTMLInputElement>(null);
+
+  // Pagination state
+  const [logsPage, setLogsPage] = useState(0);
+  const [logsPageSize, setLogsPageSize] = useState(50);
+  const [reportsPage, setReportsPage] = useState(0);
+  const [reportsPageSize, setReportsPageSize] = useState(50);
+
+  // Get time range dates
+  const getTimeRangeDates = useCallback(() => {
+    const now = new Date();
+    let start: Date;
+    let end: Date = endOfDay(now);
+
+    if (timeRange === 'today') {
+      start = startOfDay(now);
+    } else if (timeRange === 'week') {
+      start = startOfWeek(now);
+    } else if (timeRange === 'month') {
+      start = startOfMonth(now);
+    } else {
+      const [startHour, startMin] = customStartTime.split(':').map(Number);
+      const [endHour, endMin] = customEndTime.split(':').map(Number);
+      start = new Date(customStartDate);
+      start.setHours(startHour, startMin, 0, 0);
+      end = new Date(customEndDate);
+      end.setHours(endHour, endMin, 59, 999);
+    }
+
+    return { start, end };
+  }, [timeRange, customStartDate, customStartTime, customEndDate, customEndTime]);
+
+  // Fetch logs with pagination and search
+  const fetchLogs = useCallback(async (page: number = 0, pageSize: number = logsPageSize) => {
+    try {
+      const { start, end } = getTimeRangeDates();
+      const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('pageSize', String(pageSize));
+      params.set('startDate', start.toISOString());
+      params.set('endDate', end.toISOString());
+      if (debouncedMenuSearchQuery.trim()) {
+        params.set('q', debouncedMenuSearchQuery.trim());
+      }
+
+      const res = await csrfFetch(`/api/logs?${params.toString()}`, { cache: 'no-store' });
+      const json = await res.json().catch(() => ({ data: [], meta: null }));
+      setLogs(Array.isArray(json?.data) ? json.data : []);
+      setLogsMeta(json?.meta && typeof json.meta === 'object' ? json.meta : null);
+    } catch (error) {
+      console.error('Failed to load logs:', error);
+    }
+  }, [csrfFetch, getTimeRangeDates, debouncedMenuSearchQuery, logsPageSize]);
+
+  // Fetch reports with pagination and search
+  const fetchReports = useCallback(async (page: number = 0, pageSize: number = reportsPageSize) => {
+    try {
+      const { start, end } = getTimeRangeDates();
+      const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('pageSize', String(pageSize));
+      params.set('startDate', start.toISOString());
+      params.set('endDate', end.toISOString());
+      if (debouncedSubmissionSearchQuery.trim()) {
+        params.set('q', debouncedSubmissionSearchQuery.trim());
+      }
+
+      const res = await csrfFetch(`/api/reports?${params.toString()}`, { cache: 'no-store' });
+      const json = await res.json().catch(() => ({ data: [], meta: null }));
+      setReports(Array.isArray(json?.data) ? json.data : []);
+      setReportsMeta(json?.meta && typeof json.meta === 'object' ? json.meta : null);
+    } catch (error) {
+      console.error('Failed to load reports:', error);
+    }
+  }, [csrfFetch, getTimeRangeDates, debouncedSubmissionSearchQuery, reportsPageSize]);
+
+  // Fetch menus
+  const fetchMenus = useCallback(async () => {
+    try {
+      const menuUrl = currentRole === 'admin'
+        ? '/api/menus?includeInactive=1'
+        : '/api/menus';
+      const res = await csrfFetch(menuUrl, { cache: 'no-store' });
+      const json = await res.json().catch(() => ({ data: [] }));
+      setMenus(Array.isArray(json?.data) ? json.data : []);
+    } catch (error) {
+      console.error('Failed to load menus:', error);
+    }
+  }, [csrfFetch, currentRole]);
+
+  // Initial fetch
+  useEffect(() => {
+    const loadAllData = async () => {
+      setIsLoading(true);
+      await Promise.all([
+        fetchLogs(0, logsPageSize),
+        fetchReports(0, reportsPageSize),
+        fetchMenus()
+      ]);
+      setIsLoading(false);
+    };
+    loadAllData();
+  }, []);
+
+  // Refetch when time range or search changes
+  useEffect(() => {
+    setLogsPage(0);
+    fetchLogs(0, logsPageSize);
+  }, [debouncedMenuSearchQuery, timeRange, customStartDate, customStartTime, customEndDate, customEndTime, fetchLogs]);
 
   useEffect(() => {
-    const loadData = async () => {
-      setIsLoading(true);
-      try {
-        const menuUrl = currentRole === 'admin'
-          ? '/api/menus?includeInactive=1'
-          : '/api/menus';
-
-        const [logsRes, reportsRes, menusRes] = await Promise.all([
-          csrfFetch('/api/logs?pageSize=500', { cache: 'no-store' }),
-          csrfFetch('/api/reports?pageSize=500', { cache: 'no-store' }),
-          csrfFetch(menuUrl, { cache: 'no-store' })
-        ]);
-
-        const [logsJson, reportsJson, menusJson] = await Promise.all([
-          logsRes.json().catch(() => ({ data: [] })),
-          reportsRes.json().catch(() => ({ data: [] })),
-          menusRes.json().catch(() => ({ data: [] }))
-        ]);
-
-        setLogs(Array.isArray(logsJson?.data) ? logsJson.data : []);
-        setReports(Array.isArray(reportsJson?.data) ? reportsJson.data : []);
-        setMenus(Array.isArray(menusJson?.data) ? menusJson.data : []);
-      } catch (error) {
-        console.error('Failed to load reporting data:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadData();
-  }, [csrfFetch]);
+    setReportsPage(0);
+    fetchReports(0, reportsPageSize);
+  }, [debouncedSubmissionSearchQuery, timeRange, customStartDate, customStartTime, customEndDate, customEndTime, fetchReports]);
 
   const stats = useMemo(() => {
     const now = new Date();
@@ -129,7 +220,6 @@ export function Reporting() {
     } else if (timeRange === 'month') {
       startDate = startOfMonth(now);
     } else {
-      // Custom range with date and time
       const [startHour, startMin] = customStartTime.split(':').map(Number);
       const [endHour, endMin] = customEndTime.split(':').map(Number);
       startDate = new Date(customStartDate);
@@ -179,14 +269,13 @@ export function Reporting() {
 
     filteredLogs.forEach(log => {
       // Find menu name from tags
-      // Exclude type markers and system tags to find the actual menu name tag
       const menuTag = log.tags?.find((t: string) =>
         !['session_start', 'kyc_start', 'api_call', 'report', 'api', 'navigation', 'static', 'error', 'status_lookup'].includes(t)
       );
       const normalizedTag = menuTag?.trim().toLowerCase();
       const menu = normalizedTag ? menuLookup.get(normalizedTag) : null;
 
-      // Infer type: Priority 1: Menu DB entry, Priority 2: Explicit Type Tags
+      // Infer type
       let type: 'static' | 'api' | 'report' | 'unknown' = (menu?.responseType as any) || 'unknown';
 
       if (type === 'unknown' && log.tags) {
@@ -195,7 +284,6 @@ export function Reporting() {
         else if (log.tags.includes('navigation') || log.tags.includes('static')) type = 'static';
       }
 
-      // Skip if still unknown (Removing General Activity)
       if (type === 'unknown') return;
 
       const name = menuTag || 'General/Chat';
@@ -222,7 +310,6 @@ export function Reporting() {
 
       targetGroup.menus.set(name, menuStats);
 
-      // Count this log in total stats (only if we didn't skip it)
       countedInteractions += 1;
       countedUniqueUsers.add(log.sessionId);
       if (log.status === 'error' || log.status === 'failed') {
@@ -258,7 +345,7 @@ export function Reporting() {
       };
 
       menuStats.submissions += 1;
-      if (r.userId) menuStats.uniqueUsers.add(r.userId); // Ensure submission user is counted
+      if (r.userId) menuStats.uniqueUsers.add(r.userId);
 
       if (r.status === 'pending') menuStats.pendingCount += 1;
       if (r.status === 'reviewed') menuStats.reviewedCount += 1;
@@ -334,13 +421,42 @@ export function Reporting() {
     };
   }, [logs, reports, menus, timeRange, customStartDate, customStartTime, customEndDate, customEndTime]);
 
+  // Filtered activity based on menu search query
+  const filteredActivity = useMemo(() => {
+    if (!debouncedMenuSearchQuery.trim()) {
+      return stats.activityByType;
+    }
+    const query = debouncedMenuSearchQuery.toLowerCase().trim();
+    return stats.activityByType.map(group => ({
+      ...group,
+      menus: group.menus.filter((m: any) =>
+        m.name.toLowerCase().includes(query)
+      )
+    })).filter(group => group.menus.length > 0);
+  }, [stats.activityByType, debouncedMenuSearchQuery]);
+
+  // Filtered submissions based on search query
+  const filteredSubmissions = useMemo(() => {
+    if (!debouncedSubmissionSearchQuery.trim()) {
+      return reports;
+    }
+    const query = debouncedSubmissionSearchQuery.toLowerCase().trim();
+    return reports.filter(r =>
+      r.id.toLowerCase().includes(query) ||
+      (r.userId && r.userId.toLowerCase().includes(query)) ||
+      (r.menuName && r.menuName.toLowerCase().includes(query)) ||
+      (r.status && r.status.toLowerCase().includes(query)) ||
+      (r.supportAssignee && r.supportAssignee.toLowerCase().includes(query)) ||
+      (r.serviceFeedback && r.serviceFeedback.toLowerCase().includes(query))
+    );
+  }, [reports, debouncedSubmissionSearchQuery]);
+
   const handleExport = () => {
     let content = '';
     let filename = '';
     let reportName = '';
     const now = new Date();
 
-    // Get time range string for header
     let timeRangeStr = '';
     if (timeRange === 'today') {
       timeRangeStr = `${format(now, 'yyyy-MM-dd')} 00:00 to ${format(now, 'yyyy-MM-dd HH:mm:ss')}`;
@@ -353,15 +469,12 @@ export function Reporting() {
 
     if (activeTab === 'activity') {
       reportName = 'Detail Report';
-      // Filter activity by selectedActionType
-      const filteredActivity = selectedActionType === 'all'
-        ? stats.activityByType
-        : stats.activityByType.filter(g => g.type === selectedActionType);
-      content = generateMenuCSV(filteredActivity, reportName, timeRangeStr);
+      const exportActivity = filteredActivity.filter(g => selectedActionType === 'all' || g.type === selectedActionType);
+      content = generateMenuCSV(exportActivity, reportName, timeRangeStr);
       filename = `nibbot-detail-report-${selectedActionType}-${format(now, 'yyyyMMddHHmmss')}.csv`;
     } else if (activeTab === 'submissions') {
       reportName = 'Submission Analytics';
-      content = generateSubmissionCSV(stats.reports, reportName, timeRangeStr);
+      content = generateSubmissionCSV(filteredSubmissions, reportName, timeRangeStr);
       filename = `nibbot-submission-report-${format(now, 'yyyyMMddHHmmss')}.csv`;
     } else {
       reportName = 'General Report';
@@ -379,17 +492,13 @@ export function Reporting() {
 
   const generateMenuCSV = (activity: any[], reportName: string, timeRangeStr: string) => {
     let csv = '';
-    // Add report header
     csv += `"Nib International Bank","${reportName}","${timeRangeStr}"\n`;
-    csv += '\n'; // Blank line after header
-    // Add column headers
+    csv += '\n';
     csv += 'Level,Category/Menu,Total Interactions,Unique Users,Submissions,Pending,Reviewed,Resolved,Success Rate (%),Avg Latency (ms),Conversion (%)\n';
 
     activity.forEach(group => {
-      // Category Level Row
       csv += `Category,${group.label},${group.totalInteractions},-,${group.totalSubmissions || ''},${group.totalPending || ''},${group.totalReviewed || ''},${group.totalResolved || ''},-, -, -\n`;
 
-      // Specific Menu Rows
       group.menus.forEach((m: any) => {
         const successRate = m.successRate !== undefined ? m.successRate.toFixed(2) : '';
         const avgLatency = m.avgLatency !== undefined && m.avgLatency !== null ? Math.round(m.avgLatency) : '';
@@ -398,7 +507,6 @@ export function Reporting() {
         csv += `Menu,"${m.name}",${m.interactions},${m.uniqueUsers},${m.submissions || ''},${m.pendingCount || ''},${m.reviewedCount || ''},${m.resolvedCount || ''},${successRate},${avgLatency},${conversionRate}\n`;
       });
 
-      // Blank line between categories
       csv += '\n';
     });
     return csv;
@@ -406,11 +514,9 @@ export function Reporting() {
 
   const generateSubmissionCSV = (reports: any[], reportName: string, timeRangeStr: string) => {
     let csv = '';
-    // Add report header
     csv += `"Nib International Bank","${reportName}","${timeRangeStr}"\n`;
-    csv += '\n'; // Blank line after header
+    csv += '\n';
 
-    // Collect all unique form fields from all reports
     const allFieldKeys = new Set<string>();
     reports.forEach(r => {
       if (r.data && typeof r.data === 'object') {
@@ -423,7 +529,6 @@ export function Reporting() {
     });
     const fieldKeysArray = Array.from(allFieldKeys);
 
-    // Build column headers with dynamic fields
     let headers = [
       'Report ID', 'Timestamp', 'Menu Name', 'User ID', 'Status', 'Priority',
       'Escalation Path', 'Resolved By', 'Rating', 'Feedback', 'Admin Response'
@@ -437,7 +542,6 @@ export function Reporting() {
       const adminResponse = r.adminResponse ? `"${r.adminResponse.replace(/"/g, '""')}"` : '';
       const resolver = r.resolvedBy || (r.status === 'resolved' ? (r.supportAssignee || 'System') : '');
 
-      // Build clean Escalation Path
       let pathSteps: string[] = [];
       if (r.assignmentHistory && r.assignmentHistory.length > 0) {
         pathSteps = r.assignmentHistory.map((assn: any) => assn.assignee);
@@ -447,14 +551,12 @@ export function Reporting() {
         pathSteps = ['Unassigned'];
       }
 
-      // Add resolver if resolved and not already in path
       if (r.status === 'resolved' && resolver && !pathSteps.includes(resolver)) {
         pathSteps.push(resolver + ' (Resolved)');
       }
 
       const escalationPath = `"${pathSteps.join(' -> ')}"`;
 
-      // Build row with base fields
       let row = [
         `"${r.id}"`,
         `"${format(new Date(r.timestamp), 'yyyy-MM-dd HH:mm:ss')}"`,
@@ -469,9 +571,7 @@ export function Reporting() {
         adminResponse
       ];
 
-      // Add dynamic form fields
       fieldKeysArray.forEach(key => {
-        // fieldKeysArray already excludes assignmentHistory, but just to be safe
         if (key === 'assignmentHistory') return;
         const value = r.data?.[key];
         if (typeof value === 'string') {
@@ -492,7 +592,7 @@ export function Reporting() {
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-[500px] space-y-4">
-        <Activity className="h-10 w-10 text-primary animate-spin" />
+        <Loader2 className="h-10 w-10 text-primary animate-spin" />
         <p className="text-sm text-muted-foreground animate-pulse font-black uppercase tracking-widest">Compiling Analytics Hierarchy...</p>
       </div>
     );
@@ -500,7 +600,6 @@ export function Reporting() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card p-6 rounded-3xl border shadow-sm ring-1 ring-border/50">
         <div className="space-y-1">
           <h3 className="text-2xl font-black flex items-center gap-3 text-foreground tracking-tight">
@@ -616,7 +715,6 @@ export function Reporting() {
               </Card>
             ))}
           </div>
-          {/* New Visit Metrics Row - All Visits & Unique Visits */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {[
               { label: 'All Visits', value: stats.allVisits, sub: 'Total app opens', icon: DoorOpen, color: 'border-t-purple-500' },
@@ -667,7 +765,6 @@ export function Reporting() {
         </TabsContent>
 
         <TabsContent value="activity" className="space-y-6 m-0 outline-none">
-          {/* Action Type Filters */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <button
               onClick={() => setSelectedActionType('all')}
@@ -714,7 +811,6 @@ export function Reporting() {
             ))}
           </div>
 
-          {/* Detailed Activity Table */}
           <Card className="shadow-2xl rounded-[2.5rem] overflow-hidden border-none bg-card ring-1 ring-border/50">
             <CardHeader className="bg-muted/10 border-b p-8 flex flex-row items-center justify-between">
               <div className="space-y-1">
@@ -724,13 +820,16 @@ export function Reporting() {
                 </CardTitle>
                 <CardDescription className="text-[11px] font-bold text-muted-foreground">Analyzing property-specific metrics for each menu node.</CardDescription>
               </div>
-              <div className="relative group">
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" />
-                <Input placeholder="Search menu hierarchy..." className="h-10 pl-10 text-xs w-64 rounded-2xl bg-muted/20 border-none focus-visible:ring-2 focus-visible:ring-primary/20" />
-              </div>
+              <SearchInput
+                ref={menuSearchInputRef}
+                value={menuSearchQuery}
+                onChange={setMenuSearchQuery}
+                placeholder="Search menu hierarchy..."
+                className="h-10 text-xs w-80 rounded-2xl bg-muted/20 border-none focus-visible:ring-2 focus-visible:ring-primary/20"
+              />
             </CardHeader>
             <CardContent className="p-0">
-              <ScrollArea className="h-[600px]">
+              <ScrollArea className="h-[500px]">
                 <Table>
                   <TableHeader className="bg-muted/30 sticky top-0 z-10 backdrop-blur-md">
                     <TableRow className="hover:bg-transparent border-none">
@@ -742,7 +841,7 @@ export function Reporting() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {stats.activityByType
+                    {filteredActivity
                       .filter(g => selectedActionType === 'all' || g.type === selectedActionType)
                       .map((group: any) => (
                         <React.Fragment key={group.type}>
@@ -831,6 +930,24 @@ export function Reporting() {
                   </TableBody>
                 </Table>
               </ScrollArea>
+              {logsMeta && (
+                <div className="p-4 border-t">
+                  <Pagination
+                    currentPage={logsPage}
+                    pageSize={logsPageSize}
+                    totalItems={logsMeta.total}
+                    onPageChange={(page) => {
+                      setLogsPage(page);
+                      fetchLogs(page, logsPageSize);
+                    }}
+                    onPageSizeChange={(size) => {
+                      setLogsPageSize(size);
+                      setLogsPage(0);
+                      fetchLogs(0, size);
+                    }}
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -845,9 +962,16 @@ export function Reporting() {
                 </CardTitle>
                 <CardDescription className="text-[11px] font-bold text-muted-foreground">Detailed view of internal support reports, assignments, and outcomes.</CardDescription>
               </div>
+              <SearchInput
+                ref={submissionSearchInputRef}
+                value={submissionSearchQuery}
+                onChange={setSubmissionSearchQuery}
+                placeholder="Search submissions (ID, user, menu, status)..."
+                className="h-10 text-xs w-80 rounded-2xl bg-muted/20 border-none focus-visible:ring-2 focus-visible:ring-primary/20"
+              />
             </CardHeader>
             <CardContent className="p-0">
-              <ScrollArea className="h-[600px]">
+              <ScrollArea className="h-[500px]">
                 <Table>
                   <TableHeader className="bg-muted/30 sticky top-0 z-10 backdrop-blur-md">
                     <TableRow className="group hover:bg-transparent border-none">
@@ -860,7 +984,7 @@ export function Reporting() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {stats.reports.length === 0 ? (
+                    {filteredSubmissions.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={6} className="h-64 text-center">
                           <div className="flex flex-col items-center justify-center space-y-2 opacity-40">
@@ -870,7 +994,7 @@ export function Reporting() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      stats.reports.map((r, idx) => (
+                      filteredSubmissions.map((r, idx) => (
                         <TableRow key={idx} className="group hover:bg-primary/5 transition-all border-muted/10 border-b">
                           <TableCell className="py-6 px-8">
                             <div className="flex flex-col">
@@ -880,7 +1004,6 @@ export function Reporting() {
                           </TableCell>
                           <TableCell className="text-center">
                             <div className="flex flex-col items-center gap-2 min-w-[300px]">
-                              {/* Escalation Path: User1 -> User2 -> Resolved */}
                               {r.assignmentHistory && r.assignmentHistory.length > 0 ? (
                                 <div className="flex flex-wrap items-center justify-center gap-1.5 p-3 rounded-2xl bg-muted/30 border border-muted-foreground/10 w-full">
                                   {r.assignmentHistory.map((assignment: any, index: number) => (
@@ -892,7 +1015,6 @@ export function Reporting() {
                                           }`}>
                                           {assignment.assignee}
                                         </div>
-                                        {/* Hover reason for escalations */}
                                         {assignment.type === 'escalation' && assignment.reason && (
                                           <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-popover text-popover-foreground text-[8px] px-2 py-1 rounded shadow-lg border opacity-0 group-hover/item:opacity-100 transition-opacity z-50 whitespace-nowrap pointer-events-none">
                                             {assignment.reason}
@@ -900,12 +1022,10 @@ export function Reporting() {
                                         )}
                                       </div>
 
-                                      {/* Arrow step */}
                                       <span className="text-muted-foreground/40 font-black text-xs">→</span>
                                     </React.Fragment>
                                   ))}
 
-                                  {/* Final Resolution Node */}
                                   {r.status === 'resolved' ? (
                                     <div className="flex flex-col items-center">
                                       <div className="px-2.5 py-1 rounded-lg border bg-emerald-600 text-white border-emerald-700 text-[10px] font-black shadow-[0_4px_12px_rgba(16,185,129,0.2)] flex items-center gap-1.5">
@@ -923,7 +1043,6 @@ export function Reporting() {
                                   )}
                                 </div>
                               ) : (
-                                /* Fallback if no assignment history (Auto-assigned or just created) */
                                 <div className="flex flex-wrap items-center justify-center gap-1.5 p-3 rounded-2xl bg-muted/30 border border-muted-foreground/10 w-full">
                                   {r.supportAssignee ? (
                                     <>
@@ -1013,6 +1132,24 @@ export function Reporting() {
                   </TableBody>
                 </Table>
               </ScrollArea>
+              {reportsMeta && (
+                <div className="p-4 border-t">
+                  <Pagination
+                    currentPage={reportsPage}
+                    pageSize={reportsPageSize}
+                    totalItems={reportsMeta.total}
+                    onPageChange={(page) => {
+                      setReportsPage(page);
+                      fetchReports(page, reportsPageSize);
+                    }}
+                    onPageSizeChange={(size) => {
+                      setReportsPageSize(size);
+                      setReportsPage(0);
+                      fetchReports(0, size);
+                    }}
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

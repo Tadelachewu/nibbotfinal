@@ -44,6 +44,9 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const summaryOnly = searchParams.get('summary') === '1' || searchParams.get('summary') === 'true';
     const q = String(searchParams.get('q') ?? '').trim();
+    const status = String(searchParams.get('status') ?? '').trim();
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
     const { page, pageSize, skip, take } = parsePageParams(searchParams);
 
     const sessionStartRows = await prisma.interactionLog.findMany({
@@ -69,17 +72,28 @@ export async function GET(req: Request) {
       });
     }
 
-    const where: any = q
-      ? {
-        OR: [
-          { sessionId: { contains: q, mode: 'insensitive' } },
-          { userMessage: { contains: q, mode: 'insensitive' } },
-          { botResponse: { contains: q, mode: 'insensitive' } },
-          { endpoint: { contains: q, mode: 'insensitive' } },
-          { tags: { has: q } },
-        ]
-      }
-      : {};
+    const where: any = {};
+
+    if (q) {
+      where.OR = [
+        { sessionId: { contains: q, mode: 'insensitive' } },
+        { userMessage: { contains: q, mode: 'insensitive' } },
+        { botResponse: { contains: q, mode: 'insensitive' } },
+        { endpoint: { contains: q, mode: 'insensitive' } },
+        { tags: { has: q } },
+      ];
+    }
+
+    if (status) {
+      where.status = status;
+    }
+
+    if (startDate) {
+      where.timestamp = { gte: new Date(startDate) };
+    }
+    if (endDate) {
+      where.timestamp = { ...where.timestamp, lte: new Date(endDate) };
+    }
 
     const [total, logs] = await Promise.all([
       prisma.interactionLog.count({ where }),

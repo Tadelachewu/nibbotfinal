@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 
 const AUTOSAVE_DEBOUNCE_MS = 500;
 
@@ -102,8 +102,11 @@ export function usePerEntityDrafts<TData>(
     }
   }, [getPrefix]);
 
+  // Memoize activeDraftIds array to avoid unnecessary re-renders
+  const activeDraftIdsArray = useMemo(() => Array.from(activeDraftIds), [activeDraftIds]);
+
   return {
-    activeDraftIds: Array.from(activeDraftIds),
+    activeDraftIds: activeDraftIdsArray,
     getDraft,
     discardDraft
   };

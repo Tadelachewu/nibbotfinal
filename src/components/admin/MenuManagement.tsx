@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { useDebounce } from '@/hooks/use-debounce';
 import Image from 'next/image';
 import { MenuItem, KYCField, TableColumn, AuthType, ApiConfig, Language, AppSettings, ReportPriority, ReportIdConfig } from '@/lib/types';
 import { defaultReportIdConfig } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { SearchInput } from '@/components/ui/search-input';
 import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import {
@@ -36,7 +38,6 @@ import {
   Wand2,
   Sparkles,
   Type,
-  Search,
   Link as LinkIcon,
   ClipboardList,
   ShieldAlert,
@@ -112,6 +113,8 @@ export function MenuManagement() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const { activeDraftIds, getDraft, discardDraft } = usePerEntityDrafts('menu', editingId, editForm, isEditDialogOpen);
 
@@ -801,7 +804,7 @@ export function MenuManagement() {
   const renderBrowserTree = (parentId: string | null = null, level = 0) => {
     const effectiveMenus = menus.map(getEffectiveMenu);
     const items = effectiveMenus.filter(m => m.parentId === parentId && m.id !== editingId)
-      .filter(m => searchQuery === '' || m.name.toLowerCase().includes(searchQuery.toLowerCase()))
+      .filter(m => debouncedSearchQuery === '' || m.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase()))
       .sort((a, b) => a.order - b.order);
 
     if (items.length === 0 && parentId !== null) return null;
@@ -1694,10 +1697,13 @@ export function MenuManagement() {
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Attachments Description (displayed above related items)</Label>
                     <Input value={editForm.attachmentDescription || ''} onChange={(e) => setEditForm({ ...editForm, attachmentDescription: e.target.value })} placeholder="e.g. Related" />
                   </div>
-                  <div className="relative mb-4">
-                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input placeholder="Search menus..." value={searchQuery || ''} onChange={e => setSearchQuery(e.target.value)} className="pl-8 h-9 text-sm" />
-                  </div>
+                  <SearchInput
+                    ref={searchInputRef}
+                    value={searchQuery || ''}
+                    onChange={setSearchQuery}
+                    placeholder="Search menus..."
+                    className="mb-4 h-9 text-sm"
+                  />
                   {renderBrowserTree(null)}
                 </div>
               </div>

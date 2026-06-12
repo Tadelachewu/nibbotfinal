@@ -27,25 +27,34 @@ export async function GET(req: Request) {
       where: { username: session.username },
       select: { role: true },
     });
-    
+
     if (actor?.role !== 'admin') {
       return NextResponse.json({ status: 'error', message: 'Forbidden. Admin role required.' }, { status: 403 });
     }
 
     const { searchParams } = new URL(req.url);
     const q = String(searchParams.get('q') ?? '').trim();
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
     const { page, pageSize, skip, take } = parsePageParams(searchParams);
 
-    const where: any = q
-      ? {
-        OR: [
-          { actor: { contains: q, mode: 'insensitive' } },
-          { action: { contains: q, mode: 'insensitive' } },
-          { target: { contains: q, mode: 'insensitive' } },
-          { details: { contains: q, mode: 'insensitive' } },
-        ]
-      }
-      : {};
+    const where: any = {};
+
+    if (q) {
+      where.OR = [
+        { actor: { contains: q, mode: 'insensitive' } },
+        { action: { contains: q, mode: 'insensitive' } },
+        { target: { contains: q, mode: 'insensitive' } },
+        { details: { contains: q, mode: 'insensitive' } },
+      ];
+    }
+
+    if (startDate) {
+      where.timestamp = { gte: new Date(startDate) };
+    }
+    if (endDate) {
+      where.timestamp = { ...where.timestamp, lte: new Date(endDate) };
+    }
 
     const [total, logs] = await Promise.all([
       prisma.auditLog.count({ where }),

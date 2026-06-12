@@ -32,6 +32,9 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const rawReportId = searchParams.get('reportId');
+  const q = String(searchParams.get('q') ?? '').trim();
+  const startDate = searchParams.get('startDate');
+  const endDate = searchParams.get('endDate');
   const reportId = typeof rawReportId === 'string' && rawReportId.trim() && /^[A-Za-z0-9-]+$/.test(rawReportId.trim())
     ? rawReportId.trim()
     : null;
@@ -54,6 +57,25 @@ export async function GET(req: Request) {
       actor.role === 'support' ? { report: { supportAssignee: session.username } } : {}
     ]
   };
+
+  if (q) {
+    where.AND.push({
+      OR: [
+        { type: { contains: q, mode: 'insensitive' } },
+        { content: { contains: q, mode: 'insensitive' } },
+        { reportId: { contains: q, mode: 'insensitive' } },
+        { actor: { contains: q, mode: 'insensitive' } },
+        { target: { contains: q, mode: 'insensitive' } }
+      ]
+    });
+  }
+
+  if (startDate) {
+    where.AND.push({ timestamp: { gte: new Date(startDate) } });
+  }
+  if (endDate) {
+    where.AND.push({ timestamp: { lte: new Date(endDate) } });
+  }
 
   const [total, activities] = await Promise.all([
     prisma.reportActivity.count({ where }),

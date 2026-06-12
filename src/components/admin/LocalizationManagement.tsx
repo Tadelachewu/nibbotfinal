@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { AppSettings, Language } from '@/lib/types';
 import { defaultSystemTranslations } from '@/lib/store';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { SearchInput } from '@/components/ui/search-input';
 import { Save, Globe, Languages, Info, FileCode, X } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { toast } from '@/hooks/use-toast';
@@ -15,12 +16,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAdminAuth } from './AdminAuthContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
+import { useDebounce } from '@/hooks/use-debounce';
+import { Pagination } from '@/components/ui/pagination';
 
 export function LocalizationManagement() {
   const { csrfFetch } = useAdminAuth();
   const [settings, setSettings] = useState<AppSettings>({ supportedLanguages: [] });
   const [translations, setTranslations] = useState<Record<string, Record<string, string>>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [pageSize, setPageSize] = useState(20);
 
   const { activeDraftIds, getDraft, discardDraft } = usePerEntityDrafts('translations', 'global', translations, true);
 
@@ -158,6 +166,39 @@ export function LocalizationManagement() {
     ui_error_fallback: { label: 'Error Message', description: 'Generic error message fallback' }
   };
 
+  const filteredKeys = useMemo(() => {
+    const query = debouncedSearchQuery.toLowerCase();
+    return Object.keys(defaultSystemTranslations).filter(key => {
+      const info = stringLabels[key] || { label: key, description: '' };
+      const keyMatch = key.toLowerCase().includes(query);
+      const labelMatch = info.label.toLowerCase().includes(query);
+      const descriptionMatch = info.description.toLowerCase().includes(query);
+
+      // Check if any translation for this key matches the query
+      const translationMatch = Object.entries(translations[key] || {}).some(([lang, text]) =>
+        String(text || '').toLowerCase().includes(query)
+      );
+
+      // Also check default system translations as fallback
+      const defaultTranslationMatch = Object.entries(defaultSystemTranslations[key] || {}).some(([lang, text]) =>
+        String(text || '').toLowerCase().includes(query)
+      );
+
+      return keyMatch || labelMatch || descriptionMatch || translationMatch || defaultTranslationMatch;
+    });
+  }, [debouncedSearchQuery, translations]);
+
+  // Reset page when search changes
+  useEffect(() => {
+    setCurrentPage(0);
+  }, [debouncedSearchQuery]);
+
+  const paginatedKeys = useMemo(() => {
+    const start = currentPage * pageSize;
+    const end = start + pageSize;
+    return filteredKeys.slice(start, end);
+  }, [filteredKeys, currentPage, pageSize]);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -200,21 +241,30 @@ export function LocalizationManagement() {
       )}
 
       <Card>
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <Languages className="text-primary" size={20} />
+        <CardHeader className="flex flex-col gap-4 pb-2">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <Languages className="text-primary" size={20} />
+              </div>
+              <div>
+                <CardTitle>System Strings & UI Text</CardTitle>
+                <CardDescription>Configure localized versions for labels, prompts, and status indicators.</CardDescription>
+              </div>
             </div>
-            <div>
-              <CardTitle>System Strings & UI Text</CardTitle>
-              <CardDescription>Configure localized versions for labels, prompts, and status indicators.</CardDescription>
-            </div>
+            <SearchInput
+              ref={searchInputRef}
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Search system strings by name, key, or description..."
+              className="min-w-[300px]"
+            />
           </div>
         </CardHeader>
         <CardContent className="p-0">
           <ScrollArea className="h-[600px]">
             <div className="p-6 space-y-8">
-              {Object.keys(defaultSystemTranslations).map((key) => {
+              {paginatedKeys.map((key) => {
                 const info = stringLabels[key] || { label: key, description: 'System-generated key' };
                 return (
                   <div key={key} className="space-y-4 border-b pb-6 last:border-0">
@@ -251,6 +301,18 @@ export function LocalizationManagement() {
               })}
             </div>
           </ScrollArea>
+          <div className="p-4 border-t">
+            <Pagination
+              currentPage={currentPage}
+              pageSize={pageSize}
+              totalItems={filteredKeys.length}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setCurrentPage(0);
+              }}
+            />
+          </div>
         </CardContent>
       </Card>
 

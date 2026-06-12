@@ -88,6 +88,8 @@ export async function GET(req: Request) {
     const q = sanitizeSearchValue(String(searchParams.get('q') ?? ''));
     const statusRaw = sanitizeSearchValue(String(searchParams.get('status') ?? ''));
     const priorityRaw = sanitizeSearchValue(String(searchParams.get('priority') ?? ''));
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
     const { page, pageSize, skip, take } = parsePageParams(searchParams);
 
     const whereBase: any = role === 'support' ? { supportAssignee: session.username } : {};
@@ -97,17 +99,38 @@ export async function GET(req: Request) {
     const where: any = {
       ...whereBase,
       ...(status ? { status } : {}),
-      ...(priority ? { priority } : {}),
-      ...(q
-        ? {
-          OR: [
-            { id: { contains: q, mode: 'insensitive' } },
-            { menuName: { contains: q, mode: 'insensitive' } },
-            { userId: { contains: q, mode: 'insensitive' } },
-          ]
-        }
-        : {})
+      ...(priority ? { priority } : {})
     };
+
+    if (q) {
+      const orConditions: any[] = [
+        { id: { contains: q, mode: 'insensitive' } },
+        { menuName: { contains: q, mode: 'insensitive' } }
+      ];
+
+      // Add optional fields only if they can contain the query
+      orConditions.push({ userId: { contains: q, mode: 'insensitive' } });
+      orConditions.push({ supportAssignee: { contains: q, mode: 'insensitive' } });
+      orConditions.push({ serviceFeedback: { contains: q, mode: 'insensitive' } });
+
+      // For status, check if query is a prefix of any enum value (case-insensitive)
+      const lowerQ = q.toLowerCase();
+      const matchingStatuses = ['pending', 'reviewed', 'resolved'].filter(status =>
+        status.startsWith(lowerQ)
+      );
+      if (matchingStatuses.length > 0) {
+        orConditions.push({ status: { in: matchingStatuses as any } });
+      }
+
+      where.OR = orConditions;
+    }
+
+    if (startDate) {
+      where.timestamp = { gte: new Date(startDate) };
+    }
+    if (endDate) {
+      where.timestamp = { ...where.timestamp, lte: new Date(endDate) };
+    }
 
     const [total, reports] = await Promise.all([
       prisma.userReport.count({ where }),

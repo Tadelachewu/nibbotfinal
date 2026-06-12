@@ -20,8 +20,11 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
 import { useAdminAuth, evaluatePasswordStrength, isStrongPassword } from './AdminAuthContext';
-import { Edit2, Eye, EyeOff, Plus, RefreshCw, Search, Trash2, FileCode, X } from 'lucide-react';
+import { Edit2, Eye, EyeOff, Plus, RefreshCw, Trash2, FileCode, X } from 'lucide-react';
 import { usePerEntityDrafts } from '@/hooks/usePerEntityDrafts';
+import { useDebounce } from '@/hooks/use-debounce';
+import { SearchInput } from '@/components/ui/search-input';
+import { Pagination } from '@/components/ui/pagination';
 
 type AdminUser = {
   id: number;
@@ -36,9 +39,10 @@ export function UsersManagement() {
   const { csrfFetch, currentUsername } = useAdminAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [meta, setMeta] = useState<{ page: number; pageSize: number; total: number; totalPages: number; hasMore: boolean } | null>(null);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const didInitQueryRef = useRef(false);
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -73,20 +77,19 @@ export function UsersManagement() {
   const [userToDelete, setUserToDelete] = useState<AdminUser | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [query, setQuery] = useState('');
-  const PAGE_SIZE = 50;
+  const debouncedQuery = useDebounce(query, 300);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [pageSize, setPageSize] = useState(50);
 
-  const loadUsers = useCallback(async (mode: 'initial' | 'refresh' | 'more', opts?: { page?: number; append?: boolean }) => {
+  const loadUsers = useCallback(async (page: number = 0, size: number = pageSize) => {
+    setError(null);
     try {
-      const page = Number.isFinite(opts?.page) && (opts?.page as number) >= 0 ? Math.floor(opts!.page as number) : 0;
-      const append = Boolean(opts?.append);
-      if (mode === 'initial') setIsLoading(true);
-      else if (mode === 'more') setIsLoadingMore(true);
-      else setIsRefreshing(true);
-
+      setIsLoading(true);
       const params = new URLSearchParams();
       params.set('page', String(page));
-      params.set('pageSize', String(PAGE_SIZE));
-      if (query.trim()) params.set('q', query.trim());
+      params.set('pageSize', String(size));
+      if (debouncedQuery.trim()) params.set('q', debouncedQuery.trim());
       const res = await csrfFetch(`/api/admin/users?${params.toString()}`, { cache: 'no-store' });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.success) {
@@ -95,18 +98,19 @@ export function UsersManagement() {
       const next = Array.isArray(json.data) ? json.data : [];
       const nextMeta = json?.meta && typeof json.meta === 'object' ? json.meta : null;
       setMeta(nextMeta);
-      setUsers(prev => append ? [...prev, ...next] : next);
+      setUsers(next);
     } catch (e: any) {
-      toast({ title: 'Error', description: e?.message || 'Could not load users.', variant: 'destructive' });
+      const errorMsg = e?.message || 'Could not load users.';
+      setError(errorMsg);
+      toast({ title: 'Error', description: errorMsg, variant: 'destructive' });
     } finally {
-      if (mode === 'initial') setIsLoading(false);
-      else if (mode === 'more') setIsLoadingMore(false);
-      else setIsRefreshing(false);
+      setIsLoading(false);
+      setInitialLoading(false);
     }
-  }, [csrfFetch, query]);
+  }, [csrfFetch, debouncedQuery, pageSize]);
 
   useEffect(() => {
-    loadUsers('initial', { page: 0, append: false });
+    loadUsers(0, pageSize);
   }, [loadUsers]);
 
   useEffect(() => {
@@ -114,8 +118,21 @@ export function UsersManagement() {
       didInitQueryRef.current = true;
       return;
     }
-    loadUsers('refresh', { page: 0, append: false });
-  }, [query, loadUsers]);
+    // Reset to page 0 when search/filter changes
+    setCurrentPage(0);
+    loadUsers(0, pageSize);
+  }, [debouncedQuery, loadUsers, pageSize]);
+
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+    loadUsers(newPage, pageSize);
+  };
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
+    setCurrentPage(0);
+    loadUsers(0, newSize);
+  };
 
   const canCreate =
     form.username.trim().length > 0 &&
@@ -250,7 +267,7 @@ export function UsersManagement() {
             <div className="text-[11px] text-muted-foreground">{typeof meta?.total === 'number' ? meta.total : filteredUsers.length} users</div>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => loadUsers('refresh', { page: 0, append: false })} disabled={isLoading || isRefreshing}>
+            <Button variant="outline" size="sm" onClick={() => loadUsers(currentPage, pageSize)} disabled={isLoading || isRefreshing}>
               <RefreshCw size={14} className={isRefreshing ? 'mr-2 animate-spin' : 'mr-2'} /> Refresh
             </Button>
             {activeCreateDrafts.includes('new') && (
@@ -273,21 +290,18 @@ export function UsersManagement() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {isLoading ? (
+          {initialLoading ? (
             <div className="p-6 text-sm text-muted-foreground">Loading users...</div>
           ) : (
             <div className="p-6">
               <div className="mb-4 flex items-center gap-3">
-                <div className="relative flex-1">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={query}
-                    onChange={e => setQuery(e.target.value)}
-                    placeholder="Search by username, email, or group name..."
-                    className="pl-9"
-                    autoComplete="off"
-                  />
-                </div>
+                <SearchInput
+                  ref={searchInputRef}
+                  value={query}
+                  onChange={setQuery}
+                  placeholder="Search users by username, email, or group name..."
+                  className="flex-1"
+                />
               </div>
               <Table>
                 <TableHeader>
@@ -354,27 +368,23 @@ export function UsersManagement() {
                       </TableRow>
                     ))
                   )}
-                  {meta?.hasMore && (
+                  {meta && (
                     <TableRow>
                       <TableCell colSpan={6} className="py-6">
-                        <div className="flex items-center justify-center gap-3">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={isLoadingMore}
-                            onClick={() => loadUsers('more', { page: (meta?.page ?? 0) + 1, append: true })}
-                            className="gap-2"
-                          >
-                            <RefreshCw size={14} className={isLoadingMore ? 'animate-spin' : ''} />
-                            Load more
-                          </Button>
-                          {typeof meta.total === 'number' && (
-                            <span className="text-xs text-muted-foreground">
-                              Showing {filteredUsers.length} of {meta.total}
-                            </span>
-                          )}
-                        </div>
+                        {error ? (
+                          <div className="flex flex-col items-center justify-center gap-2 text-center">
+                            <p className="text-sm text-destructive">{error}</p>
+                            <Button variant="outline" onClick={() => loadUsers(currentPage, pageSize)}>Retry</Button>
+                          </div>
+                        ) : (
+                          <Pagination
+                            currentPage={currentPage}
+                            pageSize={pageSize}
+                            totalItems={meta.total}
+                            onPageChange={handlePageChange}
+                            onPageSizeChange={handlePageSizeChange}
+                          />
+                        )}
                       </TableCell>
                     </TableRow>
                   )}

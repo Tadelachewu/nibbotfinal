@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import {
   Table,
@@ -13,7 +13,6 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
-  Search,
   User,
   FileText,
   ChevronRight,
@@ -39,8 +38,10 @@ import {
   X
 } from 'lucide-react';
 import { usePerEntityDrafts } from '@/hooks/usePerEntityDrafts';
-import { Input } from '@/components/ui/input';
+import { SearchInput } from '@/components/ui/search-input';
+import { Pagination } from '@/components/ui/pagination';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import {
@@ -61,26 +62,68 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { UserReport, ReportPriority } from '@/lib/types';
-import { format } from 'date-fns';
+import { format, subDays, startOfDay, endOfDay, startOfWeek, startOfMonth } from 'date-fns';
 import { toast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import { useAdminAuth } from './AdminAuthContext';
 import { Activity } from 'lucide-react';
+import { useDebounce } from '@/hooks/use-debounce';
 
 export function ReportsManagement() {
   const { csrfFetch, currentRole, currentUsername } = useAdminAuth();
   const [reports, setReports] = useState<UserReport[]>([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [reportsMeta, setReportsMeta] = useState<{ page: number; pageSize: number; total: number; totalPages: number; hasMore: boolean } | null>(null);
-  const [loadingMoreReports, setLoadingMoreReports] = useState(false);
+  const [reportsError, setReportsError] = useState<string | null>(null);
+  const [reportsCurrentPage, setReportsCurrentPage] = useState(0);
+  const [reportsPageSize, setReportsPageSize] = useState(50);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 300);
+  const submissionsSearchInputRef = useRef<HTMLInputElement>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
+
+  // Time Range State
+  const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month' | 'custom'>('week');
+  const [customStartDate, setCustomStartDate] = useState(format(subDays(new Date(), 30), 'yyyy-MM-dd'));
+  const [customStartTime, setCustomStartTime] = useState('00:00');
+  const [customEndDate, setCustomEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [customEndTime, setCustomEndTime] = useState('23:59');
+
+  // Function to get start and end dates based on time range
+  const getTimeRangeDates = useCallback(() => {
+    const now = new Date();
+    let start: Date;
+    let end: Date = endOfDay(now);
+
+    if (timeRange === 'today') {
+      start = startOfDay(now);
+    } else if (timeRange === 'week') {
+      start = startOfWeek(now);
+    } else if (timeRange === 'month') {
+      start = startOfMonth(now);
+    } else {
+      // Custom range with date and time
+      const [startHour, startMin] = customStartTime.split(':').map(Number);
+      const [endHour, endMin] = customEndTime.split(':').map(Number);
+      start = new Date(customStartDate);
+      start.setHours(startHour, startMin, 0, 0);
+      end = new Date(customEndDate);
+      end.setHours(endHour, endMin, 59, 999);
+    }
+
+    return { start, end };
+  }, [timeRange, customStartDate, customStartTime, customEndDate, customEndTime]);
   const [supportUsers, setSupportUsers] = useState<Array<{ username: string }>>([]);
   const [ratingSortKey, setRatingSortKey] = useState<'avg' | 'count' | 'lastRatedAt'>('avg');
-  const [ratingTopN, setRatingTopN] = useState<number>(10);
+  const [ratingsCurrentPage, setRatingsCurrentPage] = useState(0);
+  const [ratingsPageSize, setRatingsPageSize] = useState(10);
+  const [supportRatings, setSupportRatings] = useState<any[]>([]);
+  const [ratingsMeta, setRatingsMeta] = useState<{ page: number; pageSize: number; total: number; totalPages: number; hasMore: boolean } | null>(null);
+  const [isLoadingRatings, setIsLoadingRatings] = useState(false);
 
   const [editingResponse, setEditingResponse] = useState<string>('');
   const [editingNotes, setEditingNotes] = useState<string>('');
@@ -102,63 +145,94 @@ export function ReportsManagement() {
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [activityMeta, setActivityMeta] = useState<{ page: number; pageSize: number; total: number; totalPages: number; hasMore: boolean } | null>(null);
-  const [loadingMoreActivity, setLoadingMoreActivity] = useState(false);
+  const [activityError, setActivityError] = useState<string | null>(null);
+  const [activityCurrentPage, setActivityCurrentPage] = useState(0);
+  const [activityPageSize, setActivityPageSize] = useState(100);
+  const [activitySearch, setActivitySearch] = useState('');
+  const debouncedActivitySearch = useDebounce(activitySearch, 300);
+  const activitySearchInputRef = useRef<HTMLInputElement>(null);
 
-  const REPORTS_PAGE_SIZE = 50;
-  const ACTIVITY_PAGE_SIZE = 100;
-
-  const fetchReports = useCallback(async (opts?: { page?: number; append?: boolean }) => {
-    const page = Number.isFinite(opts?.page) && (opts?.page as number) >= 0 ? Math.floor(opts!.page as number) : 0;
-    const append = Boolean(opts?.append);
-    if (append) setLoadingMoreReports(true);
-    else setLoading(true);
+  const fetchReports = useCallback(async (page: number = 0, pageSize: number = reportsPageSize) => {
+    setReportsError(null);
+    setLoading(true);
     try {
       const params = new URLSearchParams();
       params.set('page', String(page));
-      params.set('pageSize', String(REPORTS_PAGE_SIZE));
-      if (search.trim()) params.set('q', search.trim());
+      params.set('pageSize', String(pageSize));
+      if (debouncedSearch.trim()) params.set('q', debouncedSearch.trim());
       if (statusFilter !== 'all') params.set('status', statusFilter);
       if (priorityFilter !== 'all') params.set('priority', priorityFilter);
+      const { start, end } = getTimeRangeDates();
+      params.set('startDate', start.toISOString());
+      params.set('endDate', end.toISOString());
       const res = await csrfFetch(`/api/reports?${params.toString()}`, { cache: 'no-store' });
       const json = await res.json().catch(() => null);
       const next = Array.isArray(json?.data) ? json.data : [];
       const meta = json?.meta && typeof json.meta === 'object' ? json.meta : null;
       setReportsMeta(meta);
-      setReports(prev => append ? [...prev, ...next] : next);
+      setReports(next);
+    } catch (e: any) {
+      setReportsError(e?.message || 'Failed to load reports');
     } finally {
-      if (append) setLoadingMoreReports(false);
-      else setLoading(false);
+      setLoading(false);
+      setInitialLoading(false);
     }
-  }, [csrfFetch, search, statusFilter, priorityFilter]);
+  }, [csrfFetch, debouncedSearch, statusFilter, priorityFilter, getTimeRangeDates, reportsPageSize]);
 
-  const fetchActivityLogs = useCallback(async (opts?: { page?: number; append?: boolean }) => {
-    const page = Number.isFinite(opts?.page) && (opts?.page as number) >= 0 ? Math.floor(opts!.page as number) : 0;
-    const append = Boolean(opts?.append);
-    if (append) setLoadingMoreActivity(true);
-    else setLoadingLogs(true);
+  const fetchActivityLogs = useCallback(async (page: number = 0, pageSize: number = activityPageSize) => {
+    setActivityError(null);
+    setLoadingLogs(true);
     try {
       const params = new URLSearchParams();
       params.set('page', String(page));
-      params.set('pageSize', String(ACTIVITY_PAGE_SIZE));
+      params.set('pageSize', String(pageSize));
+      if (debouncedActivitySearch.trim()) params.set('q', debouncedActivitySearch.trim());
+      const { start, end } = getTimeRangeDates();
+      params.set('startDate', start.toISOString());
+      params.set('endDate', end.toISOString());
       const res = await csrfFetch(`/api/reports/activities?${params.toString()}`, { cache: 'no-store' });
       const json = await res.json().catch(() => null);
       const next = Array.isArray(json?.data) ? json.data : [];
       const meta = json?.meta && typeof json.meta === 'object' ? json.meta : null;
       setActivityMeta(meta);
-      setActivityLogs(prev => append ? [...prev, ...next] : next);
+      setActivityLogs(next);
+    } catch (e: any) {
+      setActivityError(e?.message || 'Failed to load activity logs');
     } finally {
-      if (append) setLoadingMoreActivity(false);
-      else setLoadingLogs(false);
+      setLoadingLogs(false);
     }
-  }, [csrfFetch]);
+  }, [csrfFetch, debouncedActivitySearch, getTimeRangeDates, activityPageSize]);
 
-  useEffect(() => {
-    fetchActivityLogs({ page: 0, append: false });
+  const handleReportsPageChange = useCallback((page: number) => {
+    setReportsCurrentPage(page);
+    fetchReports(page, reportsPageSize);
+  }, [fetchReports, reportsPageSize]);
+
+  const handleReportsPageSizeChange = useCallback((pageSize: number) => {
+    setReportsPageSize(pageSize);
+    setReportsCurrentPage(0);
+    fetchReports(0, pageSize);
+  }, [fetchReports]);
+
+  const handleActivityPageChange = useCallback((page: number) => {
+    setActivityCurrentPage(page);
+    fetchActivityLogs(page, activityPageSize);
+  }, [fetchActivityLogs, activityPageSize]);
+
+  const handleActivityPageSizeChange = useCallback((pageSize: number) => {
+    setActivityPageSize(pageSize);
+    setActivityCurrentPage(0);
+    fetchActivityLogs(0, pageSize);
   }, [fetchActivityLogs]);
 
   useEffect(() => {
-    fetchReports({ page: 0, append: false });
-  }, [search, statusFilter, priorityFilter, fetchReports]);
+    fetchActivityLogs(0, activityPageSize);
+  }, [fetchActivityLogs]);
+
+  useEffect(() => {
+    setReportsCurrentPage(0);
+    fetchReports(0, reportsPageSize);
+  }, [debouncedSearch, statusFilter, priorityFilter, fetchReports, timeRange, customStartDate, customStartTime, customEndDate, customEndTime]);
 
   useEffect(() => {
     if (currentRole !== 'admin') return;
@@ -180,65 +254,40 @@ export function ReportsManagement() {
     };
   }, [csrfFetch, currentRole]);
 
-  const supportRatings = useMemo(() => {
-    const byUser = new Map<string, {
-      username: string;
-      total: number;
-      count: number;
-      feedbackCount: number;
-      lastRatedAt?: string;
-    }>();
-
-    for (const r of reports) {
-      if (typeof r.serviceRating !== 'number') continue;
-      const username =
-        (typeof r.serviceRatedSupportAssignee === 'string' && r.serviceRatedSupportAssignee.trim())
-          ? r.serviceRatedSupportAssignee.trim()
-          : (typeof r.supportAssignee === 'string' && r.supportAssignee.trim())
-            ? r.supportAssignee.trim()
-            : '__unassigned__';
-
-      const entry = byUser.get(username) || { username, total: 0, count: 0, feedbackCount: 0 };
-      entry.total += r.serviceRating;
-      entry.count += 1;
-      if (typeof r.serviceFeedback === 'string' && r.serviceFeedback.trim()) entry.feedbackCount += 1;
-      if (typeof r.serviceRatedAt === 'string' && r.serviceRatedAt) {
-        if (!entry.lastRatedAt || new Date(r.serviceRatedAt).getTime() > new Date(entry.lastRatedAt).getTime()) {
-          entry.lastRatedAt = r.serviceRatedAt;
-        }
-      }
-      byUser.set(username, entry);
+  const fetchRatings = useCallback(async (page: number = 0, pageSize: number = ratingsPageSize) => {
+    setIsLoadingRatings(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('pageSize', String(pageSize));
+      params.set('sortKey', ratingSortKey);
+      const res = await csrfFetch(`/api/reports/ratings?${params.toString()}`, { cache: 'no-store' });
+      const json = await res.json().catch(() => null);
+      setSupportRatings(Array.isArray(json?.data) ? json.data : []);
+      setRatingsMeta(json?.meta && typeof json.meta === 'object' ? json.meta : null);
+    } catch (err) {
+      console.error('Failed to load ratings:', err);
+      setSupportRatings([]);
+    } finally {
+      setIsLoadingRatings(false);
     }
+  }, [csrfFetch, ratingSortKey, ratingsPageSize]);
 
-    if (currentRole === 'admin') {
-      for (const u of supportUsers) {
-        const name = typeof u.username === 'string' ? u.username.trim() : '';
-        if (!name) continue;
-        if (!byUser.has(name)) byUser.set(name, { username: name, total: 0, count: 0, feedbackCount: 0 });
-      }
-    }
+  useEffect(() => {
+    setRatingsCurrentPage(0);
+    fetchRatings(0, ratingsPageSize);
+  }, [ratingSortKey, fetchRatings]);
 
-    const rows = Array.from(byUser.values()).map(e => ({
-      username: e.username,
-      avg: e.count ? e.total / e.count : 0,
-      count: e.count,
-      feedbackCount: e.feedbackCount,
-      lastRatedAt: e.lastRatedAt
-    }));
+  const handleRatingsPageChange = (page: number) => {
+    setRatingsCurrentPage(page);
+    fetchRatings(page, ratingsPageSize);
+  };
 
-    rows.sort((a, b) => {
-      if (ratingSortKey === 'count') return (b.count - a.count) || (b.avg - a.avg);
-      if (ratingSortKey === 'lastRatedAt') {
-        const at = a.lastRatedAt ? new Date(a.lastRatedAt).getTime() : 0;
-        const bt = b.lastRatedAt ? new Date(b.lastRatedAt).getTime() : 0;
-        return (bt - at) || (b.avg - a.avg);
-      }
-      return (b.avg - a.avg) || (b.count - a.count);
-    });
-
-    const cleanTopN = Number.isFinite(ratingTopN) && ratingTopN > 0 ? Math.floor(ratingTopN) : 10;
-    return rows.slice(0, Math.min(cleanTopN, rows.length));
-  }, [reports, supportUsers, currentRole, ratingSortKey, ratingTopN]);
+  const handleRatingsPageSizeChange = (size: number) => {
+    setRatingsPageSize(size);
+    setRatingsCurrentPage(0);
+    fetchRatings(0, size);
+  };
 
   const filteredReports = reports;
 
@@ -298,7 +347,7 @@ export function ReportsManagement() {
           if (overrideStatus === 'resolved') {
             setIsInspectOpen(false);
           }
-          fetchActivityLogs({ page: 0, append: false });
+          fetchActivityLogs(0, activityPageSize);
         } catch {
           toast({ title: "Error", description: "Failed to save changes.", variant: "destructive" });
         }
@@ -316,7 +365,7 @@ export function ReportsManagement() {
         }
         setReports(prev => prev.filter(r => r.id !== reportId));
         toast({ title: "Report Deleted" });
-        fetchActivityLogs({ page: 0, append: false });
+        fetchActivityLogs(0, activityPageSize);
       } catch {
         toast({ title: "Error", description: "Failed to delete report.", variant: "destructive" });
       }
@@ -363,7 +412,7 @@ export function ReportsManagement() {
     reports.find(r => r.id === selectedReportId),
     [reports, selectedReportId]);
 
-  if (loading) {
+  if (initialLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-64 space-y-4">
         <Loader2 className="animate-spin text-primary" size={32} />
@@ -663,6 +712,44 @@ export function ReportsManagement() {
             </Card>
           </div>
 
+          {/* Time Range Selector */}
+          <div className="flex flex-wrap items-center gap-4 mb-4">
+            <div className="flex bg-muted/30 p-1 rounded-2xl border shadow-inner">
+              {[
+                { id: 'today', label: 'Today' },
+                { id: 'week', label: 'Week' },
+                { id: 'month', label: 'Month' },
+                { id: 'custom', label: 'Custom' }
+              ].map((r) => (
+                <button
+                  key={r.id}
+                  onClick={() => setTimeRange(r.id as any)}
+                  className={`px-5 py-2 text-[10px] font-black uppercase rounded-xl transition-all ${timeRange === r.id
+                    ? 'bg-card text-foreground shadow-lg ring-1 ring-border scale-105'
+                    : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+
+            {timeRange === 'custom' && (
+              <div className="flex items-center gap-4 bg-primary/5 p-4 rounded-2xl border border-primary/10">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black uppercase text-muted-foreground">From:</span>
+                  <Input type="date" value={customStartDate} onChange={(e) => setCustomStartDate(e.target.value)} className="h-9 w-40 text-xs bg-card rounded-xl" />
+                  <Input type="time" value={customStartTime} onChange={(e) => setCustomStartTime(e.target.value)} className="h-9 w-32 text-xs bg-card rounded-xl" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black uppercase text-muted-foreground">To:</span>
+                  <Input type="date" value={customEndDate} onChange={(e) => setCustomEndDate(e.target.value)} className="h-9 w-40 text-xs bg-card rounded-xl" />
+                  <Input type="time" value={customEndTime} onChange={(e) => setCustomEndTime(e.target.value)} className="h-9 w-32 text-xs bg-card rounded-xl" />
+                </div>
+              </div>
+            )}
+          </div>
+
           <Tabs defaultValue="submissions" className="w-full">
             <TabsList className="mb-4">
               <TabsTrigger value="submissions" className="gap-2">
@@ -691,22 +778,20 @@ export function ReportsManagement() {
                         <p className="text-xs text-muted-foreground mt-1">Manage, triage, and respond to user-submitted reports.</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={() => fetchReports({ page: 0, append: false })} disabled={loading}>
+                        <Button variant="outline" size="sm" onClick={() => fetchReports(reportsCurrentPage, reportsPageSize)} disabled={loading}>
                           <RefreshCw size={14} className="mr-2" /> Refresh
                         </Button>
                       </div>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3">
-                      <div className="relative flex-1 min-w-[200px]">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          placeholder="Search submissions..."
-                          className="pl-10 bg-card"
-                          value={search}
-                          onChange={(e) => setSearch(e.target.value)}
-                        />
-                      </div>
+                      <SearchInput
+                        ref={submissionsSearchInputRef}
+                        value={search}
+                        onChange={setSearch}
+                        placeholder="Search submissions by report ID, user ID, menu name, status, or assignee..."
+                        className="flex-1 min-w-[200px] bg-card"
+                      />
                       <Select value={statusFilter} onValueChange={setStatusFilter}>
                         <SelectTrigger className="w-[140px] h-10 bg-card">
                           <Filter size={14} className="mr-2" />
@@ -856,27 +941,23 @@ export function ReportsManagement() {
                             </TableCell>
                           </TableRow>
                         )}
-                        {reportsMeta?.hasMore && (
+                        {reportsMeta && (
                           <TableRow>
                             <TableCell colSpan={8} className="py-6">
-                              <div className="flex items-center justify-center gap-3">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  disabled={loadingMoreReports}
-                                  onClick={() => fetchReports({ page: (reportsMeta?.page ?? 0) + 1, append: true })}
-                                  className="gap-2"
-                                >
-                                  <Loader2 size={14} className={cn(loadingMoreReports && 'animate-spin')} />
-                                  Load more
-                                </Button>
-                                {typeof reportsMeta.total === 'number' && (
-                                  <span className="text-xs text-muted-foreground">
-                                    Showing {filteredReports.length} of {reportsMeta.total}
-                                  </span>
-                                )}
-                              </div>
+                              {reportsError ? (
+                                <div className="flex flex-col items-center justify-center gap-2 text-center">
+                                  <p className="text-sm text-destructive">{reportsError}</p>
+                                  <Button variant="outline" onClick={() => fetchReports(reportsCurrentPage, reportsPageSize)}>Retry</Button>
+                                </div>
+                              ) : (
+                                <Pagination
+                                  currentPage={reportsCurrentPage}
+                                  pageSize={reportsPageSize}
+                                  totalItems={reportsMeta.total}
+                                  onPageChange={handleReportsPageChange}
+                                  onPageSizeChange={handleReportsPageSizeChange}
+                                />
+                              )}
                             </TableCell>
                           </TableRow>
                         )}
@@ -900,6 +981,9 @@ export function ReportsManagement() {
                           </CardTitle>
                           <p className="text-xs text-muted-foreground mt-1">Aggregated user ratings captured after reports are resolved.</p>
                         </div>
+                        <Button variant="outline" size="sm" onClick={() => fetchRatings(ratingsCurrentPage, ratingsPageSize)} disabled={isLoadingRatings}>
+                          <RefreshCw size={12} className={cn("mr-2", isLoadingRatings && "animate-spin")} /> Refresh
+                        </Button>
                       </div>
                       <div className="flex flex-wrap items-center gap-3">
                         <div className="flex items-center gap-2">
@@ -915,76 +999,86 @@ export function ReportsManagement() {
                             </SelectContent>
                           </Select>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-bold uppercase text-muted-foreground">Top N</span>
-                          <Input
-                            type="number"
-                            value={ratingTopN}
-                            onChange={(e) => setRatingTopN(parseInt(e.target.value || '0', 10))}
-                            className="w-[120px] h-10 bg-card"
-                            min={1}
-                          />
-                        </div>
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent className="p-0">
                     <ScrollArea className="h-[550px]">
-                      <Table>
-                        <TableHeader className="bg-card/95 backdrop-blur-sm sticky top-0 z-20 border-b">
-                          <TableRow>
-                            <TableHead className="font-bold uppercase text-[10px]">Support User</TableHead>
-                            <TableHead className="w-[140px] font-bold uppercase text-[10px]">Avg Rating</TableHead>
-                            <TableHead className="w-[120px] font-bold uppercase text-[10px]">Ratings</TableHead>
-                            <TableHead className="w-[140px] font-bold uppercase text-[10px]">Feedback</TableHead>
-                            <TableHead className="w-[180px] font-bold uppercase text-[10px]">Last Rated</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {supportRatings.map((row) => (
-                            <TableRow key={row.username} className="group hover:bg-muted/20 transition-colors">
-                              <TableCell>
-                                <div className="flex flex-col">
-                                  <span className="text-xs font-semibold">{row.username === '__unassigned__' ? 'Unassigned' : row.username}</span>
-                                  {row.username !== '__unassigned__' && (
-                                    <span className="text-[10px] text-muted-foreground font-mono">support</span>
-                                  )}
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex items-center justify-between gap-3">
-                                  <div className="flex items-center gap-1 text-amber-600">
-                                    {Array.from({ length: 5 }).map((_, i) => (
-                                      <Star
-                                        key={i}
-                                        size={14}
-                                        className={i < Math.round(row.avg) ? 'fill-amber-500 text-amber-500' : 'text-muted-foreground/40'}
-                                      />
-                                    ))}
-                                  </div>
-                                  <span className="text-xs font-semibold">{row.count ? row.avg.toFixed(2) : '—'}</span>
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant="outline" className="text-[10px] font-mono">{row.count}</Badge>
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant="outline" className="text-[10px] font-mono">{row.feedbackCount}</Badge>
-                              </TableCell>
-                              <TableCell className="text-[10px] text-muted-foreground font-mono">
-                                {row.lastRatedAt ? format(new Date(row.lastRatedAt), 'MMM dd, HH:mm') : '—'}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                          {supportRatings.length === 0 && (
+                      {isLoadingRatings && (
+                        <div className="flex items-center justify-center h-64">
+                          <div className="text-xs text-muted-foreground animate-pulse">Loading ratings...</div>
+                        </div>
+                      )}
+                      {!isLoadingRatings && (
+                        <Table>
+                          <TableHeader className="bg-card/95 backdrop-blur-sm sticky top-0 z-20 border-b">
                             <TableRow>
-                              <TableCell colSpan={5} className="h-48 text-center text-muted-foreground italic text-sm">
-                                No ratings available yet.
-                              </TableCell>
+                              <TableHead className="font-bold uppercase text-[10px]">Support User</TableHead>
+                              <TableHead className="w-[140px] font-bold uppercase text-[10px]">Avg Rating</TableHead>
+                              <TableHead className="w-[120px] font-bold uppercase text-[10px]">Ratings</TableHead>
+                              <TableHead className="w-[140px] font-bold uppercase text-[10px]">Feedback</TableHead>
+                              <TableHead className="w-[180px] font-bold uppercase text-[10px]">Last Rated</TableHead>
                             </TableRow>
-                          )}
-                        </TableBody>
-                      </Table>
+                          </TableHeader>
+                          <TableBody>
+                            {supportRatings.map((row) => (
+                              <TableRow key={row.username} className="group hover:bg-muted/20 transition-colors">
+                                <TableCell>
+                                  <div className="flex flex-col">
+                                    <span className="text-xs font-semibold">{row.username === '__unassigned__' ? 'Unassigned' : row.username}</span>
+                                    {row.username !== '__unassigned__' && (
+                                      <span className="text-[10px] text-muted-foreground font-mono">support</span>
+                                    )}
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="flex items-center gap-1 text-amber-600">
+                                      {Array.from({ length: 5 }).map((_, i) => (
+                                        <Star
+                                          key={i}
+                                          size={14}
+                                          className={i < Math.round(row.avg) ? 'fill-amber-500 text-amber-500' : 'text-muted-foreground/40'}
+                                        />
+                                      ))}
+                                    </div>
+                                    <span className="text-xs font-semibold">{row.count ? row.avg.toFixed(2) : '—'}</span>
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <Badge variant="outline" className="text-[10px] font-mono">{row.count}</Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <Badge variant="outline" className="text-[10px] font-mono">{row.feedbackCount}</Badge>
+                                </TableCell>
+                                <TableCell className="text-[10px] text-muted-foreground font-mono">
+                                  {row.lastRatedAt ? format(new Date(row.lastRatedAt), 'MMM dd, HH:mm') : '—'}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                            {supportRatings.length === 0 && (
+                              <TableRow>
+                                <TableCell colSpan={5} className="h-64 text-center text-muted-foreground italic text-sm">
+                                  No ratings available yet.
+                                </TableCell>
+                              </TableRow>
+                            )}
+                            {ratingsMeta && (
+                              <TableRow>
+                                <TableCell colSpan={5} className="py-6">
+                                  <Pagination
+                                    currentPage={ratingsCurrentPage}
+                                    pageSize={ratingsPageSize}
+                                    totalItems={ratingsMeta.total}
+                                    onPageChange={handleRatingsPageChange}
+                                    onPageSizeChange={handleRatingsPageSizeChange}
+                                  />
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </TableBody>
+                        </Table>
+                      )}
                     </ScrollArea>
                   </CardContent>
                 </Card>
@@ -994,21 +1088,32 @@ export function ReportsManagement() {
             <TabsContent value="logs">
               <Card className="border-none shadow-md overflow-hidden">
                 <CardHeader className="border-b bg-muted/5 p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-xl font-bold flex items-center gap-2">
-                        <Activity className="text-primary" size={20} />
-                        Support Activity Stream
-                      </CardTitle>
-                      <p className="text-xs text-muted-foreground mt-1">Audit trail for assignments, escalations, and official responses.</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" onClick={() => fetchActivityLogs({ page: 0, append: false })} disabled={loadingLogs}>
-                        <RefreshCw size={12} className={cn("mr-2", loadingLogs && "animate-spin")} /> Refresh Log
-                      </Button>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/20 px-3 py-1.5 rounded-full font-medium">
-                        <Clock size={12} /> Database tracking
+                  <div className="flex flex-col space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="text-xl font-bold flex items-center gap-2">
+                          <Activity className="text-primary" size={20} />
+                          Support Activity Stream
+                        </CardTitle>
+                        <p className="text-xs text-muted-foreground mt-1">Audit trail for assignments, escalations, and official responses.</p>
                       </div>
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" onClick={() => fetchActivityLogs({ page: 0, append: false })} disabled={loadingLogs}>
+                          <RefreshCw size={12} className={cn("mr-2", loadingLogs && "animate-spin")} /> Refresh Log
+                        </Button>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/20 px-3 py-1.5 rounded-full font-medium">
+                          <Clock size={12} /> Database tracking
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <SearchInput
+                        ref={activitySearchInputRef}
+                        value={activitySearch}
+                        onChange={setActivitySearch}
+                        placeholder="Search activity by event type, description, report ref, or actor..."
+                        className="flex-1 min-w-[200px] bg-card"
+                      />
                     </div>
                   </div>
                 </CardHeader>
@@ -1081,27 +1186,23 @@ export function ReportsManagement() {
                               </TableCell>
                             </TableRow>
                           )}
-                          {activityMeta?.hasMore && (
+                          {activityMeta && (
                             <TableRow>
                               <TableCell colSpan={5} className="py-6">
-                                <div className="flex items-center justify-center gap-3">
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    disabled={loadingMoreActivity}
-                                    onClick={() => fetchActivityLogs({ page: (activityMeta?.page ?? 0) + 1, append: true })}
-                                    className="gap-2"
-                                  >
-                                    <Loader2 size={14} className={cn(loadingMoreActivity && 'animate-spin')} />
-                                    Load more
-                                  </Button>
-                                  {typeof activityMeta.total === 'number' && (
-                                    <span className="text-xs text-muted-foreground">
-                                      Showing {activityLogs.length} of {activityMeta.total}
-                                    </span>
-                                  )}
-                                </div>
+                                {activityError ? (
+                                  <div className="flex flex-col items-center justify-center gap-2 text-center">
+                                    <p className="text-sm text-destructive">{activityError}</p>
+                                    <Button variant="outline" onClick={() => fetchActivityLogs(activityCurrentPage, activityPageSize)}>Retry</Button>
+                                  </div>
+                                ) : (
+                                  <Pagination
+                                    currentPage={activityCurrentPage}
+                                    pageSize={activityPageSize}
+                                    totalItems={activityMeta.total}
+                                    onPageChange={handleActivityPageChange}
+                                    onPageSizeChange={handleActivityPageSizeChange}
+                                  />
+                                )}
                               </TableCell>
                             </TableRow>
                           )}

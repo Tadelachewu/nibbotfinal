@@ -1,16 +1,20 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { LogEntry } from '@/lib/logger';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, RotateCcw, CheckCircle2, Info, Clock, ShieldCheck, UserCog } from 'lucide-react';
-import { format } from 'date-fns';
+import { SearchInput } from '@/components/ui/search-input';
+import { Pagination } from '@/components/ui/pagination';
+import { RotateCcw, CheckCircle2, Info, Clock, ShieldCheck, UserCog, Filter } from 'lucide-react';
+import { format, subDays, startOfDay, endOfDay, startOfWeek, startOfMonth } from 'date-fns';
 import { useAdminAuth } from './AdminAuthContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useDebounce } from '@/hooks/use-debounce';
 
 interface AuditLogEntry {
   id: number;
@@ -26,22 +30,36 @@ interface AuditLogEntry {
 export function LogViewer() {
   const { csrfFetch } = useAdminAuth();
   const [activeTab, setActiveTab] = useState<'interactions' | 'audit'>('interactions');
-  
+
+  // Time range state
+  const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month' | 'custom'>('week');
+  const [customStartDate, setCustomStartDate] = useState(format(subDays(new Date(), 30), 'yyyy-MM-dd'));
+  const [customStartTime, setCustomStartTime] = useState('00:00');
+  const [customEndDate, setCustomEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [customEndTime, setCustomEndTime] = useState('23:59');
+
   // Interaction Logs State
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [filter, setFilter] = useState('');
+  const debouncedFilter = useDebounce(filter, 300);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const interactionSearchInputRef = useRef<HTMLInputElement>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [meta, setMeta] = useState<{ page: number; pageSize: number; total: number; totalPages: number; hasMore: boolean } | null>(null);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  
+  const [interactionError, setInteractionError] = useState<string | null>(null);
+  const [interactionCurrentPage, setInteractionCurrentPage] = useState(0);
+  const [interactionPageSize, setInteractionPageSize] = useState(100);
+
   // Audit Logs State
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [auditFilter, setAuditFilter] = useState('');
+  const debouncedAuditFilter = useDebounce(auditFilter, 300);
+  const auditSearchInputRef = useRef<HTMLInputElement>(null);
   const [isAuditLoading, setIsAuditLoading] = useState(false);
   const [auditMeta, setAuditMeta] = useState<{ page: number; pageSize: number; total: number; totalPages: number; hasMore: boolean } | null>(null);
-  const [isAuditLoadingMore, setIsAuditLoadingMore] = useState(false);
-
-  const PAGE_SIZE = 100;
+  const [auditError, setAuditError] = useState<string | null>(null);
+  const [auditCurrentPage, setAuditCurrentPage] = useState(0);
+  const [auditPageSize, setAuditPageSize] = useState(50);
 
   const toPlainText = (input: string) => {
     const str = String(input || '');
@@ -55,57 +73,111 @@ export function LogViewer() {
     }
   };
 
-  const fetchLogs = useCallback(async (opts?: { page?: number; append?: boolean }) => {
-    const page = Number.isFinite(opts?.page) && (opts?.page as number) >= 0 ? Math.floor(opts!.page as number) : 0;
-    const append = Boolean(opts?.append);
-    if (append) setIsLoadingMore(true);
-    else setIsLoading(true);
+  // Calculate start and end dates based on time range
+  const getTimeRangeDates = useCallback(() => {
+    const now = new Date();
+    let start: Date;
+    let end: Date = endOfDay(now);
+
+    if (timeRange === 'today') {
+      start = startOfDay(now);
+    } else if (timeRange === 'week') {
+      start = startOfWeek(now);
+    } else if (timeRange === 'month') {
+      start = startOfMonth(now);
+    } else {
+      // Custom range with date and time
+      const [startHour, startMin] = customStartTime.split(':').map(Number);
+      const [endHour, endMin] = customEndTime.split(':').map(Number);
+      start = new Date(customStartDate);
+      start.setHours(startHour, startMin, 0, 0);
+      end = new Date(customEndDate);
+      end.setHours(endHour, endMin, 59, 999);
+    }
+
+    return { start, end };
+  }, [timeRange, customStartDate, customStartTime, customEndDate, customEndTime]);
+
+  const fetchLogs = useCallback(async (page: number = 0, size: number = interactionPageSize) => {
+    setInteractionError(null);
+    setIsLoading(true);
     try {
       const params = new URLSearchParams();
       params.set('page', String(page));
-      params.set('pageSize', String(PAGE_SIZE));
-      if (filter.trim()) params.set('q', filter.trim());
+      params.set('pageSize', String(size));
+      if (debouncedFilter.trim()) params.set('q', debouncedFilter.trim());
+      if (statusFilter !== 'all') params.set('status', statusFilter);
+      const { start, end } = getTimeRangeDates();
+      params.set('startDate', start.toISOString());
+      params.set('endDate', end.toISOString());
       const res = await csrfFetch(`/api/logs?${params.toString()}`, { cache: 'no-store' });
       const json = await res.json().catch(() => null);
       const next = Array.isArray(json?.data) ? json.data : [];
       const nextMeta = json?.meta && typeof json.meta === 'object' ? json.meta : null;
       setMeta(nextMeta);
-      setLogs(prev => append ? [...prev, ...next] : next);
+      setLogs(next);
+    } catch (e: any) {
+      setInteractionError(e?.message || 'Failed to load logs');
     } finally {
-      if (append) setIsLoadingMore(false);
-      else setIsLoading(false);
+      setIsLoading(false);
     }
-  }, [csrfFetch, filter]);
+  }, [csrfFetch, debouncedFilter, statusFilter, getTimeRangeDates, interactionPageSize]);
 
-  const fetchAuditLogs = useCallback(async (opts?: { page?: number; append?: boolean }) => {
-    const page = Number.isFinite(opts?.page) && (opts?.page as number) >= 0 ? Math.floor(opts!.page as number) : 0;
-    const append = Boolean(opts?.append);
-    if (append) setIsAuditLoadingMore(true);
-    else setIsAuditLoading(true);
+  const fetchAuditLogs = useCallback(async (page: number = 0, size: number = auditPageSize) => {
+    setAuditError(null);
+    setIsAuditLoading(true);
     try {
       const params = new URLSearchParams();
       params.set('page', String(page));
-      params.set('pageSize', String(50)); // Audit logs use smaller page size
-      if (auditFilter.trim()) params.set('q', auditFilter.trim());
+      params.set('pageSize', String(size));
+      if (debouncedAuditFilter.trim()) params.set('q', debouncedAuditFilter.trim());
+      const { start, end } = getTimeRangeDates();
+      params.set('startDate', start.toISOString());
+      params.set('endDate', end.toISOString());
       const res = await csrfFetch(`/api/audit-logs?${params.toString()}`, { cache: 'no-store' });
       const json = await res.json().catch(() => null);
       const next = Array.isArray(json?.data) ? json.data : [];
       const nextMeta = json?.meta && typeof json.meta === 'object' ? json.meta : null;
       setAuditMeta(nextMeta);
-      setAuditLogs(prev => append ? [...prev, ...next] : next);
+      setAuditLogs(next);
+    } catch (e: any) {
+      setAuditError(e?.message || 'Failed to load audit logs');
     } finally {
-      if (append) setIsAuditLoadingMore(false);
-      else setIsAuditLoading(false);
+      setIsAuditLoading(false);
     }
-  }, [csrfFetch, auditFilter]);
+  }, [csrfFetch, debouncedAuditFilter, getTimeRangeDates, auditPageSize]);
 
   useEffect(() => {
     if (activeTab === 'interactions') {
-      fetchLogs({ page: 0, append: false });
+      setInteractionCurrentPage(0);
+      fetchLogs(0, interactionPageSize);
     } else {
-      fetchAuditLogs({ page: 0, append: false });
+      setAuditCurrentPage(0);
+      fetchAuditLogs(0, auditPageSize);
     }
-  }, [filter, auditFilter, activeTab, fetchLogs, fetchAuditLogs]);
+  }, [debouncedFilter, debouncedAuditFilter, activeTab, fetchLogs, fetchAuditLogs, timeRange, customStartDate, customStartTime, customEndDate, customEndTime, statusFilter, interactionPageSize, auditPageSize]);
+
+  const handleInteractionPageChange = (newPage: number) => {
+    setInteractionCurrentPage(newPage);
+    fetchLogs(newPage, interactionPageSize);
+  };
+
+  const handleInteractionPageSizeChange = (newSize: number) => {
+    setInteractionPageSize(newSize);
+    setInteractionCurrentPage(0);
+    fetchLogs(0, newSize);
+  };
+
+  const handleAuditPageChange = (newPage: number) => {
+    setAuditCurrentPage(newPage);
+    fetchAuditLogs(newPage, auditPageSize);
+  };
+
+  const handleAuditPageSizeChange = (newSize: number) => {
+    setAuditPageSize(newSize);
+    setAuditCurrentPage(0);
+    fetchAuditLogs(0, newSize);
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -119,7 +191,7 @@ export function LogViewer() {
   const getActionBadge = (action: string) => {
     const isDestructive = action.includes('DELETE') || action.includes('REMOVE') || action.includes('REJECT');
     const isSuccess = action.includes('CREATE') || action.includes('APPROVE') || action.includes('LOGIN');
-    
+
     if (isDestructive) return <Badge variant="destructive" className="text-[10px]">{action}</Badge>;
     if (isSuccess) return <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-[10px]">{action}</Badge>;
     return <Badge variant="outline" className="text-[10px]">{action}</Badge>;
@@ -127,8 +199,8 @@ export function LogViewer() {
 
   return (
     <div className="space-y-4">
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
-        <div className="flex items-center justify-between gap-4 mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-auto">
           <TabsList className="bg-muted/50">
             <TabsTrigger value="interactions" className="gap-2">
               <Clock size={14} />
@@ -139,27 +211,82 @@ export function LogViewer() {
               Audit Logs
             </TabsTrigger>
           </TabsList>
-          
-          <div className="flex items-center gap-2 flex-1 max-w-md">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-              <Input
-                placeholder={activeTab === 'interactions' ? "Search interactions..." : "Search audit logs..."}
-                className="pl-10"
-                value={activeTab === 'interactions' ? filter : auditFilter}
-                onChange={(e) => activeTab === 'interactions' ? setFilter(e.target.value) : setAuditFilter(e.target.value)}
-              />
-            </div>
-            <Button 
-              variant="outline" 
-              size="icon"
-              onClick={() => activeTab === 'interactions' ? fetchLogs({ page: 0, append: false }) : fetchAuditLogs({ page: 0, append: false })} 
-              disabled={activeTab === 'interactions' ? isLoading : isAuditLoading}
+        </Tabs>
+      </div>
+
+      {/* Time Range Selector */}
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="flex bg-muted/30 p-1 rounded-2xl border shadow-inner">
+          {[
+            { id: 'today', label: 'Today' },
+            { id: 'week', label: 'Week' },
+            { id: 'month', label: 'Month' },
+            { id: 'custom', label: 'Custom' }
+          ].map((r) => (
+            <button
+              key={r.id}
+              onClick={() => setTimeRange(r.id as any)}
+              className={`px-5 py-2 text-[10px] font-black uppercase rounded-xl transition-all ${timeRange === r.id
+                ? 'bg-card text-foreground shadow-lg ring-1 ring-border scale-105'
+                : 'text-muted-foreground hover:text-foreground'
+                }`}
             >
-              <RotateCcw className={`h-4 w-4 ${(activeTab === 'interactions' ? isLoading : isAuditLoading) ? 'animate-spin' : ''}`} />
-            </Button>
-          </div>
+              {r.label}
+            </button>
+          ))}
         </div>
+
+        {timeRange === 'custom' && (
+          <div className="flex items-center gap-4 bg-primary/5 p-4 rounded-2xl border border-primary/10">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black uppercase text-muted-foreground">From:</span>
+              <Input type="date" value={customStartDate} onChange={(e) => setCustomStartDate(e.target.value)} className="h-9 w-40 text-xs bg-card rounded-xl" />
+              <Input type="time" value={customStartTime} onChange={(e) => setCustomStartTime(e.target.value)} className="h-9 w-32 text-xs bg-card rounded-xl" />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black uppercase text-muted-foreground">To:</span>
+              <Input type="date" value={customEndDate} onChange={(e) => setCustomEndDate(e.target.value)} className="h-9 w-40 text-xs bg-card rounded-xl" />
+              <Input type="time" value={customEndTime} onChange={(e) => setCustomEndTime(e.target.value)} className="h-9 w-32 text-xs bg-card rounded-xl" />
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 flex-1">
+        <SearchInput
+          ref={activeTab === 'interactions' ? interactionSearchInputRef : auditSearchInputRef}
+          value={activeTab === 'interactions' ? filter : auditFilter}
+          onChange={activeTab === 'interactions' ? setFilter : setAuditFilter}
+          placeholder={activeTab === 'interactions'
+            ? "Search interactions (session ID, user message, bot response, endpoint, tags)..."
+            : "Search audit logs (actor, action, target, details)..."}
+          className="flex-1 min-w-[200px]"
+        />
+        {activeTab === 'interactions' && (
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[160px]">
+              <Filter size={14} className="mr-2" />
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="success">Success</SelectItem>
+              <SelectItem value="error">Error</SelectItem>
+              <SelectItem value="failed">Failed</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => activeTab === 'interactions' ? fetchLogs(interactionCurrentPage, interactionPageSize) : fetchAuditLogs(auditCurrentPage, auditPageSize)}
+          disabled={activeTab === 'interactions' ? isLoading : isAuditLoading}
+        >
+          <RotateCcw className={`h-4 w-4 ${(activeTab === 'interactions' ? isLoading : isAuditLoading) ? 'animate-spin' : ''}`} />
+        </Button>
+      </div>
+
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
 
         <TabsContent value="interactions" className="mt-0">
           <Card>
@@ -226,27 +353,23 @@ export function LogViewer() {
                         </TableRow>
                       ))
                     )}
-                    {meta?.hasMore && (
+                    {meta && (
                       <TableRow>
                         <TableCell colSpan={5} className="py-6">
-                          <div className="flex items-center justify-center gap-3">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              disabled={isLoadingMore}
-                              onClick={() => fetchLogs({ page: (meta?.page ?? 0) + 1, append: true })}
-                              className="gap-2"
-                            >
-                              <RotateCcw className={`h-4 w-4 ${isLoadingMore ? 'animate-spin' : ''}`} />
-                              Load more
-                            </Button>
-                            {typeof meta.total === 'number' && (
-                              <span className="text-xs text-muted-foreground">
-                                Showing {logs.length} of {meta.total}
-                              </span>
-                            )}
-                          </div>
+                          {interactionError ? (
+                            <div className="flex flex-col items-center justify-center gap-2 text-center">
+                              <p className="text-sm text-destructive">{interactionError}</p>
+                              <Button variant="outline" onClick={() => fetchLogs(interactionCurrentPage, interactionPageSize)}>Retry</Button>
+                            </div>
+                          ) : (
+                            <Pagination
+                              currentPage={interactionCurrentPage}
+                              pageSize={interactionPageSize}
+                              totalItems={meta.total}
+                              onPageChange={handleInteractionPageChange}
+                              onPageSizeChange={handleInteractionPageSizeChange}
+                            />
+                          )}
                         </TableCell>
                       </TableRow>
                     )}
@@ -310,27 +433,23 @@ export function LogViewer() {
                         </TableRow>
                       ))
                     )}
-                    {auditMeta?.hasMore && (
+                    {auditMeta && (
                       <TableRow>
                         <TableCell colSpan={5} className="py-6">
-                          <div className="flex items-center justify-center gap-3">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              disabled={isAuditLoadingMore}
-                              onClick={() => fetchAuditLogs({ page: (auditMeta?.page ?? 0) + 1, append: true })}
-                              className="gap-2"
-                            >
-                              <RotateCcw className={`h-4 w-4 ${isAuditLoadingMore ? 'animate-spin' : ''}`} />
-                              Load more
-                            </Button>
-                            {typeof auditMeta.total === 'number' && (
-                              <span className="text-xs text-muted-foreground">
-                                Showing {auditLogs.length} of {auditMeta.total}
-                              </span>
-                            )}
-                          </div>
+                          {auditError ? (
+                            <div className="flex flex-col items-center justify-center gap-2 text-center">
+                              <p className="text-sm text-destructive">{auditError}</p>
+                              <Button variant="outline" onClick={() => fetchAuditLogs(auditCurrentPage, auditPageSize)}>Retry</Button>
+                            </div>
+                          ) : (
+                            <Pagination
+                              currentPage={auditCurrentPage}
+                              pageSize={auditPageSize}
+                              totalItems={auditMeta.total}
+                              onPageChange={handleAuditPageChange}
+                              onPageSizeChange={handleAuditPageSizeChange}
+                            />
+                          )}
                         </TableCell>
                       </TableRow>
                     )}
