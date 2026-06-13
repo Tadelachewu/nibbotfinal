@@ -73,10 +73,42 @@ import { MenuItem, UserReport } from '@/lib/types';
 
 import React from 'react';
 
+// Stats/charts need the full time-range dataset, not just one page of results.
+// Fetch in large batches and stitch the pages together, capped to avoid runaway loops.
+const STATS_PAGE_SIZE = 500;
+const MAX_STATS_PAGES = 20;
+
+async function fetchAllPages(
+  csrfFetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>,
+  url: string,
+  baseParams: URLSearchParams
+): Promise<any[]> {
+  const params = new URLSearchParams(baseParams);
+  params.set('pageSize', String(STATS_PAGE_SIZE));
+  params.set('page', '0');
+
+  const res = await csrfFetch(`${url}?${params.toString()}`, { cache: 'no-store' });
+  const json = await res.json().catch(() => ({ data: [], meta: null }));
+  let data: any[] = Array.isArray(json?.data) ? json.data : [];
+
+  const total = typeof json?.meta?.total === 'number' ? json.meta.total : data.length;
+  const totalPages = Math.min(Math.ceil(total / STATS_PAGE_SIZE), MAX_STATS_PAGES);
+
+  for (let page = 1; page < totalPages; page++) {
+    params.set('page', String(page));
+    const r = await csrfFetch(`${url}?${params.toString()}`, { cache: 'no-store' });
+    const j = await r.json().catch(() => ({ data: [] }));
+    if (Array.isArray(j?.data)) data = data.concat(j.data);
+  }
+
+  return data;
+}
+
 export function Reporting() {
   const { csrfFetch, currentRole } = useAdminAuth();
-  const [logs, setLogs] = useState<any[]>([]);
-  const [logsMeta, setLogsMeta] = useState<{ page: number; pageSize: number; total: number; totalPages: number; hasMore: boolean } | null>(null);
+  // Full, unpaginated datasets for the active time range - used for headline stats/charts.
+  const [allLogs, setAllLogs] = useState<any[]>([]);
+  const [allReports, setAllReports] = useState<UserReport[]>([]);
   const [reports, setReports] = useState<UserReport[]>([]);
   const [reportsMeta, setReportsMeta] = useState<{ page: number; pageSize: number; total: number; totalPages: number; hasMore: boolean } | null>(null);
   const [menus, setMenus] = useState<MenuItem[]>([]);
@@ -87,7 +119,7 @@ export function Reporting() {
   const [customEndDate, setCustomEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [customEndTime, setCustomEndTime] = useState('23:59');
   const [activeTab, setActiveTab] = useState('overview');
-  const [selectedActionType, setSelectedActionType] = useState<'all' | 'static' | 'api' | 'report'>('all');
+  const [selectedActionType, setSelectedActionType] = useState<'all' | 'static' | 'api' | 'report' | 'redirect'>('all');
   const [menuSearchQuery, setMenuSearchQuery] = useState('');
   const debouncedMenuSearchQuery = useDebounce(menuSearchQuery, 300);
   const menuSearchInputRef = useRef<HTMLInputElement>(null);
@@ -95,9 +127,7 @@ export function Reporting() {
   const debouncedSubmissionSearchQuery = useDebounce(submissionSearchQuery, 300);
   const submissionSearchInputRef = useRef<HTMLInputElement>(null);
 
-  // Pagination state
-  const [logsPage, setLogsPage] = useState(0);
-  const [logsPageSize, setLogsPageSize] = useState(10);
+  // Pagination state (for the raw "Submission Analytics" table only)
   const [reportsPage, setReportsPage] = useState(0);
   const [reportsPageSize, setReportsPageSize] = useState(10);
 
@@ -125,27 +155,33 @@ export function Reporting() {
     return { start, end };
   }, [timeRange, customStartDate, customStartTime, customEndDate, customEndTime]);
 
-  // Fetch logs with pagination and search
-  const fetchLogs = useCallback(async (page: number = 0, pageSize: number = logsPageSize) => {
+  // Fetch the full set of interaction logs for the active time range (used for stats/charts)
+  const fetchAllLogs = useCallback(async () => {
     try {
       const { start, end } = getTimeRangeDates();
       const params = new URLSearchParams();
-      params.set('page', String(page));
-      params.set('pageSize', String(pageSize));
       params.set('startDate', start.toISOString());
       params.set('endDate', end.toISOString());
-      if (debouncedMenuSearchQuery.trim()) {
-        params.set('q', debouncedMenuSearchQuery.trim());
-      }
-
-      const res = await csrfFetch(`/api/logs?${params.toString()}`, { cache: 'no-store' });
-      const json = await res.json().catch(() => ({ data: [], meta: null }));
-      setLogs(Array.isArray(json?.data) ? json.data : []);
-      setLogsMeta(json?.meta && typeof json.meta === 'object' ? json.meta : null);
+      const data = await fetchAllPages(csrfFetch, '/api/logs', params);
+      setAllLogs(data);
     } catch (error) {
       console.error('Failed to load logs:', error);
     }
-  }, [csrfFetch, getTimeRangeDates, debouncedMenuSearchQuery, logsPageSize]);
+  }, [csrfFetch, getTimeRangeDates]);
+
+  // Fetch the full set of submissions for the active time range (used for stats/charts)
+  const fetchAllReports = useCallback(async () => {
+    try {
+      const { start, end } = getTimeRangeDates();
+      const params = new URLSearchParams();
+      params.set('startDate', start.toISOString());
+      params.set('endDate', end.toISOString());
+      const data = await fetchAllPages(csrfFetch, '/api/reports', params);
+      setAllReports(data);
+    } catch (error) {
+      console.error('Failed to load reports:', error);
+    }
+  }, [csrfFetch, getTimeRangeDates]);
 
   // Fetch reports with pagination and search
   const fetchReports = useCallback(async (page: number = 0, pageSize: number = reportsPageSize) => {
@@ -188,7 +224,8 @@ export function Reporting() {
     const loadAllData = async () => {
       setIsLoading(true);
       await Promise.all([
-        fetchLogs(0, logsPageSize),
+        fetchAllLogs(),
+        fetchAllReports(),
         fetchReports(0, reportsPageSize),
         fetchMenus()
       ]);
@@ -197,12 +234,13 @@ export function Reporting() {
     loadAllData();
   }, []);
 
-  // Refetch when time range or search changes
+  // Refetch the full stats datasets when the time range changes
   useEffect(() => {
-    setLogsPage(0);
-    fetchLogs(0, logsPageSize);
-  }, [debouncedMenuSearchQuery, timeRange, customStartDate, customStartTime, customEndDate, customEndTime, fetchLogs]);
+    fetchAllLogs();
+    fetchAllReports();
+  }, [timeRange, customStartDate, customStartTime, customEndDate, customEndTime, fetchAllLogs, fetchAllReports]);
 
+  // Refetch the raw submissions table when the time range or its search changes
   useEffect(() => {
     setReportsPage(0);
     fetchReports(0, reportsPageSize);
@@ -228,12 +266,43 @@ export function Reporting() {
       endDate.setHours(endHour, endMin, 59, 999);
     }
 
-    const filteredLogs = logs.filter(log => {
+    const filteredLogs = allLogs.filter(log => {
       const d = new Date(log.timestamp);
       return d >= startDate && d <= endDate;
     });
 
-    const filteredReports = reports.filter(r => {
+    // Create Menu Lookup (Normalized for robustness)
+    const menuLookup = new Map<string, MenuItem>();
+    menus.forEach(m => {
+      if (m.name) menuLookup.set(m.name.trim().toLowerCase(), m);
+      if (m.id) menuLookup.set(m.id.toLowerCase(), m);
+    });
+
+    // Helper to check if a log is an interaction
+    const isInteraction = (log: any) => {
+      if (log.tags?.includes('session_start')) return false;
+      if (log.tags?.includes('status_lookup')) return false;
+
+      let type: string = 'unknown';
+      const menuTag = log.tags?.find((t: string) =>
+        !['session_start', 'kyc_start', 'api_call', 'report', 'api', 'navigation', 'static', 'error', 'status_lookup', 'redirect'].includes(t)
+      );
+      const normalizedTag = menuTag?.trim().toLowerCase();
+      const menu = normalizedTag ? menuLookup.get(normalizedTag) : null;
+
+      type = (menu?.responseType as any) || 'unknown';
+
+      if (type === 'unknown' && log.tags) {
+        if (log.tags.includes('api') || log.tags.includes('api_call')) type = 'api';
+        else if (log.tags.includes('report')) type = 'report';
+        else if (log.tags.includes('navigation') || log.tags.includes('static')) type = 'static';
+        else if (log.tags.includes('redirect')) type = 'redirect';
+      }
+
+      return type !== 'unknown';
+    };
+
+    const filteredReports = allReports.filter(r => {
       const d = new Date(r.timestamp);
       return d >= startDate && d <= endDate;
     });
@@ -248,18 +317,12 @@ export function Reporting() {
       }
     });
 
-    // Create Menu Lookup (Normalized for robustness)
-    const menuLookup = new Map<string, MenuItem>();
-    menus.forEach(m => {
-      if (m.name) menuLookup.set(m.name.trim().toLowerCase(), m);
-      if (m.id) menuLookup.set(m.id.toLowerCase(), m);
-    });
-
     // Hierarchical Grouping: Action Type -> Menu Name
     const activityTree: any = {
       static: { label: 'Static Menu', icon: Globe, color: 'text-blue-500', menus: new Map() },
       api: { label: 'API Menu', icon: Zap, color: 'text-amber-500', menus: new Map() },
-      report: { label: 'Internal Support Menu', icon: ClipboardList, color: 'text-emerald-500', menus: new Map() }
+      report: { label: 'Internal Support Menu', icon: ClipboardList, color: 'text-emerald-500', menus: new Map() },
+      redirect: { label: 'Redirect Links', icon: MousePointerClick, color: 'text-purple-500', menus: new Map() }
     };
 
     let countedInteractions = 0;
@@ -268,25 +331,33 @@ export function Reporting() {
     const countedUniqueUsers = new Set<string>();
 
     filteredLogs.forEach(log => {
+      if (!isInteraction(log)) return;
+
       // Find menu name from tags
       const menuTag = log.tags?.find((t: string) =>
-        !['session_start', 'kyc_start', 'api_call', 'report', 'api', 'navigation', 'static', 'error', 'status_lookup'].includes(t)
+        !['session_start', 'kyc_start', 'api_call', 'report', 'api', 'navigation', 'static', 'error', 'status_lookup', 'redirect'].includes(t)
       );
       const normalizedTag = menuTag?.trim().toLowerCase();
       const menu = normalizedTag ? menuLookup.get(normalizedTag) : null;
 
       // Infer type
-      let type: 'static' | 'api' | 'report' | 'unknown' = (menu?.responseType as any) || 'unknown';
+      let type: 'static' | 'api' | 'report' | 'redirect' | 'unknown' = (menu?.responseType as any) || 'unknown';
 
       if (type === 'unknown' && log.tags) {
         if (log.tags.includes('api') || log.tags.includes('api_call')) type = 'api';
         else if (log.tags.includes('report')) type = 'report';
         else if (log.tags.includes('navigation') || log.tags.includes('static')) type = 'static';
+        else if (log.tags.includes('redirect')) type = 'redirect';
       }
 
       if (type === 'unknown') return;
 
-      const name = menuTag || 'General/Chat';
+      let name;
+      if (type === 'redirect') {
+        name = log.endpoint || 'External Link';
+      } else {
+        name = menuTag || 'General/Chat';
+      }
 
       const targetGroup = activityTree[type as keyof typeof activityTree];
       if (!targetGroup) return;
@@ -394,7 +465,7 @@ export function Reporting() {
 
       dailyData.push({
         name: dateStr,
-        interactions: dayLogs.length,
+        interactions: dayLogs.filter(isInteraction).length,
         submissions: filteredReports.filter(r => {
           const d = new Date(r.timestamp);
           return d >= dayStart && d <= dayEnd;
@@ -419,7 +490,7 @@ export function Reporting() {
         { name: 'Resolved', value: filteredReports.filter(r => r.status === 'resolved').length, color: '#10b981' }
       ]
     };
-  }, [logs, reports, menus, timeRange, customStartDate, customStartTime, customEndDate, customEndTime]);
+  }, [allLogs, allReports, menus, timeRange, customStartDate, customStartTime, customEndDate, customEndTime]);
 
   // Filtered activity based on menu search query
   const filteredActivity = useMemo(() => {
@@ -435,7 +506,7 @@ export function Reporting() {
     })).filter(group => group.menus.length > 0);
   }, [stats.activityByType, debouncedMenuSearchQuery]);
 
-  // Filtered submissions based on search query
+  // Filtered submissions based on search query (drives the on-screen, paginated table)
   const filteredSubmissions = useMemo(() => {
     if (!debouncedSubmissionSearchQuery.trim()) {
       return reports;
@@ -450,6 +521,22 @@ export function Reporting() {
       (r.serviceFeedback && r.serviceFeedback.toLowerCase().includes(query))
     );
   }, [reports, debouncedSubmissionSearchQuery]);
+
+  // Same filter applied to the full time-range dataset, so CSV export isn't limited to one page
+  const filteredSubmissionsForExport = useMemo(() => {
+    if (!debouncedSubmissionSearchQuery.trim()) {
+      return allReports;
+    }
+    const query = debouncedSubmissionSearchQuery.toLowerCase().trim();
+    return allReports.filter(r =>
+      r.id.toLowerCase().includes(query) ||
+      (r.userId && r.userId.toLowerCase().includes(query)) ||
+      (r.menuName && r.menuName.toLowerCase().includes(query)) ||
+      (r.status && r.status.toLowerCase().includes(query)) ||
+      (r.supportAssignee && r.supportAssignee.toLowerCase().includes(query)) ||
+      (r.serviceFeedback && r.serviceFeedback.toLowerCase().includes(query))
+    );
+  }, [allReports, debouncedSubmissionSearchQuery]);
 
   const handleExport = () => {
     let content = '';
@@ -474,7 +561,7 @@ export function Reporting() {
       filename = `nibbot-detail-report-${selectedActionType}-${format(now, 'yyyyMMddHHmmss')}.csv`;
     } else if (activeTab === 'submissions') {
       reportName = 'Submission Analytics';
-      content = generateSubmissionCSV(filteredSubmissions, reportName, timeRangeStr);
+      content = generateSubmissionCSV(filteredSubmissionsForExport, reportName, timeRangeStr);
       filename = `nibbot-submission-report-${format(now, 'yyyyMMddHHmmss')}.csv`;
     } else {
       reportName = 'General Report';
@@ -930,24 +1017,6 @@ export function Reporting() {
                   </TableBody>
                 </Table>
               </ScrollArea>
-              {logsMeta && (
-                <div className="p-4 border-t bg-card sticky bottom-0 z-10">
-                  <Pagination
-                    currentPage={logsPage}
-                    pageSize={logsPageSize}
-                    totalItems={logsMeta.total}
-                    onPageChange={(page) => {
-                      setLogsPage(page);
-                      fetchLogs(page, logsPageSize);
-                    }}
-                    onPageSizeChange={(size) => {
-                      setLogsPageSize(size);
-                      setLogsPage(0);
-                      fetchLogs(0, size);
-                    }}
-                  />
-                </div>
-              )}
             </CardContent>
           </Card>
         </TabsContent>

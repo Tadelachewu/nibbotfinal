@@ -427,7 +427,9 @@ export function ChatInterface() {
 
   useEffect(() => {
     if (!userData.id || userData.id === 'anonymous' || typeof window === 'undefined') return;
-    const key = `nib_session_logged:${userData.id}`;
+    // Log one "visit" per returning day per device, so All Visits can exceed Unique Visits.
+    const today = new Date().toISOString().slice(0, 10);
+    const key = `nib_session_logged:${userData.id}:${today}`;
     if (localStorage.getItem(key)) return;
     localStorage.setItem(key, '1');
     logInteraction({
@@ -1506,6 +1508,22 @@ export function ChatInterface() {
     }
   };
 
+  const handleLinkClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    const link = target.closest('a');
+    if (link && link.href) {
+      logInteraction({
+        sessionId: userData.id,
+        userMessage: link.href,
+        botResponse: 'Redirect Link Clicked',
+        status: 'success',
+        endpoint: link.href,
+        responseTime: 0,
+        tags: ['redirect']
+      });
+    }
+  };
+
   const getInputType = () => {
     if (statusFlow) return 'text';
     if (!kycFlow) return 'text';
@@ -1643,8 +1661,8 @@ export function ChatInterface() {
                   </p>
                 </div>
               )}
-              {msg.id !== 'welcome' && msg.text && <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(msg.text) }} />}
-              {msg.content && <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(msg.content) }} />}
+              {msg.id !== 'welcome' && msg.text && <div onClick={handleLinkClick} dangerouslySetInnerHTML={{ __html: sanitizeHtml(msg.text) }} />}
+              {msg.content && <div onClick={handleLinkClick} dangerouslySetInnerHTML={{ __html: sanitizeHtml(msg.content) }} />}
               {msg.staticPage?.hasMore && (
                 <div className="mt-3 flex items-center justify-between gap-2">
                   <div className="text-[10px] text-muted-foreground font-bold tracking-widest">

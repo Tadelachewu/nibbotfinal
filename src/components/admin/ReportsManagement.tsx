@@ -1094,7 +1094,7 @@ export function ReportsManagement() {
                         <p className="text-xs text-muted-foreground mt-1">Audit trail for assignments, escalations, and official responses.</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={() => fetchActivityLogs({ page: 0, append: false })} disabled={loadingLogs}>
+                        <Button variant="outline" size="sm" onClick={() => fetchActivityLogs(activityCurrentPage, activityPageSize)} disabled={loadingLogs}>
                           <RefreshCw size={12} className={cn("mr-2", loadingLogs && "animate-spin")} /> Refresh Log
                         </Button>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/20 px-3 py-1.5 rounded-full font-medium">
