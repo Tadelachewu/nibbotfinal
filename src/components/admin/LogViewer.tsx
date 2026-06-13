@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { SearchInput } from '@/components/ui/search-input';
 import { Pagination } from '@/components/ui/pagination';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { RotateCcw, CheckCircle2, Info, Clock, ShieldCheck, UserCog, Filter } from 'lucide-react';
+import { RotateCcw, Clock, ShieldCheck, UserCog, Filter } from 'lucide-react';
 import { format, subDays, startOfDay, endOfDay, startOfWeek, startOfMonth } from 'date-fns';
 import { useAdminAuth } from './AdminAuthContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -461,35 +461,6 @@ export function LogViewer() {
           </Card>
         </TabsContent>
       </Tabs>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-primary/5 border-primary/10">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="p-2 bg-primary/10 rounded-lg text-primary">
-                <CheckCircle2 size={24} />
-              </div>
-              <div>
-                <p className="text-sm font-medium">Compliance Tracking</p>
-                <p className="text-[10px] text-muted-foreground">Audit logs track all administrative changes for security compliance.</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-blue-50 border-blue-100">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="p-2 bg-blue-100 rounded-lg text-blue-600">
-                <Info size={24} />
-              </div>
-              <div>
-                <p className="text-sm font-medium">Action Monitoring</p>
-                <p className="text-[10px] text-muted-foreground text-blue-700/70">Hover over truncated fields to see full details of the action.</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 }
