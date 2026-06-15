@@ -22,8 +22,8 @@ interface ThemeToggleProps {
 
 export default function ThemeToggle({ cookieName = 'nib_theme' }: ThemeToggleProps) {
     const [theme, setTheme] = useState<string>(() => {
-        if (typeof window === 'undefined') return 'system';
-        return readCookie(cookieName) || (localStorage.getItem(cookieName) || 'system');
+        if (typeof window === 'undefined') return 'light';
+        return readCookie(cookieName) || (localStorage.getItem(cookieName) || 'light');
     });
 
     useEffect(() => {

@@ -43,7 +43,7 @@ export default async function RootLayout({
   // read theme cookie server-side so we can set it before hydration
   const cookieHeader = headersList.get('cookie') || '';
   const match = cookieHeader.match(new RegExp(`(?:^|; )${cookieName}=([^;]+)`));
-  const initialTheme = match ? match[1] : 'system';
+  const initialTheme = match ? match[1] : 'light';
 
   return (
     <html lang="en" className={initialTheme === 'dark' ? 'dark' : initialTheme === 'light' ? 'light' : ''}>
