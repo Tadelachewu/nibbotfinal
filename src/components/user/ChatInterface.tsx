@@ -25,7 +25,8 @@ import {
   Settings,
   User as UserIcon,
   Check,
-  Star
+  Star,
+  Search
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -1636,6 +1637,18 @@ export function ChatInterface() {
           </div>
         </div>
         <div className="flex items-center gap-0.5 shrink-0">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={startStatusFlow}
+            title={t('ui_report_status_btn', 'Check Report Status')}
+            className="text-[#763717] hover:text-[#763717] hover:bg-[#763717]/10 h-9 px-2 flex items-center gap-1.5"
+          >
+            <Search size={16} className="shrink-0" />
+            <span className="hidden sm:inline text-xs font-semibold whitespace-nowrap">
+              {t('ui_report_status_btn', 'Check Report Status')}
+            </span>
+          </Button>
           <ThemeToggle className="text-[#763717] hover:text-[#763717] hover:bg-[#763717]/10" />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
