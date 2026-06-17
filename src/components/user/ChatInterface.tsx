@@ -443,6 +443,55 @@ export function ChatInterface() {
     });
   }, [userData.id]);
 
+  // Adapt inline WYSIWYG text colors for dark / light theme.
+  // Dark colors (luminance < 0.20) become unreadable on dark backgrounds;
+  // very light colors (luminance > 0.80) become unreadable on light backgrounds.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 1;
+    const ctx = canvas.getContext('2d');
+
+    function getLuminance(color: string): number | null {
+      if (!ctx || !color) return null;
+      try {
+        ctx.clearRect(0, 0, 1, 1);
+        ctx.fillStyle = '#7f7f7f'; // known mid-gray as sentinel
+        ctx.fillStyle = color;     // overwrite only if color is valid
+        const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+        const lin = (c: number) => {
+          const s = c / 255;
+          return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+        };
+        return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+      } catch { return null; }
+    }
+
+    function adapt() {
+      const isDark = document.documentElement.classList.contains('dark');
+      document.querySelectorAll<HTMLElement>('.wysiwyg-content [style]').forEach(el => {
+        const color = el.style.color;
+        if (!color) return;
+        const lum = getLuminance(color);
+        if (lum === null) return;
+        el.classList.remove('wysiwyg-dark-text', 'wysiwyg-light-text');
+        if (isDark && lum < 0.20) {
+          el.classList.add('wysiwyg-dark-text');   // dark color → force light
+        } else if (!isDark && lum > 0.80) {
+          el.classList.add('wysiwyg-light-text');  // light color → force dark
+        }
+      });
+    }
+
+    adapt();
+
+    // Re-adapt whenever the user switches theme (class on <html> changes).
+    const themeObserver = new MutationObserver(adapt);
+    themeObserver.observe(document.documentElement, { attributeFilter: ['class'] });
+    return () => themeObserver.disconnect();
+  }, [history]);
+
   // Socket.io Real-Time Presence Heartbeat Engine
   useEffect(() => {
     if (!userData.id || typeof window === 'undefined') return;
@@ -1538,7 +1587,7 @@ export function ChatInterface() {
   const connectivity = useConnectivity();
 
   return (
-    <div className="flex flex-col h-full bg-card w-full max-w-2xl mx-auto sm:border-x shadow-2xl relative overflow-x-hidden">
+    <div className="flex flex-col h-full bg-card w-full max-w-2xl mx-auto sm:border-x shadow-2xl relative overflow-x-clip">
       {(currentMenuId || menuHistory.length > 0) && (
         <div className="absolute top-[4.5rem] right-2 z-40 flex flex-col gap-2">
           <Button

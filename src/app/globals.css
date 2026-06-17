@@ -122,6 +122,12 @@
   word-break: break-word;
 }
 
+/* Adaptive text color overrides for inline-colored WYSIWYG spans.
+   Applied by JS (adaptWysiwygColors) when the detected luminance of an
+   inline color style is too dark for dark-mode or too light for light-mode. */
+.wysiwyg-dark-text  { color: #e2e8f0 !important; } /* slate-200 — readable on dark bg  */
+.wysiwyg-light-text { color: #1e293b !important; } /* slate-800 — readable on light bg */
+
 /* Smooth scrollable tables on touch devices */
 .table-scroll-container {
   overflow-x: auto;
