@@ -4,16 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { hashPassword } from '@/lib/auth';
 import { getValidatedAdminSession, rotateCsrfToken, verifyCsrfToken } from '@/lib/session';
 import { logSecurityEvent } from '@/lib/logger';
-
-function isStrongPassword(password: string): boolean {
-  const p = String(password || '');
-  if (p.length < 8) return false;
-  if (!/[A-Z]/.test(p)) return false;
-  if (!/[a-z]/.test(p)) return false;
-  if (!/[0-9]/.test(p)) return false;
-  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(p)) return false;
-  return true;
-}
+import { isStrongPassword, validatePasswordFull } from '@/lib/passwordValidation';
 
 function normalizeEmail(email: string): string {
   return String(email || '').trim().toLowerCase();
@@ -153,11 +144,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false, error: 'Invalid email address.' }, { status: 400 });
   }
 
-  if (!isStrongPassword(password)) {
-    return NextResponse.json(
-      { success: false, error: 'Password does not meet strength requirements.' },
-      { status: 400 }
-    );
+  if (isGenerated) {
+    if (!isStrongPassword(password)) {
+      return NextResponse.json(
+        { success: false, error: 'Password does not meet strength requirements.' },
+        { status: 400 }
+      );
+    }
+  } else {
+    const pwValidation = await validatePasswordFull(password);
+    if (!pwValidation.valid) {
+      return NextResponse.json(
+        { success: false, error: `Password requirements: ${pwValidation.errors.join(', ')}` },
+        { status: 400 }
+      );
+    }
   }
 
   try {
@@ -304,9 +305,10 @@ export async function PATCH(req: Request) {
 
   const password = typeof body?.password === 'string' ? body.password : '';
   if (password) {
-    if (!isStrongPassword(password)) {
+    const passwordValidation = await validatePasswordFull(password);
+    if (!passwordValidation.valid) {
       return NextResponse.json(
-        { success: false, error: 'Password does not meet strength requirements.' },
+        { success: false, error: `Password requirements: ${passwordValidation.errors.join(', ')}` },
         { status: 400 }
       );
     }

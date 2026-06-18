@@ -7,6 +7,7 @@ import { getAdminSession, getValidatedAdminSession, rotateCsrfToken, verifyCsrfT
 import { Prisma } from '@prisma/client';
 import { checkLock, clearKey, enforceRateLimit, getClientIp, incrementCounter, normalizePrincipal, setLock } from '@/lib/rateLimit';
 import { logSecurityEvent } from '@/lib/logger';
+import { validatePasswordFull } from '@/lib/passwordValidation';
 
 export async function POST(req: Request) {
   const session = await getValidatedAdminSession(true);
@@ -60,6 +61,15 @@ export async function POST(req: Request) {
   if (!currentPassword || !newUsername || !newPassword) {
     return NextResponse.json(
       { success: false, error: 'currentPassword, newUsername, and newPassword are required.' },
+      { status: 400 }
+    );
+  }
+
+  // Validate new password is strong, not common, and not in breach databases
+  const passwordValidation = await validatePasswordFull(newPassword);
+  if (!passwordValidation.valid) {
+    return NextResponse.json(
+      { success: false, error: `Password requirements: ${passwordValidation.errors.join(', ')}` },
       { status: 400 }
     );
   }

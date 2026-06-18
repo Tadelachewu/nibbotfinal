@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Lock, AlertCircle, CheckCircle, Eye, EyeOff } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { useToast } from '@/hooks/use-toast';
+import { validatePassword } from '@/lib/passwordValidation';
 
 export default function ChangePasswordPage() {
   const router = useRouter();
@@ -52,16 +53,6 @@ export default function ChangePasswordPage() {
       })
       .catch(() => { });
   }, []);
-
-  const validatePassword = (password: string): { valid: boolean; errors: string[] } => {
-    const errors: string[] = [];
-    if (password.length < 8) errors.push('Password must be at least 8 characters');
-    if (!/[A-Z]/.test(password)) errors.push('Must contain an uppercase letter');
-    if (!/[a-z]/.test(password)) errors.push('Must contain a lowercase letter');
-    if (!/[0-9]/.test(password)) errors.push('Must contain a number');
-    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) errors.push('Must contain a special character');
-    return { valid: errors.length === 0, errors };
-  };
 
   const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 
@@ -257,7 +248,7 @@ export default function ChangePasswordPage() {
                 </button>
               </div>
               <p className="text-xs text-muted-foreground">
-                At least 8 characters, uppercase, lowercase, number, and special character required.
+                At least 12 characters, uppercase, lowercase, number, and special character required.
               </p>
             </div>
 

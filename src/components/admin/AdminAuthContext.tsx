@@ -1,43 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-
-// ─── Password Strength Utilities ────────────────────────────────────
-export interface PasswordStrength {
-  score: number;       // 0-4
-  label: string;       // "Weak" | "Fair" | "Good" | "Strong"
-  color: string;       // Tailwind color class
-  checks: {
-    minLength: boolean;
-    hasUppercase: boolean;
-    hasLowercase: boolean;
-    hasNumber: boolean;
-    hasSpecial: boolean;
-  };
-}
-
-export function evaluatePasswordStrength(password: string): PasswordStrength {
-  const checks = {
-    minLength: password.length >= 8,
-    hasUppercase: /[A-Z]/.test(password),
-    hasLowercase: /[a-z]/.test(password),
-    hasNumber: /[0-9]/.test(password),
-    hasSpecial: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password),
-  };
-
-  const passed = Object.values(checks).filter(Boolean).length;
-
-  if (passed <= 1) return { score: 0, label: 'Very Weak', color: 'bg-red-500', checks };
-  if (passed === 2) return { score: 1, label: 'Weak', color: 'bg-orange-500', checks };
-  if (passed === 3) return { score: 2, label: 'Fair', color: 'bg-yellow-500', checks };
-  if (passed === 4) return { score: 3, label: 'Good', color: 'bg-blue-500', checks };
-  return { score: 4, label: 'Strong', color: 'bg-green-500', checks };
-}
-
-export function isStrongPassword(password: string): boolean {
-  const { checks } = evaluatePasswordStrength(password);
-  return Object.values(checks).every(Boolean);
-}
+import { evaluatePasswordStrength, isStrongPassword, validatePassword, type PasswordStrength } from '@/lib/passwordValidation';
 
 
 
@@ -174,12 +138,12 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
       setCsrfToken(typeof json.csrfToken === 'string' ? json.csrfToken : '');
       const flagMustChange = json?.mustChangePassword === true;
       setMustChangePassword(flagMustChange);
-      
+
       // Redirect to change-password page if the flag is set
       if (flagMustChange && typeof window !== 'undefined') {
         window.location.href = '/admin/change-password';
       }
-      
+
       return { success: true };
     }
 

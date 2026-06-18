@@ -378,8 +378,18 @@ app.prepare().then(async () => {
         return callback(new Error('Origin not allowed by CORS'));
       },
       methods: ['GET', 'POST'] // Specify allowed methods
+    },
+    maxHttpBufferSize: 1e6, // 1MB max message size (limit payloads to prevent memory exhaustion)
+    pingTimeout: 20000, // 20s timeout for ping response
+    pingInterval: 25000, // 25s between pings
+    connectionStateRecovery: {
+      maxDisconnectionDuration: 2 * 60 * 1000, // 2 minutes
+      skipMiddlewares: true
     }
   });
+  // Track WebSocket connections per IP to limit abuse
+  const socketConnectionsPerIp = new Map();
+  const MAX_SOCKET_CONNS_PER_IP = 20; // Limit to 20 concurrent WebSocket connections per IP
   // Strip any raw `sid` from the handshake query to reduce exposure in logs.
   // We do NOT disable polling here; polling remains available for clients that require it.
   io.use((socket, next) => {
@@ -387,6 +397,17 @@ app.prepare().then(async () => {
       if (socket.handshake && socket.handshake.query && socket.handshake.query.sid) {
         try { delete socket.handshake.query.sid; } catch (e) { }
       }
+      // Check connection limit per IP
+      const ip = socket.handshake.headers['x-forwarded-for']?.split(',')[0]?.trim() || socket.handshake.address || 'unknown';
+      const currentSocketConns = socketConnectionsPerIp.get(ip) || 0;
+      if (currentSocketConns >= MAX_SOCKET_CONNS_PER_IP) {
+        console.warn(`[Socket.IO] Connection limit exceeded for IP: ${ip} (${currentSocketConns} / ${MAX_SOCKET_CONNS_PER_IP})`);
+        return next(new Error('Too many connections'));
+      }
+      // Increment connection count
+      socketConnectionsPerIp.set(ip, currentSocketConns + 1);
+      // Store IP on socket for cleanup on disconnect
+      socket.clientIp = ip;
     } catch (e) {
       // ignore
     }
@@ -425,6 +446,15 @@ app.prepare().then(async () => {
 
     // 2. Disconnect Event
     socket.on('disconnect', async () => {
+      // Decrement connection count for this IP
+      if (socket.clientIp) {
+        const currentCount = socketConnectionsPerIp.get(socket.clientIp) || 1;
+        if (currentCount <= 1) {
+          socketConnectionsPerIp.delete(socket.clientIp);
+        } else {
+          socketConnectionsPerIp.set(socket.clientIp, currentCount - 1);
+        }
+      }
       // We do not immediately delete their session ID because they might just be refreshing
       // or using multiple tabs. We let the Redis TTL handle true background purging!
       if (socket.sessionId) {

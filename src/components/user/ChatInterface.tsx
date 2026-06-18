@@ -25,8 +25,7 @@ import {
   Settings,
   User as UserIcon,
   Check,
-  Star,
-  Search
+  Star
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -443,55 +442,6 @@ export function ChatInterface() {
       tags: ['session_start']
     });
   }, [userData.id]);
-
-  // Adapt inline WYSIWYG text colors for dark / light theme.
-  // Dark colors (luminance < 0.20) become unreadable on dark backgrounds;
-  // very light colors (luminance > 0.80) become unreadable on light backgrounds.
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = 1;
-    const ctx = canvas.getContext('2d');
-
-    function getLuminance(color: string): number | null {
-      if (!ctx || !color) return null;
-      try {
-        ctx.clearRect(0, 0, 1, 1);
-        ctx.fillStyle = '#7f7f7f'; // known mid-gray as sentinel
-        ctx.fillStyle = color;     // overwrite only if color is valid
-        const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
-        const lin = (c: number) => {
-          const s = c / 255;
-          return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
-        };
-        return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
-      } catch { return null; }
-    }
-
-    function adapt() {
-      const isDark = document.documentElement.classList.contains('dark');
-      document.querySelectorAll<HTMLElement>('.wysiwyg-content [style]').forEach(el => {
-        const color = el.style.color;
-        if (!color) return;
-        const lum = getLuminance(color);
-        if (lum === null) return;
-        el.classList.remove('wysiwyg-dark-text', 'wysiwyg-light-text');
-        if (isDark && lum < 0.20) {
-          el.classList.add('wysiwyg-dark-text');   // dark color → force light
-        } else if (!isDark && lum > 0.80) {
-          el.classList.add('wysiwyg-light-text');  // light color → force dark
-        }
-      });
-    }
-
-    adapt();
-
-    // Re-adapt whenever the user switches theme (class on <html> changes).
-    const themeObserver = new MutationObserver(adapt);
-    themeObserver.observe(document.documentElement, { attributeFilter: ['class'] });
-    return () => themeObserver.disconnect();
-  }, [history]);
 
   // Socket.io Real-Time Presence Heartbeat Engine
   useEffect(() => {
@@ -1211,27 +1161,42 @@ export function ChatInterface() {
         if (params.toString()) url += (url.includes('?') ? '&' : '?') + params.toString();
         assertNoUnresolvedTemplate(url, 'final URL');
       } else { options.body = JSON.stringify(requestPayload); }
-      const proxyRes = await fetch('/api/proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url,
-          method: menu.apiConfig.method,
-          headers: options.headers,
-          payload: menu.apiConfig.method === 'POST' ? requestPayload : undefined
-        }),
-        cache: 'no-store'
-      });
-      const proxyJson = await proxyRes.json();
+      const isAbsoluteUrl = /^https?:\/\//i.test(url);
+      if (!isAbsoluteUrl) {
+        const directRes = await fetch(url, options);
+        const directContentType = directRes.headers.get('content-type') || '';
+        if (directContentType.includes('application/json')) {
+          apiResponse = await directRes.json().catch(() => null);
+        } else {
+          apiResponse = await directRes.text().catch(() => '');
+        }
+        success = directRes.ok;
+        if (!success) {
+          errorDetails = `Status: ${directRes.status}`;
+        }
+      } else {
+        const proxyRes = await fetch('/api/proxy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url,
+            method: menu.apiConfig.method,
+            headers: options.headers,
+            payload: menu.apiConfig.method === 'GET' ? undefined : requestPayload
+          }),
+          cache: 'no-store'
+        });
+        const proxyJson = await proxyRes.json();
 
-      apiResponse = proxyJson.data;
-      success = proxyRes.ok && proxyJson.status === 'success' && proxyJson.ok;
-      if (!success) {
-        const parts: string[] = [];
-        parts.push(`Proxy Status: ${proxyRes.status}`.trim());
-        if (proxyJson?.message) parts.push(`Message: ${String(proxyJson.message)}`);
-        if (proxyJson?.statusCode) parts.push(`Remote Status: ${proxyJson.statusCode}`);
-        errorDetails = parts.filter(Boolean).join(' | ') || undefined;
+        apiResponse = proxyJson.data;
+        success = proxyRes.ok && proxyJson.status === 'success' && proxyJson.ok;
+        if (!success) {
+          const parts: string[] = [];
+          parts.push(`Proxy Status: ${proxyRes.status}`.trim());
+          if (proxyJson?.message) parts.push(`Message: ${String(proxyJson.message)}`);
+          if (proxyJson?.statusCode) parts.push(`Remote Status: ${proxyJson.statusCode}`);
+          errorDetails = parts.filter(Boolean).join(' | ') || undefined;
+        }
       }
     } catch (e) {
       success = false;
@@ -1588,7 +1553,7 @@ export function ChatInterface() {
   const connectivity = useConnectivity();
 
   return (
-    <div className="flex flex-col h-full bg-card w-full max-w-2xl mx-auto sm:border-x shadow-2xl relative overflow-x-clip">
+    <div className="flex flex-col h-full bg-card w-full max-w-2xl mx-auto sm:border-x shadow-2xl relative overflow-x-hidden">
       {(currentMenuId || menuHistory.length > 0) && (
         <div className="absolute top-[4.5rem] right-2 z-40 flex flex-col gap-2">
           <Button
@@ -1637,18 +1602,6 @@ export function ChatInterface() {
           </div>
         </div>
         <div className="flex items-center gap-0.5 shrink-0">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={startStatusFlow}
-            title={t('ui_report_status_btn', 'Check Report Status')}
-            className="text-[#763717] hover:text-[#763717] hover:bg-[#763717]/10 h-9 px-2 flex items-center gap-1.5"
-          >
-            <Search size={16} className="shrink-0" />
-            <span className="hidden sm:inline text-xs font-semibold whitespace-nowrap">
-              {t('ui_report_status_btn', 'Check Report Status')}
-            </span>
-          </Button>
           <ThemeToggle className="text-[#763717] hover:text-[#763717] hover:bg-[#763717]/10" />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

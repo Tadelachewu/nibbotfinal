@@ -19,7 +19,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
-import { useAdminAuth, evaluatePasswordStrength, isStrongPassword } from './AdminAuthContext';
+import { useAdminAuth } from './AdminAuthContext';
+import { evaluatePasswordStrength, isStrongPassword } from '@/lib/passwordValidation';
 import { Edit2, Eye, EyeOff, Plus, RefreshCw, Trash2, FileCode, X } from 'lucide-react';
 import { usePerEntityDrafts } from '@/hooks/usePerEntityDrafts';
 import { useDebounce } from '@/hooks/use-debounce';

@@ -4,6 +4,7 @@ import { PrismaClient, ResponseType } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import { hashPassword } from '../src/lib/auth';
+import { validatePassword } from '../src/lib/passwordValidation';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -350,59 +351,69 @@ async function main() {
     const adminUser = (process.env.ADMIN_INITIAL_USERNAME || process.env.ADMIN_USERNAME || 'admin').trim();
     const adminPass = process.env.ADMIN_INITIAL_PASSWORD || process.env.ADMIN_PASSWORD;
 
-    if (!adminPass || adminPass.length < 8) {
-        console.warn(`[seed] Skipping initial admin creation: ADMIN_INITIAL_PASSWORD not set or too weak.`);
+    if (!adminPass) {
+        console.warn(`[seed] Skipping initial admin creation: ADMIN_INITIAL_PASSWORD not set.`);
     } else {
-        const hashedPassword = await hashPassword(adminPass);
-        const adminEmail = process.env.ADMIN_EMAIL || 'admin@nib.local';
+        const passwordValidation = validatePassword(adminPass);
+        if (!passwordValidation.valid) {
+            console.warn(`[seed] Skipping initial admin creation: ADMIN_INITIAL_PASSWORD is weak. Requirements: ${passwordValidation.errors.join(', ')}`);
+        } else {
+            const hashedPassword = await hashPassword(adminPass);
+            const adminEmail = process.env.ADMIN_EMAIL || 'admin@nib.local';
 
-        await prisma.adminCredential.upsert({
-            where: { username: adminUser },
-            create: {
-                username: adminUser,
-                email: adminEmail,
-                passwordHash: hashedPassword,
-                role: 'admin',
-                mustChangePassword: true,
-                passwordExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
-            },
-            update: {
-                email: adminEmail,
-                passwordHash: hashedPassword,
-                role: 'admin',
-                mustChangePassword: true
-            },
-        });
-        console.log(`[seed] Admin user "${adminUser}" created/updated.`);
+            await prisma.adminCredential.upsert({
+                where: { username: adminUser },
+                create: {
+                    username: adminUser,
+                    email: adminEmail,
+                    passwordHash: hashedPassword,
+                    role: 'admin',
+                    mustChangePassword: true,
+                    passwordExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+                },
+                update: {
+                    email: adminEmail,
+                    passwordHash: hashedPassword,
+                    role: 'admin',
+                    mustChangePassword: true
+                },
+            });
+            console.log(`[seed] Admin user "${adminUser}" created/updated.`);
+        }
     }
 
     const checkerUser = (process.env.CHECKER_USERNAME || 'checker').trim();
     const checkerPass = process.env.CHECKER_INITIAL_PASSWORD || process.env.CHECKER_PASSWORD;
 
-    if (!checkerPass || checkerPass.length < 8) {
-        console.warn(`[seed] Skipping checker user creation: CHECKER_INITIAL_PASSWORD not set or too weak.`);
+    if (!checkerPass) {
+        console.warn(`[seed] Skipping checker user creation: CHECKER_INITIAL_PASSWORD not set.`);
     } else {
-        const checkerEmail = process.env.CHECKER_EMAIL || 'checker@nib.local';
-        const checkerPasswordHash = await hashPassword(checkerPass);
+        const passwordValidation = validatePassword(checkerPass);
+        if (!passwordValidation.valid) {
+            console.warn(`[seed] Skipping checker user creation: CHECKER_INITIAL_PASSWORD is weak. Requirements: ${passwordValidation.errors.join(', ')}`);
+        } else {
+            const checkerEmail = process.env.CHECKER_EMAIL || 'checker@nib.local';
+            const checkerPasswordHash = await hashPassword(checkerPass);
 
-        await prisma.adminCredential.upsert({
-            where: { username: checkerUser },
-            create: {
-                username: checkerUser,
-                email: checkerEmail,
-                passwordHash: checkerPasswordHash,
-                role: 'checker',
-                mustChangePassword: true,
-                passwordExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
-            },
-            update: {
-                email: checkerEmail,
-                passwordHash: checkerPasswordHash,
-                role: 'checker',
-                mustChangePassword: true
-            }
-        });
-        console.log(`[seed] Checker user "${checkerUser}" created/updated.`);
+            await prisma.adminCredential.upsert({
+                where: { username: checkerUser },
+                create: {
+                    username: checkerUser,
+                    email: checkerEmail,
+                    passwordHash: checkerPasswordHash,
+                    role: 'checker',
+                    mustChangePassword: true,
+                    passwordExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+                },
+                update: {
+                    email: checkerEmail,
+                    passwordHash: checkerPasswordHash,
+                    role: 'checker',
+                    mustChangePassword: true
+                }
+            });
+            console.log(`[seed] Checker user "${checkerUser}" created/updated.`);
+        }
     }
 
     // ...

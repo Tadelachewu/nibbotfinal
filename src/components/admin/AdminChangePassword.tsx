@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { useAdminAuth, evaluatePasswordStrength, isStrongPassword } from './AdminAuthContext';
+import { useAdminAuth } from './AdminAuthContext';
+import { evaluatePasswordStrength, isStrongPassword } from '@/lib/passwordValidation';
 import {
   Dialog,
   DialogContent,
@@ -56,7 +57,7 @@ export function AdminChangePassword() {
     const email = newEmail.trim() || undefined;
 
     if (!isStrongPassword(newPassword)) {
-      setError('New password must have 8+ chars, uppercase, lowercase, number, and special character.');
+      setError('New password must have 12+ chars, uppercase, lowercase, number, and special character.');
       return;
     }
 
@@ -216,7 +217,7 @@ export function AdminChangePassword() {
               </div>
               <div className="grid grid-cols-2 gap-1">
                 {[
-                  { key: 'minLength', label: '8+ characters' },
+                  { key: 'minLength', label: '12+ characters' },
                   { key: 'hasUppercase', label: 'Uppercase' },
                   { key: 'hasLowercase', label: 'Lowercase' },
                   { key: 'hasNumber', label: 'Number' },

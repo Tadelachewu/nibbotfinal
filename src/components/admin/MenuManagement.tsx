@@ -571,37 +571,60 @@ export function MenuManagement() {
         ? `${endpoint}${endpoint.includes('?') ? '&' : '?'}${new URLSearchParams(requestPayload).toString()}`
         : endpoint;
 
-      const response = await fetch('/api/proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url: fetchUrl,
+      const isAbsoluteUrl = /^https?:\/\//i.test(fetchUrl);
+      if (!isAbsoluteUrl) {
+        const init: RequestInit = {
           method: editForm.apiConfig.method,
           headers,
-          payload: editForm.apiConfig.method === 'POST' ? requestPayload : undefined
-        }),
-        cache: 'no-store'
-      });
-
-      const proxyJson = await response.json();
-      let data;
-      if (proxyJson.status === 'success') {
-        data = proxyJson.data;
-      } else {
-        data = {
-          status: 'error',
-          message: proxyJson.message || 'The API proxy failed.',
-          debug: {
-            status: response.status,
-            statusText: response.statusText,
-            preview: proxyJson.debug || ''
-          }
+          cache: 'no-store',
+          credentials: 'include'
         };
-      }
+        if (editForm.apiConfig.method === 'POST') {
+          init.body = JSON.stringify(requestPayload);
+        }
 
-      setApiPreviewResult(data);
-      if (response.ok && data.status !== 'error') toast({ title: "API Test Successful" });
-      else toast({ title: "API Warning", description: `Status ${response.status}`, variant: "destructive" });
+        const response = await fetch(fetchUrl, init);
+        const contentType = response.headers.get('content-type') || '';
+        const data = contentType.includes('application/json')
+          ? await response.json().catch(() => null)
+          : await response.text().catch(() => '');
+
+        setApiPreviewResult(data);
+        if (response.ok && (data as any)?.status !== 'error') toast({ title: "API Test Successful" });
+        else toast({ title: "API Warning", description: `Status ${response.status}`, variant: "destructive" });
+      } else {
+        const response = await fetch('/api/proxy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: fetchUrl,
+            method: editForm.apiConfig.method,
+            headers,
+            payload: editForm.apiConfig.method === 'POST' ? requestPayload : undefined
+          }),
+          cache: 'no-store'
+        });
+
+        const proxyJson = await response.json();
+        let data;
+        if (proxyJson.status === 'success') {
+          data = proxyJson.data;
+        } else {
+          data = {
+            status: 'error',
+            message: proxyJson.message || 'The API proxy failed.',
+            debug: {
+              status: response.status,
+              statusText: response.statusText,
+              preview: proxyJson.debug || ''
+            }
+          };
+        }
+
+        setApiPreviewResult(data);
+        if (response.ok && data.status !== 'error') toast({ title: "API Test Successful" });
+        else toast({ title: "API Warning", description: `Status ${response.status}`, variant: "destructive" });
+      }
     } catch (e) {
       toast({ title: "API Network Error", variant: "destructive" });
     } finally {

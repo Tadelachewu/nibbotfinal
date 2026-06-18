@@ -7,6 +7,8 @@ import path from 'path';
 import crypto from 'crypto';
 import { Prisma } from '@prisma/client';
 import { logSecurityEvent } from '@/lib/logger';
+import { getAllowedImageType, hasValidImageSignature } from '@/lib/fileValidation';
+import { scanBuffer } from '@/lib/virusScan';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -40,15 +42,7 @@ async function persistDataUrlImage(dataUrl: string, prefix: 'bot' | 'user' | 'lo
   const mime = match[1].toLowerCase();
   const base64 = match[2];
 
-  const allowed = new Map<string, string>([
-    ['image/png', 'png'],
-    ['image/jpeg', 'jpg'],
-    ['image/jpg', 'jpg'],
-    ['image/webp', 'webp'],
-    ['image/gif', 'gif'],
-  ]);
-
-  const ext = allowed.get(mime);
+  const ext = getAllowedImageType(mime);
   if (!ext) return null;
 
   const approxBytes = Math.floor((base64.length * 3) / 4);
@@ -62,7 +56,16 @@ async function persistDataUrlImage(dataUrl: string, prefix: 'bot' | 'user' | 'lo
     throw new Error('Avatar image too large. Please upload an image under 600KB.');
   }
 
-  const dirFs = path.join(process.cwd(), 'public', 'uploads', prefix === 'logo' ? 'branding' : 'avatars');
+  if (!hasValidImageSignature(ext, bytes)) {
+    throw new Error('File content does not match declared image type.');
+  }
+
+  const scan = await scanBuffer(bytes);
+  if (!scan.clean) {
+    throw new Error(scan.threat || 'File rejected by malware scanner.');
+  }
+
+  const dirFs = path.join(process.cwd(), 'storage', 'uploads', prefix === 'logo' ? 'branding' : 'avatars');
   await fs.mkdir(dirFs, { recursive: true });
 
   const fileName = `${prefix}-${Date.now()}-${crypto.randomBytes(6).toString('hex')}.${ext}`;

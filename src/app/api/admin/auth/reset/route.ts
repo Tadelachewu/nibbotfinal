@@ -3,6 +3,7 @@ import { verifyRecoveryToken, invalidateRecoveryToken } from '@/lib/adminRecover
 import { hashPassword } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { enforceRateLimit, getClientIp } from '@/lib/rateLimit';
+import { validatePasswordFull } from '@/lib/passwordValidation';
 
 export async function POST(req: Request) {
   const ip = getClientIp(req);
@@ -25,6 +26,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false, error: 'token and newPassword are required.' }, { status: 400 });
   }
 
+  // Validate new password is strong, not common, and not in breach databases
+  const passwordValidation = await validatePasswordFull(newPassword);
+  if (!passwordValidation.valid) {
+    return NextResponse.json(
+      { success: false, error: `Password requirements: ${passwordValidation.errors.join(', ')}` },
+      { status: 400 }
+    );
+  }
+
   const tokenLimit = await enforceRateLimit({
     key: `auth:admin:reset:token:${token}`,
     limit: 10,
@@ -42,16 +52,16 @@ export async function POST(req: Request) {
   }
 
   const passwordHash = await hashPassword(newPassword);
-  await prisma.adminCredential.update({ 
-    where: { username }, 
-    data: { 
+  await prisma.adminCredential.update({
+    where: { username },
+    data: {
       passwordHash,
       // Invalidate all active sessions on password reset
       sessionVersion: { increment: 1 },
       // Clear temporary password flags
       mustChangePassword: false,
       passwordExpiresAt: null
-    } 
+    }
   });
 
   await invalidateRecoveryToken(token);

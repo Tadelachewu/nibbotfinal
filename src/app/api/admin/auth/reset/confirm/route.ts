@@ -4,6 +4,7 @@ import { verifyRecoveryToken, invalidateRecoveryToken } from '@/lib/adminRecover
 import { hashPassword } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { enforceRateLimit, getClientIp } from '@/lib/rateLimit';
+import { validatePasswordFull } from '@/lib/passwordValidation';
 
 export async function POST(req: Request) {
     const ip = getClientIp(req);
@@ -22,6 +23,14 @@ export async function POST(req: Request) {
     const newPassword = typeof body?.newPassword === 'string' ? body.newPassword : '';
     if (!newPassword) {
         return NextResponse.json({ success: false, error: 'newPassword is required.' }, { status: 400 });
+    }
+
+    const passwordValidation = await validatePasswordFull(newPassword);
+    if (!passwordValidation.valid) {
+        return NextResponse.json(
+            { success: false, error: `Password requirements: ${passwordValidation.errors.join(', ')}` },
+            { status: 400 }
+        );
     }
 
     const resetSession = await getResetSession();
