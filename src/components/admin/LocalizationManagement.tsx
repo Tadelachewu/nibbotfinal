@@ -30,7 +30,7 @@ export function LocalizationManagement() {
   const [currentPage, setCurrentPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
 
-  const { activeDraftIds, getDraft, discardDraft } = usePerEntityDrafts('translations', 'global', translations, true);
+  const { activeDraftIds, getDraft, discardDraft } = usePerEntityDrafts('translations', 'global', translations, true, csrfFetch);
 
   const mergeSystemTranslations = (
     current: Record<string, Record<string, string>> | undefined,
@@ -227,8 +227,8 @@ export function LocalizationManagement() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" className="bg-white hover:bg-amber-100 border-amber-200 text-amber-700" onClick={() => {
-              const draft = getDraft('global') as Record<string, Record<string, string>>;
+            <Button variant="outline" size="sm" className="bg-white hover:bg-amber-100 border-amber-200 text-amber-700" onClick={async () => {
+              const draft = await getDraft('global') as Record<string, Record<string, string>>;
               if (draft) setTranslations(draft);
             }}>
               Resume Draft

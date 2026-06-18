@@ -116,7 +116,7 @@ export function MenuManagement() {
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  const { activeDraftIds, getDraft, discardDraft } = usePerEntityDrafts('menu', editingId, editForm, isEditDialogOpen);
+  const { activeDraftIds, getDraft, discardDraft } = usePerEntityDrafts('menu', editingId, editForm, isEditDialogOpen, csrfFetch);
 
   const [activeLangTab, setActiveLangTab] = useState<string>('en');
   const [apiPreviewResult, setApiPreviewResult] = useState<any>(null);
@@ -345,13 +345,13 @@ export function MenuManagement() {
     })();
   };
 
-  const handleStartEdit = (menu: MenuItem) => {
+  const handleStartEdit = async (menu: MenuItem) => {
     setEditingId(menu.id);
     setApiPreviewResult(null);
     setSentHeaders(null);
     setSentBody(null);
 
-    const draft = getDraft(menu.id);
+    const draft = await getDraft(menu.id);
     if (draft) {
       setEditForm(draft);
       setIsEditDialogOpen(true);

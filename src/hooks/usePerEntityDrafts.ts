@@ -6,43 +6,30 @@ export function usePerEntityDrafts<TData>(
   entityPrefix: string,
   editingId: string | null,
   editForm: TData,
-  isEditorOpen: boolean
+  isEditorOpen: boolean,
+  fetchFn: (url: string, options?: RequestInit) => Promise<Response> = fetch
 ) {
   const [activeDraftIds, setActiveDraftIds] = useState<Set<string>>(new Set());
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const previousEditFormRef = useRef<TData | null>(null);
 
-  const getPrefix = useCallback(() => `nibbot_${entityPrefix}_draft_`, [entityPrefix]);
-
-  // Scan local storage for active drafts
-  const scanDrafts = useCallback(() => {
+  // Load active drafts from server
+  const loadActiveDrafts = useCallback(async () => {
     try {
-      const keys = Object.keys(localStorage);
-      const draftIds = new Set<string>();
-      const prefix = getPrefix();
-      for (const key of keys) {
-        if (key.startsWith(prefix)) {
-          const id = key.replace(prefix, '');
-          if (id) draftIds.add(id);
-        }
+      const res = await fetchFn(`/api/drafts?entityType=${encodeURIComponent(entityPrefix)}`);
+      const json = await res.json();
+      if (json.status === 'success' && Array.isArray(json.data)) {
+        const ids = new Set<string>(json.data.map((draft: any) => draft.entityId as string));
+        setActiveDraftIds(ids);
       }
-      setActiveDraftIds(draftIds);
     } catch (e) {
-      console.warn('Failed to access localStorage', e);
+      console.warn('Failed to load drafts', e);
     }
-  }, [getPrefix]);
+  }, [entityPrefix, fetchFn]);
 
   useEffect(() => {
-    scanDrafts();
-    // Listen for cross-tab updates
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key?.startsWith(getPrefix()) || e.key === null) {
-        scanDrafts();
-      }
-    };
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
-  }, [scanDrafts, getPrefix]);
+    loadActiveDrafts();
+  }, [loadActiveDrafts]);
 
   // Auto-save logic
   useEffect(() => {
@@ -59,10 +46,18 @@ export function usePerEntityDrafts<TData>(
       clearTimeout(debounceTimerRef.current);
     }
 
-    debounceTimerRef.current = setTimeout(() => {
+    debounceTimerRef.current = setTimeout(async () => {
       try {
-        localStorage.setItem(`${getPrefix()}${editingId}`, currentStr);
-        // Force state update of active draft IDs so UI reflects it immediately
+        await fetchFn('/api/drafts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            entityType: entityPrefix,
+            entityId: editingId,
+            data: editForm
+          })
+        });
+        // Force state update of active draft ids so UI reflects it immediately
         setActiveDraftIds(prev => {
           const next = new Set(prev);
           next.add(editingId);
@@ -76,22 +71,33 @@ export function usePerEntityDrafts<TData>(
     return () => {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     };
-  }, [editForm, editingId, isEditorOpen, getPrefix]);
+  }, [editForm, editingId, isEditorOpen, entityPrefix, fetchFn]);
 
   // Manual actions
-  const getDraft = useCallback((id: string): TData | null => {
+  const getDraft = useCallback(async (id: string): Promise<TData | null> => {
     try {
-      const raw = localStorage.getItem(`${getPrefix()}${id}`);
-      if (!raw) return null;
-      return JSON.parse(raw);
+      const res = await fetchFn(`/api/drafts?entityType=${encodeURIComponent(entityPrefix)}`);
+      const json = await res.json();
+      if (json.status === 'success' && Array.isArray(json.data)) {
+        const draft = json.data.find((d: any) => d.entityId === id);
+        return draft ? draft.data : null;
+      }
+      return null;
     } catch {
       return null;
     }
-  }, [getPrefix]);
+  }, [entityPrefix, fetchFn]);
 
-  const discardDraft = useCallback((id: string) => {
+  const discardDraft = useCallback(async (id: string) => {
     try {
-      localStorage.removeItem(`${getPrefix()}${id}`);
+      await fetchFn('/api/drafts', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          entityType: entityPrefix,
+          entityId: id
+        })
+      });
       setActiveDraftIds(prev => {
         const next = new Set(prev);
         next.delete(id);
@@ -100,7 +106,7 @@ export function usePerEntityDrafts<TData>(
     } catch (e) {
       console.warn('Failed to discard draft', e);
     }
-  }, [getPrefix]);
+  }, [entityPrefix, fetchFn]);
 
   // Memoize activeDraftIds array to avoid unnecessary re-renders
   const activeDraftIdsArray = useMemo(() => Array.from(activeDraftIds), [activeDraftIds]);

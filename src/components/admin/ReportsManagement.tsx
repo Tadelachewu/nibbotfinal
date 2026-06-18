@@ -140,7 +140,7 @@ export function ReportsManagement() {
     editingResponse, editingNotes, editingStatus, editingPriority, editingSupportAssignee, editingSupportAssignmentType, editingSupportAssignmentReason
   }), [editingResponse, editingNotes, editingStatus, editingPriority, editingSupportAssignee, editingSupportAssignmentType, editingSupportAssignmentReason]);
 
-  const { activeDraftIds: activeReportDrafts, getDraft: getReportDraft, discardDraft: discardReportDraft } = usePerEntityDrafts('report', selectedReportId, inspectForm, isInspectOpen);
+  const { activeDraftIds: activeReportDrafts, getDraft: getReportDraft, discardDraft: discardReportDraft } = usePerEntityDrafts('report', selectedReportId, inspectForm, isInspectOpen, csrfFetch);
 
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
@@ -882,9 +882,9 @@ export function ReportsManagement() {
                               <div className="inline-flex items-center gap-1">
                                 {activeReportDrafts.includes(report.id) && (
                                   <>
-                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-500" onClick={() => {
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-500" onClick={async () => {
                                       setSelectedReportId(report.id);
-                                      const draft = getReportDraft(report.id) as any;
+                                      const draft = await getReportDraft(report.id) as any;
                                       if (draft) {
                                         setEditingResponse(draft.editingResponse || '');
                                         setEditingNotes(draft.editingNotes || '');
@@ -903,9 +903,9 @@ export function ReportsManagement() {
                                     </Button>
                                   </>
                                 )}
-                                <Button variant="ghost" size="sm" className="h-8 text-xs hover:text-primary" onClick={() => {
+                                <Button variant="ghost" size="sm" className="h-8 text-xs hover:text-primary" onClick={async () => {
                                   setSelectedReportId(report.id);
-                                  const draft = getReportDraft(report.id) as any;
+                                  const draft = await getReportDraft(report.id) as any;
                                   if (draft) {
                                     setEditingResponse(draft.editingResponse || '');
                                     setEditingNotes(draft.editingNotes || '');

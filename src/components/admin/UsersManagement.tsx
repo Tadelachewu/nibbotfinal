@@ -73,8 +73,8 @@ export function UsersManagement() {
   const [showEditPassword, setShowEditPassword] = useState(false);
   const editStrength = useMemo(() => evaluatePasswordStrength(editForm.password), [editForm.password]);
 
-  const { activeDraftIds: activeCreateDrafts, getDraft: getCreateDraft, discardDraft: discardCreateDraft } = usePerEntityDrafts('user_create', 'new', form, isCreateOpen);
-  const { activeDraftIds: activeEditDrafts, getDraft: getEditDraft, discardDraft: discardEditDraft } = usePerEntityDrafts('user_edit', String(editForm.id || ''), editForm, isEditOpen);
+  const { activeDraftIds: activeCreateDrafts, getDraft: getCreateDraft, discardDraft: discardCreateDraft } = usePerEntityDrafts('user_create', 'new', form, isCreateOpen, csrfFetch);
+  const { activeDraftIds: activeEditDrafts, getDraft: getEditDraft, discardDraft: discardEditDraft } = usePerEntityDrafts('user_edit', String(editForm.id || ''), editForm, isEditOpen, csrfFetch);
 
   const [userToDelete, setUserToDelete] = useState<AdminUser | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -183,8 +183,8 @@ export function UsersManagement() {
     (editForm.role === 'admin' || editForm.role === 'checker' || editForm.role === 'support') &&
     (editForm.password.length === 0 || isStrongPassword(editForm.password));
 
-  const openEdit = (u: AdminUser) => {
-    const draft = getEditDraft(String(u.id));
+  const openEdit = async (u: AdminUser) => {
+    const draft = await getEditDraft(String(u.id));
     if (draft) {
       setEditForm(draft as any);
     } else {
@@ -274,8 +274,8 @@ export function UsersManagement() {
             </Button>
             {activeCreateDrafts.includes('new') && (
               <>
-                <Button variant="outline" size="sm" className="text-amber-500 border-amber-200 bg-amber-50" onClick={() => {
-                  const draft = getCreateDraft('new');
+                <Button variant="outline" size="sm" className="text-amber-500 border-amber-200 bg-amber-50" onClick={async () => {
+                  const draft = await getCreateDraft('new');
                   if (draft) setForm(draft as any);
                   setIsCreateOpen(true);
                 }}>
@@ -338,8 +338,8 @@ export function UsersManagement() {
                             <div className="inline-flex gap-2 items-center">
                               {activeEditDrafts.includes(String(u.id)) && (
                                 <>
-                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-500" onClick={() => {
-                                    const draft = getEditDraft(String(u.id));
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-500" onClick={async () => {
+                                    const draft = await getEditDraft(String(u.id));
                                     if (draft) {
                                       setEditForm(draft as any);
                                       setIsEditOpen(true);

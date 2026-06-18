@@ -302,3 +302,18 @@ model AuditLog {
   @@index([timestamp])
   @@map("audit_logs")
 }
+
+// Admin drafts for menu, report, user, and localization edits
+model Draft {
+  id          Int      @id @default(autoincrement())
+  entityType  String   // e.g., "menu", "report", "user", "localization"
+  entityId    String   // ID of the entity being edited (or unique key)
+  createdBy   String   // admin username
+  data        Json     // draft content
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([entityType, entityId, createdBy])
+  @@index([createdAt])
+  @@map("drafts")
+}
