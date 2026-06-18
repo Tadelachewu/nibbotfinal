@@ -2,11 +2,29 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getValidatedAdminSession } from '@/lib/session';
 
+function getDraftClient() {
+    const draftClient = (prisma as any)?.draft;
+    const ok =
+        draftClient &&
+        typeof draftClient.findMany === 'function' &&
+        typeof draftClient.upsert === 'function' &&
+        typeof draftClient.deleteMany === 'function';
+    return ok ? draftClient : null;
+}
+
 export async function GET(req: NextRequest) {
     try {
         const session = await getValidatedAdminSession();
         if (!session?.username) {
             return NextResponse.json({ status: 'error', message: 'Unauthorized' }, { status: 401 });
+        }
+
+        const draftClient = getDraftClient();
+        if (!draftClient) {
+            return NextResponse.json(
+                { status: 'error', message: 'Drafts storage is not available on this server. Run "npx prisma generate" and restart the server.' },
+                { status: 500 }
+            );
         }
 
         const { searchParams } = new URL(req.url);
@@ -16,7 +34,7 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ status: 'error', message: 'entityType is required' }, { status: 400 });
         }
 
-        const drafts = await prisma.draft.findMany({
+        const drafts = await draftClient.findMany({
             where: {
                 createdBy: session.username,
                 entityType
@@ -38,6 +56,14 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ status: 'error', message: 'Unauthorized' }, { status: 401 });
         }
 
+        const draftClient = getDraftClient();
+        if (!draftClient) {
+            return NextResponse.json(
+                { status: 'error', message: 'Drafts storage is not available on this server. Run "npx prisma generate" and restart the server.' },
+                { status: 500 }
+            );
+        }
+
         const body = await req.json();
         const { entityType, entityId, data } = body;
 
@@ -45,7 +71,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ status: 'error', message: 'entityType, entityId, and data are required' }, { status: 400 });
         }
 
-        const draft = await prisma.draft.upsert({
+        const draft = await draftClient.upsert({
             where: {
                 entityType_entityId_createdBy: {
                     entityType,
@@ -76,6 +102,14 @@ export async function DELETE(req: NextRequest) {
             return NextResponse.json({ status: 'error', message: 'Unauthorized' }, { status: 401 });
         }
 
+        const draftClient = getDraftClient();
+        if (!draftClient) {
+            return NextResponse.json(
+                { status: 'error', message: 'Drafts storage is not available on this server. Run "npx prisma generate" and restart the server.' },
+                { status: 500 }
+            );
+        }
+
         const body = await req.json();
         const { entityType, entityId } = body;
 
@@ -83,7 +117,7 @@ export async function DELETE(req: NextRequest) {
             return NextResponse.json({ status: 'error', message: 'entityType and entityId are required' }, { status: 400 });
         }
 
-        await prisma.draft.deleteMany({
+        await draftClient.deleteMany({
             where: {
                 entityType,
                 entityId,
