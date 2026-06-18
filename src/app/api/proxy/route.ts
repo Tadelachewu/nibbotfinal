@@ -244,8 +244,14 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const timeoutMsRaw = Number(process.env.PROXY_TIMEOUT_MS ?? 30_000);
+    const timeoutMs =
+      Number.isFinite(timeoutMsRaw) && timeoutMsRaw >= 1_000 && timeoutMsRaw <= 300_000
+        ? Math.floor(timeoutMsRaw)
+        : 30_000;
+
     const controller = new AbortController();
-    fetchTimer = setTimeout(() => controller.abort(), 30_000);
+    fetchTimer = setTimeout(() => controller.abort(), timeoutMs);
 
     const allowSelfSigned =
       process.env.ALLOW_SELF_SIGNED_CERTS === 'true';
@@ -372,6 +378,11 @@ export async function POST(req: NextRequest) {
     let errorMessage = error.message || 'An error occurred while proxying the request.';
     if (error.name === 'AbortError') {
       errorMessage = 'Request timed out.';
+      return NextResponse.json({
+        status: 'error',
+        message: errorMessage,
+        debug: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      }, { status: 504 });
     }
     if (error.code === 'DEPTH_ZERO_SELF_SIGNED_CERT' || error.message?.includes('self-signed certificate')) {
       errorMessage = 'The external API is using a self-signed certificate. To allow this, set ALLOW_SELF_SIGNED_CERTS=true in your .env file.';
