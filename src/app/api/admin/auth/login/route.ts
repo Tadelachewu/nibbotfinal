@@ -92,7 +92,7 @@ export async function POST(req: Request) {
 
   const ipLimit = await enforceRateLimit({
     key: `auth:admin:login:ip:${ip}`,
-    limit: 30,
+    limit: 10,
     windowMs: 15 * 60 * 1000,
   });
   if (!ipLimit.ok) {

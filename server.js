@@ -319,6 +319,7 @@ app.prepare().then(async () => {
       const cspHeader = sanitizeCsp(buildContentSecurityPolicy(nonce));
       req.headers['x-nonce'] = nonce;
       req.headers['content-security-policy'] = cspHeader;
+      req.headers['x-direct-client-ip'] = req.socket.remoteAddress || '';
       res.setHeader('Content-Security-Policy', cspHeader);
       res.setHeader('X-Frame-Options', 'SAMEORIGIN');
       res.setHeader('X-Content-Type-Options', 'nosniff');

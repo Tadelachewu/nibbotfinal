@@ -65,6 +65,9 @@ describe('Auth: POST /api/admin/auth/login', () => {
         adminCredential: {
           count: jest.fn(async () => 1),
           findUnique: jest.fn(() => ({ username: 'admin' }))
+        },
+        auditLog: {
+          create: jest.fn(async () => undefined)
         }
       }
     }))

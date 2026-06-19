@@ -77,12 +77,28 @@ function cleanMemory() {
 }
 
 export function getClientIp(req: Request): string {
+  const trustProxy = process.env.TRUST_PROXY === 'true';
+
+  if (trustProxy) {
+    const xff = req.headers.get('x-forwarded-for');
+    if (xff) return normalizeIp(xff);
+    const realIp = req.headers.get('x-real-ip');
+    if (realIp) return normalizeIp(realIp);
+    const cf = req.headers.get('cf-connecting-ip');
+    if (cf) return normalizeIp(cf);
+  }
+
+  const directIp = req.headers.get('x-direct-client-ip');
+  if (directIp) return normalizeIp(directIp);
+
+  // Fallback for development (next dev) where server.js is not used
   const xff = req.headers.get('x-forwarded-for');
   if (xff) return normalizeIp(xff);
   const realIp = req.headers.get('x-real-ip');
   if (realIp) return normalizeIp(realIp);
   const cf = req.headers.get('cf-connecting-ip');
   if (cf) return normalizeIp(cf);
+
   return 'unknown';
 }
 
