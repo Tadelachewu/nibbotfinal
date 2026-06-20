@@ -159,19 +159,29 @@ export async function PUT(req: Request) {
     let botAvatarImage: string | null = null;
     let userAvatarImage: string | null = null;
     let appLogo: string | null = null;
+
+    const rejectNonImageDataUrl = (val: string, label: string) => {
+      if (val.startsWith('data:') && !val.startsWith('data:image/')) {
+        throw new Error(`${label}: only image files (PNG, JPG, GIF, WebP) are allowed.`);
+      }
+    };
+
     try {
+      if (botAvatarType === 'image' && botAvatarImageRaw) rejectNonImageDataUrl(botAvatarImageRaw, 'Bot avatar');
       botAvatarImage = botAvatarType !== 'image'
         ? null
         : botAvatarImageRaw.startsWith('data:image/')
           ? await persistDataUrlImage(botAvatarImageRaw, 'bot')
           : (isHttpUrl(botAvatarImageRaw) || botAvatarImageRaw.startsWith('/uploads/')) ? botAvatarImageRaw : null;
 
+      if (userAvatarType === 'image' && userAvatarImageRaw) rejectNonImageDataUrl(userAvatarImageRaw, 'User avatar');
       userAvatarImage = userAvatarType !== 'image'
         ? null
         : userAvatarImageRaw.startsWith('data:image/')
           ? await persistDataUrlImage(userAvatarImageRaw, 'user')
           : (isHttpUrl(userAvatarImageRaw) || userAvatarImageRaw.startsWith('/uploads/')) ? userAvatarImageRaw : null;
 
+      if (appLogoRaw) rejectNonImageDataUrl(appLogoRaw, 'App logo');
       appLogo = appLogoRaw.startsWith('data:image/')
         ? await persistDataUrlImage(appLogoRaw, 'logo')
         : (isHttpUrl(appLogoRaw) || appLogoRaw.startsWith('/uploads/') || appLogoRaw === '') ? appLogoRaw : null;

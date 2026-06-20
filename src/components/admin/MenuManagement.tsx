@@ -461,16 +461,23 @@ export function MenuManagement() {
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, field: 'botAvatarImage' | 'userAvatarImage' | 'appLogo') => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setSettings(prev => ({ ...prev, [field]: reader.result as string }));
-        if (field === 'botAvatarImage') setBotAvatarImageSource('upload');
-        if (field === 'userAvatarImage') setUserAvatarImageSource('upload');
-        if (field === 'appLogo') setAppLogoSource('upload');
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    const allowedTypes = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif']);
+    if (!allowedTypes.has(file.type.toLowerCase())) {
+      toast({ title: 'Error', description: 'Only image files (PNG, JPG, GIF, WebP) are allowed.', variant: 'destructive' });
+      e.target.value = '';
+      return;
     }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setSettings(prev => ({ ...prev, [field]: reader.result as string }));
+      if (field === 'botAvatarImage') setBotAvatarImageSource('upload');
+      if (field === 'userAvatarImage') setUserAvatarImageSource('upload');
+      if (field === 'appLogo') setAppLogoSource('upload');
+    };
+    reader.readAsDataURL(file);
   };
 
   const removeLanguage = (index: number) => {
