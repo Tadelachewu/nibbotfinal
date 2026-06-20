@@ -82,6 +82,14 @@ export async function POST(req: Request) {
   const principal = normalizePrincipal(username);
   const lockKey = `auth:admin:login:lock:${principal}`;
   const failuresKey = `auth:admin:login:fail:${principal}`;
+  const ipLockKey = `auth:admin:login:lock:ip:${ip}`;
+
+  const ipLock = await checkLock(ipLockKey);
+  if (ipLock.locked) {
+    const res = NextResponse.json({ success: false, error: 'Too many attempts. Try again later.' }, { status: 429 });
+    res.headers.set('Retry-After', String(ipLock.retryAfterSeconds));
+    return res;
+  }
 
   const lock = await checkLock(lockKey);
   if (lock.locked) {
@@ -92,10 +100,18 @@ export async function POST(req: Request) {
 
   const ipLimit = await enforceRateLimit({
     key: `auth:admin:login:ip:${ip}`,
-    limit: 10,
+    limit: 5,
     windowMs: 15 * 60 * 1000,
   });
   if (!ipLimit.ok) {
+    await logSecurityEvent({
+      actor: username,
+      action: 'LOGIN_IP_RATE_LIMITED',
+      target: `ip:${ip}`,
+      details: { reason: 'IP rate limit exceeded' },
+      ip,
+      userAgent: req.headers.get('user-agent') || 'unknown'
+    });
     const res = NextResponse.json({ success: false, error: 'Too many attempts. Try again later.' }, { status: 429 });
     res.headers.set('Retry-After', String(ipLimit.retryAfterSeconds));
     return res;
@@ -103,7 +119,7 @@ export async function POST(req: Request) {
 
   const principalLimit = await enforceRateLimit({
     key: `auth:admin:login:principal:${principal}:ip:${ip}`,
-    limit: 10,
+    limit: 5,
     windowMs: 15 * 60 * 1000,
   });
   if (!principalLimit.ok) {
@@ -168,11 +184,22 @@ export async function POST(req: Request) {
     });
   } else {
     const { count } = await incrementCounter(failuresKey, 15 * 60 * 1000);
+    const ipFailuresKey = `auth:admin:login:fail:ip:${ip}`;
+    const { count: ipFailCount } = await incrementCounter(ipFailuresKey, 15 * 60 * 1000);
+
+    await logSecurityEvent({
+      actor: username,
+      action: 'LOGIN_FAILURE',
+      target: `user:${username}`,
+      details: { failureCount: count, ipFailureCount: ipFailCount },
+      ip,
+      userAgent: req.headers.get('user-agent') || 'unknown'
+    });
+
     if (count >= 5) {
       await setLock(lockKey, 15 * 60 * 1000);
       await clearKey(failuresKey);
 
-      // Audit Log: Account Lockout
       await logSecurityEvent({
         actor: username,
         action: 'LOGIN_LOCKOUT',
@@ -186,6 +213,28 @@ export async function POST(req: Request) {
       res.headers.set('Retry-After', String(Math.max(1, Math.ceil((15 * 60 * 1000) / 1000))));
       return res;
     }
+
+    if (ipFailCount >= 10) {
+      await setLock(ipLockKey, 30 * 60 * 1000);
+      await clearKey(ipFailuresKey);
+
+      await logSecurityEvent({
+        actor: username,
+        action: 'LOGIN_IP_LOCKOUT',
+        target: `ip:${ip}`,
+        details: { ipFailureCount: ipFailCount },
+        ip,
+        userAgent: req.headers.get('user-agent') || 'unknown'
+      });
+
+      const res = NextResponse.json({ success: false, error: 'Too many attempts. Try again later.' }, { status: 429 });
+      res.headers.set('Retry-After', '1800');
+      return res;
+    }
+
+    const delayMs = Math.min(1000 * Math.pow(2, Math.max(count, ipFailCount) - 1), 8000);
+    await new Promise(r => setTimeout(r, delayMs));
+
     return NextResponse.json({ success: false, error: 'Invalid username or password.' }, { status: 401 });
   }
 }
