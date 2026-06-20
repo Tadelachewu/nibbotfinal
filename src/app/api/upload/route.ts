@@ -4,7 +4,7 @@ import path from 'path';
 import crypto from 'crypto';
 import { getValidatedAdminSession, rotateCsrfToken, verifyCsrfToken } from '@/lib/session';
 import { prisma } from '@/lib/prisma';
-import { getAllowedImageType, hasValidImageSignature, isAllowedImageExtension } from '@/lib/fileValidation';
+import { getAllowedImageType, hasValidImageSignature, isAllowedImageExtension, detectImageType } from '@/lib/fileValidation';
 import { scanBuffer } from '@/lib/virusScan';
 
 export const dynamic = 'force-dynamic';
@@ -71,8 +71,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ status: 'error', message: 'File too large.' }, { status: 413 });
   }
 
+  let actualExt = ext;
   if (!hasValidImageSignature(ext, bytes)) {
-    return NextResponse.json({ status: 'error', message: 'File content does not match declared type.' }, { status: 415 });
+    const detected = detectImageType(bytes);
+    if (!detected) {
+      return NextResponse.json({ status: 'error', message: 'File content is not a valid image.' }, { status: 415 });
+    }
+    actualExt = detected;
   }
 
   const scan = await scanBuffer(bytes);
@@ -85,7 +90,7 @@ export async function POST(req: Request) {
   await fs.mkdir(dirFs, { recursive: true });
 
   const original = safeSegment(file.name || 'upload');
-  const fileName = `${Date.now()}-${crypto.randomBytes(10).toString('hex')}-${original}.${ext}`;
+  const fileName = `${Date.now()}-${crypto.randomBytes(10).toString('hex')}-${original}.${actualExt}`;
   const fileFs = path.join(dirFs, fileName);
   await fs.writeFile(fileFs, bytes);
 

@@ -54,3 +54,15 @@ export function hasValidImageSignature(ext: string, bytes: Buffer): boolean {
     default: return false;
   }
 }
+
+export function detectImageType(bytes: Buffer): string | null {
+  if (hasPngSignature(bytes)) return 'png';
+  if (hasJpegSignature(bytes)) return 'jpg';
+  if (hasWebpSignature(bytes)) return 'webp';
+  if (hasGifSignature(bytes)) return 'gif';
+  return null;
+}
+
+export function hasAnyImageSignature(bytes: Buffer): boolean {
+  return detectImageType(bytes) !== null;
+}

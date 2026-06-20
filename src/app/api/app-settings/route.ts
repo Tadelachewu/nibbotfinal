@@ -7,7 +7,7 @@ import path from 'path';
 import crypto from 'crypto';
 import { Prisma } from '@prisma/client';
 import { logSecurityEvent } from '@/lib/logger';
-import { getAllowedImageType, hasValidImageSignature } from '@/lib/fileValidation';
+import { getAllowedImageType, hasValidImageSignature, detectImageType } from '@/lib/fileValidation';
 import { scanBuffer } from '@/lib/virusScan';
 
 export const dynamic = 'force-dynamic';
@@ -97,8 +97,13 @@ async function persistDataUrlImage(dataUrl: string, prefix: 'bot' | 'user' | 'lo
     throw new Error('Avatar image too large. Please upload an image under 600KB.');
   }
 
+  let actualExt = ext;
   if (!hasValidImageSignature(ext, bytes)) {
-    throw new Error('File content does not match declared image type.');
+    const detected = detectImageType(bytes);
+    if (!detected) {
+      throw new Error('File content is not a valid image.');
+    }
+    actualExt = detected;
   }
 
   const scan = await scanBuffer(bytes);
@@ -109,7 +114,7 @@ async function persistDataUrlImage(dataUrl: string, prefix: 'bot' | 'user' | 'lo
   const dirFs = path.join(process.cwd(), 'storage', 'uploads', prefix === 'logo' ? 'branding' : 'avatars');
   await fs.mkdir(dirFs, { recursive: true });
 
-  const fileName = `${prefix}-${Date.now()}-${crypto.randomBytes(6).toString('hex')}.${ext}`;
+  const fileName = `${prefix}-${Date.now()}-${crypto.randomBytes(6).toString('hex')}.${actualExt}`;
   const fileFs = path.join(dirFs, fileName);
   await fs.writeFile(fileFs, bytes);
 
