@@ -65,12 +65,9 @@ export const saveLogEntry = (entry: Omit<LogEntry, 'timestamp'>) => {
 export const getLogs = (): LogEntry[] => {
   if (typeof window === 'undefined') return [];
   try {
-    const logsRaw = localStorage.getItem(LOGS_STORAGE_KEY);
-    return logsRaw ? JSON.parse(logsRaw) : [];
-  } catch (error) {
-    console.error('Failed to get logs:', error);
-    return [];
-  }
+    localStorage.removeItem(LOGS_STORAGE_KEY);
+  } catch {}
+  return [];
 };
 
 const maskSensitiveInfo = (entry: LogEntry): LogEntry => {

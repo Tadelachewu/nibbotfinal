@@ -469,8 +469,8 @@ export function ChatInterface() {
     // Log one "visit" per returning day per device, so All Visits can exceed Unique Visits.
     const today = new Date().toISOString().slice(0, 10);
     const key = `nib_session_logged:${userData.id}:${today}`;
-    if (localStorage.getItem(key)) return;
-    localStorage.setItem(key, '1');
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, '1');
     logInteraction({
       sessionId: userData.id,
       userMessage: 'SESSION_START',
