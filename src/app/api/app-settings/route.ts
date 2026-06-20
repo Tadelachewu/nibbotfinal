@@ -35,6 +35,47 @@ function isHttpUrl(value: string) {
   return /^https?:\/\//i.test(value);
 }
 
+const BLOCKED_URL_EXTENSIONS = new Set([
+  '.html', '.htm', '.js', '.jsx', '.ts', '.tsx', '.php', '.asp', '.aspx',
+  '.jsp', '.cgi', '.exe', '.bat', '.cmd', '.sh', '.py', '.rb', '.pl',
+  '.docx', '.doc', '.xlsx', '.xls', '.pptx', '.ppt', '.pdf', '.zip',
+  '.rar', '.7z', '.tar', '.gz', '.csv', '.xml', '.json', '.txt', '.md',
+  '.svg',
+]);
+
+const ALLOWED_IMAGE_URL_EXTENSIONS = new Set([
+  '.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.ico',
+]);
+
+function validateImageUrl(url: string, label: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error(`${label}: invalid URL.`);
+  }
+
+  if (parsed.protocol !== 'https:') {
+    throw new Error(`${label}: only HTTPS URLs are allowed.`);
+  }
+
+  if (parsed.username || parsed.password) {
+    throw new Error(`${label}: invalid URL.`);
+  }
+
+  const pathname = parsed.pathname.toLowerCase();
+  const extMatch = pathname.match(/\.[a-z0-9]+$/);
+  if (extMatch) {
+    const ext = extMatch[0];
+    if (BLOCKED_URL_EXTENSIONS.has(ext)) {
+      throw new Error(`${label}: URL does not point to an image file.`);
+    }
+    if (!ALLOWED_IMAGE_URL_EXTENSIONS.has(ext)) {
+      throw new Error(`${label}: unsupported image format.`);
+    }
+  }
+}
+
 async function persistDataUrlImage(dataUrl: string, prefix: 'bot' | 'user' | 'logo') {
   const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
   if (!match) return null;
@@ -167,21 +208,30 @@ export async function PUT(req: Request) {
     };
 
     try {
-      if (botAvatarType === 'image' && botAvatarImageRaw) rejectNonImageDataUrl(botAvatarImageRaw, 'Bot avatar');
+      if (botAvatarType === 'image' && botAvatarImageRaw) {
+        rejectNonImageDataUrl(botAvatarImageRaw, 'Bot avatar');
+        if (isHttpUrl(botAvatarImageRaw)) validateImageUrl(botAvatarImageRaw, 'Bot avatar');
+      }
       botAvatarImage = botAvatarType !== 'image'
         ? null
         : botAvatarImageRaw.startsWith('data:image/')
           ? await persistDataUrlImage(botAvatarImageRaw, 'bot')
           : (isHttpUrl(botAvatarImageRaw) || botAvatarImageRaw.startsWith('/uploads/')) ? botAvatarImageRaw : null;
 
-      if (userAvatarType === 'image' && userAvatarImageRaw) rejectNonImageDataUrl(userAvatarImageRaw, 'User avatar');
+      if (userAvatarType === 'image' && userAvatarImageRaw) {
+        rejectNonImageDataUrl(userAvatarImageRaw, 'User avatar');
+        if (isHttpUrl(userAvatarImageRaw)) validateImageUrl(userAvatarImageRaw, 'User avatar');
+      }
       userAvatarImage = userAvatarType !== 'image'
         ? null
         : userAvatarImageRaw.startsWith('data:image/')
           ? await persistDataUrlImage(userAvatarImageRaw, 'user')
           : (isHttpUrl(userAvatarImageRaw) || userAvatarImageRaw.startsWith('/uploads/')) ? userAvatarImageRaw : null;
 
-      if (appLogoRaw) rejectNonImageDataUrl(appLogoRaw, 'App logo');
+      if (appLogoRaw) {
+        rejectNonImageDataUrl(appLogoRaw, 'App logo');
+        if (isHttpUrl(appLogoRaw)) validateImageUrl(appLogoRaw, 'App logo');
+      }
       appLogo = appLogoRaw.startsWith('data:image/')
         ? await persistDataUrlImage(appLogoRaw, 'logo')
         : (isHttpUrl(appLogoRaw) || appLogoRaw.startsWith('/uploads/') || appLogoRaw === '') ? appLogoRaw : null;
