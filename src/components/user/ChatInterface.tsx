@@ -1347,6 +1347,7 @@ export function ChatInterface() {
     const rootKey = effectiveMenu.apiConfig?.rootKey || 'data';
 
     if (isAction && (hasFields > 0 || childMenus.length === 0)) {
+      setMenuHistory(prev => [...prev, currentMenuId || 'root']);
       const kycFields = effectiveMenu.apiConfig?.kycFields || [];
       const orderedFields = kycFields.slice().sort((a, b) => a.order - b.order);
 

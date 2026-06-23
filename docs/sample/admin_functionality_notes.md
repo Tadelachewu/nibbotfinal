@@ -582,6 +582,29 @@ A: All metrics are filtered by the selected range. "Today" shows only activity s
 **Q: How should I compare Interactions vs Unique Users?**
 A: If Interactions is much higher than Unique Users, each user is engaging deeply with the bot. If they are close, most users are trying it once and leaving — this may indicate a UX or content issue.
 
+### Why Each Reporting Count Matters
+
+**Q: Why is the Interactions count important?**
+A: It measures total system usage — how much work the bot is handling. A sudden drop may indicate the bot is down or a popular menu is broken. A sudden spike may indicate a campaign, viral traffic, or abuse. Track it daily to establish a baseline so anomalies are easy to spot.
+
+**Q: Why is Unique Users important?**
+A: It tells you how many real people are using the service. If you have 1,000 interactions but only 10 unique users, a small group is doing all the work — the bot is not reaching a wide audience. If unique users are growing week over week, the service is gaining adoption.
+
+**Q: Why should I watch Submissions closely?**
+A: Each submission is a real user requesting help or reporting an issue — it represents workload for your team. A spike in submissions may mean a service outage is driving complaints. Zero submissions when they are expected may mean the report form is broken or too hard to complete. Compare submissions to interactions to understand your conversion rate — if many users interact but few submit, the form flow may need simplification.
+
+**Q: Why does Success Rate matter more than the raw Successful/Failed numbers?**
+A: A system with 900 successful and 100 failed interactions (90% success rate) needs immediate attention — 1 in 10 users is hitting an error. The raw number of failures alone does not tell the story. Watch for success rate dropping below 95% as a warning sign and below 90% as critical. A sudden drop after a menu edit or deployment usually means the change broke something.
+
+**Q: Why track both Successful and Failed separately?**
+A: Because they tell different stories. Rising failures with stable successes means a new problem was introduced (bad menu config, API outage). Rising successes with stable failures means more users but the same old issues remain unfixed. Both rising together means traffic is growing and failures are scaling with it — the failure rate is what matters.
+
+**Q: Why are All Visits and Unique Visits reported separately?**
+A: The ratio between them reveals user retention. If All Visits is 500 and Unique Visits is 100 this month, each user returns 5 times on average — strong engagement. If both are 100, no one is coming back — the service may not be useful enough or users do not know it exists. Watch this ratio weekly to measure whether your content and services drive repeat usage.
+
+**Q: What should I do when a specific metric looks wrong?**
+A: Use this decision tree: (1) If Interactions drop — check if the app is up and menus are active. (2) If Success Rate drops — check Logs for new error patterns, filter by the time the drop started. (3) If Submissions spike — check if a service outage is generating complaints. (4) If Unique Users flatline — the bot is not being discovered, consider promotion or better placement. (5) If All Visits equals Unique Visits over a month — users are not returning, review content quality and usefulness.
+
 ### Menu Management
 
 **Q: What is the difference between Static, API, and Report menus?**
@@ -662,6 +685,42 @@ A: Wait for the lockout to expire (15 minutes for account lockout, 30 minutes fo
 
 **Q: How do I know if someone is trying to attack the login?**
 A: Check the Audit Log for `LOGIN_FAILURE`, `LOGIN_LOCKOUT`, `LOGIN_IP_LOCKOUT`, and `LOGIN_IP_RATE_LIMITED` events. Multiple failures from the same IP targeting different usernames is a strong indicator of credential stuffing. Multiple failures targeting one username from different IPs suggests a targeted brute-force attack. Both patterns are logged with IP addresses and timestamps for investigation.
+
+### How to Test Rate Limiting & Account Lockout
+
+Use these test cases to verify the protections are working correctly after deployment. All tests should be performed from the admin login page.
+
+**Test 1 — Account lockout after 5 wrong passwords**
+Steps: (1) Go to the login page. (2) Enter a valid username with a wrong password. (3) Repeat 5 times.
+Expected: After the 5th failure, the response changes to "Too many attempts. Try again later." with a 429 status. The account remains locked even if you enter the correct password. Wait 15 minutes — the account unlocks automatically.
+
+**Test 2 — Progressive delay on failures**
+Steps: (1) Enter a wrong password and time how long the error takes to appear. (2) Enter wrong again and time it. (3) Repeat.
+Expected: First failure responds in about 1 second. Second failure takes about 2 seconds. Third takes about 4 seconds. Fourth takes about 8 seconds. Each failure feels noticeably slower than the previous one.
+
+**Test 3 — IP rate limit (5 requests per 15 minutes)**
+Steps: (1) Send 5 login requests rapidly (any username, any password). (2) Send a 6th request.
+Expected: The 6th request is rejected with "Too many attempts. Try again later." and a Retry-After header. This applies even if you use different usernames each time.
+
+**Test 4 — IP lockout across different usernames (credential stuffing protection)**
+Steps: (1) Try logging in with username1 / wrongpassword. (2) Try username2 / wrongpassword. (3) Continue with different usernames up to 10 total failures from the same IP.
+Expected: After 10 cumulative failures across any usernames, the entire IP is locked for 30 minutes. All further login attempts from that IP are rejected regardless of username.
+
+**Test 5 — Successful login clears failure count**
+Steps: (1) Enter wrong password 3 times for a valid username. (2) Enter the correct password.
+Expected: Login succeeds. The failure counter for that account is reset to zero. The account is not in danger of lockout from previous failures.
+
+**Test 6 — Lockout does not affect other accounts**
+Steps: (1) Lock out "admin" by failing 5 times. (2) Try logging in as "checker" with the correct password.
+Expected: "checker" login succeeds — per-account lockout only affects the locked account. (Note: if the IP rate limit is also exhausted, both will be blocked. Test from a different IP or wait for the IP limit to reset.)
+
+**Test 7 — Audit log entries for failures**
+Steps: (1) Fail a login attempt. (2) Go to the Admin Audit Log.
+Expected: A `LOGIN_FAILURE` entry appears with the username, IP address, failure count, and timestamp. After lockout, a `LOGIN_LOCKOUT` entry also appears. After IP lockout, a `LOGIN_IP_LOCKOUT` entry appears.
+
+**Test 8 — Change password lockout**
+Steps: (1) Log in successfully. (2) Go to Change Password. (3) Enter the wrong current password 5 times.
+Expected: After 5 failures, the change password endpoint is locked for 15 minutes for your account. You can still use other parts of the admin panel — only the password change is locked.
 
 ### Password Policy
 

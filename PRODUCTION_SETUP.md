@@ -1,7 +1,277 @@
-# NibBot Production Setup Guide
+# NibBot Production Deployment Guide
 
 ## Introduction
-This document outlines all necessary steps to securely deploy NibBot to production. Each step includes **consequences of skipping it** to emphasize importance.
+This document covers two things: (1) step-by-step deployment commands, and (2) configuration and security hardening. Follow both before going live.
+
+---
+
+## Step-by-Step Deployment
+
+### Prerequisites
+
+Install these on the production server before starting:
+
+| Software | Minimum Version | Purpose |
+|---|---|---|
+| **Node.js** | 18.x or 20.x LTS | Runtime |
+| **PostgreSQL** | 14+ | Database |
+| **Redis** | 6+ | Rate limiting, sessions, online presence |
+| **nginx** | 1.18+ | Reverse proxy, TLS termination |
+| **Git** | 2.x | Pulling code |
+
+### Step 1 — Get the code on the server
+
+```bash
+# Clone the repository (or copy from your CI/CD)
+git clone <your-repo-url> /opt/nibbot
+cd /opt/nibbot
+
+# Switch to the production branch
+git checkout main
+```
+
+### Step 2 — Install dependencies
+
+```bash
+npm ci --omit=dev
+```
+
+This installs exact versions from `package-lock.json` and skips dev dependencies. The `postinstall` script automatically runs `prisma generate` to create the Prisma client.
+
+### Step 3 — Configure environment
+
+```bash
+# Copy the template and edit it
+cp .env.example .env
+nano .env
+```
+
+Set these values for your production environment:
+
+```env
+# REQUIRED — generate a new one, do NOT reuse from dev
+SECRET_COOKIE_PASSWORD=<run: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))">
+
+# Database — use your production PostgreSQL credentials
+DATABASE_URL=postgresql://prod_user:strong_password@localhost:5432/nibbot?schema=public
+
+# MUST match your production domain exactly
+NEXT_PUBLIC_SITE_URL=https://your-domain.com
+APP_ORIGIN=https://your-domain.com
+ALLOWED_ORIGINS=https://your-domain.com
+
+# Redis
+REDIS_URL=redis://localhost:6379
+
+# Core settings
+NODE_ENV=production
+PORT=3020
+TRUST_PROXY=true
+ENABLE_SESSION_BINDING=true
+
+# Initial admin — change password on first login, then remove these lines
+ADMIN_INITIAL_USERNAME=admin
+ADMIN_INITIAL_PASSWORD=<12+ chars, uppercase, lowercase, number, special>
+
+# SMTP for password recovery emails
+SMTP_HOST=smtp.yourbank.com
+SMTP_PORT=587
+SMTP_USER=noreply@yourbank.com
+SMTP_PASS=your_app_password
+EMAIL_FROM="App Name <noreply@yourbank.com>"
+
+# Socket.IO
+NEXT_PUBLIC_ENABLE_SOCKET_IO=true
+SOCKET_IO_ALLOWED_ORIGINS=https://your-domain.com
+
+# CSP — list only the external APIs the app calls, NEVER use *
+ALLOWED_CONNECT_SRC=https://api1.example.com,https://api2.example.com
+
+# Proxy allowlist — which external hosts the proxy endpoint can reach
+PROXY_ALLOWED_HOSTS=api1.example.com api2.example.com
+
+# TLS — set to true ONLY if internal APIs use self-signed certs
+ALLOW_SELF_SIGNED_CERTS=false
+```
+
+See the full configuration reference in the sections below.
+
+### Step 4 — Set up the database
+
+```bash
+# Create the database (if it doesn't exist)
+psql -U postgres -c "CREATE DATABASE nibbot;"
+
+# Run all migrations
+npx prisma migrate deploy
+
+# (Optional) Seed demo data — skip in production unless you want sample menus
+# npx prisma db seed
+```
+
+If the database already exists and has tables from `prisma db push` (no migration history):
+
+```bash
+# Mark existing migrations as applied
+npx prisma migrate resolve --applied 20260605194828_init
+npx prisma migrate resolve --applied 20260608104124_add_theme_colors
+npx prisma migrate resolve --applied 20260611120000_add_show_bank_branding
+npx prisma migrate resolve --applied 20260618100000_add_drafts_table
+
+# Then apply any new ones
+npx prisma migrate deploy
+```
+
+### Step 5 — Build the app
+
+```bash
+npm run build
+```
+
+This produces the optimized production build in `.next/`. Takes 2-5 minutes depending on server specs.
+
+### Step 6 — Create the storage directory
+
+```bash
+# For uploaded files (stored outside the webroot)
+mkdir -p storage/uploads/admin storage/uploads/avatars storage/uploads/branding
+```
+
+### Step 7 — Start the app
+
+```bash
+# Direct start (foreground)
+npm start
+
+# Or with a process manager (recommended)
+npm install -g pm2
+pm2 start npm --name "nibbot" -- start
+pm2 save
+pm2 startup    # auto-start on server reboot
+```
+
+The server starts on `http://localhost:3020` (or whatever `PORT` is set to). You should see:
+
+```
+[Redis] Connected (presence tracking enabled).
+> Production Real-Time Engine Ready on http://localhost:3020
+```
+
+### Step 8 — Configure nginx reverse proxy
+
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+    return 301 https://$server_name$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name your-domain.com;
+
+    ssl_certificate     /etc/ssl/certs/your-domain.crt;
+    ssl_certificate_key /etc/ssl/private/your-domain.key;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+
+    # Proxy to Node.js
+    location / {
+        proxy_pass http://127.0.0.1:3020;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # WebSocket support (Socket.IO)
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        # Timeouts
+        proxy_read_timeout 86400;
+        proxy_send_timeout 86400;
+    }
+
+    # File upload size limit
+    client_max_body_size 5M;
+}
+```
+
+```bash
+# Test and reload nginx
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+### Step 9 — Verify deployment
+
+| Check | Command / URL | Expected |
+|---|---|---|
+| **App is running** | `curl http://localhost:3020` | HTML response |
+| **HTTPS works** | Visit `https://your-domain.com` | No certificate errors |
+| **Admin login** | Visit `https://your-domain.com/admin` | Login page loads |
+| **First login** | Login with `ADMIN_INITIAL_USERNAME` / `PASSWORD` | Forced to change password |
+| **Redis connected** | Check server logs | `[Redis] Connected` |
+| **Socket.IO** | Open chat page, check Dashboard → Online Now | Count increases |
+| **Password reset** | Trigger a reset from login page | Email arrives |
+
+### Step 10 — Post-deployment cleanup
+
+```bash
+# After first admin login and password change, remove initial credentials from .env
+# Edit .env and delete these lines:
+#   ADMIN_INITIAL_USERNAME=admin
+#   ADMIN_INITIAL_PASSWORD=...
+
+# Then restart the app
+pm2 restart nibbot
+```
+
+---
+
+## Updating / Redeploying
+
+```bash
+cd /opt/nibbot
+
+# Pull latest code
+git pull origin main
+
+# Install any new dependencies
+npm ci --omit=dev
+
+# Apply any new database migrations
+npx prisma migrate deploy
+
+# Rebuild
+npm run build
+
+# Restart
+pm2 restart nibbot
+```
+
+---
+
+## Quick Reference — Common Commands
+
+| Task | Command |
+|---|---|
+| Start app | `npm start` or `pm2 start nibbot` |
+| Stop app | `pm2 stop nibbot` |
+| Restart app | `pm2 restart nibbot` |
+| View logs | `pm2 logs nibbot` |
+| Check status | `pm2 status` |
+| Run migrations | `npx prisma migrate deploy` |
+| Open DB console | `npx prisma studio` |
+| Generate Prisma client | `npx prisma generate` |
+| Build | `npm run build` |
+
+---
+
+## Configuration & Security Reference
+
+Everything below explains each `.env` variable in detail, with consequences of misconfiguration.
 
 ---
 
@@ -101,6 +371,19 @@ ALLOWED_CONNECT_SRC=https://api.yourbank.com,https://calendarific.com
 
 ---
 
+### 3.2 Configure External API Proxy Allowlist
+**What to do**:
+Set the `ALLOWED_API_DOMAINS` (or `PROXY_ALLOWED_HOSTS`) environment variable to explicitly list any third-party APIs the chatbot needs to contact through the proxy.
+```env
+ALLOWED_API_DOMAINS=api.yourbank.com,api.weather.com
+```
+
+**Consequences if missed**:
+- **Broken Features**: In production, if the allowlist is empty, all proxy requests are rejected immediately with `Proxy allowlist not configured.` (it does not fall back to permissive mode).
+- **SSRF Protections**: Note that the proxy has hardcoded protections against Server-Side Request Forgery. It will actively block requests to private/internal IPs (e.g., `127.0.0.1`, `192.168.x.x`, `10.x.x.x`, `metadata.google.internal`) regardless of your allowlist settings.
+
+---
+
 ## 4. Database Security
 
 ### 4.1 Secure Database Credentials
@@ -154,11 +437,12 @@ REDIS_URL=rediss://:strong_redis_password@prod-redis-host:6379
 
 ### 6.1 Change Default Admin Password
 **What to do**:
-1. First deploy with `ADMIN_INITIAL_PASSWORD` set
+1. First deploy with `ADMIN_INITIAL_PASSWORD` set. **CRITICAL**: In production, this password *must* be at least 12 characters long, otherwise the server will throw a fatal error on startup!
 2. Login immediately and change the admin password via the UI
 3. **Remove** `ADMIN_INITIAL_USERNAME` and `ADMIN_INITIAL_PASSWORD` from `.env`
 
 **Consequences if missed**:
+- **Server Crash**: App will not start if the initial password is under 12 characters in prod.
 - **Automated Takeover**: Bots scan the internet for default credentials
 - **Full System Compromise**: Attacker gains admin access to everything
 - **Fatal Security Breach**: Your entire chatbot system is under enemy control
@@ -192,9 +476,10 @@ SMTP_USER=nibbot-noreply@yourbank.com
 SMTP_PASS=your_strong_app_password
 EMAIL_FROM="NibBot <nibbot-noreply@yourbank.com>"
 ```
+4. Ensure your `NEXT_PUBLIC_SITE_URL` starts with `https://`. The system will explicitly throw an error and refuse to send password recovery emails over HTTP in production.
 
 **Consequences if missed**:
-- **Password Reset Failures**: Users can't reset forgotten passwords
+- **Password Reset Failures**: Users can't reset forgotten passwords (emails won't send at all if HTTP is used in prod).
 - **Phishing Risk**: If personal email is compromised, attackers can use it
 - **Email Deliverability**: Emails marked as spam or blocked entirely
 
