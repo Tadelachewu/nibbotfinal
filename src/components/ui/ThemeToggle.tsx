@@ -66,7 +66,7 @@ export default function ThemeToggle({ cookieName = 'nib_theme' }: ThemeTogglePro
             <button
                 aria-label={`Theme: ${theme}`}
                 title={`Theme: ${theme} (click to switch)`}
-                className="sm:hidden h-9 w-9 rounded-lg border bg-card flex items-center justify-center text-base hover:bg-muted transition-colors shrink-0"
+                className="sm:hidden h-9 w-9 rounded-md flex items-center justify-center text-sm hover:bg-[#763717]/10 transition-colors shrink-0"
                 onClick={() => setTheme(CYCLE[theme] || 'light')}
             >
                 {ICONS[theme] || '☀️'}
@@ -74,7 +74,7 @@ export default function ThemeToggle({ cookieName = 'nib_theme' }: ThemeTogglePro
             {/* Full select — visible on sm+ */}
             <select
                 aria-label="Theme"
-                className="hidden sm:block h-8 px-2 rounded-md bg-card border text-sm"
+                className="hidden sm:block h-9 px-2 rounded-md bg-transparent text-xs font-semibold text-[#763717] cursor-pointer hover:bg-[#763717]/10 transition-colors"
                 value={theme}
                 onChange={e => setTheme(e.target.value)}
             >

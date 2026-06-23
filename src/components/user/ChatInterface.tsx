@@ -1659,7 +1659,7 @@ export function ChatInterface() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-[#763717] hover:text-[#763717] h-9 px-1.5 hover:bg-[#763717]/10 flex items-center gap-1"
+                className="text-[#763717] hover:text-[#763717] h-9 px-2 hover:bg-[#763717]/10 flex items-center gap-1.5"
               >
                 <Globe size={16} className="text-[#763717] shrink-0" />
                 <span className="text-xs font-semibold text-[#763717]">

@@ -551,3 +551,88 @@ Logs help you explain what happened when a user reports “it doesn’t work”.
   - a stored report/form created from a Report menu
 - **Maker-Checker**
   - approval workflow separating change creation from change approval
+
+---
+
+## Frequently Asked Questions
+
+### Dashboard & Reporting
+
+**Q: What does "Interactions" count?**
+A: Every time a user taps a menu item and the bot responds — clicking a menu, calling an API, or submitting a form. Each tap that gets a bot response counts as 1 interaction.
+
+**Q: What does "Unique Users" mean?**
+A: The number of different people (browser sessions) who used the chatbot in the selected time period. The same person chatting 50 times still counts as 1 unique user.
+
+**Q: What are "Submissions"?**
+A: Completed report or KYC form submissions — when a user fills out all required fields and submits. Partial or abandoned forms are not counted.
+
+**Q: What is the difference between "Successful" and "Failed"?**
+A: Successful means the bot responded correctly (API returned OK, content displayed). Failed means something went wrong — an API error, timeout, or validation failure. Together they should equal total Interactions.
+
+**Q: What does "Success Rate" show?**
+A: Successful ÷ Total Interactions × 100. A rate of 100% means every interaction completed without errors. A drop signals something is broken and needs investigation.
+
+**Q: What is the difference between "All Visits" and "Unique Visits"?**
+A: All Visits counts every time the app is opened — the same person opening it on Monday, Tuesday, and Wednesday equals 3 visits. Unique Visits counts distinct people or devices — that same person equals 1 unique visit. If All Visits is much higher than Unique Visits, it means users are returning regularly.
+
+**Q: How do the time filters (Today / Week / Month) work?**
+A: All metrics are filtered by the selected range. "Today" shows only activity since midnight. "Week" shows from the start of this week. "Month" shows from the 1st of this month. "Custom" lets you pick any start and end date with time.
+
+**Q: How should I compare Interactions vs Unique Users?**
+A: If Interactions is much higher than Unique Users, each user is engaging deeply with the bot. If they are close, most users are trying it once and leaving — this may indicate a UX or content issue.
+
+### Menu Management
+
+**Q: What is the difference between Static, API, and Report menus?**
+A: Static menus display fixed content (FAQs, instructions). API menus call an external service and show live data (balances, transactions). Report menus collect user information through a form and create a submission for admin review.
+
+**Q: What is Maker-Checker and why does it matter?**
+A: It is an approval workflow — the person who creates or edits a menu cannot publish it. A separate Checker must review and approve it first. This prevents accidental or unauthorized changes from going live.
+
+**Q: What should I do before saving an API menu?**
+A: Always use the Test Console with at least three cases — a normal input, an edge case (empty result, zero balance), and an invalid input. Verify the HTTP status, raw JSON response, and rendered output all look correct.
+
+**Q: A menu is not showing for users — what do I check?**
+A: Verify four things in order: (1) the menu is set to Active, (2) it is under the correct Parent Menu, (3) it has been approved through Maker-Checker, and (4) KYC fields are not blocking users with overly strict validation.
+
+### Submissions & Ticketing
+
+**Q: What do Pending, Reviewed, and Resolved mean?**
+A: Pending items are new and need first triage — assign an owner and set priority. Reviewed means someone is actively working on it. Resolved means it is completed and documented. Every submission should move through these stages.
+
+**Q: How should I prioritize submissions?**
+A: Urgent is for service outages, fraud indicators, or critical user impact — assign immediately. High is for issues blocking a user. Medium and Low are informational or non-blocking. Never leave Urgent items unassigned.
+
+**Q: What are internal notes for?**
+A: Internal notes are private (users cannot see them). Use them to record investigation details, evidence, decisions, and handover instructions. Keep the user-visible response short and actionable.
+
+### Users & Roles
+
+**Q: What is the difference between Admin, Checker, and Support roles?**
+A: Admin can manage menus, users, and settings — but cannot approve their own menu changes. Checker reviews and approves or rejects pending menu changes. Support works on submissions and tickets with limited access to other areas.
+
+**Q: What happens when I create a new admin user?**
+A: They receive a temporary password that expires in 24 hours. On first login they are forced to change it. The new password must be at least 12 characters with uppercase, lowercase, number, and special character.
+
+**Q: When should I disable a user account?**
+A: Immediately when a staff member leaves, changes roles, or when suspicious activity is detected on their account. Disabling invalidates all active sessions. If shared credentials were exposed, rotate all related secrets.
+
+### App Settings & Branding
+
+**Q: What do the avatar and logo settings control?**
+A: Bot Avatar is the icon shown next to bot messages. User Avatar is the icon for the user. App Logo appears in the header and welcome screen. Each can be set to text initials, a locally uploaded image, or an external image URL.
+
+**Q: What is the Report ID configuration?**
+A: It controls how submission reference numbers are generated — the prefix (e.g., NIB), whether the year is included, the number length, and the starting value. Keep IDs short enough to read over the phone and ensure uniqueness.
+
+### Logs & Security
+
+**Q: How do I investigate when a user reports "it does not work"?**
+A: Follow the user journey in order: menu → KYC → API call → response mapping → output. Open Logs, filter by the user's session ID and approximate time, and find the first step that failed. The error category (validation, auth, timeout, mapping) tells you where to fix.
+
+**Q: What do I do if I see secrets (tokens, passwords) in logs?**
+A: Treat it as a security incident. Sensitive values should be redacted automatically. If you see them in plain text, report it to engineering immediately and rotate the exposed credential.
+
+**Q: What does the Audit Log track?**
+A: Every admin action — login, logout, user creation, password changes, menu edits, settings updates, and lockouts. Each entry includes who did it, what changed, when, from which IP, and with which browser. Use it for compliance and investigations.
