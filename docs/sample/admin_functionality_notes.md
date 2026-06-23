@@ -636,3 +636,51 @@ A: Treat it as a security incident. Sensitive values should be redacted automati
 
 **Q: What does the Audit Log track?**
 A: Every admin action — login, logout, user creation, password changes, menu edits, settings updates, and lockouts. Each entry includes who did it, what changed, when, from which IP, and with which browser. Use it for compliance and investigations.
+
+### Rate Limiting & Account Lockout
+
+**Q: What happens if someone enters the wrong password too many times?**
+A: After 5 failed login attempts for the same username, that account is locked for 15 minutes. No one can log into that account until the lockout expires, even with the correct password. This prevents brute-force password guessing.
+
+**Q: What if an attacker tries many different usernames with the same password?**
+A: The system tracks total failed logins per IP address across all usernames. After 10 cumulative failures from the same IP — regardless of which usernames were tried — that entire IP is locked out for 30 minutes. This stops credential-stuffing attacks.
+
+**Q: How does IP rate limiting work on login?**
+A: Each IP address is allowed a maximum of 5 login requests per 15 minutes. After that, additional attempts from the same IP are rejected with "Too many attempts. Try again later." and a 429 status code. This applies to all requests, successful or not.
+
+**Q: What is progressive delay and why do failed logins feel slower each time?**
+A: Each consecutive failed login adds an increasing delay before the error response is returned — 1 second after the first failure, 2 seconds after the second, 4 seconds after the third, and up to 8 seconds. This makes automated tools impractical even within the rate limit window.
+
+**Q: Are other endpoints besides login also rate limited?**
+A: Yes. Password change is limited to 10 attempts per user per 15 minutes with account lockout after 5 wrong current-password entries. Password reset (forgot password) is limited to 20 requests per IP and 5 requests per email per 15 minutes. Recovery token verification is limited to 10 attempts per token per 15 minutes. All these limits prevent abuse of every authentication endpoint.
+
+**Q: What happens if Redis goes down — does rate limiting stop working?**
+A: No. The system falls back to in-memory counters when Redis is unavailable. Rate limiting continues to work, but the counters are local to the server process and will reset if the server restarts. This is why keeping Redis running is important for consistent protection.
+
+**Q: I locked myself out — what do I do?**
+A: Wait for the lockout to expire (15 minutes for account lockout, 30 minutes for IP lockout). If you need immediate access, an administrator with server access can clear the lockout by restarting Redis (`redis-cli FLUSHDB`) or restarting the app process (which clears in-memory counters). Use this only in emergencies.
+
+**Q: How do I know if someone is trying to attack the login?**
+A: Check the Audit Log for `LOGIN_FAILURE`, `LOGIN_LOCKOUT`, `LOGIN_IP_LOCKOUT`, and `LOGIN_IP_RATE_LIMITED` events. Multiple failures from the same IP targeting different usernames is a strong indicator of credential stuffing. Multiple failures targeting one username from different IPs suggests a targeted brute-force attack. Both patterns are logged with IP addresses and timestamps for investigation.
+
+### Password Policy
+
+**Q: What are the password requirements?**
+A: Passwords must be at least 12 characters long and include at least one uppercase letter, one lowercase letter, one number, and one special character. Common passwords (like "password123" or "admin1234") are blocked. Passwords found in known data breaches (checked via the HaveIBeenPwned database) are also rejected.
+
+**Q: How does breach checking work — does the system send my password somewhere?**
+A: No. The system uses a privacy-safe method called k-anonymity. It hashes your password with SHA-1, sends only the first 5 characters of the hash to the HaveIBeenPwned API, and receives back a list of matching hash suffixes. The full hash never leaves the server. If your password's hash appears in the list, it has been exposed in a known data breach and you must choose a different one.
+
+**Q: Why was the minimum length increased from 8 to 12?**
+A: Modern password-cracking tools can break 8-character passwords in hours. A 12-character minimum with mixed character types provides significantly stronger protection against both brute-force attacks and dictionary attacks, which is especially important for a banking application.
+
+### File Upload Security
+
+**Q: What file types can be uploaded?**
+A: Only image files — PNG, JPEG, GIF, and WebP. The system validates three layers: the declared MIME type must be an image type, the file extension must be an image extension, and the actual file content must contain valid image magic bytes (binary signatures). A non-image file renamed to .png will be detected and rejected.
+
+**Q: What if I upload a JPEG file that was saved with a .png extension?**
+A: The system detects the mismatch and auto-corrects. It reads the actual file content, determines the real format from the magic bytes, and stores it with the correct extension. The upload succeeds without error.
+
+**Q: Where are uploaded files stored?**
+A: In a private `storage/uploads/` directory outside the web-accessible folder. Files are served through a controlled endpoint that adds security headers (Content-Type, X-Content-Type-Options: nosniff, Content-Disposition). They are not directly accessible as static files.
