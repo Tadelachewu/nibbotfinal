@@ -4,19 +4,23 @@
 
 @layer base {
   :root {
-    --background: 40 33% 98%; /* Light cream background */
-    --foreground: 25 50% 10%; /* Deep dark brown text */
+    --background: 40 33% 98%;
+    /* Light cream background */
+    --foreground: 25 50% 10%;
+    /* Deep dark brown text */
     --card: 0 0% 100%;
     --card-foreground: 25 50% 10%;
     --popover: 0 0% 100%;
     --popover-foreground: 25 50% 10%;
-    --primary: 45 93% 47%; /* Golden Yellow from logo */
+    --primary: 45 93% 47%;
+    /* Golden Yellow from logo */
     --primary-foreground: 25 50% 10%;
     --secondary: 25 40% 96%;
     --secondary-foreground: 25 50% 20%;
     --muted: 25 20% 94%;
     --muted-foreground: 25 20% 40%;
-    --accent: 25 51% 28%; /* Deep Brown from logo */
+    --accent: 25 51% 28%;
+    /* Deep Brown from logo */
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
@@ -58,6 +62,7 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground font-body antialiased;
   }
@@ -71,36 +76,92 @@
   white-space: pre-wrap !important;
 }
 
-.wysiwyg-content h1 { @apply text-2xl font-extrabold mb-4 mt-2; color: var(--primary); }
-.wysiwyg-content h2 { @apply text-xl font-bold mb-3 mt-2; }
-.wysiwyg-content h3 { @apply text-lg font-bold mb-2; }
-.wysiwyg-content h4 { @apply text-base font-bold mb-2; }
-.wysiwyg-content h5 { @apply text-sm font-bold mb-1; }
-.wysiwyg-content h6 { @apply text-xs font-bold mb-1; }
+.wysiwyg-content h1 {
+  @apply text-2xl font-extrabold mb-4 mt-2;
+  color: var(--primary);
+}
 
-.wysiwyg-content p { @apply mb-3 last:mb-0; }
-.wysiwyg-content p:empty::before { content: '\00a0'; }
-.wysiwyg-content ul { @apply list-disc pl-5 mb-4 space-y-1; }
-.wysiwyg-content ol { @apply list-decimal pl-5 mb-4 space-y-1; }
-.wysiwyg-content li { @apply pl-1; }
+.wysiwyg-content h2 {
+  @apply text-xl font-bold mb-3 mt-2;
+}
 
-.wysiwyg-content blockquote { @apply border-l-4 border-primary/30 pl-4 py-1 italic mb-4 bg-primary/5 rounded-r-lg; }
-.wysiwyg-content strong { @apply font-bold; }
-.wysiwyg-content em { @apply italic; }
-.wysiwyg-content u { @apply underline decoration-primary/30 underline-offset-2; }
+.wysiwyg-content h3 {
+  @apply text-lg font-bold mb-2;
+}
 
-.wysiwyg-content hr { @apply my-6 border-t border-border; }
+.wysiwyg-content h4 {
+  @apply text-base font-bold mb-2;
+}
 
-.wysiwyg-content mark { 
+.wysiwyg-content h5 {
+  @apply text-sm font-bold mb-1;
+}
+
+.wysiwyg-content h6 {
+  @apply text-xs font-bold mb-1;
+}
+
+.wysiwyg-content p {
+  @apply mb-3 last:mb-0;
+}
+
+.wysiwyg-content p:empty::before {
+  content: '\00a0';
+}
+
+.wysiwyg-content ul {
+  @apply list-disc pl-5 mb-4 space-y-1;
+}
+
+.wysiwyg-content ol {
+  @apply list-decimal pl-5 mb-4 space-y-1;
+}
+
+.wysiwyg-content li {
+  @apply pl-1;
+}
+
+.wysiwyg-content blockquote {
+  @apply border-l-4 border-primary/30 pl-4 py-1 italic mb-4 bg-primary/5 rounded-r-lg;
+}
+
+.wysiwyg-content strong {
+  @apply font-bold;
+}
+
+.wysiwyg-content em {
+  @apply italic;
+}
+
+.wysiwyg-content u {
+  @apply underline decoration-primary/30 underline-offset-2;
+}
+
+.wysiwyg-content hr {
+  @apply my-6 border-t border-border;
+}
+
+.wysiwyg-content mark {
   @apply px-1 rounded-sm font-medium;
   background-color: var(--primary);
   color: var(--primary-foreground);
 }
 
-.wysiwyg-content a { @apply text-primary underline underline-offset-4 font-semibold hover:text-primary/80 transition-colors; }
-.wysiwyg-content a:visited { @apply text-primary/70; }
-.wysiwyg-content a:active { @apply text-primary/60; }
-.wysiwyg-content strong { @apply font-semibold; }
+.wysiwyg-content a {
+  @apply text-primary underline underline-offset-4 font-semibold hover:text-primary/80 transition-colors;
+}
+
+.wysiwyg-content a:visited {
+  @apply text-primary/70;
+}
+
+.wysiwyg-content a:active {
+  @apply text-primary/60;
+}
+
+.wysiwyg-content strong {
+  @apply font-semibold;
+}
 
 /* Highlight mark — let the inline color attribute take priority */
 .wysiwyg-content mark[data-color] {
@@ -125,8 +186,16 @@
 /* Adaptive text color overrides for inline-colored WYSIWYG spans.
    Applied by JS (adaptWysiwygColors) when the detected luminance of an
    inline color style is too dark for dark-mode or too light for light-mode. */
-.wysiwyg-dark-text  { color: #e2e8f0 !important; } /* slate-200 — readable on dark bg  */
-.wysiwyg-light-text { color: #1e293b !important; } /* slate-800 — readable on light bg */
+.wysiwyg-dark-text {
+  color: #e2e8f0 !important;
+}
+
+/* slate-200 — readable on dark bg  */
+.wysiwyg-light-text {
+  color: #1e293b !important;
+}
+
+/* slate-800 — readable on light bg */
 
 /* Smooth scrollable tables on touch devices */
 .table-scroll-container {
@@ -151,7 +220,10 @@
 
 /* Prevent zoom on input focus on iOS */
 @media (max-width: 640px) {
-  input, select, textarea {
+
+  input,
+  select,
+  textarea {
     font-size: 16px !important;
   }
 }

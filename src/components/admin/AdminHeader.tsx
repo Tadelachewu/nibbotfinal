@@ -26,7 +26,7 @@ export function AdminHeader() {
   return (
     <header className="border-b bg-card px-6 py-4 flex items-center justify-between sticky top-0 z-50 h-20 shadow-sm">
       <div className="flex items-center gap-4">
-        <Logo className="h-10 w-16 sm:w-24 md:w-32 drop-shadow-md" src={logo} />
+        <Logo className="h-12 w-28 sm:h-14 sm:w-36 md:h-16 md:w-44 drop-shadow-md" src={logo} />
         <div className="flex flex-col">
           <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground hidden sm:block opacity-70">Administrative Portal</p>
           <h1 className="text-lg font-black text-[#763717] sm:hidden">Nib Admin</h1>

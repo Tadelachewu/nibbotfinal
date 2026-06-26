@@ -1617,7 +1617,7 @@ export function ChatInterface() {
       )}
       <header className="bg-card border-b border-[#763717]/10 px-3 py-3 flex items-center justify-between sticky top-0 z-50 shadow-sm min-w-0">
         <div className="flex items-center gap-3 min-w-0 flex-1">
-          <Logo className="h-10 w-14 sm:w-20 md:w-28 shrink-0 drop-shadow-lg" src={appSettings?.appLogo} />
+          <Logo className="h-12 w-28 sm:h-14 sm:w-36 md:h-16 md:w-44 shrink-0 drop-shadow-lg" src={appSettings?.appLogo} />
           <div className="min-w-0">
             <div className="flex items-center gap-1">
               {connectivity === 'checking' && (
