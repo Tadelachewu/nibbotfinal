@@ -11,7 +11,7 @@ require('dotenv').config();
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = 'localhost';
-const port = Number(process.env.PORT || (dev ? 9002 : 3024));
+const port = Number(process.env.PORT || (dev ? 9002 : 3020));
 
 // Initialize Next.js engine directly from our custom wrapper
 const app = next({ dev, hostname, port });
