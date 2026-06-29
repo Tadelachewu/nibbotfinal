@@ -1593,28 +1593,7 @@ export function ChatInterface() {
   const connectivity = useConnectivity();
 
   return (
-    <div className="flex flex-col h-full bg-card w-full max-w-2xl mx-auto sm:border-x shadow-2xl relative overflow-x-clip">
-      {(currentMenuId || menuHistory.length > 0) && (
-        <div className="absolute top-[4.5rem] right-2 z-40 flex flex-col gap-2">
-          <Button
-            onClick={handleHome}
-            size="sm"
-            variant="outline"
-            className="rounded-full shadow-lg border-[#f4a61b] bg-card h-9 w-9 p-0 text-[#763717] hover:text-[#763717] hover:bg-[#f4a61b]/10 transition-colors"
-          >
-            <HomeIcon size={16} />
-          </Button>
-          <Button
-            disabled={menuHistory.length === 0}
-            onClick={handleBack}
-            size="sm"
-            variant="outline"
-            className="rounded-full shadow-lg border-[#f4a61b] bg-card h-9 w-9 p-0 text-[#763717] hover:text-[#763717] hover:bg-[#f4a61b]/10 transition-colors disabled:opacity-30"
-          >
-            <ChevronLeft size={18} />
-          </Button>
-        </div>
-      )}
+    <div className="flex flex-col h-full bg-card w-full max-w-2xl mx-auto sm:border-x shadow-2xl relative overflow-x-hidden">
       <header className="bg-card border-b border-[#763717]/10 px-2 sm:px-3 py-2 sm:py-3 flex items-center justify-between sticky top-0 z-50 shadow-sm min-w-0">
         <div className="flex flex-col sm:flex-row sm:items-center gap-0 sm:gap-3 min-w-0">
           <Logo className="h-8 w-20 sm:h-14 sm:w-36 md:h-16 md:w-44 shrink-0 drop-shadow-lg" src={appSettings?.appLogo} />
@@ -1709,7 +1688,28 @@ export function ChatInterface() {
           </DropdownMenu>
         </div>
       </header>
-      <ScrollArea ref={scrollRef} className="flex-1 overflow-x-hidden p-3 sm:p-4 md:p-6 space-y-4">
+      <ScrollArea ref={scrollRef} className="flex-1 overflow-x-hidden p-3 sm:p-4 md:p-6 space-y-4 relative">
+        {(currentMenuId || menuHistory.length > 0) ? (
+          <div className="sticky top-0 z-40 flex flex-col gap-2 float-right">
+            <Button
+              onClick={handleHome}
+              size="sm"
+              variant="outline"
+              className="rounded-full shadow-lg border-[#f4a61b] bg-card h-9 w-9 p-0 text-[#763717] hover:text-[#763717] hover:bg-[#f4a61b]/10 transition-colors"
+            >
+              <HomeIcon size={16} />
+            </Button>
+            <Button
+              disabled={menuHistory.length === 0}
+              onClick={handleBack}
+              size="sm"
+              variant="outline"
+              className="rounded-full shadow-lg border-[#f4a61b] bg-card h-9 w-9 p-0 text-[#763717] hover:text-[#763717] hover:bg-[#f4a61b]/10 transition-colors disabled:opacity-30"
+            >
+              <ChevronLeft size={18} />
+            </Button>
+          </div>
+        ) : null}
         <div className="flex flex-col min-h-full">
           {history.map(msg => (
             <ChatBubble
