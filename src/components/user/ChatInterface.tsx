@@ -1595,7 +1595,7 @@ export function ChatInterface() {
   return (
     <div className="flex flex-col h-full bg-card w-full max-w-2xl mx-auto sm:border-x shadow-2xl relative overflow-x-clip">
       {(currentMenuId || menuHistory.length > 0) && (
-        <div className="absolute top-[4.5rem] right-2 z-40 flex flex-col gap-2">
+        <div className="absolute top-[4.5rem] right-2 sm:right-4 z-40 flex flex-col gap-2">
           <Button
             onClick={handleHome}
             size="sm"
