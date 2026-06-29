@@ -1615,30 +1615,28 @@ export function ChatInterface() {
           </Button>
         </div>
       )}
-      <header className="bg-card border-b border-[#763717]/10 px-3 py-3 flex items-center justify-between sticky top-0 z-50 shadow-sm min-w-0">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <Logo className="h-12 w-28 sm:h-14 sm:w-36 md:h-16 md:w-44 shrink-0 drop-shadow-lg" src={appSettings?.appLogo} />
-          <div className="min-w-0">
-            <div className="flex items-center gap-1">
-              {connectivity === 'checking' && (
-                <>
-                  <div className="w-2 h-2 rounded-full bg-[#763717]/40 animate-pulse shrink-0" />
-                  <span className="text-[9px] uppercase tracking-wider font-bold text-[#763717]/60 truncate">{t('ui_checking', 'Checking...')}</span>
-                </>
-              )}
-              {connectivity === 'online' && (
-                <>
-                  <div className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse shrink-0" />
-                  <span className="text-[9px] uppercase tracking-wider font-bold text-[#763717]">{t('ui_online', 'Online')}</span>
-                </>
-              )}
-              {connectivity === 'offline' && (
-                <>
-                  <div className="w-2 h-2 rounded-full bg-red-600 shrink-0" />
-                  <span className="text-[9px] uppercase tracking-wider font-bold text-red-700">{t('ui_offline', 'Offline')}</span>
-                </>
-              )}
-            </div>
+      <header className="bg-card border-b border-[#763717]/10 px-2 sm:px-3 py-2 sm:py-3 flex items-center justify-between sticky top-0 z-50 shadow-sm min-w-0">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-0 sm:gap-3 min-w-0">
+          <Logo className="h-8 w-20 sm:h-14 sm:w-36 md:h-16 md:w-44 shrink-0 drop-shadow-lg" src={appSettings?.appLogo} />
+          <div className="flex items-center gap-1">
+            {connectivity === 'checking' && (
+              <>
+                <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-[#763717]/40 animate-pulse shrink-0" />
+                <span className="text-[8px] sm:text-[9px] uppercase tracking-wider font-bold text-[#763717]/60">{t('ui_checking', 'Checking...')}</span>
+              </>
+            )}
+            {connectivity === 'online' && (
+              <>
+                <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-600 animate-pulse shrink-0" />
+                <span className="text-[8px] sm:text-[9px] uppercase tracking-wider font-bold text-[#763717]">{t('ui_online', 'Online')}</span>
+              </>
+            )}
+            {connectivity === 'offline' && (
+              <>
+                <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-red-600 shrink-0" />
+                <span className="text-[8px] sm:text-[9px] uppercase tracking-wider font-bold text-red-700">{t('ui_offline', 'Offline')}</span>
+              </>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-0.5 shrink-0">
@@ -1647,9 +1645,10 @@ export function ChatInterface() {
             size="sm"
             onClick={startStatusFlow}
             title={t('ui_report_status_btn', 'Check Report Status')}
-            className="text-[#763717] hover:text-[#763717] hover:bg-[#763717]/10 h-9 px-2 flex items-center gap-1.5"
+            className="text-[#763717] hover:text-[#763717] hover:bg-[#763717]/10 h-7 w-7 sm:h-9 sm:w-auto px-0 sm:px-2 flex items-center justify-center gap-1.5"
           >
-            <Search size={16} className="shrink-0" />
+            <Search size={14} className="shrink-0 sm:hidden" />
+            <Search size={16} className="shrink-0 hidden sm:block" />
             <span className="hidden sm:inline text-xs font-semibold whitespace-nowrap">
               {t('ui_report_status_btn', 'Check Report Status')}
             </span>
@@ -1660,10 +1659,11 @@ export function ChatInterface() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-[#763717] hover:text-[#763717] h-9 px-2 hover:bg-[#763717]/10 flex items-center gap-1.5"
+                className="text-[#763717] hover:text-[#763717] h-7 sm:h-9 px-1 sm:px-2 hover:bg-[#763717]/10 flex items-center gap-1"
               >
-                <Globe size={16} className="text-[#763717] shrink-0" />
-                <span className="text-xs font-semibold text-[#763717]">
+                <Globe size={14} className="text-[#763717] shrink-0 sm:hidden" />
+                <Globe size={16} className="text-[#763717] shrink-0 hidden sm:block" />
+                <span className="text-[10px] sm:text-xs font-semibold text-[#763717]">
                   {(currentLang?.code || 'EN').toUpperCase()}
                 </span>
               </Button>
@@ -1688,7 +1688,7 @@ export function ChatInterface() {
           </DropdownMenu>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 p-0 border border-[#763717]/20 shadow-sm shrink-0 overflow-hidden hover:bg-[#763717]/10">
+              <Button variant="ghost" size="icon" className="rounded-full h-7 w-7 sm:h-9 sm:w-9 p-0 border border-[#763717]/20 shadow-sm shrink-0 overflow-hidden hover:bg-[#763717]/10">
                 <Avatar className="h-full w-full border-[#763717]/30 rounded-full">
                   <AvatarImage src={userAvatarUrl} className="object-cover" loading="eager" decoding="async" fetchPriority="high" />
                   <AvatarFallback className="bg-[#f4a61b] text-[#763717] text-[10px] font-bold">{userAvatarFallback}</AvatarFallback>

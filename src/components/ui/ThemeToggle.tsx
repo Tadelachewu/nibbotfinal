@@ -66,7 +66,7 @@ export default function ThemeToggle({ cookieName = 'nib_theme' }: ThemeTogglePro
             <button
                 aria-label={`Theme: ${theme}`}
                 title={`Theme: ${theme} (click to switch)`}
-                className="sm:hidden h-9 w-9 rounded-md flex items-center justify-center text-sm hover:bg-[#763717]/10 transition-colors shrink-0"
+                className="sm:hidden h-7 w-7 rounded-md flex items-center justify-center text-xs hover:bg-[#763717]/10 transition-colors shrink-0"
                 onClick={() => setTheme(CYCLE[theme] || 'light')}
             >
                 {ICONS[theme] || '☀️'}
