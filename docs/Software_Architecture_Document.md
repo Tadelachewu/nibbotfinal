@@ -21,36 +21,40 @@ Below is the standard representation of the architecture mapping the deployment 
 
 ```mermaid
 flowchart TD
-    %% Define Styles to match the design template
     classDef userBox fill:#F4F8FC,stroke:#4A90E2,stroke-width:1px,color:#000
     classDef routerBox fill:#FFFFFF,stroke:#9013FE,stroke-width:1.5px,color:#000
     classDef firewall fill:#FFFFFF,stroke:#D0021B,stroke-width:1.5px,color:#D0021B
-    classDef frontend fill:#FFFFFF,stroke:#417505,stroke-width:1.5px,color:#417505
-    classDef backend fill:#FFFFFF,stroke:#4A90E2,stroke-width:1.5px,color:#4A90E2
+    classDef appBox fill:#FFFFFF,stroke:#417505,stroke-width:1.5px,color:#417505
     classDef middleware fill:#FFFFFF,stroke:#50E3C2,stroke-width:1.5px,color:#008B8B
     classDef dbLayer fill:#F4F8FC,stroke:#4A90E2,stroke-width:1.5px,color:#000
     classDef dmzZone fill:#FFF5EA,stroke:#F5A623,stroke-width:2px,color:#000
     classDef intZone fill:#F2FAF5,stroke:#417505,stroke-width:2px,color:#000
 
-    USER["👤 USER<br/><span style='font-size:10px'>Customer / End User</span>"]:::userBox
+    Admin["👤 Admin User"]:::userBox
+    EndUser["👤 End User"]:::userBox
+
     Browser["🖥️ Browser"]:::userBox
+    Phone["📱 Phone"]:::userBox
+
     Internet(("🌐 Internet")):::userBox
 
-    USER -- "Https / Public Access" --> Browser
+    Admin -- "HTTPS / Public Access" --> Browser
+    Admin -- "HTTPS / Public Access" --> Phone
+    EndUser -- "HTTPS / Public Access" --> Browser
+    EndUser -- "HTTPS / Public Access" --> Phone
+
     Browser <--> Internet
+    Phone <--> Internet
 
     subgraph DMZ ["DMZ ZONE (Public Zone)"]
-        direction LR
         Edge["Edge Router /<br/>Load Balancer"]:::routerBox
         FW1["🧱 Firewall"]:::firewall
-        FE["💻 Frontend<br/><span style='font-size:10px'>(Next.js React UI)</span>"]:::frontend
-        BE["⚙️ Backend<br/><span style='font-size:10px'>(Next.js API & Socket.IO)</span>"]:::backend
-        MW["🛠️ Middleware<br/><span style='font-size:10px'>(Node server.js & Rate Limiter)</span>"]:::middleware
+        Chatbot["⚙️ Chatbot<br/><span style='font-size:10px'>(Next.js App — Frontend, Backend, Socket.IO)</span>"]:::appBox
+        MW["🛠️ Middleware<br/><span style='font-size:10px'>(Core Banking Middleware / ESB)</span>"]:::middleware
 
         Edge <--> FW1
-        FW1 <--> FE
-        FE <--> BE
-        BE <--> MW
+        FW1 <--> Chatbot
+        Chatbot <--> MW
     end
 
     Internet <--> Edge
@@ -58,24 +62,16 @@ flowchart TD
     subgraph INTERNAL ["INTERNAL NETWORK"]
         direction TB
         FW2["🧱 Firewall"]:::firewall
-        
-        CoreServices["Nibbot Core Services<br/><span style='font-size:10px'>Prisma ORM & Auth Layer</span>"]:::backend
-        
+
         subgraph DBLayer ["DATABASE LAYER"]
             DB[("🛢️ DB<br/><span style='font-size:10px'>PostgreSQL & Redis</span>")]:::dbLayer
         end
-        
-        BankingSys["🏦 Core Banking System<br/><span style='font-size:10px'>(Mock Express.js API)</span>"]:::backend
 
-        FW2 <--> CoreServices
-        CoreServices <-->|"Read/Write"| DBLayer
-        CoreServices <-->|"Core Banking Transactions"| BankingSys
+        FW2 <-->|"Read / Write"| DBLayer
     end
 
-    %% Link the DMZ Backend to the Internal Network Firewall
-    BE <-->|"Business Service Requests"| FW2
+    MW <-->|"DB Connection"| FW2
 
-    %% Apply Subgraph Styles
     class DMZ dmzZone
     class INTERNAL intZone
     class DBLayer dbLayer
@@ -96,20 +92,22 @@ flowchart TD
 
 The Logical View describes the functional components of the system across the two main network zones.
 
-#### 4.1 DMZ (Public Zone) Components
-- **Edge Router / Load Balancer:** The primary gateway for incoming internet traffic, responsible for SSL termination and traffic distribution.
-- **Frontend (Next.js React UI):** Serves the Next.js Client Components (React 19). It renders both the anonymous customer-facing chat widget and the secure administrative dashboard.
-- **Backend (Next.js App Router):** Handles Server-Side Rendering (SSR) and processes incoming REST API requests (`/api/*`).
-- **Middleware (Custom Node `server.js`):** A wrapper executing alongside the Next.js instance. It enforces global rate limits, checks request payload limits, injects secure unforgeable client IP headers (`x-direct-client-ip`), and mounts the Socket.IO real-time engine.
+#### 4.1 Users
+- **Admin User:** Bank staff who manage menus, triage reports, configure API integrations, and manage other admin users through the admin dashboard (`/admin`).
+- **End User:** Bank customers who interact with the chatbot to access services, check information, and submit reports through the public chat interface (`/`).
+- Both access the system through a **Browser** or **Phone** over HTTPS. There is no separate mobile app — the web interface is responsive and works on all devices.
 
-#### 4.2 Internal Network Components
-- **Nibbot Core Services:** The central business logic tier handling payload validation (via Zod), entity state management, identity verification, and object-relational mapping (Prisma ORM).
+#### 4.2 DMZ (Public Zone) Components
+- **Edge Router / Load Balancer:** The first point of contact for internet traffic. Terminates SSL/TLS, distributes traffic across app servers. In the current deployment this is **nginx**.
+- **Firewall (FW1):** Filters traffic between the Edge Router and the application. Only allows HTTP and WebSocket traffic on the app port. Blocks direct access to internal service ports.
+- **Chatbot (Next.js Application):** A single unified application that contains the frontend (React UI), the backend (API routes), real-time presence engine (Socket.IO), and a custom Node.js server wrapper (`server.js`) that enforces security headers, rate limiting, IP capture, and request body limits. It serves the customer chat interface, the admin dashboard, processes all API requests, and connects to the Core Banking Middleware for external service calls.
+- **Middleware (Core Banking Middleware / ESB):** The bank's enterprise integration layer that sits between the Chatbot application and the bank's internal systems. The Chatbot calls the Middleware through its server-side proxy endpoint (`/api/proxy`) to access banking services such as account lookups, balance checks, transaction history, and exchange rates. The proxy enforces a domain allowlist (`PROXY_ALLOWED_HOSTS`), blocks private IP ranges (SSRF protection), validates DNS resolution, and applies request timeouts before forwarding to the Middleware.
+
+#### 4.3 Internal Network Components
+- **Firewall (FW2):** Separates the DMZ from the internal network. Only allows the Chatbot and Middleware to connect to the Database Layer on specific ports (PostgreSQL 5432, Redis 6379). No other traffic passes through.
 - **Database Layer:**
-  - *PostgreSQL:* The primary relational persistent storage. Manages structural data such as User Reports, Chat Logs, Dynamic Menus, and encrypted Admin Credentials.
-  - *Redis:* A high-performance in-memory datastore managing transient states like live user presence heartbeats, distributed rate-limit locks, and concurrent session tracking.
-- **External / Mock Integrations:**
-  - *Banking System Integration:* A localized Mock Banking API (Express.js) designed to simulate processing core financial transactions and exchange rate fetching securely.
-  - *AI/LLM Services:* Authorized outbound connections to commercial LLMs for generative chat contextualization.
+  - *PostgreSQL:* The primary relational database. Stores all persistent data — dynamic menus, admin credentials (bcrypt hashed), user reports, interaction logs, audit logs, app settings, KYC field definitions, and drafts.
+  - *Redis:* An in-memory data store for transient state — rate limit counters, account lockout flags, online user presence heartbeats (sorted sets), and session version tracking for concurrent session control.
 
 ---
 

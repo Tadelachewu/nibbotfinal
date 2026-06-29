@@ -1615,33 +1615,31 @@ export function ChatInterface() {
           </Button>
         </div>
       )}
-      <header className="bg-card border-b border-[#763717]/10 px-3 py-3 flex items-center justify-between sticky top-0 z-50 shadow-sm min-w-0">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
+      <header className="bg-card border-b border-[#763717]/10 px-2 sm:px-3 py-3 flex items-center justify-between sticky top-0 z-50 shadow-sm min-w-0">
+        <div className="flex items-center gap-1 sm:gap-2 min-w-0 overflow-hidden shrink-0">
           <Logo className="h-12 w-28 sm:h-14 sm:w-36 md:h-16 md:w-44 shrink-0 drop-shadow-lg" src={appSettings?.appLogo} />
-          <div className="min-w-0">
-            <div className="flex items-center gap-1">
-              {connectivity === 'checking' && (
-                <>
-                  <div className="w-2 h-2 rounded-full bg-[#763717]/40 animate-pulse shrink-0" />
-                  <span className="text-[9px] uppercase tracking-wider font-bold text-[#763717]/60 truncate">{t('ui_checking', 'Checking...')}</span>
-                </>
-              )}
-              {connectivity === 'online' && (
-                <>
-                  <div className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse shrink-0" />
-                  <span className="text-[9px] uppercase tracking-wider font-bold text-[#763717]">{t('ui_online', 'Online')}</span>
-                </>
-              )}
-              {connectivity === 'offline' && (
-                <>
-                  <div className="w-2 h-2 rounded-full bg-red-600 shrink-0" />
-                  <span className="text-[9px] uppercase tracking-wider font-bold text-red-700">{t('ui_offline', 'Offline')}</span>
-                </>
-              )}
-            </div>
+          <div className="flex items-center gap-1 shrink-0">
+            {connectivity === 'checking' && (
+              <>
+                <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-[#763717]/40 animate-pulse shrink-0" />
+                <span className="text-[8px] sm:text-[9px] uppercase tracking-wider font-bold text-[#763717]/60">{t('ui_checking', 'Checking...')}</span>
+              </>
+            )}
+            {connectivity === 'online' && (
+              <>
+                <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-600 animate-pulse shrink-0" />
+                <span className="text-[8px] sm:text-[9px] uppercase tracking-wider font-bold text-[#763717]">{t('ui_online', 'Online')}</span>
+              </>
+            )}
+            {connectivity === 'offline' && (
+              <>
+                <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-red-600 shrink-0" />
+                <span className="text-[8px] sm:text-[9px] uppercase tracking-wider font-bold text-red-700">{t('ui_offline', 'Offline')}</span>
+              </>
+            )}
           </div>
         </div>
-        <div className="flex items-center gap-0.5 shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
           <Button
             variant="ghost"
             size="sm"
