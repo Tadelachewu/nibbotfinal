@@ -28,18 +28,18 @@ export function ChatBubble({ children, isBot = true, botAvatar, userAvatar }: Ch
 
   return (
     <div className={cn(
-      "flex gap-3 w-full mb-6 animate-in fade-in slide-in-from-bottom-2 duration-500",
+      "flex gap-2 w-full mb-3 animate-in fade-in slide-in-from-bottom-2 duration-500",
       isBot ? "justify-start" : "justify-end"
     )}>
       {isBot && (
-        <Avatar className="h-8 w-8 border-2 border-[#f4a61b]/20 shrink-0 rounded-full">
+        <Avatar className="h-7 w-7 border-2 border-[#f4a61b]/20 shrink-0 rounded-full">
           <AvatarImage src={defaultBotAvatar} className="object-cover" />
-          <AvatarFallback className="bg-[#f4a61b] text-[#763717] text-[10px] font-bold">{botAvatar?.text || 'NB'}</AvatarFallback>
+          <AvatarFallback className="bg-[#f4a61b] text-[#763717] text-[9px] font-bold">{botAvatar?.text || 'NB'}</AvatarFallback>
         </Avatar>
       )}
 
       <div className={cn(
-        "max-w-[80%] rounded-2xl p-3 sm:p-4 shadow-sm transition-all hover:shadow-md overflow-hidden min-w-0",
+        "max-w-[80%] rounded-2xl p-2.5 sm:p-3 shadow-sm transition-all hover:shadow-md overflow-hidden min-w-0 text-sm",
         isBot
           ? "bg-card text-[#763717] rounded-tl-none border border-border"
           : "bg-card text-[#763717] rounded-tr-none border border-[#f4a61b]/30"
@@ -50,9 +50,9 @@ export function ChatBubble({ children, isBot = true, botAvatar, userAvatar }: Ch
       </div>
 
       {!isBot && (
-        <Avatar className="h-8 w-8 border-2 border-[#f4a61b]/20 shrink-0 rounded-full">
+        <Avatar className="h-7 w-7 border-2 border-[#f4a61b]/20 shrink-0 rounded-full">
           <AvatarImage src={defaultUserAvatar} className="object-cover" />
-          <AvatarFallback className="bg-[#f4a61b] text-[#763717] text-[10px] font-bold">{userAvatar?.text || 'U'}</AvatarFallback>
+          <AvatarFallback className="bg-[#f4a61b] text-[#763717] text-[9px] font-bold">{userAvatar?.text || 'U'}</AvatarFallback>
         </Avatar>
       )}
     </div>

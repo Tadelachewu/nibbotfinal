@@ -135,10 +135,10 @@ function MessageOptionsList({
         <Button
           key={opt.id}
           variant="outline"
-          className="rounded-[1.25rem] bg-card hover:bg-[#f4a61b]/10 border-[#f4a61b] text-[#763717] hover:text-[#763717] h-auto py-3 px-4 flex items-center justify-start text-left w-fit max-w-full shadow-md transition-all active:scale-[0.98]"
+          className="rounded-[1.25rem] bg-card hover:bg-[#f4a61b]/10 border-[#f4a61b] text-[#763717] hover:text-[#763717] h-auto py-1.5 px-3 flex items-center justify-start text-left w-fit max-w-full shadow-md transition-all active:scale-[0.98]"
           onClick={() => navigateTo(opt)}
         >
-          <span className="whitespace-normal break-words font-bold text-[13px] leading-snug">{getLocalizedName(opt)}</span>
+          <span className="whitespace-normal break-words font-medium text-xs leading-snug">{getLocalizedName(opt)}</span>
         </Button>
       ))}
 
@@ -184,11 +184,11 @@ function MessageOptionsList({
         <Button
           key={opt.id}
           variant="outline"
-          className="rounded-[1.25rem] shadow-sm flex items-center justify-start text-left w-fit max-w-full h-auto py-3 px-4 gap-2 bg-card hover:bg-[#f4a61b]/10 border-[#f4a61b]/50 text-[#763717] hover:text-[#763717]"
+          className="rounded-[1.25rem] shadow-sm flex items-center justify-start text-left w-fit max-w-full h-auto py-1.5 px-3 gap-1.5 bg-card hover:bg-[#f4a61b]/10 border-[#f4a61b]/50 text-[#763717] hover:text-[#763717]"
           onClick={() => navigateTo(opt)}
         >
-          <ClipboardCheck size={16} className="shrink-0 opacity-70" />
-          <span className="whitespace-normal break-words font-bold text-[13px] leading-snug">{getLocalizedName(opt)}</span>
+          <ClipboardCheck size={12} className="shrink-0 opacity-70" />
+          <span className="whitespace-normal break-words font-medium text-xs leading-snug">{getLocalizedName(opt)}</span>
         </Button>
       ))}
     </div>
@@ -1601,19 +1601,19 @@ export function ChatInterface() {
             {connectivity === 'checking' && (
               <>
                 <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-[#763717]/40 animate-pulse shrink-0" />
-                <span className="text-[8px] sm:text-[9px] uppercase tracking-wider font-bold text-[#763717]/60">{t('ui_checking', 'Checking...')}</span>
+                <span className="text-[7px] sm:text-[8px] uppercase tracking-wider font-bold text-[#763717]/60">{t('ui_checking', 'Checking...')}</span>
               </>
             )}
             {connectivity === 'online' && (
               <>
-                <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-600 animate-pulse shrink-0" />
-                <span className="text-[8px] sm:text-[9px] uppercase tracking-wider font-bold text-[#763717]">{t('ui_online', 'Online')}</span>
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse shrink-0" />
+                <span className="text-[7px] sm:text-[8px] uppercase tracking-wider font-bold text-[#763717]">{t('ui_online', 'Online')}</span>
               </>
             )}
             {connectivity === 'offline' && (
               <>
-                <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-red-600 shrink-0" />
-                <span className="text-[8px] sm:text-[9px] uppercase tracking-wider font-bold text-red-700">{t('ui_offline', 'Offline')}</span>
+                <div className="w-1.5 h-1.5 rounded-full bg-red-600 shrink-0" />
+                <span className="text-[7px] sm:text-[8px] uppercase tracking-wider font-bold text-red-700">{t('ui_offline', 'Offline')}</span>
               </>
             )}
           </div>
@@ -1628,7 +1628,7 @@ export function ChatInterface() {
           >
             <Search size={14} className="shrink-0 sm:hidden" />
             <Search size={16} className="shrink-0 hidden sm:block" />
-            <span className="hidden sm:inline text-xs font-semibold whitespace-nowrap">
+            <span className="hidden sm:inline text-[10px] font-semibold whitespace-nowrap">
               {t('ui_report_status_btn', 'Check Report Status')}
             </span>
           </Button>
@@ -1642,7 +1642,7 @@ export function ChatInterface() {
               >
                 <Globe size={14} className="text-[#763717] shrink-0 sm:hidden" />
                 <Globe size={16} className="text-[#763717] shrink-0 hidden sm:block" />
-                <span className="text-[10px] sm:text-xs font-semibold text-[#763717]">
+                <span className="text-[9px] sm:text-[10px] font-semibold text-[#763717]">
                   {(currentLang?.code || 'EN').toUpperCase()}
                 </span>
               </Button>
@@ -1688,7 +1688,7 @@ export function ChatInterface() {
           </DropdownMenu>
         </div>
       </header>
-      <ScrollArea ref={scrollRef} className="flex-1 overflow-x-hidden p-3 sm:p-4 md:p-6 space-y-4 relative">
+      <ScrollArea ref={scrollRef} className="flex-1 overflow-x-hidden p-2 sm:p-3 md:p-4 space-y-2 relative">
         {(currentMenuId || menuHistory.length > 0) ? (
           <div className="sticky top-0 z-40 flex flex-col gap-2 float-right">
             <Button
@@ -1719,11 +1719,11 @@ export function ChatInterface() {
               userAvatar={{ type: appSettings?.userAvatarType, text: userAvatarFallback, image: appSettings?.userAvatarImage, url: userAvatarUrl }}
             >
               {msg.id === 'welcome' && (
-                <div className="flex flex-col items-center justify-center pt-6 pb-8 space-y-6">
-                  <h2 className="text-2xl font-black text-center text-[#763717] px-4 leading-tight tracking-tight">
+                <div className="flex flex-col items-center justify-center pt-3 pb-4 space-y-2">
+                  <h2 className="text-sm font-bold text-center text-[#763717] px-2 leading-tight tracking-tight">
                     {currentLang?.code === 'am' ? t('ui_welcome_am', 'Welcome to Nib International Bank') : t('ui_welcome_en', 'Welcome to Nib International Bank')}
                   </h2>
-                  <p className="text-sm font-medium text-center text-muted-foreground">
+                  <p className="text-[10px] font-medium text-center text-muted-foreground">
                     {t('ui_welcome_subtitle', 'How can we assist you today?')}
                   </p>
                 </div>
@@ -1748,49 +1748,49 @@ export function ChatInterface() {
                 </div>
               )}
               {msg.reportStatus && (
-                <div className="mt-4 border rounded-xl p-4 bg-primary/5 shadow-sm space-y-4">
-                  <div className="flex items-center justify-between border-b pb-3">
-                    <div className="flex items-center gap-2">
+                <div className="mt-2 border rounded-xl p-3 bg-primary/5 shadow-sm space-y-2">
+                  <div className="flex items-center justify-between border-b pb-2">
+                    <div className="flex items-center gap-1.5">
                       {getStatusDisplay(msg.reportStatus.status).icon}
-                      <span className="text-xs font-bold uppercase tracking-tight">{t('ui_status_label', 'Report Status')}</span>
+                      <span className="text-[10px] font-bold uppercase tracking-tight">{t('ui_status_label', 'Report Status')}</span>
                     </div>
-                    <Badge className={cn("text-[10px] rounded-full", getStatusDisplay(msg.reportStatus.status).color)}>
+                    <Badge className={cn("text-[9px] rounded-full", getStatusDisplay(msg.reportStatus.status).color)}>
                       {getStatusDisplay(msg.reportStatus.status).label}
                     </Badge>
                   </div>
-                  <div className="space-y-2">
-                    <div className="text-[10px] uppercase font-bold text-muted-foreground">{t('ui_original_request', 'Original Request')}</div>
-                    <div className="text-sm font-semibold">{getLocalizedReportMenuName(msg.reportStatus)}</div>
+                  <div className="space-y-1">
+                    <div className="text-[9px] uppercase font-bold text-muted-foreground">{t('ui_original_request', 'Original Request')}</div>
+                    <div className="text-xs font-semibold">{getLocalizedReportMenuName(msg.reportStatus)}</div>
                   </div>
                   {msg.reportStatus?.adminResponse && (
-                    <div className="mt-2 p-3 bg-card rounded-lg border border-primary/20">
-                      <div className="text-[10px] uppercase font-bold text-primary flex items-center gap-1">
-                        <CornerDownRight size={10} /> {t('ui_admin_feedback', 'Admin Feedback')}
+                    <div className="mt-1 p-2 bg-card rounded-lg border border-primary/20">
+                      <div className="text-[9px] uppercase font-bold text-primary flex items-center gap-1">
+                        <CornerDownRight size={9} /> {t('ui_admin_feedback', 'Admin Feedback')}
                       </div>
-                      <div className="text-sm italic text-muted-foreground">{msg.reportStatus.adminResponse}</div>
+                      <div className="text-xs italic text-muted-foreground">{msg.reportStatus.adminResponse}</div>
                     </div>
                   )}
                   {msg.reportStatus?.status === 'resolved' && (
-                    <div className="mt-2 p-3 bg-card rounded-lg border border-primary/20">
+                    <div className="mt-1 p-2 bg-card rounded-lg border border-primary/20">
                       {typeof msg.reportStatus.serviceRating === 'number' ? (
-                        <div className="space-y-2">
-                          <div className="text-[10px] uppercase font-bold text-primary">{t('ui_rating_received', 'Rating Received')}</div>
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-1 text-amber-600">
+                        <div className="space-y-1">
+                          <div className="text-[9px] uppercase font-bold text-primary">{t('ui_rating_received', 'Rating Received')}</div>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-0.5 text-amber-600">
                               {Array.from({ length: 5 }).map((_, i) => (
-                                <Star key={i} size={14} className={i < msg.reportStatus!.serviceRating! ? 'fill-amber-500 text-amber-500' : 'text-muted-foreground/40'} />
+                                <Star key={i} size={12} className={i < msg.reportStatus!.serviceRating! ? 'fill-amber-500 text-amber-500' : 'text-muted-foreground/40'} />
                               ))}
                             </div>
-                            <div className="text-xs font-semibold">{msg.reportStatus.serviceRating} / 5</div>
+                            <div className="text-[10px] font-semibold">{msg.reportStatus.serviceRating} / 5</div>
                           </div>
                           {msg.reportStatus.serviceFeedback && (
-                            <div className="text-sm italic text-muted-foreground break-words">{msg.reportStatus.serviceFeedback}</div>
+                            <div className="text-xs italic text-muted-foreground break-words">{msg.reportStatus.serviceFeedback}</div>
                           )}
                         </div>
                       ) : (
-                        <div className="space-y-2">
-                          <div className="text-[10px] uppercase font-bold text-primary">{t('ui_rate_service', 'Rate the service')}</div>
-                          <div className="flex items-center gap-1">
+                        <div className="space-y-1">
+                          <div className="text-[9px] uppercase font-bold text-primary">{t('ui_rate_service', 'Rate the service')}</div>
+                          <div className="flex items-center gap-0.5">
                             {Array.from({ length: 5 }).map((_, i) => {
                               const r = i + 1;
                               const disabled = Boolean(ratingFlow && ratingFlow.reportId === msg.reportStatus!.id);
@@ -1801,16 +1801,16 @@ export function ChatInterface() {
                                   variant="ghost"
                                   size="icon"
                                   disabled={disabled}
-                                  className="h-9 w-9 rounded-full hover:bg-amber-50"
+                                  className="h-7 w-7 rounded-full hover:bg-amber-50"
                                   onClick={() => handleRatingStart(msg.reportStatus!.id, r)}
                                   title={`${r}/5`}
                                 >
-                                  <Star size={18} className="text-amber-500" />
+                                  <Star size={14} className="text-amber-500" />
                                 </Button>
                               );
                             })}
                           </div>
-                          <div className="text-[11px] text-muted-foreground">
+                          <div className="text-[10px] text-muted-foreground">
                             {t('ui_rate_hint', 'Your feedback helps us improve support service quality.')}
                           </div>
                         </div>
@@ -1887,9 +1887,9 @@ export function ChatInterface() {
           ))}
           {isLoading && (
             <div className="flex justify-start">
-              <div className="bg-card border rounded-2xl p-4 shadow-sm flex items-center gap-2 animate-in fade-in">
-                <Loader2 size={16} className="animate-spin text-primary" />
-                <span className="text-sm italic font-medium">{loadingText}</span>
+              <div className="bg-card border rounded-2xl p-2.5 shadow-sm flex items-center gap-2 animate-in fade-in">
+                <Loader2 size={12} className="animate-spin text-primary" />
+                <span className="text-xs italic font-medium">{loadingText}</span>
               </div>
             </div>
           )}
@@ -1904,9 +1904,9 @@ export function ChatInterface() {
             value={kycInput}
             onChange={e => setKycInput(e.target.value)}
             placeholder={statusFlow ? t('ui_placeholder_report_id', 'Enter reference ID...') : (ratingFlow ? t('ui_placeholder_feedback', 'Enter feedback (optional)...') : t('ui_placeholder_input', 'Enter requested information...'))}
-            className="flex-1 min-w-0 shadow-inner text-sm"
+            className="flex-1 min-w-0 shadow-inner text-xs h-8"
           />
-          <Button type="submit" size="icon" variant="outline" className="rounded-xl h-10 w-10 shrink-0 bg-card text-[#763717] hover:text-[#763717] hover:bg-[#f4a61b]/10 border-[#f4a61b]"><Send size={18} /></Button>
+          <Button type="submit" size="icon" variant="outline" className="rounded-xl h-8 w-8 shrink-0 bg-card text-[#763717] hover:text-[#763717] hover:bg-[#f4a61b]/10 border-[#f4a61b]"><Send size={14} /></Button>
           {kycFlow && !kycFlow.fields[kycFlow.fieldIndex].required && (
             <Button type="button" variant="ghost" size="sm" onClick={() => handleKycSubmit(true)} className="text-[10px] font-bold uppercase text-muted-foreground hover:text-primary h-10 px-2 shrink-0">
               {t('ui_skip', 'Skip')}
@@ -1928,7 +1928,7 @@ export function ChatInterface() {
         <Button
           variant="outline"
           size="sm"
-          className="rounded-full px-3 bg-card text-[#763717] hover:text-[#763717] hover:bg-[#f4a61b]/10 font-bold text-[11px] h-9 transition-all border-[#f4a61b] shadow-sm justify-self-start"
+          className="rounded-full px-2.5 bg-card text-[#763717] hover:text-[#763717] hover:bg-[#f4a61b]/10 font-bold text-[10px] h-7 transition-all border-[#f4a61b] shadow-sm justify-self-start"
           onClick={handleHome}
         >
           <HomeIcon className="mr-1.5" size={14} />
@@ -1951,10 +1951,10 @@ export function ChatInterface() {
           <Button
             variant="outline"
             size="sm"
-            className="justify-self-end rounded-full px-3 bg-card text-[#763717] hover:text-[#763717] hover:bg-[#f4a61b]/10 font-bold text-[11px] h-9 transition-all border-[#f4a61b] shadow-sm"
+            className="justify-self-end rounded-full px-2.5 bg-card text-[#763717] hover:text-[#763717] hover:bg-[#f4a61b]/10 font-bold text-[10px] h-7 transition-all border-[#f4a61b] shadow-sm"
             onClick={handleBack}
           >
-            <ChevronLeft className="mr-0.5" size={15} />
+            <ChevronLeft className="mr-0.5" size={12} />
             {t('ui_back', 'Back')}
           </Button>
         ) : (
