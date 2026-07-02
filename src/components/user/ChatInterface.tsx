@@ -23,8 +23,6 @@ import {
   Clock,
   AlertCircle,
   Settings,
-  User as UserIcon,
-  Check,
   Star,
   Search
 } from 'lucide-react';
@@ -109,7 +107,6 @@ function MessageOptionsList({
   relatedDescription,
   navigateTo,
   getLocalizedName,
-  currentLang,
   t
 }: {
   options?: MenuItem[];
@@ -117,7 +114,6 @@ function MessageOptionsList({
   relatedDescription?: string;
   navigateTo: (opt: MenuItem) => void;
   getLocalizedName: (opt: MenuItem) => string;
-  currentLang: Language | null;
   t: (key: string, fallback: string) => string;
 }) {
   const [page, setPage] = useState(0);
@@ -130,15 +126,15 @@ function MessageOptionsList({
   if (!options?.length && !relatedOptions?.length) return null;
 
   return (
-    <div className="flex flex-wrap content-start gap-2.5 mt-4 w-full">
+    <div className="flex flex-wrap content-start gap-1.5 mt-2 w-full">
       {currentOptions?.map(opt => (
         <Button
           key={opt.id}
           variant="outline"
-          className="rounded-[1.25rem] bg-card hover:bg-[#f4a61b]/10 border-[#f4a61b] text-[#763717] hover:text-[#763717] h-auto py-1.5 px-3 flex items-center justify-start text-left w-fit max-w-full shadow-md transition-all active:scale-[0.98]"
+          className="rounded-full bg-card hover:bg-[#f4a61b]/10 border-[#f4a61b] text-[#763717] hover:text-[#763717] h-auto py-1 px-3 flex items-center justify-start text-left w-fit max-w-full shadow-sm transition-all active:scale-[0.98]"
           onClick={() => navigateTo(opt)}
         >
-          <span className="whitespace-normal break-words font-medium text-xs leading-snug">{getLocalizedName(opt)}</span>
+          <span className="whitespace-normal break-words font-normal text-[11px] leading-snug">{getLocalizedName(opt)}</span>
         </Button>
       ))}
 
@@ -184,11 +180,11 @@ function MessageOptionsList({
         <Button
           key={opt.id}
           variant="outline"
-          className="rounded-[1.25rem] shadow-sm flex items-center justify-start text-left w-fit max-w-full h-auto py-1.5 px-3 gap-1.5 bg-card hover:bg-[#f4a61b]/10 border-[#f4a61b]/50 text-[#763717] hover:text-[#763717]"
+          className="rounded-full shadow-sm flex items-center justify-start text-left w-fit max-w-full h-auto py-1 px-3 gap-1 bg-card hover:bg-[#f4a61b]/10 border-[#f4a61b]/50 text-[#763717] hover:text-[#763717]"
           onClick={() => navigateTo(opt)}
         >
-          <ClipboardCheck size={12} className="shrink-0 opacity-70" />
-          <span className="whitespace-normal break-words font-medium text-xs leading-snug">{getLocalizedName(opt)}</span>
+          <ClipboardCheck size={11} className="shrink-0 opacity-70" />
+          <span className="whitespace-normal break-words font-normal text-[11px] leading-snug">{getLocalizedName(opt)}</span>
         </Button>
       ))}
     </div>
@@ -199,7 +195,7 @@ export function ChatInterface() {
   const [menus, setMenus] = useState<MenuItem[]>([]);
   const [languages, setLanguages] = useState<Language[]>([]);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [, setIsAdmin] = useState(false);
   const [history, setHistory] = useState<Message[]>([]);
   const historyRef = useRef<Message[]>([]);
   const [currentMenuId, setCurrentMenuId] = useState<string | null>(null);
@@ -403,7 +399,7 @@ export function ChatInterface() {
       if (stored) {
         sessionId = stored;
       } else {
-        sessionId = 'user_' + Math.random().toString(36).substr(2, 9);
+        sessionId = 'user_' + Math.random().toString(36).slice(2, 11);
         localStorage.setItem(STORAGE_KEY, sessionId);
       }
     }
@@ -826,7 +822,7 @@ export function ChatInterface() {
     return null;
   };
 
-  const resolveTableCell = (key: string, row: any, root: any, arrayPath: string, rootKey: string = 'data') => {
+  const resolveTableCell = (key: string, row: any, root: any, _arrayPath: string, rootKey: string = 'data') => {
     if (key.startsWith(rootKey + '.') || key.startsWith('data.')) {
       const val = getVal(key, root, rootKey);
       if (val !== undefined) return val;
@@ -872,7 +868,7 @@ export function ChatInterface() {
     }
   };
 
-  const handleUserInput = (e: React.FormEvent) => {
+  const handleUserInput = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!kycInput.trim()) return;
     if (statusFlow) {
@@ -1719,11 +1715,11 @@ export function ChatInterface() {
               userAvatar={{ type: appSettings?.userAvatarType, text: userAvatarFallback, image: appSettings?.userAvatarImage, url: userAvatarUrl }}
             >
               {msg.id === 'welcome' && (
-                <div className="flex flex-col items-center justify-center pt-3 pb-4 space-y-2">
-                  <h2 className="text-sm font-bold text-center text-[#763717] px-2 leading-tight tracking-tight">
+                <div className="flex flex-col items-center justify-center pt-2 pb-3 space-y-1">
+                  <p className="text-xs font-semibold text-center text-[#763717] px-2 leading-snug">
                     {currentLang?.code === 'am' ? t('ui_welcome_am', 'Welcome to Nib International Bank') : t('ui_welcome_en', 'Welcome to Nib International Bank')}
-                  </h2>
-                  <p className="text-[10px] font-medium text-center text-muted-foreground">
+                  </p>
+                  <p className="text-[9px] font-normal text-center text-muted-foreground">
                     {t('ui_welcome_subtitle', 'How can we assist you today?')}
                   </p>
                 </div>
@@ -1880,7 +1876,6 @@ export function ChatInterface() {
                 relatedDescription={msg.relatedDescription}
                 navigateTo={navigateTo}
                 getLocalizedName={getLocalizedName}
-                currentLang={currentLang}
                 t={t}
               />
             </ChatBubble>

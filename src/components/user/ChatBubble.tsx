@@ -39,7 +39,7 @@ export function ChatBubble({ children, isBot = true, botAvatar, userAvatar }: Ch
       )}
 
       <div className={cn(
-        "max-w-[80%] rounded-2xl p-2.5 sm:p-3 shadow-sm transition-all hover:shadow-md overflow-hidden min-w-0 text-sm",
+        "max-w-[85%] rounded-2xl p-2 sm:p-2.5 shadow-sm transition-all hover:shadow-md overflow-hidden min-w-0 text-xs",
         isBot
           ? "bg-card text-[#763717] rounded-tl-none border border-border"
           : "bg-card text-[#763717] rounded-tr-none border border-[#f4a61b]/30"
