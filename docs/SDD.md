@@ -27,9 +27,11 @@
 
 ## 1. Architecture Overview
 
-Nibbot is a full-stack, real-time conversational bot platform built on a **monolithic architecture** with an integrated WebSocket layer. The system serves two primary audiences: **end-users** who interact with a dynamic chat interface, and **administrators** who configure conversational workflows, manage support tickets, and monitor system health.
+Nibbot is a full-stack, real-time conversational bot platform built on a **monolithic architecture** with an integrated WebSocket layer. The system serves two primary audiences: **end-users** who interact with a dynamic chat interface (via browser or mobile device), and **administrators** who configure conversational workflows, manage support tickets, and monitor system health.
 
 The application is built as a **Next.js App Router** application running atop a **custom Node.js HTTP server** (`server.js`). This custom server wraps the Next.js request handler while simultaneously hosting a **Socket.io** server on the same port, enabling real-time presence tracking without a separate service.
+
+The production deployment follows a **zone-based network architecture**: a **DMZ (Public Zone)** hosts the application behind an **Edge Router / Load Balancer** and a **Firewall**, while the **Database Layer** resides in a separate **Internal Network** protected by its own firewall. This separation ensures that the database is never directly exposed to public traffic.
 
 **Core Architectural Principles (Observed in Code):**
 
@@ -37,6 +39,7 @@ The application is built as a **Next.js App Router** application running atop a 
 - **Maker-Checker Workflow:** Menu modifications by `admin` users require approval by `checker` users before going live — a dual-control governance pattern.
 - **Graceful Degradation:** The Redis-backed presence system fails silently, allowing core HTTP functionality to remain operational.
 - **Security-First:** Every mutating endpoint enforces session validation, CSRF token verification, and same-origin checks.
+- **Defense in Depth:** Network-level firewalls in both the DMZ and Internal Network zones complement application-level security controls.
 
 ---
 
@@ -92,13 +95,52 @@ The application is built as a **Next.js App Router** application running atop a 
 
 ## 3. Architecture Diagrams
 
-### 3.1 High-Level System Architecture
+### 3.1 Network Deployment Architecture (SAD)
+
+The following diagram reflects the production network topology as defined in the System Architecture Diagram (SAD):
 
 ```mermaid
 graph TB
     subgraph "Client Layer"
-        EU["End User Browser"]
-        AD["Admin Browser"]
+        AU["Admin User"]
+        EUsr["End User"]
+        BR["Browser"]
+        MOB["Mobile"]
+    end
+
+    subgraph "DMZ ZONE (Public Zone)"
+        ELB["Edge Router /<br/>Load Balancer"]
+        FW1["Firewall"]
+        CB["Chatbot<br/>(Next.js + Socket.io)"]
+        MWR["Middleware"]
+    end
+
+    subgraph "INTERNAL NETWORK"
+        FW2["Firewall"]
+        DB["Database Layer<br/>(PostgreSQL)"]
+    end
+
+    AU -->|"HTTP/S"| BR
+    EUsr -->|"HTTP/S"| BR
+    EUsr -->|"HTTP/S"| MOB
+    BR -->|"Public Access"| ELB
+    MOB -->|"Public Access"| ELB
+    ELB <--> FW1
+    FW1 <--> CB
+    CB <--> MWR
+    MWR -->|"DB Connection"| FW2
+    FW2 -->|"Read/Write"| DB
+```
+
+### 3.2 Application-Level System Architecture
+
+The following diagram shows the internal application component relationships:
+
+```mermaid
+graph TB
+    subgraph "Client Layer"
+        EU["End User (Browser / Mobile)"]
+        AD["Admin (Browser)"]
     end
 
     subgraph "Server Layer - Custom Node.js Server"
@@ -126,7 +168,7 @@ graph TB
     NEXT -->|"Recovery Emails"| SMTP
 ```
 
-### 3.2 Component Architecture
+### 3.3 Component Architecture
 
 ```mermaid
 graph LR
@@ -370,14 +412,24 @@ State-mutating responses include an `x-csrf-token` response header with a rotate
 
 ```mermaid
 sequenceDiagram
-    participant Client
-    participant Server as API Server
+    participant Client as Client (Browser/Mobile)
+    participant ELB as Edge Router / LB
+    participant FW1 as DMZ Firewall
+    participant Server as Chatbot (API Server)
+    participant MW as Middleware
+    participant FW2 as Internal Firewall
     participant DB as PostgreSQL
 
-    Client->>Server: POST /api/admin/auth/login {username, password}
+    Client->>ELB: POST /api/admin/auth/login {username, password}
+    ELB->>FW1: Forward request
+    FW1->>Server: Filtered request
     Server->>Server: isSameOriginRequest() check
-    Server->>DB: Find AdminCredential by username
-    DB-->>Server: {passwordHash, role}
+    Server->>MW: Route to auth handler
+    MW->>FW2: DB query
+    FW2->>DB: Find AdminCredential by username
+    DB-->>FW2: {passwordHash, role}
+    FW2-->>MW: Result
+    MW-->>Server: Credential data
     Server->>Server: bcrypt.compare(password, hash)
     alt Valid Credentials
         Server->>Server: Create iron-session cookie
@@ -406,6 +458,9 @@ sequenceDiagram
 | **Password Strength** | Min 8 chars, uppercase, lowercase, digit, special character | `src/app/api/admin/users/route.ts` |
 | **Self-Deletion Guard** | Cannot delete own admin account; cannot delete last admin | `src/app/api/admin/users/route.ts` |
 | **Maker-Checker** | Admin cannot approve their own menu creation | `src/app/api/menus/[id]/route.ts` |
+| **DMZ Firewall** | Filters inbound traffic from Edge Router before reaching application servers | Network infrastructure |
+| **Internal Network Firewall** | Isolates database layer; only allows DB connections from the application middleware | Network infrastructure |
+| **Edge Router / Load Balancer** | Terminates public HTTP/S connections and distributes traffic to application instances | Network infrastructure |
 
 ---
 
@@ -437,22 +492,35 @@ sequenceDiagram
 
 ```mermaid
 graph TB
-    subgraph "Firebase App Hosting"
-        NS["Node.js Server (server.js)<br/>Port: 3024 (prod)"]
-        NS --- NEXTAPP["Next.js Application"]
-        NS --- SOCKETIO["Socket.io Server"]
-    end
+    INTERNET["Internet / CDN"]
 
-    subgraph "Managed Services"
-        PGDB["PostgreSQL Database"]
+    subgraph "DMZ ZONE (Public Zone)"
+        ELB["Edge Router / Load Balancer"]
+        FW1["Firewall"]
+
+        subgraph "Firebase App Hosting"
+            NS["Node.js Server (server.js)<br/>Port: 3024 (prod)"]
+            NS --- NEXTAPP["Next.js Application"]
+            NS --- SOCKETIO["Socket.io Server"]
+            NS --- MWR["Middleware"]
+        end
+
         REDIS["Redis Instance"]
         SMTPS["SMTP Service"]
     end
 
-    INTERNET["Internet / CDN"] --> NS
-    NS --> PGDB
+    subgraph "INTERNAL NETWORK"
+        FW2["Firewall"]
+        PGDB["PostgreSQL Database"]
+    end
+
+    INTERNET --> ELB
+    ELB --> FW1
+    FW1 --> NS
     NS --> REDIS
     NS --> SMTPS
+    MWR -->|"DB Connection"| FW2
+    FW2 -->|"Read/Write"| PGDB
 ```
 
 ### 10.2 Environment Configuration

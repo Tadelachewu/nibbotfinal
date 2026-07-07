@@ -9,6 +9,7 @@ import { Prisma } from '@prisma/client';
 import { logSecurityEvent } from '@/lib/logger';
 import { getAllowedImageType, hasValidImageSignature, detectImageType } from '@/lib/fileValidation';
 import { scanBuffer } from '@/lib/virusScan';
+import { getKBConfig } from '@/lib/kb';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -122,10 +123,13 @@ async function persistDataUrlImage(dataUrl: string, prefix: 'bot' | 'user' | 'lo
 }
 
 export async function GET() {
-  const settings = await prisma.appSettings.findUnique({
-    where: { id: 1 },
-    include: { reportId: true }
-  });
+  const [settings, kbConfig] = await Promise.all([
+    prisma.appSettings.findUnique({
+      where: { id: 1 },
+      include: { reportId: true }
+    }),
+    getKBConfig(),
+  ]);
 
   if (!settings) {
     return NextResponse.json({
@@ -137,6 +141,7 @@ export async function GET() {
         ...defaultAvatarSettings,
         appLogo: '',
         showAdminPanelIcon: true,
+        aiEnabled: kbConfig.enabled,
       }
     });
   }
@@ -144,6 +149,7 @@ export async function GET() {
   return NextResponse.json({
     status: 'success',
     data: {
+      aiEnabled: kbConfig.enabled,
       supportedLanguages: (settings.supportedLanguages as any) ?? [],
       systemTranslations: (settings.systemTranslations as any) ?? {},
       botAvatarType: settings.botAvatarType ?? defaultAvatarSettings.botAvatarType,

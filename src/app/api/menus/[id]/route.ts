@@ -5,6 +5,7 @@ import prisma from '@/lib/prisma';
 import { getValidatedAdminSession, rotateCsrfToken, verifyCsrfToken } from '@/lib/session';
 import { logSecurityEvent } from '@/lib/logger';
 import { sanitizeHtml } from '@/lib/security';
+import { indexMenu } from '@/lib/kb';
 
 function parseBoolean(value: string | null) {
   return value === '1' || value === 'true';
@@ -494,6 +495,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
           order: Number.isFinite(pendingUpdate.order) ? pendingUpdate.order : undefined,
           isActive: typeof pendingUpdate.isActive === 'boolean' ? pendingUpdate.isActive : undefined,
           trackClicks: typeof pendingUpdate.trackClicks === 'boolean' ? pendingUpdate.trackClicks : undefined,
+          kbEnabled: typeof pendingUpdate.kbEnabled === 'boolean' ? pendingUpdate.kbEnabled : undefined,
           translations: Object.prototype.hasOwnProperty.call(pendingUpdate, 'translations') ? (pendingUpdate.translations ?? null) : undefined,
           attachmentDescription: Object.prototype.hasOwnProperty.call(pendingUpdate, 'attachmentDescription') ? (pendingUpdate.attachmentDescription ?? null) : undefined,
           pendingUpdate: Prisma.DbNull,
@@ -585,6 +587,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     ip: session.ip,
     userAgent: session.userAgent
   });
+
+  // Re-index KB when a menu or pending update is approved
+  if (action === 'approve') {
+    indexMenu(id).catch(err => console.error('[KB] indexMenu after approve failed:', err));
+  }
 
   const updated = await prisma.menuItem.findUnique({
     where: { id },
@@ -692,6 +699,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
       order: Number.isFinite(body.order) ? body.order : undefined,
       isActive: typeof body.isActive === 'boolean' ? body.isActive : undefined,
       trackClicks: typeof body.trackClicks === 'boolean' ? body.trackClicks : undefined,
+      kbEnabled: typeof body.kbEnabled === 'boolean' ? body.kbEnabled : undefined,
       translations: Object.prototype.hasOwnProperty.call(body, 'translations') ? translations : undefined,
       attachedMenuIds: Object.prototype.hasOwnProperty.call(body, 'attachedMenuIds') ? attachedMenuIds : undefined,
       attachmentDescription: Object.prototype.hasOwnProperty.call(body, 'attachmentDescription') ? (typeof body.attachmentDescription === 'string' ? body.attachmentDescription : null) : undefined
@@ -729,6 +737,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
         order: Number.isFinite(body.order) ? body.order : undefined,
         isActive: typeof body.isActive === 'boolean' ? body.isActive : undefined,
         trackClicks: typeof body.trackClicks === 'boolean' ? body.trackClicks : undefined,
+        kbEnabled: typeof body.kbEnabled === 'boolean' ? body.kbEnabled : undefined,
         clickCount: Number.isFinite(body.clickCount) ? body.clickCount : undefined,
         sessionClickCount: Number.isFinite(body.sessionClickCount) ? body.sessionClickCount : undefined,
         translations,
@@ -787,6 +796,11 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
         });
       }
     }
+  }
+
+  // Re-index KB for non-approved menus that are edited directly
+  if (existing.approvalStatus !== 'approved') {
+    indexMenu(id).catch(err => console.error('[KB] indexMenu after PUT failed:', err));
   }
 
   const updated = await prisma.menuItem.findUnique({

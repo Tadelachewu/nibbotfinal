@@ -87,12 +87,15 @@ model MenuItem {
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 
+  kbEnabled         Boolean        @default(true)  @map("kb_enabled")
+
   // relations
   attachments       MenuAttachment[] @relation("MenuAttachment_menu")
   attachedTo        MenuAttachment[] @relation("MenuAttachment_attached")
   kycMappings       MenuKYC[]        @relation("MenuKYC_menu")
   reports           UserReport[]     @relation("Menu_reports")
   clicks            ClickHistory[]   @relation("Menu_clicks")
+  kbChunks          KBChunk[]        @relation("KBChunk_menu")
 
   @@map("menu_items")
 }
@@ -301,6 +304,123 @@ model AuditLog {
   @@index([action])
   @@index([timestamp])
   @@map("audit_logs")
+}
+
+// KB chunks — text fragments from menus OR articles, for vector search.
+// The article unique index is managed via raw SQL — Prisma does not support
+// partial unique indexes. The `embedding` column IS declared below via
+// Unsupported() — do not remove it. Without it, `prisma migrate dev` diffs
+// the DB against this schema, sees a column it doesn't know about, and
+// proposes DROP COLUMN "embedding" — which is exactly what silently broke
+// KB search once already (see migration 20260702131115_kb).
+model KBChunk {
+  id         Int       @id @default(autoincrement())
+  menuId     String?   // null for article-sourced chunks
+  articleId  String?   // null for menu-sourced chunks
+  chunkIndex Int       @default(0)
+  text       String    @db.Text
+  lang       String    @default("en")
+  tokenCount Int?
+  indexedAt  DateTime  @default(now())
+  embedding  Unsupported("vector(1024)")?
+
+  menu    MenuItem?  @relation("KBChunk_menu",    fields: [menuId],    references: [id], onDelete: Cascade)
+  article KBArticle? @relation("KBChunk_article", fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([menuId, chunkIndex, lang])
+  // Article unique index: kb_chunks_articleId_chunkIndex_lang_key (partial, applied via raw SQL)
+  @@index([menuId])
+  @@index([articleId])
+  @@map("kb_chunks")
+}
+
+// Admin-authored knowledge articles — indexed into KB alongside menus.
+// Multi-language the same way MenuItem is: title/body is English (default),
+// titleAm/bodyAm is Amharic, translations covers any other configured
+// language. One article = one topic, all its languages together — not one
+// row per language. Per-chunk language is still tracked on KBChunk.lang.
+model KBArticle {
+  id           String    @id @default(cuid())
+  title        String
+  body         String    @default("") @db.Text
+  titleAm      String?
+  bodyAm       String?   @db.Text
+  translations Json?
+  enabled      Boolean   @default(true)
+  createdBy    String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  chunks       KBChunk[] @relation("KBChunk_article")
+
+  @@map("kb_articles")
+}
+
+// Singleton configuration row (id always = 1)
+model KBConfig {
+  id              Int      @id @default(1)
+  enabled         Boolean  @default(true)
+  embeddingModel  String   @default("bge-m3")   @map("embedding_model")
+  generationModel String   @default("aya:8b")   @map("generation_model")
+  chunkSize       Int      @default(350)         @map("chunk_size")
+  chunkOverlap    Int      @default(60)          @map("chunk_overlap")
+  // Defaults tuned against real content: section-aware chunking means a
+  // single page can produce 10+ sibling chunks, so topK=5 routinely excluded
+  // the correct one. 0.72 rejected genuinely correct matches on bge-m3's
+  // typical similarity range for short/listy content (observed ~0.4-0.55
+  // for verified-correct chunks).
+  topK            Int      @default(10)          @map("top_k")
+  minScore        Float    @default(0.5)         @map("min_score")
+  temperature     Float    @default(0.2)         @map("temperature")
+  rerankerEnabled Boolean  @default(false)        @map("reranker_enabled")
+  rerankerModel   String?  @default("bge-reranker-base") @map("reranker_model")
+  rerankPoolSize  Int      @default(15)           @map("rerank_pool_size")
+  // Cross-encoder relevance-probability threshold, applied instead of
+  // minScore when rerankerEnabled — different score distribution (sigmoid
+  // over a cross-encoder logit, not cosine similarity) so it needs its own knob.
+  // 0.25 not 0.62: every chunk is prefixed with its page name/heading for
+  // lexical/vector grounding (see KBChunk indexing), which bge-reranker-base
+  // reads as label noise and scores markedly lower even for correct matches —
+  // measured ~0.37 for a verified-correct match vs. <0.01 for wrong ones, so
+  // 0.25 keeps a wide margin above real answers while still well above noise.
+  rerankMinScore  Float    @default(0.25)         @map("rerank_min_score")
+  systemPrompt    String?  @db.Text              @map("system_prompt")
+  updatedAt       DateTime @updatedAt
+
+  @@map("kb_config")
+}
+
+// Query audit log for the KB "Ask AI" flow — written via raw SQL in kb.ts
+// (fire-and-forget inserts), but modeled here so `prisma migrate dev` knows
+// this table exists and never proposes dropping it (see the KBChunk.embedding
+// comment above for why that matters — it already happened once).
+model KBQueryLog {
+  id            Int      @id @default(autoincrement())
+  sessionId     String
+  question      String   @db.Text
+  answer        String?  @db.Text
+  noAnswer      Boolean
+  confidence    String?
+  // @default([]) is load-bearing, not cosmetic: kb.ts's INSERTs for the
+  // "no answer" path omit this column entirely, relying on the DB default to
+  // fill it in. It was previously only set via raw migration SQL (never
+  // declared here) — any schema reconciliation that trusts schema.prisma as
+  // the source of truth (e.g. `prisma db push`) silently stripped it back to
+  // no-default, which reintroduced a NOT NULL violation on every "no answer"
+  // log write. Declaring it here is what makes the fix actually durable.
+  sourceMenuIds String[] @default([])
+  lang          String
+  durationMs    Int?
+  // Null for a normal answer or a low-confidence "No Answer" — those aren't
+  // infra failures. Set to 'timeout' or 'error' only when queryKB() threw
+  // (Ollama unreachable/timed out) before it could produce either outcome,
+  // so the Query Audit Log can tell "we looked and found nothing" apart
+  // from "we never got to look."
+  errorType     String?
+  createdAt     DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([sessionId])
+  @@map("kb_query_logs")
 }
 
 // Admin drafts for menu, report, user, and localization edits

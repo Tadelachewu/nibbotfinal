@@ -6,6 +6,8 @@ import { useConnectivity } from '@/hooks/useConnectivity';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { MenuItem, KYCField, TableColumn, Language, UserReport, KYCFieldType, AppSettings } from '@/lib/types';
 import { ChatBubble } from './ChatBubble';
+import { KBAnswerBubble } from './KBAnswerBubble';
+import type { KBResult } from '@/lib/kb';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Logo } from '@/components/Logo';
@@ -67,7 +69,8 @@ interface Message {
   relatedOptions?: MenuItem[];
   relatedDescription?: string;
   isKYC?: boolean;
-  sourceType?: 'menu' | 'menu_intro' | 'menu_back' | 'menu_click' | 'home' | 'status_prompt' | 'status_result' | 'kyc_prompt' | 'api_table';
+  sourceType?: 'menu' | 'menu_intro' | 'menu_back' | 'menu_click' | 'home' | 'status_prompt' | 'status_result' | 'kyc_prompt' | 'api_table' | 'kb_result';
+  kbResult?: KBResult;
   sourceMenuId?: string;
   sourceRootKey?: string;
   statusLookupId?: string;
@@ -229,6 +232,9 @@ export function ChatInterface() {
   const [ratingFlow, setRatingFlow] = useState<{ reportId: string; rating: number } | null>(null);
   const [kycInput, setKycInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [kbMode, setKbMode] = useState(false);
+  const [kbQuestion, setKbQuestion] = useState('');
+  const [kbLoading, setKbLoading] = useState(false);
   const [loadingText, setLoadingText] = useState('');
   const [loadingMoreId, setLoadingMoreId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -868,6 +874,69 @@ export function ChatInterface() {
     }
   };
 
+  const handleKBQuery = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const q = kbQuestion.trim();
+    if (!q || kbLoading) return;
+
+    const userMsgId = `kb-user-${Date.now()}`;
+    const botMsgId = `kb-bot-${Date.now()}`;
+
+    // Grab the immediately preceding KB Q&A turn (if any) so the backend can
+    // resolve a follow-up like "How many are there?" against it — the KB
+    // pipeline itself is otherwise fully stateless per request.
+    let prevTurn: { question: string; answer: string } | undefined;
+    for (let i = history.length - 1; i >= 0; i--) {
+      const msg = history[i];
+      if (msg.sender === 'bot' && msg.sourceType === 'kb_result' && msg.kbResult && !msg.kbResult.noAnswer) {
+        const userMsg = [...history.slice(0, i)].reverse().find(m => m.sender === 'user' && m.sourceType === 'kb_result');
+        if (userMsg?.text) {
+          prevTurn = { question: userMsg.text, answer: msg.kbResult.answer };
+        }
+        break;
+      }
+    }
+
+    setHistory(prev => [...prev, { id: userMsgId, sender: 'user', text: q, sourceType: 'kb_result' }]);
+    setKbQuestion('');
+    setKbLoading(true);
+
+    try {
+      const res = await fetch('/api/kb/query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: q,
+          lang: currentLang?.code || 'en',
+          sessionId: userData.id,
+          history: prevTurn ? [prevTurn] : undefined,
+        }),
+        credentials: 'same-origin',
+      });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data?.data) {
+        const msg429 = t('ui_kb_ratelimit', 'You\'ve sent too many questions. Please wait a moment and try again.');
+        const errText = res.status === 429
+          ? msg429
+          : (data?.message || t('ui_kb_error', 'Knowledge base is temporarily unavailable. Please use the menu or contact support.'));
+        setHistory(prev => [...prev, { id: botMsgId, sender: 'bot', text: errText }]);
+      } else {
+        setHistory(prev => [...prev, {
+          id: botMsgId, sender: 'bot', sourceType: 'kb_result',
+          kbResult: data.data,
+        }]);
+      }
+    } catch {
+      setHistory(prev => [...prev, {
+        id: botMsgId, sender: 'bot',
+        text: t('ui_kb_error', 'Knowledge base is temporarily unavailable. Please use the menu or contact support.'),
+      }]);
+    } finally {
+      setKbLoading(false);
+    }
+  };
+
   const handleUserInput = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!kycInput.trim()) return;
@@ -1318,6 +1387,17 @@ export function ChatInterface() {
 
   const navigateTo = async (menu: MenuItem) => {
     const startTime = Date.now();
+    // Clicking any menu must exit other mutually-exclusive input flows
+    // (report status lookup, rating, KB question mode) — otherwise their
+    // input bar keeps rendering underneath whatever this menu opens next
+    // (a KYC/param form, a plain submenu, etc.), since those bars' render
+    // conditions don't check for a menu navigation happening. Also clears
+    // any stale, abandoned kycFlow from a previously-opened menu; if this
+    // menu itself needs KYC fields, it's set again below.
+    setStatusFlow(false);
+    setRatingFlow(null);
+    setKbMode(false);
+    setKycFlow(null);
     const runtime = await fetchRuntimeConfig().catch(() => ({ menus }));
     const activeMenus = runtime.menus;
     const effectiveMenu = activeMenus.find(m => m.id === menu.id) || menu;
@@ -1525,6 +1605,14 @@ export function ChatInterface() {
   const handleHome = () => {
     setMenuHistory([]);
     setCurrentMenuId(null);
+    setKbMode(false);
+    setKbQuestion('');
+    // Home must exit any in-progress flow (report status lookup, KYC form,
+    // rating) — otherwise that flow's input bar keeps rendering underneath
+    // the home screen since its render condition is independent of kbMode.
+    setStatusFlow(false);
+    setKycFlow(null);
+    setRatingFlow(null);
     setHistory(prev => [...prev, {
       id: `bot-home-${Date.now()}`,
       sender: 'bot',
@@ -1707,7 +1795,14 @@ export function ChatInterface() {
           </div>
         ) : null}
         <div className="flex flex-col min-h-full">
-          {history.map(msg => (
+          {history.map(msg => msg.sender === 'bot' && msg.kbResult ? (
+            <KBAnswerBubble
+              key={msg.id}
+              result={msg.kbResult}
+              onMenuClick={() => handleHome()}
+              onBack={() => { setKbMode(false); setKbQuestion(''); }}
+            />
+          ) : (
             <ChatBubble
               key={msg.id}
               isBot={msg.sender === 'bot'}
@@ -1722,6 +1817,29 @@ export function ChatInterface() {
                   <p className="text-[9px] font-normal text-center text-muted-foreground">
                     {t('ui_welcome_subtitle', 'How can we assist you today?')}
                   </p>
+                </div>
+              )}
+              {/* Shown on first load AND every subsequent Home visit — previously
+                  this button only existed on the one-time 'welcome' message, so
+                  clicking the Home icon never brought it back. */}
+              {!kbMode && appSettings?.aiEnabled !== false && (msg.id === 'welcome' || msg.sourceType === 'home') && (
+                <div className="flex justify-center pb-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Ask a Question must exit any in-progress flow — otherwise
+                      // that flow's input bar keeps rendering instead of the KB
+                      // question box, since their render conditions don't check
+                      // kbMode at all.
+                      setStatusFlow(false);
+                      setKycFlow(null);
+                      setRatingFlow(null);
+                      setKbMode(true);
+                    }}
+                    className="mt-1.5 text-[10px] px-3 py-1 rounded-full bg-[#f4a61b]/10 border border-[#f4a61b]/30 text-[#763717] hover:bg-[#f4a61b]/20 transition-colors font-medium"
+                  >
+                    ✨ {t('ui_ask_ai', 'Ask a Question')}
+                  </button>
                 </div>
               )}
               {msg.id !== 'welcome' && msg.text && <div onClick={handleLinkClick} dangerouslySetInnerHTML={{ __html: sanitizeHtml(msg.text) }} />}
@@ -1919,6 +2037,47 @@ export function ChatInterface() {
           )}
         </form>
       </div>}
+      {kbMode && !kycFlow && !statusFlow && !ratingFlow && (
+        <div className="px-3 py-3 bg-card border-t flex flex-col gap-2 sticky bottom-0 z-50 animate-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] font-semibold text-[#763717]/80 flex items-center gap-1">
+              ✨ {t('ui_ask_ai', 'Ask a Question')}
+            </span>
+            <button
+              type="button"
+              onClick={() => { setKbMode(false); setKbQuestion(''); }}
+              className="text-[10px] text-muted-foreground hover:text-destructive transition-colors font-bold uppercase px-1"
+            >
+              {t('ui_cancel', 'Cancel')}
+            </button>
+          </div>
+          <form onSubmit={handleKBQuery} className="flex gap-2 w-full">
+            <Input
+              autoFocus
+              type="text"
+              value={kbQuestion}
+              onChange={e => setKbQuestion(e.target.value)}
+              placeholder={t('ui_kb_placeholder', 'Type your question...')}
+              disabled={kbLoading}
+              maxLength={500}
+              className="flex-1 min-w-0 shadow-inner text-xs h-8"
+            />
+            <Button
+              type="submit"
+              size="icon"
+              variant="outline"
+              disabled={kbLoading || !kbQuestion.trim()}
+              className="rounded-xl h-8 w-8 shrink-0 bg-card text-[#763717] hover:text-[#763717] hover:bg-[#f4a61b]/10 border-[#f4a61b]"
+            >
+              {kbLoading ? (
+                <span className="text-[10px] animate-spin">⏳</span>
+              ) : (
+                <Send size={14} />
+              )}
+            </Button>
+          </form>
+        </div>
+      )}
       <footer className="bg-card border-t border-[#763717]/10 px-3 py-2.5 grid grid-cols-3 items-center gap-2 sticky bottom-0 z-40 shadow-[0_-1px_3px_rgba(0,0,0,0.05)]">
         <Button
           variant="outline"

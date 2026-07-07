@@ -45,7 +45,8 @@ import {
   Calendar,
   UserCircle,
   Info,
-  X
+  X,
+  Brain
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -94,9 +95,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { usePerEntityDrafts } from '@/hooks/usePerEntityDrafts';
+import { useToast } from '@/hooks/use-toast';
 
 export function MenuManagement() {
   const { csrfFetch, currentRole, currentUsername } = useAdminAuth();
+  const { toast } = useToast();
   const [menus, setMenus] = useState<MenuItem[]>([]);
   const [settings, setSettings] = useState<AppSettings>({ supportedLanguages: [] });
   const [supportUsers, setSupportUsers] = useState<Array<{ username: string; email?: string }>>([]);
@@ -127,16 +130,23 @@ export function MenuManagement() {
   const [botAvatarImageSource, setBotAvatarImageSource] = useState<'upload' | 'url'>('upload');
   const [userAvatarImageSource, setUserAvatarImageSource] = useState<'upload' | 'url'>('upload');
   const [appLogoSource, setAppLogoSource] = useState<'upload' | 'url'>('upload');
+  // Master AI switch — this mirrors kb_config.enabled (the same flag KB
+  // Management's own Config tab controls), not a separate setting. Keeping
+  // it as one source of truth avoids the two toggles silently disagreeing.
+  const [aiEnabled, setAiEnabled] = useState(true);
+  const [aiEnabledSaving, setAiEnabledSaving] = useState(false);
 
   useEffect(() => {
     const load = async () => {
-      const [menusRes, settingsRes] = await Promise.all([
+      const [menusRes, settingsRes, kbConfigRes] = await Promise.all([
         csrfFetch('/api/menus?includeInactive=1', { cache: 'no-store' }),
-        fetch('/api/app-settings', { cache: 'no-store' })
+        fetch('/api/app-settings', { cache: 'no-store' }),
+        csrfFetch('/api/admin/kb/config', { cache: 'no-store' })
       ]);
-      const [menusJson, settingsJson] = await Promise.all([
+      const [menusJson, settingsJson, kbConfigJson] = await Promise.all([
         menusRes.json().catch(() => null),
-        settingsRes.json().catch(() => null)
+        settingsRes.json().catch(() => null),
+        kbConfigRes.json().catch(() => null)
       ]);
 
       const loadedMenus = Array.isArray(menusJson?.data) ? menusJson.data : [];
@@ -153,10 +163,34 @@ export function MenuManagement() {
         const defaultLang = loadedSettings.supportedLanguages.find(l => l.isDefault)?.code || 'en';
         setActiveLangTab(defaultLang);
       }
+      if (kbConfigJson?.status === 'success' && typeof kbConfigJson.data?.enabled === 'boolean') {
+        setAiEnabled(kbConfigJson.data.enabled);
+      }
     };
 
     load();
   }, [csrfFetch]);
+
+  const handleToggleAiEnabled = async (val: boolean) => {
+    setAiEnabled(val);
+    setAiEnabledSaving(true);
+    try {
+      const res = await csrfFetch('/api/admin/kb/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: val }),
+      });
+      if (!res.ok) {
+        setAiEnabled(!val);
+        toast({ title: 'Update failed', description: 'Could not update AI status.', variant: 'destructive' });
+      }
+    } catch {
+      setAiEnabled(!val);
+      toast({ title: 'Network error', description: 'Could not reach the server.', variant: 'destructive' });
+    } finally {
+      setAiEnabledSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (currentRole !== 'admin') return;
@@ -1022,7 +1056,36 @@ export function MenuManagement() {
                     </span>
                   </div>
                 </div>
+                {editForm.responseType === 'static' && (
+                  <div className="flex flex-col justify-center space-y-2">
+                    <Label className="text-xs uppercase font-bold text-muted-foreground flex items-center gap-1">
+                      <Brain size={12} className="text-primary" /> Knowledge Base (AI)
+                    </Label>
+                    <div className="flex items-center gap-3">
+                      <Switch
+                        checked={editForm.kbEnabled || false}
+                        onCheckedChange={(checked) => setEditForm({ ...editForm, kbEnabled: checked })}
+                      />
+                      <span className="text-[10px] text-muted-foreground font-medium uppercase">
+                        {editForm.kbEnabled ? 'Indexed for AI Q&A' : 'Not indexed'}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
+
+              {editForm.responseType === 'static' && editForm.kbEnabled && (
+                <div className="rounded-lg border border-[#f4a61b]/30 bg-[#f4a61b]/5 p-3 text-[11px] text-[#763717] space-y-1">
+                  <p className="font-semibold flex items-center gap-1"><Brain size={12} /> Writing tips for AI Q&A</p>
+                  <ul className="list-disc pl-4 space-y-0.5 text-[#763717]/90">
+                    <li>Use a heading for every distinct topic — content is never merged across headings, and always merged within one.</li>
+                    <li>One fact per list item; don&apos;t combine two facts into one bullet.</li>
+                    <li>Prefer short full sentences over bare one-word bullets for anything users might ask about directly.</li>
+                    <li>Never leave AI-drafted or chat-style text unedited in published content.</li>
+                  </ul>
+                  <p className="text-[#763717]/70">Full guide: <code className="font-mono">docs/KB_CONTENT_GUIDELINES.md</code></p>
+                </div>
+              )}
 
               <div className="space-y-4">
                 <Label className="text-sm font-bold flex items-center gap-2"><Languages size={16} className="text-primary" /> Localization & Label</Label>
@@ -1795,6 +1858,22 @@ export function MenuManagement() {
                     </h3>
                     <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/5">
                       <div className="space-y-0.5">
+                        <Label className="text-xs font-bold flex items-center gap-1.5">
+                          <Brain size={13} className="text-primary" /> Enable AI (Ask a Question)
+                        </Label>
+                        <p className="text-[10px] text-muted-foreground italic">
+                          Master switch for the AI Q&amp;A feature. Off disables "Ask a Question" for all
+                          users without redeploying — same setting as Admin → Knowledge Base → Config.
+                        </p>
+                      </div>
+                      <Switch
+                        checked={aiEnabled}
+                        onCheckedChange={handleToggleAiEnabled}
+                        disabled={aiEnabledSaving}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/5">
+                      <div className="space-y-0.5">
                         <Label className="text-xs font-bold">Show Admin Settings Icon (User UI)</Label>
                         <p className="text-[10px] text-muted-foreground italic">Controls whether the settings icon appears between Home and Back for users.</p>
                       </div>
@@ -2489,6 +2568,7 @@ export function CheckerMenuReview() {
       'order',
       'isActive',
       'trackClicks',
+      'kbEnabled',
       'translations',
       'attachedMenuIds',
       'attachmentDescription'
