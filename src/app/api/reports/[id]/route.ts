@@ -66,6 +66,8 @@ export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) 
         serviceRating: typeof report.serviceRating === 'number' ? report.serviceRating : undefined,
         serviceFeedback: report.serviceFeedback ?? undefined,
         serviceRatedAt: report.serviceRatedAt ? report.serviceRatedAt.toISOString() : undefined,
+        resolvedBy: report.resolvedBy ?? undefined,
+        resolvedAt: report.resolvedAt ? report.resolvedAt.toISOString() : undefined,
         timestamp: report.timestamp.toISOString()
       }
     });
@@ -104,6 +106,8 @@ export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) 
       serviceFeedback: report.serviceFeedback ?? undefined,
       serviceRatedAt: report.serviceRatedAt ? report.serviceRatedAt.toISOString() : undefined,
       serviceRatedSupportAssignee: report.serviceRatedSupportAssignee ?? undefined,
+      resolvedBy: report.resolvedBy ?? undefined,
+      resolvedAt: report.resolvedAt ? report.resolvedAt.toISOString() : undefined,
       timestamp: report.timestamp.toISOString()
     }
   });
@@ -210,7 +214,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     return NextResponse.json({ status: 'error', message: 'Invalid request body.' }, { status: 400 });
   }
 
-  const existing = await prisma.userReport.findUnique({ where: { id }, select: { status: true, supportAssignee: true, internalNotes: true } });
+  const existing = await prisma.userReport.findUnique({ where: { id }, select: { status: true, supportAssignee: true, internalNotes: true, data: true, resolvedBy: true, resolvedAt: true } });
   if (!existing) {
     return NextResponse.json({ status: 'error', message: 'Report not found.' }, { status: 404 });
   }
@@ -277,17 +281,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     }
   }
 
-  const existingNotes = typeof existing.internalNotes === 'string' ? existing.internalNotes : '';
-  let nextInternalNotes = requestedNotes;
-
-  if (isSupportAssignmentChange && typeof nextSupportAssignee === 'string') {
-    const assignmentType = typeof body.supportAssignmentType === 'string' ? body.supportAssignmentType.trim() : '';
-    const assignmentReason = typeof body.supportAssignmentReason === 'string' ? body.supportAssignmentReason.trim() : '';
-    const base = typeof requestedNotes === 'string' ? requestedNotes : existingNotes;
-    const timestamp = new Date().toISOString();
-    const line = `[Support Assignment] type=${assignmentType} to=${nextSupportAssignee} by=${session.username} at=${timestamp} reason=${assignmentReason}`;
-    nextInternalNotes = base ? `${base}\n${line}` : line;
-  }
+  const nextInternalNotes = requestedNotes;
 
   const activitiesToCreate: any[] = [];
 
@@ -300,7 +294,12 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     });
   }
 
+  let nextResolvedBy: string | undefined;
+  let nextResolvedAt: Date | undefined;
+
   if (body.status === 'resolved' && existing.status !== 'resolved') {
+    nextResolvedBy = session.username;
+    nextResolvedAt = new Date();
     activitiesToCreate.push({
       type: 'resolution',
       actor: session.username,
@@ -316,6 +315,17 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     });
   }
 
+  // Prepare data update - always preserve all existing fields
+  let dataUpdate: any = undefined;
+  const existingData = (existing.data as any) ?? {};
+
+  if (nextAssignmentHistory) {
+    dataUpdate = {
+      ...existingData,
+      assignmentHistory: nextAssignmentHistory
+    };
+  }
+
   const updated = await prisma.userReport.update({
     where: { id },
     data: {
@@ -324,10 +334,9 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       adminResponse: typeof nextAdminResponse === 'string' ? nextAdminResponse : undefined,
       internalNotes: typeof nextInternalNotes === 'string' ? nextInternalNotes : undefined,
       supportAssignee: nextSupportAssignee,
-      data: nextAssignmentHistory ? {
-        ...(existing.data as any ?? {}),
-        assignmentHistory: nextAssignmentHistory
-      } : undefined,
+      resolvedBy: nextResolvedBy ?? undefined,
+      resolvedAt: nextResolvedAt ?? undefined,
+      data: dataUpdate,
       activities: activitiesToCreate.length > 0 ? {
         create: activitiesToCreate
       } : undefined
@@ -368,6 +377,8 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       serviceFeedback: updated.serviceFeedback ?? undefined,
       serviceRatedAt: updated.serviceRatedAt ? updated.serviceRatedAt.toISOString() : undefined,
       serviceRatedSupportAssignee: updated.serviceRatedSupportAssignee ?? undefined,
+      resolvedBy: updated.resolvedBy ?? undefined,
+      resolvedAt: updated.resolvedAt ? updated.resolvedAt.toISOString() : undefined,
       timestamp: updated.timestamp.toISOString()
     }
   });

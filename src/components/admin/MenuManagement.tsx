@@ -1393,6 +1393,13 @@ export function MenuManagement() {
                                         fields[idx].required = checked;
                                         deepUpdate(['apiConfig', 'kycFields'], fields);
                                       }} />
+                                      <div className="w-px h-4 bg-border mx-1" />
+                                      <Label className="text-[9px] uppercase font-bold text-muted-foreground">Show in Status</Label>
+                                      <Switch checked={!!field.showToUser} onCheckedChange={checked => {
+                                        const fields = [...editForm.apiConfig!.kycFields];
+                                        fields[idx].showToUser = checked;
+                                        deepUpdate(['apiConfig', 'kycFields'], fields);
+                                      }} />
                                     </div>
                                   </div>
                                   <Input value={currentPrompt} onChange={e => {

@@ -120,7 +120,8 @@ function buildMenuResponse(menu: any, isAdmin: boolean = false) {
         type: m.kyc.type,
         validation: m.kyc.validation ?? undefined,
         order: m.order ?? m.kyc.order ?? 0,
-        required: Boolean(m.kyc.required)
+        required: Boolean(m.kyc.required),
+        showToUser: Boolean(m.kyc.showToUser)
       }))
     : [];
 
@@ -348,7 +349,8 @@ export async function POST(req: Request) {
           type: field.type,
           validation: field.validation ?? null,
           order: Number.isFinite(field.order) ? field.order : 0,
-          required: Boolean(field.required)
+          required: Boolean(field.required),
+          showToUser: Boolean(field.showToUser)
         },
         update: {
           name: field.name,
@@ -357,7 +359,8 @@ export async function POST(req: Request) {
           type: field.type,
           validation: field.validation ?? null,
           order: Number.isFinite(field.order) ? field.order : 0,
-          required: Boolean(field.required)
+          required: Boolean(field.required),
+          showToUser: Boolean(field.showToUser)
         }
       });
     }

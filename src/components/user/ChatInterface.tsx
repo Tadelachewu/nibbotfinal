@@ -1876,6 +1876,28 @@ export function ChatInterface() {
                     <div className="text-[9px] uppercase font-bold text-muted-foreground">{t('ui_original_request', 'Original Request')}</div>
                     <div className="text-xs font-semibold">{getLocalizedReportMenuName(msg.reportStatus)}</div>
                   </div>
+                  {(() => {
+                    const statusMenu = menus.find(m => m.id === msg.reportStatus?.menuId);
+                    const visibleFields = (statusMenu?.apiConfig?.kycFields || []).filter(f => f.showToUser);
+                    if (visibleFields.length === 0 || !msg.reportStatus?.data) return null;
+                    return (
+                      <div className="space-y-2 mt-2 pt-2 border-t border-primary/10">
+                        <div className="text-[9px] uppercase font-bold text-muted-foreground">{currentLang?.code === 'am' ? 'ዝርዝሮች' : 'Details'}</div>
+                        <div className="grid grid-cols-2 gap-2">
+                          {visibleFields.map(f => {
+                            const val = msg.reportStatus?.data?.[f.name];
+                            if (val === undefined || val === null || val === '') return null;
+                            return (
+                              <div key={f.id} className="space-y-0.5">
+                                <div className="text-[9px] font-medium text-muted-foreground">{(currentLang?.code === 'am' && f.promptAm) ? f.promptAm : f.prompt}</div>
+                                <div className="text-[11px] font-semibold truncate" title={String(val)}>{String(val)}</div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
                   {msg.reportStatus?.adminResponse && (
                     <div className="mt-1 p-2 bg-card rounded-lg border border-primary/20">
                       <div className="text-[9px] uppercase font-bold text-primary flex items-center gap-1">

@@ -9,6 +9,7 @@ export interface KYCField {
   validation?: string;
   order: number;
   required: boolean;
+  showToUser?: boolean;
 }
 
 export interface TableColumn {
@@ -177,6 +178,7 @@ export interface UserReport {
   supportAssignmentType?: 'first_assignment' | 'escalation';
   supportAssignmentReason?: string;
   resolvedBy?: string;
+  resolvedAt?: string;
   assignmentHistory?: Array<{
     assignee: string;
     assignedBy: string;

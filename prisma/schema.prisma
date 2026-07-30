@@ -125,6 +125,7 @@ model KYCField {
   validation String?
   order      Int          @default(0)
   required   Boolean      @default(false)
+  showToUser Boolean      @default(false) @map("show_to_user")
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
 
@@ -166,6 +167,8 @@ model UserReport {
   serviceRatedAt DateTime?     @map("service_rated_at")
   serviceRatedBySessionId String? @map("service_rated_by_session_id")
   serviceRatedSupportAssignee String? @map("service_rated_support_assignee")
+  resolvedBy    String?        @map("resolved_by")
+  resolvedAt    DateTime?      @map("resolved_at")
   // timestamp and creation
   timestamp     DateTime       @default(now())
   createdAt     DateTime       @default(now())

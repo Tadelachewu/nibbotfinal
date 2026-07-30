@@ -164,6 +164,8 @@ export async function GET(req: Request) {
         serviceFeedback: r.serviceFeedback ?? undefined,
         serviceRatedAt: r.serviceRatedAt ? r.serviceRatedAt.toISOString() : undefined,
         serviceRatedSupportAssignee: r.serviceRatedSupportAssignee ?? undefined,
+        resolvedBy: r.resolvedBy ?? undefined,
+        resolvedAt: r.resolvedAt ? r.resolvedAt.toISOString() : undefined,
         timestamp: r.timestamp.toISOString()
       }))
     });

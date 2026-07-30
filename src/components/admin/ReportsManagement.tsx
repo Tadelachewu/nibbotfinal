@@ -134,7 +134,9 @@ export function ReportsManagement() {
   const [editingSupportAssignmentReason, setEditingSupportAssignmentReason] = useState<string>('');
   const [isInspectOpen, setIsInspectOpen] = useState(false);
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
+  const [selectedReport, setSelectedReport] = useState<UserReport | null>(null);
   const [pendingReportDelete, setPendingReportDelete] = useState<string | null>(null);
+  const [loadingSelectedReport, setLoadingSelectedReport] = useState(false);
 
   const inspectForm = useMemo(() => ({
     editingResponse, editingNotes, editingStatus, editingPriority, editingSupportAssignee, editingSupportAssignmentType, editingSupportAssignmentReason
@@ -291,6 +293,51 @@ export function ReportsManagement() {
 
   const filteredReports = reports;
 
+  // Fetch full report when opening inspect modal
+  const openInspect = useCallback(async (reportId: string, listReport: UserReport) => {
+    setSelectedReportId(reportId);
+    setIsInspectOpen(true);
+    setLoadingSelectedReport(true);
+
+    try {
+      const draft = await getReportDraft(reportId) as any;
+      if (draft) {
+        setEditingResponse(draft.editingResponse || '');
+        setEditingNotes(draft.editingNotes || '');
+        setEditingStatus(draft.editingStatus || 'pending');
+        setEditingPriority(draft.editingPriority || 'medium');
+        setEditingSupportAssignee(draft.editingSupportAssignee || '__none__');
+        setEditingSupportAssignmentType(draft.editingSupportAssignmentType || 'first_assignment');
+        setEditingSupportAssignmentReason(draft.editingSupportAssignmentReason || '');
+      } else {
+        setEditingResponse(listReport.adminResponse || '');
+        setEditingNotes(listReport.internalNotes || '');
+        setEditingStatus(listReport.status);
+        setEditingPriority(listReport.priority || 'medium');
+        setEditingSupportAssignee(listReport.supportAssignee || '__none__');
+        setEditingSupportAssignmentType(listReport.supportAssignmentType || 'first_assignment');
+        setEditingSupportAssignmentReason(listReport.supportAssignmentReason || '');
+      }
+
+      // Fetch full report data
+      const res = await csrfFetch(`/api/reports/${encodeURIComponent(reportId)}`, { cache: 'no-store' });
+      const json = await res.json().catch(() => null);
+      if (json?.status === 'success' && json?.data) {
+        setSelectedReport(json.data);
+        // Also update the list with full data
+        setReports(prev => prev.map(r => r.id === reportId ? json.data : r));
+      } else {
+        // Fallback to list data if fetch fails
+        setSelectedReport(listReport);
+      }
+    } catch (err) {
+      console.error('Failed to fetch full report:', err);
+      setSelectedReport(listReport);
+    } finally {
+      setLoadingSelectedReport(false);
+    }
+  }, [csrfFetch, getReportDraft]);
+
   const handleSaveAdminData = (overrideStatus?: UserReport['status']) => {
     if (selectedReportId) {
       const finalStatus = overrideStatus || editingStatus;
@@ -408,9 +455,7 @@ export function ReportsManagement() {
       .trim();
   };
 
-  const selectedReport = useMemo(() =>
-    reports.find(r => r.id === selectedReportId),
-    [reports, selectedReportId]);
+
 
   if (initialLoading) {
     return (
@@ -624,16 +669,48 @@ export function ReportsManagement() {
                   </div>
                 </TabsContent>
 
-                <TabsContent value="data" className="pt-6 animate-in fade-in-50 duration-500">
+                <TabsContent value="data" className="pt-6 space-y-6 animate-in fade-in-50 duration-500">
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {Object.entries(selectedReport.data || {}).map(([key, value]) => (
-                      <div key={key} className="p-4 border rounded-xl bg-slate-50/50 dark:bg-muted/20 hover:bg-card transition-all shadow-sm group">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-tight">{prettifyKey(key)}</span>
+                    {Object.entries(selectedReport.data || {})
+                      // `assignmentHistory` rides along inside this same `data` blob as
+                      // internal bookkeeping (see the PATCH handler) — it's not something
+                      // the user submitted, so it must never show up as a form field here.
+                      // It gets its own section below instead.
+                      .filter(([key]) => key !== 'assignmentHistory')
+                      .map(([key, value]) => (
+                        <div key={key} className="p-4 border rounded-xl bg-slate-50/50 dark:bg-muted/20 hover:bg-card transition-all shadow-sm group">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-tight">{prettifyKey(key)}</span>
+                          </div>
+                          <span className="text-sm font-semibold text-foreground font-mono break-all">{String(value || 'N/A')}</span>
                         </div>
-                        <span className="text-sm font-semibold text-foreground font-mono break-all">{String(value || 'N/A')}</span>
+                      ))}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-tight">Assignment History</Label>
+                    {selectedReport.assignmentHistory && selectedReport.assignmentHistory.length > 0 ? (
+                      <div className="space-y-2">
+                        {selectedReport.assignmentHistory.map((entry, i) => (
+                          <div key={i} className="p-3 border rounded-xl bg-blue-50/40 dark:bg-blue-950/15 border-blue-200/60 dark:border-blue-900/50 flex items-start justify-between gap-3">
+                            <div className="space-y-0.5">
+                              <div className="text-sm font-semibold">
+                                {entry.type === 'escalation' ? 'Escalated to' : 'Assigned to'} <span className="font-mono">{entry.assignee}</span>
+                              </div>
+                              <div className="text-[11px] text-muted-foreground">by {entry.assignedBy}</div>
+                              {entry.reason && (
+                                <div className="text-[11px] text-muted-foreground italic">"{entry.reason}"</div>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground whitespace-nowrap">
+                              {format(new Date(entry.assignedAt), 'MMM dd, HH:mm')}
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    ) : (
+                      <p className="text-xs text-muted-foreground italic p-3 border rounded-xl bg-muted/10">No assignment changes yet.</p>
+                    )}
                   </div>
                 </TabsContent>
 
@@ -882,20 +959,7 @@ export function ReportsManagement() {
                               <div className="inline-flex items-center gap-1">
                                 {activeReportDrafts.includes(report.id) && (
                                   <>
-                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-500" onClick={async () => {
-                                      setSelectedReportId(report.id);
-                                      const draft = await getReportDraft(report.id) as any;
-                                      if (draft) {
-                                        setEditingResponse(draft.editingResponse || '');
-                                        setEditingNotes(draft.editingNotes || '');
-                                        setEditingStatus(draft.editingStatus || 'pending');
-                                        setEditingPriority(draft.editingPriority || 'medium');
-                                        setEditingSupportAssignee(draft.editingSupportAssignee || '__none__');
-                                        setEditingSupportAssignmentType(draft.editingSupportAssignmentType || 'first_assignment');
-                                        setEditingSupportAssignmentReason(draft.editingSupportAssignmentReason || '');
-                                      }
-                                      setIsInspectOpen(true);
-                                    }} title="Resume Draft">
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-500" onClick={() => openInspect(report.id, report)} title="Resume Draft">
                                       <FileCode size={14} />
                                     </Button>
                                     <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => discardReportDraft(report.id)} title="Discard Draft">
@@ -903,28 +967,7 @@ export function ReportsManagement() {
                                     </Button>
                                   </>
                                 )}
-                                <Button variant="ghost" size="sm" className="h-8 text-xs hover:text-primary" onClick={async () => {
-                                  setSelectedReportId(report.id);
-                                  const draft = await getReportDraft(report.id) as any;
-                                  if (draft) {
-                                    setEditingResponse(draft.editingResponse || '');
-                                    setEditingNotes(draft.editingNotes || '');
-                                    setEditingStatus(draft.editingStatus || 'pending');
-                                    setEditingPriority(draft.editingPriority || 'medium');
-                                    setEditingSupportAssignee(draft.editingSupportAssignee || '__none__');
-                                    setEditingSupportAssignmentType(draft.editingSupportAssignmentType || 'first_assignment');
-                                    setEditingSupportAssignmentReason(draft.editingSupportAssignmentReason || '');
-                                  } else {
-                                    setEditingResponse(report.adminResponse || '');
-                                    setEditingNotes(report.internalNotes || '');
-                                    setEditingStatus(report.status);
-                                    setEditingPriority(report.priority || 'medium');
-                                    setEditingSupportAssignee(report.supportAssignee || '__none__');
-                                    setEditingSupportAssignmentType(report.supportAssignmentType || 'first_assignment');
-                                    setEditingSupportAssignmentReason(report.supportAssignmentReason || '');
-                                  }
-                                  setIsInspectOpen(true);
-                                }}>
+                                <Button variant="ghost" size="sm" className="h-8 text-xs hover:text-primary" onClick={() => openInspect(report.id, report)}>
                                   Inspect <ChevronRight size={14} className="ml-1" />
                                 </Button>
                               </div>
