@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Logo } from '@/components/Logo';
 import ThemeToggle from '@/components/ui/ThemeToggle';
+import ThreeCXLiveChat from '@/components/ThreeCXLiveChat';
 import {
   ChevronRight,
   Home as HomeIcon,
@@ -2137,6 +2138,7 @@ export function ChatInterface() {
           <div />
         )}
       </footer>
+      <ThreeCXLiveChat />
     </div>
   );
 }
