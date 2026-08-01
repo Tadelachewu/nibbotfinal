@@ -549,7 +549,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         if (kycFields.length) {
           await prisma.menuKYC.createMany({
             data: kycFields
-              .filter(f => f?.id)
+              .filter(f => f?.id && f?.name && f?.prompt && f?.type)
               .map((f, idx) => ({
                 menuId: id,
                 kycId: f.id,
@@ -791,7 +791,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
       if (kycFields.length) {
         await prisma.menuKYC.createMany({
           data: kycFields
-            .filter(f => f?.id)
+            .filter(f => f?.id && f?.name && f?.prompt && f?.type)
             .map((f, idx) => ({
               menuId: id,
               kycId: f.id,

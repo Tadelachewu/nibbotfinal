@@ -18,23 +18,51 @@ export async function GET(req: Request) {
     return NextResponse.json({ status: 'error', message: 'q param is required.' }, { status: 400 });
   }
 
-  try {
-    // Admin test queries use a synthetic sessionId that won't hit user rate
-    // limits, and can search disabled articles too — so an article can be
-    // authored/QA'd via Test AI before being switched on for real users.
-    const result = await queryKB(question, lang, `admin_test:${session.username}`, {
-      includeDisabledArticles: true,
-    });
-    return NextResponse.json({ status: 'success', data: result });
-  } catch (err: any) {
-    const isOllama = String(err?.message || '').startsWith('Ollama');
-    if (isOllama) {
-      return NextResponse.json(
-        { status: 'error', message: 'Ollama is unreachable. Check OLLAMA_URL and that the service is running.' },
-        { status: 503 },
-      );
-    }
-    console.error('[KB test]', err);
-    return NextResponse.json({ status: 'error', message: String(err?.message || 'Internal error') }, { status: 500 });
-  }
+  // Streamed as newline-delimited JSON, same protocol as /api/kb/query — the
+  // admin Test AI panel was blocking on the full ~16-80s generation before
+  // showing anything; streaming lets it render the answer token-by-token
+  // like the real chat widget does.
+  const encoder = new TextEncoder();
+  let controllerRef: ReadableStreamDefaultController<Uint8Array> | null = null;
+  const send = (obj: unknown) => {
+    controllerRef?.enqueue(encoder.encode(JSON.stringify(obj) + '\n'));
+  };
+
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controllerRef = controller;
+      (async () => {
+        try {
+          // Admin test queries use a synthetic sessionId that won't hit user
+          // rate limits, and can search disabled articles too — so an
+          // article can be authored/QA'd via Test AI before being switched
+          // on for real users.
+          const result = await queryKB(question, lang, `admin_test:${session.username}`, {
+            includeDisabledArticles: true,
+            onToken: (text) => send({ type: 'chunk', text }),
+          });
+          send({ type: 'result', data: result });
+        } catch (err: any) {
+          const isOllama = String(err?.message || '').startsWith('Ollama');
+          send({
+            type: 'error',
+            message: isOllama
+              ? 'Ollama is unreachable. Check OLLAMA_URL and that the service is running.'
+              : String(err?.message || 'Internal error'),
+          });
+          if (!isOllama) console.error('[KB test]', err);
+        } finally {
+          controllerRef?.close();
+        }
+      })();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'application/x-ndjson; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      'X-Accel-Buffering': 'no',
+    },
+  });
 }

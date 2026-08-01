@@ -475,16 +475,56 @@ export function KBManagement() {
     setTestLoading(true);
     setTestResult(null);
     setTestError(null);
+
+    // Answer streams in token-by-token (see /api/admin/kb/test) instead of
+    // arriving as one blocking response after the full ~16-80s generation.
+    let answerText = '';
+    let settled = false;
     try {
       const url = `/api/admin/kb/test?q=${encodeURIComponent(q)}&lang=${encodeURIComponent(testLang)}`;
       const res = await csrfFetch(url);
-      const json = await res.json().catch(() => null);
-      if (res.ok && json?.data) {
-        setTestResult(json.data);
-      } else {
-        setTestError(json?.message || 'Query failed. Check that Ollama is running.');
+      if (!res.body) throw new Error('no_stream');
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        let nl: number;
+        while ((nl = buf.indexOf('\n')) >= 0) {
+          const line = buf.slice(0, nl).trim();
+          buf = buf.slice(nl + 1);
+          if (!line) continue;
+          let evt: { type: string; text?: string; data?: KBResult; message?: string };
+          try {
+            evt = JSON.parse(line);
+          } catch {
+            continue;
+          }
+
+          if (evt.type === 'chunk' && evt.text) {
+            answerText += evt.text;
+            setTestResult({ noAnswer: false, answer: answerText, sources: [], confidence: 'low' });
+          } else if (evt.type === 'result' && evt.data) {
+            settled = true;
+            setTestResult(evt.data);
+          } else if (evt.type === 'error') {
+            settled = true;
+            setTestResult(null);
+            setTestError(evt.message || 'Query failed. Check that Ollama is running.');
+          }
+        }
+      }
+
+      if (!settled) {
+        setTestResult(null);
+        setTestError('Query failed. Check that Ollama is running.');
       }
     } catch {
+      setTestResult(null);
       setTestError('Network error. Could not reach the server.');
     } finally {
       setTestLoading(false);

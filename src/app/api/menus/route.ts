@@ -368,7 +368,7 @@ export async function POST(req: Request) {
     await prisma.menuKYC.deleteMany({ where: { menuId: id } });
     await prisma.menuKYC.createMany({
       data: kycFields
-        .filter(f => f?.id)
+        .filter(f => f?.id && f?.name && f?.prompt && f?.type)
         .map((f, idx) => ({
           menuId: id,
           kycId: f.id,
