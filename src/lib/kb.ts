@@ -121,6 +121,76 @@ async function generate(
   return String(data.message?.content || '').trim();
 }
 
+// Same call as generate(), but with stream: true — Ollama then sends the
+// response as newline-delimited JSON objects (one per token/token-chunk,
+// each with a `message.content` delta) instead of a single payload after
+// the full ~600-token answer is ready. On this stack the generate call
+// itself measured 16-80s+ end to end (mostly model load + slow CPU token
+// throughput, not app overhead) — streamed, the user sees the answer build
+// token-by-token instead of a single multi-second blank wait, which is what
+// actually matters for perceived speed since the total wall-clock time is
+// unchanged either way. onToken fires per delta; the full concatenated
+// answer is still returned at the end so callers (logging, etc.) are
+// unaffected by streaming vs. non-streaming.
+async function generateStreaming(
+  systemPrompt: string,
+  userPrompt: string,
+  model: string,
+  opts: { temperature?: number; timeoutMs?: number; numPredict?: number } = {},
+  onToken: (delta: string) => void,
+): Promise<string> {
+  const { temperature = 0.2, timeoutMs = 90_000, numPredict } = opts;
+  const res = await fetchWithRetry(`${OLLAMA_URL}/api/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model,
+      stream: true,
+      keep_alive: '30m',
+      think: false,
+      options: { temperature, ...(numPredict ? { num_predict: numPredict } : {}) },
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user',   content: userPrompt },
+      ],
+    }),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (!res.ok || !res.body) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Ollama generate ${res.status}: ${body}`);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let full = '';
+  let buf = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let nl: number;
+    while ((nl = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, nl).trim();
+      buf = buf.slice(nl + 1);
+      if (!line) continue;
+      let obj: { message?: { content?: string }; done?: boolean };
+      try {
+        obj = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      const delta = obj.message?.content;
+      if (delta) {
+        full += delta;
+        onToken(delta);
+      }
+      if (obj.done) return full.trim();
+    }
+  }
+  return full.trim();
+}
+
 // Resolves a follow-up question's pronouns/ellipsis (e.g. "How many are
 // there?") into a standalone one using the immediately preceding Q&A turn,
 // so retrieval doesn't have to guess what "there" refers to. Kept to a short
@@ -997,7 +1067,17 @@ export async function queryKB(
   question: string,
   lang:     string,
   sessionId: string,
-  opts: { includeDisabledArticles?: boolean; history?: { question: string; answer: string }[] } = {},
+  opts: {
+    includeDisabledArticles?: boolean;
+    history?: { question: string; answer: string }[];
+    // When provided, the final answer is generated via Ollama's streaming
+    // API and fired here delta-by-delta as it arrives, instead of waiting
+    // for the entire ~600-token answer before returning anything. Every
+    // step before generation (retrieval, reranking, confidence gating)
+    // is unchanged either way — it inherently can't stream since later
+    // steps depend on its result.
+    onToken?: (delta: string) => void;
+  } = {},
 ): Promise<KBResult> {
   const includeDisabledArticles = opts.includeDisabledArticles ?? false;
   const startMs = Date.now();
@@ -1242,10 +1322,10 @@ export async function queryKB(
       'Be helpful and clear. Reply in the same language as the user\'s question.';
 
     const userPrompt = `Context:\n${context}\n\nQuestion: ${searchQ}`;
-    const answer     = await generate(systemPrompt, userPrompt, config.generationModel, {
-      temperature: config.temperature,
-      numPredict:  600,
-    });
+    const genOpts = { temperature: config.temperature, numPredict: 600 };
+    const answer = opts.onToken
+      ? await generateStreaming(systemPrompt, userPrompt, config.generationModel, genOpts, opts.onToken)
+      : await generate(systemPrompt, userPrompt, config.generationModel, genOpts);
 
     // Sources are built strictly from `chunks` — the exact context actually
     // sent to the LLM for this answer — never from the wider retrieval pool or

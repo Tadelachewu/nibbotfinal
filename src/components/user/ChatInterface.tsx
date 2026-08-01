@@ -902,6 +902,25 @@ export function ChatInterface() {
     setKbQuestion('');
     setKbLoading(true);
 
+    // The answer streams in token-by-token (see /api/kb/query) rather than
+    // arriving as one blocking response — generation alone was measured
+    // taking 16-80s+ end to end, and a single blank wait that long reads as
+    // a frozen app. `added` tracks whether the bot bubble has been inserted
+    // into history yet: it's deferred until the first chunk (or the final
+    // result, for a no-answer/error) so nothing appears during retrieval,
+    // which itself still isn't streamable.
+    let added = false;
+    let answerText = '';
+    const upsertBotMessage = (patch: Partial<Message>) => {
+      setHistory(prev => {
+        if (!added) {
+          added = true;
+          return [...prev, { id: botMsgId, sender: 'bot', ...patch } as Message];
+        }
+        return prev.map(m => (m.id === botMsgId ? { ...m, ...patch } : m));
+      });
+    };
+
     try {
       const res = await fetch('/api/kb/query', {
         method: 'POST',
@@ -914,25 +933,64 @@ export function ChatInterface() {
         }),
         credentials: 'same-origin',
       });
-      const data = await res.json().catch(() => null);
 
-      if (!res.ok || !data?.data) {
-        const msg429 = t('ui_kb_ratelimit', 'You\'ve sent too many questions. Please wait a moment and try again.');
-        const errText = res.status === 429
-          ? msg429
-          : (data?.message || t('ui_kb_error', 'Knowledge base is temporarily unavailable. Please use the menu or contact support.'));
-        setHistory(prev => [...prev, { id: botMsgId, sender: 'bot', text: errText }]);
-      } else {
-        setHistory(prev => [...prev, {
-          id: botMsgId, sender: 'bot', sourceType: 'kb_result',
-          kbResult: data.data,
-        }]);
+      if (!res.body) throw new Error('no_stream');
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      let settled = false;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        let nl: number;
+        while ((nl = buf.indexOf('\n')) >= 0) {
+          const line = buf.slice(0, nl).trim();
+          buf = buf.slice(nl + 1);
+          if (!line) continue;
+          let evt: { type: string; text?: string; data?: KBResult; status?: number; message?: string };
+          try {
+            evt = JSON.parse(line);
+          } catch {
+            continue;
+          }
+
+          if (evt.type === 'chunk' && evt.text) {
+            answerText += evt.text;
+            upsertBotMessage({
+              sourceType: 'kb_result',
+              kbResult: { noAnswer: false, answer: answerText, sources: [], confidence: 'low' },
+            });
+          } else if (evt.type === 'result' && evt.data) {
+            settled = true;
+            upsertBotMessage({ sourceType: 'kb_result', kbResult: evt.data });
+          } else if (evt.type === 'error') {
+            settled = true;
+            const msg429 = t('ui_kb_ratelimit', 'You\'ve sent too many questions. Please wait a moment and try again.');
+            const errText = evt.status === 429
+              ? msg429
+              : (evt.message || t('ui_kb_error', 'Knowledge base is temporarily unavailable. Please use the menu or contact support.'));
+            upsertBotMessage({ sourceType: undefined, kbResult: undefined, text: errText });
+          }
+        }
+      }
+
+      if (!settled) {
+        // Stream ended without a final result/error event (connection drop mid-answer).
+        upsertBotMessage({
+          sourceType: undefined,
+          kbResult: undefined,
+          text: t('ui_kb_error', 'Knowledge base is temporarily unavailable. Please use the menu or contact support.'),
+        });
       }
     } catch {
-      setHistory(prev => [...prev, {
-        id: botMsgId, sender: 'bot',
+      upsertBotMessage({
+        sourceType: undefined,
+        kbResult: undefined,
         text: t('ui_kb_error', 'Knowledge base is temporarily unavailable. Please use the menu or contact support.'),
-      }]);
+      });
     } finally {
       setKbLoading(false);
     }

@@ -712,3 +712,10 @@ If a security issue is discovered post-launch:
 | **100,000+** | Global latency, regional outages | Multi-region deployment + edge computing |
 
 Remember: Security is not a one-time setup - it's an ongoing process! Scalability is not optional for banking systems serving thousands of customers!
+
+
+
+RERANKER FOR THE AI:
+    cd reranker-service
+.venv\Scripts\activate
+uvicorn main:app --host 0.0.0.0 --port 8001
