@@ -62,11 +62,14 @@ export default function ThreeCXLiveChat() {
     <call-us-selector
       phonesystem-url={PHONESYSTEM_URL}
       party={PARTY}
-      // The widget defaults to `position: fixed` relative to the viewport.
-      // This app renders it inside a bounded, `relative`-positioned chat
-      // card (see ChatInterface.tsx), so it's pinned `absolute` here instead
-      // to stay within that card rather than floating over the whole page.
-      style={{ position: 'absolute', right: '12px', bottom: '64px', zIndex: 30 }}
+      style={{
+        position: 'fixed',
+        right: '12px',
+        bottom: '12px',
+        zIndex: 2147483647,
+        transform: 'scale(0.9)',
+        transformOrigin: 'bottom right',
+      }}
     />
   );
 }
