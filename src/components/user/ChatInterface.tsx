@@ -27,7 +27,8 @@ import {
   AlertCircle,
   Settings,
   Star,
-  Search
+  Search,
+  BookOpen
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -1698,6 +1699,35 @@ export function ChatInterface() {
     }]);
   };
 
+  const startUserGuide = () => {
+    setKbMode(false);
+    setKbQuestion('');
+    setStatusFlow(false);
+    setKycFlow(null);
+    setRatingFlow(null);
+    setHistory(prev => [...prev, {
+      id: `bot-user-guide-${Date.now()}`,
+      sender: 'bot',
+      content: [
+        `<p><strong>${t('ui_user_guide', 'User Guide')}</strong></p>`,
+        `<p>${t('ui_user_guide_intro', 'Use the menu buttons to submit a request, and use Report Status to track progress.')}</p>`,
+        `<p><strong>${t('ui_user_guide_status_title', 'Check Report Status')}</strong></p>`,
+        `<ol>`,
+        `<li>${t('ui_user_guide_status_step1', 'Click "Check Report Status" from the top bar or your profile menu.')}</li>`,
+        `<li>${t('ui_user_guide_status_step2', 'Enter your Report Reference ID (example: REP_123456).')}</li>`,
+        `<li>${t('ui_user_guide_status_step3', 'Review the status and any Admin Feedback once the report is resolved.')}</li>`,
+        `</ol>`,
+        `<p><strong>${t('ui_user_guide_status_meaning', 'Status meanings')}</strong></p>`,
+        `<ul>`,
+        `<li><strong>${t('ui_status_pending', 'Pending')}</strong>: ${t('ui_user_guide_pending', 'Your request was received and is waiting for review.')}</li>`,
+        `<li><strong>${t('ui_status_reviewed', 'Reviewed')}</strong>: ${t('ui_user_guide_reviewed', 'The support team is reviewing or working on your request.')}</li>`,
+        `<li><strong>${t('ui_status_resolved', 'Resolved')}</strong>: ${t('ui_user_guide_resolved', 'Your request is completed. You may see feedback and can rate the service.')}</li>`,
+        `</ul>`
+      ].join(''),
+      sourceType: 'user_guide'
+    }]);
+  };
+
   const getStatusDisplay = (status: string) => {
     switch (status) {
       case 'resolved': return { icon: <CheckCircle2 className="text-emerald-500" />, label: t('ui_status_resolved', 'Resolved'), color: 'bg-green-100 text-emerald-800' };
@@ -1826,6 +1856,10 @@ export function ChatInterface() {
               <DropdownMenuItem onClick={startStatusFlow} className="flex items-center gap-2 cursor-pointer">
                 <ClipboardCheck size={16} className="text-primary" />
                 {t('ui_report_status_btn', 'Check Report Status')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={startUserGuide} className="flex items-center gap-2 cursor-pointer">
+                <BookOpen size={16} className="text-primary" />
+                {t('ui_user_guide', 'User Guide')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

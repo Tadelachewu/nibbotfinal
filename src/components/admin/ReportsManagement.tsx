@@ -385,6 +385,7 @@ export function ReportsManagement() {
           setEditingStatus(finalStatus);
           discardReportDraft(selectedReportId);
           setReports(prev => prev.map(r => (r.id === selectedReportId ? json.data : r)));
+          setSelectedReport(json.data);
 
           toast({
             title: overrideStatus ? `Marked as ${overrideStatus}` : "Changes Saved",
@@ -1195,19 +1196,13 @@ export function ReportsManagement() {
                                 </div>
                               </TableCell>
                               <TableCell>
-                                <span className="text-[10px] font-mono text-primary cursor-pointer hover:underline" onClick={() => {
-                                  setSelectedReportId(log.reportId);
-                                  const r = reports.find(x => x.id === log.reportId);
-                                  if (r) {
-                                    setEditingResponse(r.adminResponse || '');
-                                    setEditingNotes(r.internalNotes || '');
-                                    setEditingStatus(r.status);
-                                    setEditingPriority(r.priority || 'medium');
-                                    setEditingSupportAssignee(r.supportAssignee || '__none__');
-                                    setEditingSupportAssignmentType(r.supportAssignee ? 'escalation' : 'first_assignment');
-                                    setIsInspectOpen(true);
-                                  }
-                                }}>
+                                <span
+                                  className="text-[10px] font-mono text-primary cursor-pointer hover:underline"
+                                  onClick={() => {
+                                    const r = reports.find(x => x.id === log.reportId);
+                                    openInspect(log.reportId, (r || ({ id: log.reportId, status: 'pending', data: {} } as any)) as UserReport);
+                                  }}
+                                >
                                   #{log.reportId.split('_')[1] || log.reportId}
                                 </span>
                               </TableCell>

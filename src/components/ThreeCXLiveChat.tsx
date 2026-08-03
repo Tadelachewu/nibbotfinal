@@ -23,7 +23,7 @@ import { getCspNonce } from '@/lib/csp';
 
 const PHONESYSTEM_URL = 'https://nibbank.3cx.sc';
 const PARTY = 'LiveChat854959';
-const WIDGET_SCRIPT_SRC = 'https://downloads-global.3cx.com/downloads/livechatandtalk/v1/callus.js';
+const WIDGET_SCRIPT_SRC = '/vendor/3cx/callus';
 const WIDGET_SCRIPT_ID = 'tcx-callus-js';
 
 // React 19's JSX namespace lives under the `react` module (not the global
