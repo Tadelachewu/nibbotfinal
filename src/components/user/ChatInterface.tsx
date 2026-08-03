@@ -2196,7 +2196,11 @@ export function ChatInterface() {
           <div />
         )}
       </footer>
-      <ThreeCXLiveChat />
+      {/* Hidden while the "Ask a Question" bar is open — that bar stacks on
+          top of the footer and is taller than it, so the bubble's fixed
+          bottom offset (tuned for the footer alone) would otherwise overlap
+          its input/Cancel button. */}
+      {!kbMode && <ThreeCXLiveChat />}
     </div>
   );
 }

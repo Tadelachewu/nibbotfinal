@@ -1,32 +1,72 @@
 'use client';
 
-// Hosted 3CX "Call Us" chat page for this PBX (party "LiveChat854959").
-// Linking out to it avoids embedding the call-us-selector widget, whose
-// cross-origin config fetches to nibbank.3cx.sc are blocked by CORS until
-// this app's origin is whitelisted in the 3CX admin console.
-const CHAT_URL = 'https://callcenter.nibbank.com.et/callus/#LiveChat854959';
+// Official 3CX "Call Us" widget embed for this PBX (party "LiveChat854959"),
+// per the platform-agnostic snippet from the 3CX admin console:
+//
+//   <call-us-selector phonesystem-url="https://nibbank.3cx.sc" party="LiveChat854959"></call-us-selector>
+//   <script defer src="https://downloads-global.3cx.com/downloads/livechatandtalk/v1/callus.js" id="tcx-callus-js"></script>
+//
+// The widget's config/chat requests go straight from the browser to
+// `phonesystem-url` (the PBX itself, not the public callcenter.nibbank.com.et
+// site). The PBX only answers those cross-origin requests for origins listed
+// in its own admin console (Admin > Voice & Chat > Live Chat > "Your
+// Website") — that whitelist step happens in the 3CX admin console, not in
+// this app. If the widget silently fails to render or connect, check the
+// browser console for a CORS/network error against nibbank.3cx.sc first.
+//
+// CSP: the loader script's host and the PBX host are allowlisted in
+// server.js's buildContentSecurityPolicy() (script-src / connect-src /
+// frame-src). Keep PHONESYSTEM_URL here in sync with that file.
+
+import { useEffect, useRef } from 'react';
+import { getCspNonce } from '@/lib/csp';
+
+const PHONESYSTEM_URL = 'https://nibbank.3cx.sc';
+const PARTY = 'LiveChat854959';
+const WIDGET_SCRIPT_SRC = 'https://downloads-global.3cx.com/downloads/livechatandtalk/v1/callus.js';
+const WIDGET_SCRIPT_ID = 'tcx-callus-js';
+
+// React 19's JSX namespace lives under the `react` module (not the global
+// scope), so augmenting it here — rather than `declare global { namespace JSX }`
+// — is what actually merges into IntrinsicElements.
+declare module 'react' {
+  namespace JSX {
+    interface IntrinsicElements {
+      'call-us-selector': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {
+        'phonesystem-url'?: string;
+        party?: string;
+      };
+    }
+  }
+}
 
 export default function ThreeCXLiveChat() {
-  const openChat = () => {
-    window.open(CHAT_URL, 'nib-live-chat', 'width=420,height=640');
-  };
+  const injected = useRef(false);
+
+  useEffect(() => {
+    if (injected.current || document.getElementById(WIDGET_SCRIPT_ID)) return;
+    injected.current = true;
+
+    const script = document.createElement('script');
+    script.id = WIDGET_SCRIPT_ID;
+    script.src = WIDGET_SCRIPT_SRC;
+    script.defer = true;
+    // Matches the CSP script-src allowlist entry for this host — required
+    // for this externally-hosted script to load under the app's strict CSP.
+    const nonce = getCspNonce();
+    if (nonce) script.setAttribute('nonce', nonce);
+    document.body.appendChild(script);
+  }, []);
 
   return (
-    <button
-      type="button"
-      onClick={openChat}
-      aria-label="Chat with us"
-      className="absolute bottom-16 right-3 z-30 flex h-11 w-11 items-center justify-center rounded-full bg-[#D63004] text-white shadow-lg transition-transform hover:scale-105"
-    >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 24 24"
-        fill="currentColor"
-        className="h-5 w-5"
-        aria-hidden="true"
-      >
-        <path d="M4 4h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H8l-4.4 3.3A1 1 0 0 1 2 19.5V5a1 1 0 0 1 1-1z" />
-      </svg>
-    </button>
+    <call-us-selector
+      phonesystem-url={PHONESYSTEM_URL}
+      party={PARTY}
+      // The widget defaults to `position: fixed` relative to the viewport.
+      // This app renders it inside a bounded, `relative`-positioned chat
+      // card (see ChatInterface.tsx), so it's pinned `absolute` here instead
+      // to stay within that card rather than floating over the whole page.
+      style={{ position: 'absolute', right: '12px', bottom: '64px', zIndex: 30 }}
+    />
   );
 }

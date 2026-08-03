@@ -91,7 +91,11 @@ app.prepare().then(async () => {
       "wss://localhost:3020",
       "ws://127.0.0.1:3000",
       "ws://127.0.0.1:3001",
-      "https://192.168.100.56:8280"
+      "https://192.168.100.56:8280",
+      // 3CX "Call Us" live chat widget (ThreeCXLiveChat.tsx) — the browser
+      // talks to the PBX directly for chat/presence checks.
+      "https://nibbank.3cx.sc",
+      "wss://nibbank.3cx.sc"
     ];
 
     if (allowHttp) {
@@ -125,7 +129,9 @@ app.prepare().then(async () => {
       `style-src-elem ${styleSrcElem}`,
       `img-src 'self' blob: data: https://placehold.co/ https://images.unsplash.com/ https://picsum.photos/ ${extraImageDomains}`,
       "font-src 'self'",
-      "frame-src 'self' https://www.google.com/",
+      // https://nibbank.3cx.sc: the 3CX widget opens its chat conversation
+      // window in an iframe pointed at the PBX (see ThreeCXLiveChat.tsx).
+      "frame-src 'self' https://www.google.com/ https://nibbank.3cx.sc",
       ...(!dev && !allowHttp ? ['upgrade-insecure-requests'] : []),
       ...(!dev ? ['block-all-mixed-content'] : []),
     ];
