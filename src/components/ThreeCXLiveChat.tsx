@@ -20,8 +20,8 @@
 
 import { useEffect, useRef } from 'react';
 import { getCspNonce } from '@/lib/csp';
-
-const PHONESYSTEM_URL = 'https://nibbank.3cx.sc';
+//https://callcenter.nibbank.com.et
+const PHONESYSTEM_URL = 'https://callcenter.nibbank.com.et';
 const PARTY = 'LiveChat854959';
 const WIDGET_SCRIPT_SRC = '/vendor/3cx/callus';
 const WIDGET_SCRIPT_ID = 'tcx-callus-js';
