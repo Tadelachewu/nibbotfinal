@@ -2193,7 +2193,7 @@ export function ChatInterface() {
           </form>
         </div>
       )}
-      <footer className="bg-card border-t border-[#763717]/10 px-3 py-2.5 grid grid-cols-3 items-center gap-2 sticky bottom-0 z-40 shadow-[0_-1px_3px_rgba(0,0,0,0.05)]">
+      <footer className="relative bg-card border-t border-[#763717]/10 px-3 py-2.5 grid grid-cols-3 items-center gap-2 sticky bottom-0 z-40 shadow-[0_-1px_3px_rgba(0,0,0,0.05)]">
         <Button
           variant="outline"
           size="sm"
@@ -2229,12 +2229,17 @@ export function ChatInterface() {
         ) : (
           <div />
         )}
+        {/* Anchored to the footer's own box (footer is `relative`), not the
+            viewport — `bottom-full` pins its bottom edge exactly to the
+            footer's top border regardless of footer height (icon column
+            shown/hidden, font scaling, mobile vs desktop), and it can never
+            render outside the chat card since it never escapes the footer's
+            positioning ancestor. Hidden while the "Ask a Question" bar is
+            open — that bar stacks on top of the footer and is taller than
+            it, so the bubble would otherwise overlap its input/Cancel
+            button. */}
+        {!kbMode && <ThreeCXLiveChat />}
       </footer>
-      {/* Hidden while the "Ask a Question" bar is open — that bar stacks on
-          top of the footer and is taller than it, so the bubble's fixed
-          bottom offset (tuned for the footer alone) would otherwise overlap
-          its input/Cancel button. */}
-      {!kbMode && <ThreeCXLiveChat />}
     </div>
   );
 }
