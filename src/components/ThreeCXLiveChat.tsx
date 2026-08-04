@@ -237,9 +237,29 @@ const WIDGET_ROOT_OVERRIDE_CSS = `
   .header-root.calling-window {
     height: 80px !important;
   }
+  /* .operator-img-container (the circular logo) and .operator_name ("NIB
+     Contact") both live inside .operator-info, stacked in a column and
+     centered as one block — which is why the logo sat directly above the
+     name, both centered, well below "Powered by 3CX". Pulling the logo out
+     of that stack (position: absolute, relative to .header-root, which is
+     already position:relative in the widget's own CSS) and placing it
+     top-left puts it on the same row/height as "Powered by 3CX" (top-right,
+     via .powered-by's own existing position) — "parallel" to it. With the
+     logo out of flow, .operator_name naturally moves up to where the logo
+     used to start, landing a bit down from that top row rather than
+     jammed at the very top; centered explicitly since the column layout's
+     centering doesn't itself center the *text* within .operator_name. */
   .operator-img-container {
-    width: 44px !important;
-    height: 44px !important;
+    position: absolute !important;
+    top: 10px !important;
+    left: 12px !important;
+    width: 32px !important;
+    height: 32px !important;
+    margin: 0 !important;
+  }
+  .operator_name {
+    text-align: center !important;
+    width: 100% !important;
   }
 
   /* The "Start new" bar (.start-new) is a separate element from
