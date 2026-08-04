@@ -64,8 +64,13 @@ const WIDGET_ROOT_OVERRIDE_CSS = `
 
   #wp-live-chat-by-3CX .panel,
   #wp-live-chat-by-3CX .panel_content {
-    max-height: var(--nib-3cx-panel-max-h, 520px) !important;
-    max-width: var(--nib-3cx-panel-max-w, 360px) !important;
+    max-height: var(--nib-3cx-panel-max-h, 460px) !important;
+    max-width: var(--nib-3cx-panel-max-w, 320px) !important;
+  }
+
+  #wp-live-chat-by-3CX .minimized-button {
+    transform: scale(var(--nib-3cx-bubble-scale, 0.9)) !important;
+    transform-origin: bottom right !important;
   }
 `;
 
@@ -107,11 +112,13 @@ export default function ThreeCXLiveChat() {
       const footerRect = footer.getBoundingClientRect();
       const containerRect = container.getBoundingClientRect();
 
-      const availableHeight = Math.floor(Math.max(280, footerRect.top - headerRect.bottom - 12));
-      const availableWidth = Math.floor(Math.max(280, Math.min(360, containerRect.width - 16)));
+      const availableHeight = Math.floor(Math.max(260, footerRect.top - headerRect.bottom - 12));
+      const availableWidth = Math.floor(Math.max(260, Math.min(320, containerRect.width - 16)));
+      const bubbleScale = containerRect.width < 420 ? 0.85 : 0.9;
 
       host.style.setProperty('--nib-3cx-panel-max-h', `${availableHeight}px`);
       host.style.setProperty('--nib-3cx-panel-max-w', `${availableWidth}px`);
+      host.style.setProperty('--nib-3cx-bubble-scale', `${bubbleScale}`);
     };
 
     // Idempotent: re-appends the override style tag only if it's not
@@ -150,7 +157,7 @@ export default function ThreeCXLiveChat() {
       }
 
       const badgeRect = badge.getBoundingClientRect();
-      const top = bubbleRect.top + 1;
+      const top = bubbleRect.top - Math.min(6, Math.floor(badgeRect.height * 0.6));
       const left = bubbleRect.left + Math.max(0, (bubbleRect.width - badgeRect.width) / 2);
 
       setLiveBadgePosition({ top, left, visible: true });
@@ -271,7 +278,7 @@ export default function ThreeCXLiveChat() {
       />
       <span
         ref={liveBadgeRef}
-        className="fixed px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide rounded-full bg-[#f4a61b] text-[#763717] border border-white shadow-sm select-none"
+        className="fixed px-1 py-[1px] text-[8px] font-bold uppercase tracking-wide rounded-full bg-[#f4a61b] text-[#763717] border border-white shadow-sm select-none"
         style={{
           top: liveBadgePosition.top,
           left: liveBadgePosition.left,
