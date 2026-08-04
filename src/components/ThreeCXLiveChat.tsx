@@ -49,19 +49,6 @@ const PARTY = 'LiveChat854959';
 const WIDGET_SCRIPT_SRC = '/vendor/3cx/callus';
 const WIDGET_SCRIPT_ID = 'tcx-callus-js';
 
-// Same avatar palette used across ChatInterface.tsx (makeAvatarDataUri calls).
-const AVATAR_BG = '#f4a61b';
-const AVATAR_TEXT = '#763717';
-
-// One fixed panel size for every device — see the comment on
-// WIDGET_ROOT_OVERRIDE_CSS below for why this replaced the earlier
-// per-device measured approach. 280px matches the widget's own
-// --call-us-form-width-min floor (going smaller fights its internal
-// layout); 320px tall is short enough to clear this app's header on any
-// realistic viewport without needing to measure it at runtime.
-const PANEL_WIDTH_PX = 280;
-const PANEL_HEIGHT_PX = 320;
-
 const WIDGET_ROOT_OVERRIDE_CSS = `
   #wp-live-chat-by-3CX {
     position: absolute !important;
@@ -70,77 +57,7 @@ const WIDGET_ROOT_OVERRIDE_CSS = `
     left: auto !important;
     top: auto !important;
     z-index: 30 !important;
-  }
-
-  /* "Live" badge on the bubble itself. Deliberately a ::after pseudo-element
-     rather than a positioned sibling: it anchors to .minimized-button's own
-     box automatically, so it doesn't need to know the bubble's actual
-     rendered size (unknown/unstable — the widget computes it internally). */
-  .minimized-button {
-    position: relative !important;
-  }
-  .minimized-button::after {
-    content: "Live";
-    position: absolute;
-    top: -6px;
-    right: -6px;
-    background-color: ${AVATAR_BG};
-    color: ${AVATAR_TEXT};
-    font-size: 9px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-    line-height: 1.4;
-    padding: 2px 6px;
-    border-radius: 9999px;
-    border: 1px solid #fff;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-    white-space: nowrap;
-    pointer-events: none;
-  }
-
-  /* The expanded chat panel: the widget's own bundle sizes it to a fixed
-     509px height by default across ALL its non-trivial panel_content
-     variants — .chat-form, .small-form, .small-form-height (used for the
-     pre-chat "enter your name and email" visitor-info form specifically;
-     missing this one is exactly what let that screen overlap the header —
-     confirmed by re-reading callus.js's compiled CSS, not guessed) and
-     .calling-window (voice calls; unused today since allow-call is off in
-     our config, included anyway in case that's ever turned on). It can
-     additionally switch itself into a "full-screen" mode — literally
-     100vw x 100vh via its own !important rule — meant for embedding on a
-     normal full-page website. Inside this app's own narrow chat card, either
-     one is "too large, breaks out of the parent." Both are forced back to a
-     compact size here, regardless of which mode the widget's JS picks.
-
-     One fixed size for every device, deliberately, rather than measuring
-     available space per-device: PANEL_HEIGHT_PX (320px) is small enough
-     that it fits under this app's header with room to spare even on the
-     shortest realistic mobile viewport (a full 640px-tall phone screen
-     leaves ~530px between header and footer; 320px stays comfortably clear
-     of that with margin for shorter/landscape viewports too), so it holds
-     without needing to know this app's actual header height at runtime.
-
-     Selectors are ID-anchored (#wp-live-chat-by-3CX ...) rather than plain
-     classes so specificity reliably beats the widget's own scoped
-     !important rules on the same properties no matter which stylesheet
-     ends up later in the shadow root's DOM order — verified directly
-     against the widget's actual compiled CSS, not assumed. */
-  #wp-live-chat-by-3CX .panel,
-  #wp-live-chat-by-3CX .panel.full-screen {
-    width: ${PANEL_WIDTH_PX}px !important;
-    height: ${PANEL_HEIGHT_PX}px !important;
-    max-height: ${PANEL_HEIGHT_PX}px !important;
-    max-width: calc(100vw - 24px) !important;
-  }
-  #wp-live-chat-by-3CX .panel_content.chat-form,
-  #wp-live-chat-by-3CX .panel_content.small-form,
-  #wp-live-chat-by-3CX .panel_content.small-form-height,
-  #wp-live-chat-by-3CX .panel_content.calling-window {
-    width: ${PANEL_WIDTH_PX}px !important;
-    height: ${PANEL_HEIGHT_PX}px !important;
-    max-height: ${PANEL_HEIGHT_PX}px !important;
-    min-height: 0 !important;
+    overflow: visible !important;
   }
 `;
 
@@ -165,15 +82,57 @@ export default function ThreeCXLiveChat() {
   useEffect(() => {
     let cancelled = false;
     let pollId: ReturnType<typeof setInterval> | null = null;
+    let observer: MutationObserver | null = null;
+    let docObserver: MutationObserver | null = null;
 
-    const injectShadowOverride = () => {
-      const shadowRoot = hostRef.current?.shadowRoot;
-      if (!shadowRoot || shadowRoot.getElementById('nib-3cx-position-override')) return false;
+    // Idempotent: re-appends the override style tag only if it's not
+    // already present, so it's safe to call repeatedly from the observer
+    // below without piling up duplicate <style> tags.
+    const ensureOverride = (shadowRoot: ShadowRoot) => {
+      if (shadowRoot.getElementById('nib-3cx-position-override')) return;
       const style = document.createElement('style');
       style.id = 'nib-3cx-position-override';
       style.textContent = WIDGET_ROOT_OVERRIDE_CSS;
       shadowRoot.appendChild(style);
-      return true;
+    };
+
+    const ensureGlobalOverride = () => {
+      if (document.getElementById('nib-3cx-position-override-global')) return;
+      const style = document.createElement('style');
+      style.id = 'nib-3cx-position-override-global';
+      style.textContent = WIDGET_ROOT_OVERRIDE_CSS;
+      document.head.appendChild(style);
+    };
+
+    const ensureOverridesEverywhere = () => {
+      ensureGlobalOverride();
+
+      const queue: ShadowRoot[] = [];
+      const visited = new Set<ShadowRoot>();
+      const hostShadowRoot = hostRef.current?.shadowRoot;
+      if (hostShadowRoot) queue.push(hostShadowRoot);
+
+      while (queue.length > 0) {
+        const sr = queue.shift()!;
+        if (visited.has(sr)) continue;
+        visited.add(sr);
+
+        ensureOverride(sr);
+
+        const root = sr.getElementById('wp-live-chat-by-3CX') as HTMLElement | null;
+        if (root) void 0;
+
+        const nestedHosts = Array.from(sr.querySelectorAll('*')) as any[];
+        for (const el of nestedHosts) {
+          const nested = el?.shadowRoot;
+          if (nested instanceof ShadowRoot && !visited.has(nested)) {
+            queue.push(nested);
+          }
+        }
+      }
+
+      const docRoot = document.getElementById('wp-live-chat-by-3CX') as HTMLElement | null;
+      if (docRoot) void 0;
     };
 
     // The widget's shadow root exists as soon as its custom element class
@@ -182,9 +141,31 @@ export default function ThreeCXLiveChat() {
     // relying on script.onload timing.
     pollId = setInterval(() => {
       if (cancelled) return;
-      if (injectShadowOverride() && pollId) {
-        clearInterval(pollId);
-        pollId = null;
+      ensureOverridesEverywhere();
+
+      if (!observer) {
+        const shadowRoot = hostRef.current?.shadowRoot;
+        if (shadowRoot) {
+          observer = new MutationObserver(() => ensureOverridesEverywhere());
+          observer.observe(shadowRoot, { childList: true, subtree: true });
+        }
+      }
+
+      if (!docObserver) {
+        const docRoot = document.getElementById('wp-live-chat-by-3CX') as HTMLElement | null;
+        if (docRoot) {
+          docObserver = new MutationObserver(() => ensureOverridesEverywhere());
+          docObserver.observe(docRoot, { childList: true, subtree: true });
+        }
+      }
+
+      const shadowReady = !!hostRef.current?.shadowRoot?.getElementById('wp-live-chat-by-3CX');
+      const docReady = !!document.getElementById('wp-live-chat-by-3CX');
+      if (shadowReady || docReady) {
+        if (pollId) {
+          clearInterval(pollId);
+          pollId = null;
+        }
       }
     }, 200);
 
@@ -204,6 +185,8 @@ export default function ThreeCXLiveChat() {
     return () => {
       cancelled = true;
       if (pollId) clearInterval(pollId);
+      if (observer) observer.disconnect();
+      if (docObserver) docObserver.disconnect();
     };
   }, []);
 
