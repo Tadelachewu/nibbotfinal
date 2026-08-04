@@ -205,11 +205,11 @@ const WIDGET_ROOT_OVERRIDE_CSS = `
      since the logo's size isn't derived from the header's height. */
   .header-root.header-large,
   .header-root.calling-window {
-    height: 120px !important;
+    height: 80px !important;
   }
   .operator-img-container {
-    width: 56px !important;
-    height: 56px !important;
+    width: 44px !important;
+    height: 44px !important;
   }
 
   /* The "Start new" bar (.start-new) is a separate element from
@@ -220,6 +220,19 @@ const WIDGET_ROOT_OVERRIDE_CSS = `
   .start-new {
     background-color: #feebe7 !important;
     color: #763717 !important;
+  }
+
+  /* .single-button — a distinct "start chatting" CTA bar shown inside the
+     panel before a conversation begins (separate from both .footer-root
+     and .minimized-button, the latter being the always-present floating
+     page-corner bubble, confirmed via direct inspection of the live
+     widget). Same white-icon-on-dark-gray default as everything else here;
+     same treatment. */
+  .single-button {
+    background-color: #feebe7 !important;
+  }
+  .single-button svg {
+    fill: #763717 !important;
   }
 `;
 
