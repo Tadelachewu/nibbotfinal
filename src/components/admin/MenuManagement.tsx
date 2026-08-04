@@ -46,7 +46,8 @@ import {
   UserCircle,
   Info,
   X,
-  Brain
+  Brain,
+  Headset
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -1887,6 +1888,21 @@ export function MenuManagement() {
                       <Switch
                         checked={settings.showAdminPanelIcon ?? true}
                         onCheckedChange={(val) => setSettings(prev => ({ ...prev, showAdminPanelIcon: val }))}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/5">
+                      <div className="space-y-0.5">
+                        <Label className="text-xs font-bold flex items-center gap-1.5">
+                          <Headset size={13} className="text-primary" /> Enable Live Agent
+                        </Label>
+                        <p className="text-[10px] text-muted-foreground italic">
+                          Controls whether the "Live Agent" button appears next to "Ask a Question" for users.
+                          Does not affect the floating chat bubble.
+                        </p>
+                      </div>
+                      <Switch
+                        checked={settings.liveAgentEnabled ?? true}
+                        onCheckedChange={(val) => setSettings(prev => ({ ...prev, liveAgentEnabled: val }))}
                       />
                     </div>
                   </div>

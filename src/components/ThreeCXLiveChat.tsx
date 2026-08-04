@@ -51,19 +51,40 @@ const WIDGET_SCRIPT_ID = 'tcx-callus-js';
 
 type LiveBadgePosition = { top: number; left: number; visible: boolean };
 
-// Finds the widget's actual clickable bubble button (`.minimized-button`,
-// inside its shadow root — or, in rarer cases seen elsewhere in this file,
-// nested even deeper, or landed directly in the document) via the same
-// breadth-first shadow-root walk the position/badge logic below already
-// relies on. Self-contained rather than sharing code with that logic, on
+// #wp-live-chat-by-3CX (the <call-us> element) is ITSELF a custom element
+// that attaches a SECOND, nested shadow root once it actually connects to
+// the PBX — confirmed by inspecting the real, connected widget directly
+// (only reachable once it genuinely connects; never observed locally,
+// where the CORS-blocked connection means the widget never gets that far —
+// which is exactly why things that touch .minimized-button worked on
+// localhost but not on the deployed, actually-connected site). All of the
+// widget's real content — .minimized-button included — lives in THAT
+// nested shadow root, not as light-DOM children of #wp-live-chat-by-3CX.
+// Plain querySelector never pierces a shadow boundary, nested or not, so
+// every lookup of .minimized-button has to explicitly also check
+// `widgetRoot.shadowRoot`.
+function resolveMinimizedButton(widgetRoot: HTMLElement): HTMLElement | null {
+  const direct = widgetRoot.querySelector('.minimized-button');
+  if (direct instanceof HTMLElement) return direct;
+  const nested = widgetRoot.shadowRoot;
+  if (nested) {
+    const btn = nested.querySelector('.minimized-button');
+    if (btn instanceof HTMLElement) return btn;
+  }
+  return null;
+}
+
+// Finds the widget's actual clickable bubble button via a breadth-first
+// shadow-root walk (same approach the position/badge logic below relies
+// on). Self-contained rather than sharing code with that logic, on
 // purpose — this only needs to run once per call (a menu button click), not
 // continuously, and keeping it separate avoids touching the already-tuned
 // polling/observer logic for an unrelated feature.
 function findMinimizedButton(): HTMLElement | null {
   const direct = document.getElementById('wp-live-chat-by-3CX');
   if (direct) {
-    const btn = direct.querySelector('.minimized-button');
-    if (btn instanceof HTMLElement) return btn;
+    const btn = resolveMinimizedButton(direct);
+    if (btn) return btn;
   }
 
   const queue: (Document | ShadowRoot)[] = [document];
@@ -76,8 +97,8 @@ function findMinimizedButton(): HTMLElement | null {
 
     const widgetRoot = root.getElementById?.('wp-live-chat-by-3CX');
     if (widgetRoot) {
-      const btn = widgetRoot.querySelector('.minimized-button');
-      if (btn instanceof HTMLElement) return btn;
+      const btn = resolveMinimizedButton(widgetRoot);
+      if (btn) return btn;
     }
 
     const all = root.querySelectorAll('*');
@@ -105,6 +126,22 @@ export function openThreeCXLiveChat(): boolean {
   return true;
 }
 
+// Injected as-is into EVERY shadow root ensureOverridesEverywhere discovers
+// — both the outer one (where #wp-live-chat-by-3CX is a real, styleable
+// descendant) and #wp-live-chat-by-3CX's own nested shadow root (where all
+// of the widget's actual content — .panel, .minimized-button, etc. — lives,
+// but #wp-live-chat-by-3CX itself is the HOST of that tree, not a member of
+// it, so a selector like "#wp-live-chat-by-3CX .panel" can never match
+// anything there). That's why only the ID-selector rule below targets
+// #wp-live-chat-by-3CX directly (correct for the outer root; harmlessly
+// matches nothing when injected into the nested one), while every other
+// rule is a bare class selector with no ancestor prefix — it simply won't
+// match anything in whichever tree it doesn't apply to, and correctly
+// matches in the one where it does. (This actually happened: with the
+// ancestor prefix on every rule, the position/z-index fix worked because
+// #wp-live-chat-by-3CX genuinely lives in the outer tree, but the
+// background color and badge/button-finding logic silently no-opped
+// forever, since .minimized-button only exists one shadow level deeper.)
 const WIDGET_ROOT_OVERRIDE_CSS = `
   #wp-live-chat-by-3CX {
     position: absolute !important;
@@ -116,25 +153,45 @@ const WIDGET_ROOT_OVERRIDE_CSS = `
     overflow: visible !important;
   }
 
-  #wp-live-chat-by-3CX .panel,
-  #wp-live-chat-by-3CX .panel_content {
+  .panel,
+  .panel_content {
     max-height: var(--nib-3cx-panel-max-h, 460px) !important;
     max-width: var(--nib-3cx-panel-max-w, 320px) !important;
   }
 
-  #wp-live-chat-by-3CX .minimized-button {
+  .minimized-button {
     transform: scale(var(--nib-3cx-bubble-scale, 0.9)) !important;
     transform-origin: bottom right !important;
-    /* Same gold used across ChatInterface.tsx's avatars (makeAvatarDataUri
-       calls) — the widget's own default is 3CX blue (#0596d4). The icon
+    /* A deeper, bolder amber than the plain avatar gold (#f4a61b, still
+       used for the "Live" badge text) — #f4a61b reads fine at small badge
+       size but looks pale at full bubble size, so this bubble specifically
+       uses a richer shade in the same gold family rather than the exact
+       avatar hex. The widget's own default is 3CX blue (#0596d4). The icon
        itself is untouched (same chat glyph, still centered by the widget's
-       own layout), only recolored for contrast: white-on-gold here is
-       ~1.45:1 contrast (barely visible), while brown-on-gold — this app's
-       own established avatar pairing — is ~2.35:1, matching how every
-       other avatar in this app already handles this exact background. */
-    background-color: #f4a61b !important;
+       own layout), only recolored for contrast against the new background. */
+    background-color: #d97706 !important;
   }
-  #wp-live-chat-by-3CX .minimized-button svg {
+  .minimized-button svg {
+    fill: #763717 !important;
+  }
+
+  /* The expanded chat panel's header (.header-root — title bar with the
+     operator/logo) and footer (.footer-root — message input area). Neither
+     has a background set via a plain CSS rule in the widget's own
+     stylesheet (confirmed by reading callus.js) — both are colored at
+     runtime via Vue-bound inline styles, which a plain CSS rule can't beat
+     on specificity alone, but !important always can, regardless of origin.
+     .header-root's default text/icon color is white-on-blue for contrast
+     against the widget's own blue; changing only the background without
+     also darkening the text would leave near-white text on a near-white
+     pink background, so every descendant is force-recolored too. */
+  .header-root,
+  .footer-root {
+    background-color: #feebe7 !important;
+  }
+  .header-root,
+  .header-root * {
+    color: #763717 !important;
     fill: #763717 !important;
   }
 `;
@@ -162,7 +219,13 @@ export default function ThreeCXLiveChat() {
   useEffect(() => {
     let cancelled = false;
     let pollId: ReturnType<typeof setInterval> | null = null;
-    let observer: MutationObserver | null = null;
+    let pollTicks = 0;
+    // One dedicated MutationObserver per discovered shadow root, not just
+    // the outermost one — childList mutations don't cross shadow
+    // boundaries, so an observer on the outer shadow root alone can never
+    // see changes happening inside a nested one (see resolveMinimizedButton
+    // above for why a nested shadow root exists here at all).
+    const observedRoots = new Map<ShadowRoot, MutationObserver>();
     let docObserver: MutationObserver | null = null;
 
     const updatePanelSizing = () => {
@@ -209,7 +272,7 @@ export default function ThreeCXLiveChat() {
       const badge = liveBadgeRef.current;
       if (!badge) return;
 
-      const candidate = root.querySelector('.minimized-button') as HTMLElement | null;
+      const candidate = resolveMinimizedButton(root);
       if (!candidate) {
         setLiveBadgePosition(prev => (prev.visible ? { ...prev, visible: false } : prev));
         return;
@@ -228,6 +291,13 @@ export default function ThreeCXLiveChat() {
       setLiveBadgePosition({ top, left, visible: true });
     }
 
+    const observeRoot = (shadowRoot: ShadowRoot) => {
+      if (observedRoots.has(shadowRoot)) return;
+      const obs = new MutationObserver(() => ensureOverridesEverywhere());
+      obs.observe(shadowRoot, { childList: true, subtree: true });
+      observedRoots.set(shadowRoot, obs);
+    };
+
     const ensureOverridesEverywhere = () => {
       ensureGlobalOverride();
       updatePanelSizing();
@@ -243,9 +313,19 @@ export default function ThreeCXLiveChat() {
         visited.add(sr);
 
         ensureOverride(sr);
+        observeRoot(sr);
 
         const root = sr.getElementById('wp-live-chat-by-3CX') as HTMLElement | null;
-        if (root) updateLiveBadgePosition(root);
+        if (root) {
+          updateLiveBadgePosition(root);
+          // #wp-live-chat-by-3CX's real content — .minimized-button
+          // included — lives in ITS OWN nested shadow root (see
+          // resolveMinimizedButton above), which the generic
+          // querySelectorAll('*') walk below can't discover on its own
+          // until that nested root actually exists — check it directly.
+          const nestedShadow = root.shadowRoot;
+          if (nestedShadow && !visited.has(nestedShadow)) queue.push(nestedShadow);
+        }
 
         const nestedHosts = Array.from(sr.querySelectorAll('*')) as any[];
         for (const el of nestedHosts) {
@@ -262,19 +342,26 @@ export default function ThreeCXLiveChat() {
 
     // The widget's shadow root exists as soon as its custom element class
     // upgrades (synchronous with the script defining it), but that can
-    // happen slightly after this effect runs. Poll briefly rather than
-    // relying on script.onload timing.
+    // happen slightly after this effect runs — and #wp-live-chat-by-3CX
+    // existing is NOT enough on its own: its real content, including
+    // .minimized-button, only appears once ITS OWN nested shadow root
+    // attaches, which happens later still (only after the widget actually
+    // connects to the PBX) and via a custom-element *upgrade* rather than a
+    // regular DOM insertion — something no childList MutationObserver can
+    // ever catch, regardless of `subtree`. So this keeps polling — not just
+    // for the outer element, but until resolveMinimizedButton actually
+    // succeeds — rather than stopping as soon as the outer wrapper exists.
+    // (That was the actual bug: it worked on localhost, where the widget
+    // never gets far enough to connect and CSS/positioning on the outer
+    // wrapper alone was sufficient; it silently failed on the real deployed
+    // site, where the widget does connect and its real content — and
+    // everything targeting it, like the badge and the button's own
+    // background color — lives one shadow level deeper.)
+    const MAX_POLL_TICKS = 300; // ~60s at 200ms — safety cap, not a real limit in practice
     pollId = setInterval(() => {
       if (cancelled) return;
       ensureOverridesEverywhere();
-
-      if (!observer) {
-        const shadowRoot = hostRef.current?.shadowRoot;
-        if (shadowRoot) {
-          observer = new MutationObserver(() => ensureOverridesEverywhere());
-          observer.observe(shadowRoot, { childList: true, subtree: true });
-        }
-      }
+      pollTicks += 1;
 
       if (!docObserver) {
         const docRoot = document.getElementById('wp-live-chat-by-3CX') as HTMLElement | null;
@@ -284,13 +371,15 @@ export default function ThreeCXLiveChat() {
         }
       }
 
-      const shadowReady = !!hostRef.current?.shadowRoot?.getElementById('wp-live-chat-by-3CX');
-      const docReady = !!document.getElementById('wp-live-chat-by-3CX');
-      if (shadowReady || docReady) {
-        if (pollId) {
-          clearInterval(pollId);
-          pollId = null;
-        }
+      const shadowWidgetRoot = hostRef.current?.shadowRoot?.getElementById('wp-live-chat-by-3CX') as HTMLElement | null;
+      const docWidgetRoot = document.getElementById('wp-live-chat-by-3CX') as HTMLElement | null;
+      const buttonFound =
+        (shadowWidgetRoot && !!resolveMinimizedButton(shadowWidgetRoot)) ||
+        (docWidgetRoot && !!resolveMinimizedButton(docWidgetRoot));
+
+      if ((buttonFound || pollTicks >= MAX_POLL_TICKS) && pollId) {
+        clearInterval(pollId);
+        pollId = null;
       }
     }, 200);
 
@@ -313,7 +402,8 @@ export default function ThreeCXLiveChat() {
     return () => {
       cancelled = true;
       if (pollId) clearInterval(pollId);
-      if (observer) observer.disconnect();
+      observedRoots.forEach(obs => obs.disconnect());
+      observedRoots.clear();
       if (docObserver) docObserver.disconnect();
       window.removeEventListener('resize', updatePanelSizing);
     };

@@ -1939,26 +1939,28 @@ export function ChatInterface() {
                       ✨ {t('ui_ask_ai', 'Ask a Question')}
                     </button>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      // Same widget the floating bubble opens — this just
-                      // triggers it programmatically instead of requiring
-                      // the user to find and click the bubble themselves.
-                      const opened = openThreeCXLiveChat();
-                      if (!opened) {
-                        toast({
-                          title: t('ui_toast_error_title', 'Error'),
-                          description: t('ui_live_agent_unavailable', 'Live agent chat is still loading — please try again in a moment.'),
-                          variant: 'destructive'
-                        });
-                      }
-                    }}
-                    className="mt-1.5 flex items-center gap-1 text-[10px] px-3 py-1 rounded-full bg-[#f4a61b]/10 border border-[#f4a61b]/30 text-[#763717] hover:bg-[#f4a61b]/20 transition-colors font-medium"
-                  >
-                    <Headset size={11} />
-                    {t('ui_live_agent', 'Live Agent')}
-                  </button>
+                  {appSettings?.liveAgentEnabled !== false && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // Same widget the floating bubble opens — this just
+                        // triggers it programmatically instead of requiring
+                        // the user to find and click the bubble themselves.
+                        const opened = openThreeCXLiveChat();
+                        if (!opened) {
+                          toast({
+                            title: t('ui_toast_error_title', 'Error'),
+                            description: t('ui_live_agent_unavailable', 'Live agent chat is still loading — please try again in a moment.'),
+                            variant: 'destructive'
+                          });
+                        }
+                      }}
+                      className="mt-1.5 flex items-center gap-1 text-[10px] px-3 py-1 rounded-full bg-[#f4a61b]/10 border border-[#f4a61b]/30 text-[#763717] hover:bg-[#f4a61b]/20 transition-colors font-medium"
+                    >
+                      <Headset size={11} />
+                      {t('ui_live_agent', 'Live Agent')}
+                    </button>
+                  )}
                 </div>
               )}
               {msg.id !== 'welcome' && msg.text && <div onClick={handleLinkClick} dangerouslySetInnerHTML={{ __html: sanitizeHtml(msg.text) }} />}
@@ -2263,8 +2265,10 @@ export function ChatInterface() {
             positioning ancestor. Hidden while the "Ask a Question" bar is
             open — that bar stacks on top of the footer and is taller than
             it, so the bubble would otherwise overlap its input/Cancel
-            button. */}
-        {!kbMode && <ThreeCXLiveChat />}
+            button. Also gated on liveAgentEnabled, same as the "Live Agent"
+            menu button — one admin switch now controls both entry points
+            into live chat, not just the menu one. */}
+        {!kbMode && appSettings?.liveAgentEnabled !== false && <ThreeCXLiveChat />}
       </footer>
     </div>
   );
