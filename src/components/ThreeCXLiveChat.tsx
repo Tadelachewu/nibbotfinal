@@ -280,7 +280,13 @@ export default function ThreeCXLiveChat() {
       const footerRect = footer.getBoundingClientRect();
       const containerRect = container.getBoundingClientRect();
 
-      const availableHeight = Math.floor(Math.max(260, footerRect.top - headerRect.bottom - 12));
+      // Previously "fill whatever room exists" — on a tall card that meant
+      // a mostly-empty .panel_body (it's flex:1, so it just stretches to
+      // fill however much the panel is given). Capped at 380px so the
+      // panel stays genuinely compact instead of growing with the card,
+      // while the existing max(260, ...) floor still guarantees it never
+      // exceeds the header-clearance-safe space on a short viewport.
+      const availableHeight = Math.floor(Math.min(380, Math.max(260, footerRect.top - headerRect.bottom - 12)));
       const availableWidth = Math.floor(Math.max(260, Math.min(320, containerRect.width - 16)));
       const bubbleScale = containerRect.width < 420 ? 0.85 : 0.9;
 
