@@ -41,13 +41,15 @@
 // viewport corner — that's the risk of overriding an undocumented,
 // unversioned third-party bundle instead of a supported API.
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getCspNonce } from '@/lib/csp';
 
 const PHONESYSTEM_URL = 'https://callcenter.nibbank.com.et';
 const PARTY = 'LiveChat854959';
 const WIDGET_SCRIPT_SRC = '/vendor/3cx/callus';
 const WIDGET_SCRIPT_ID = 'tcx-callus-js';
+
+type LiveBadgePosition = { top: number; left: number; visible: boolean };
 
 const WIDGET_ROOT_OVERRIDE_CSS = `
   #wp-live-chat-by-3CX {
@@ -78,6 +80,8 @@ declare module 'react' {
 export default function ThreeCXLiveChat() {
   const injected = useRef(false);
   const hostRef = useRef<HTMLElement | null>(null);
+  const liveBadgeRef = useRef<HTMLSpanElement | null>(null);
+  const [liveBadgePosition, setLiveBadgePosition] = useState<LiveBadgePosition>({ top: 0, left: 0, visible: false });
 
   useEffect(() => {
     let cancelled = false;
@@ -104,6 +108,31 @@ export default function ThreeCXLiveChat() {
       document.head.appendChild(style);
     };
 
+    function updateLiveBadgePosition(root: HTMLElement) {
+      const badge = liveBadgeRef.current;
+      if (!badge) return;
+
+      const candidate =
+        (root.querySelector('.minimized-button') as HTMLElement | null) ??
+        (root.querySelector('button, [role="button"], a') as HTMLElement | null);
+      if (!candidate) {
+        setLiveBadgePosition(prev => (prev.visible ? { ...prev, visible: false } : prev));
+        return;
+      }
+
+      const bubbleRect = candidate.getBoundingClientRect();
+      if (bubbleRect.width <= 0 || bubbleRect.height <= 0) {
+        setLiveBadgePosition(prev => (prev.visible ? { ...prev, visible: false } : prev));
+        return;
+      }
+
+      const badgeRect = badge.getBoundingClientRect();
+      const top = bubbleRect.top + 4;
+      const left = bubbleRect.left + Math.max(0, (bubbleRect.width - badgeRect.width) / 2);
+
+      setLiveBadgePosition({ top, left, visible: true });
+    }
+
     const ensureOverridesEverywhere = () => {
       ensureGlobalOverride();
 
@@ -120,7 +149,7 @@ export default function ThreeCXLiveChat() {
         ensureOverride(sr);
 
         const root = sr.getElementById('wp-live-chat-by-3CX') as HTMLElement | null;
-        if (root) void 0;
+        if (root) updateLiveBadgePosition(root);
 
         const nestedHosts = Array.from(sr.querySelectorAll('*')) as any[];
         for (const el of nestedHosts) {
@@ -132,7 +161,7 @@ export default function ThreeCXLiveChat() {
       }
 
       const docRoot = document.getElementById('wp-live-chat-by-3CX') as HTMLElement | null;
-      if (docRoot) void 0;
+      if (docRoot) updateLiveBadgePosition(docRoot);
     };
 
     // The widget's shadow root exists as soon as its custom element class
@@ -191,25 +220,41 @@ export default function ThreeCXLiveChat() {
   }, []);
 
   return (
-    <call-us-selector
-      ref={hostRef}
-      phonesystem-url={PHONESYSTEM_URL}
-      party={PARTY}
-      // Anchors to the footer this renders inside (`position: relative` —
-      // see ChatInterface.tsx). `bottom: 100%` with no margin sits it exactly
-      // tangent to the footer's top border (an absolutely positioned child's
-      // containing block is its ancestor's *padding* box, unaffected by the
-      // ancestor's own padding, so 0 there touches the border with no gap).
-      // `right: 4px` is a deliberate small inset rather than 0 — flush 0
-      // crossed into the message list's scrollbar track/arrow on desktop;
-      // CSS can't query the browser's actual scrollbar width, so this is a
-      // measured-by-eye safety margin, not a computed value.
-      style={{
-        position: 'absolute',
-        right: '4px',
-        bottom: '100%',
-        zIndex: 30,
-      }}
-    />
+    <>
+      <call-us-selector
+        ref={hostRef}
+        phonesystem-url={PHONESYSTEM_URL}
+        party={PARTY}
+        // Anchors to the footer this renders inside (`position: relative` —
+        // see ChatInterface.tsx). `bottom: 100%` with no margin sits it exactly
+        // tangent to the footer's top border (an absolutely positioned child's
+        // containing block is its ancestor's *padding* box, unaffected by the
+        // ancestor's own padding, so 0 there touches the border with no gap).
+        // `right: 4px` is a deliberate small inset rather than 0 — flush 0
+        // crossed into the message list's scrollbar track/arrow on desktop;
+        // CSS can't query the browser's actual scrollbar width, so this is a
+        // measured-by-eye safety margin, not a computed value.
+        style={{
+          position: 'absolute',
+          right: '4px',
+          bottom: '100%',
+          zIndex: 30,
+        }}
+      />
+      <span
+        ref={liveBadgeRef}
+        className="fixed px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide rounded-full bg-[#f4a61b] text-[#763717] border border-white shadow-sm select-none"
+        style={{
+          top: liveBadgePosition.top,
+          left: liveBadgePosition.left,
+          opacity: liveBadgePosition.visible ? 1 : 0,
+          pointerEvents: 'none',
+          zIndex: 2147483647,
+          transition: 'opacity 150ms ease',
+        }}
+      >
+        Live
+      </span>
+    </>
   );
 }
