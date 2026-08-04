@@ -1915,8 +1915,11 @@ export function ChatInterface() {
               )}
               {/* Shown on first load AND every subsequent Home visit — previously
                   this button only existed on the one-time 'welcome' message, so
-                  clicking the Home icon never brought it back. */}
-              {!kbMode && (msg.id === 'welcome' || msg.sourceType === 'home') && (
+                  clicking the Home icon never brought it back. Stays visible
+                  even while kbMode is active (the "Ask a Question" input bar
+                  is a separate element below) — both buttons remain
+                  reachable rather than disappearing once one is clicked. */}
+              {(msg.id === 'welcome' || msg.sourceType === 'home') && (
                 <div className="flex justify-center items-center gap-2 pb-2 flex-wrap">
                   {appSettings?.aiEnabled !== false && (
                     <button

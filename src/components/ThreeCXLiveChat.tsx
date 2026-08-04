@@ -125,6 +125,17 @@ const WIDGET_ROOT_OVERRIDE_CSS = `
   #wp-live-chat-by-3CX .minimized-button {
     transform: scale(var(--nib-3cx-bubble-scale, 0.9)) !important;
     transform-origin: bottom right !important;
+    /* Same gold used across ChatInterface.tsx's avatars (makeAvatarDataUri
+       calls) — the widget's own default is 3CX blue (#0596d4). The icon
+       itself is untouched (same chat glyph, still centered by the widget's
+       own layout), only recolored for contrast: white-on-gold here is
+       ~1.45:1 contrast (barely visible), while brown-on-gold — this app's
+       own established avatar pairing — is ~2.35:1, matching how every
+       other avatar in this app already handles this exact background. */
+    background-color: #f4a61b !important;
+  }
+  #wp-live-chat-by-3CX .minimized-button svg {
+    fill: #763717 !important;
   }
 `;
 
