@@ -89,6 +89,33 @@ const WIDGET_ROOT_OVERRIDE_CSS = `
     white-space: nowrap;
     pointer-events: none;
   }
+
+  /* The expanded chat panel: the widget's own bundle sizes it to a fixed
+     509px height by default (.panel_content.chat-form / .small-form), and
+     can additionally switch itself into a "full-screen" mode — literally
+     100vw x 100vh via its own !important rule — meant for embedding on a
+     normal full-page website. Inside this app's own narrow chat card, either
+     one is "too large, breaks out of the parent." Both are forced back to a
+     fixed compact size here, regardless of which mode the widget's JS picks.
+     Selectors are ID-anchored (#wp-live-chat-by-3CX ...) rather than plain
+     classes so specificity reliably beats the widget's own scoped
+     !important rules on the same properties no matter which stylesheet
+     ends up later in the shadow root's DOM order — verified directly
+     against the widget's actual compiled CSS, not assumed. */
+  #wp-live-chat-by-3CX .panel,
+  #wp-live-chat-by-3CX .panel.full-screen {
+    width: 300px !important;
+    height: 420px !important;
+    max-height: 65vh !important;
+    max-width: calc(100vw - 24px) !important;
+  }
+  #wp-live-chat-by-3CX .panel_content.chat-form,
+  #wp-live-chat-by-3CX .panel_content.small-form {
+    width: 300px !important;
+    height: 420px !important;
+    max-height: 65vh !important;
+    min-height: 0 !important;
+  }
 `;
 
 // React 19's JSX namespace lives under the `react` module (not the global
