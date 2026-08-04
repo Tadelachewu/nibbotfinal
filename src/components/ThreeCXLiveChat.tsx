@@ -150,7 +150,7 @@ export default function ThreeCXLiveChat() {
       }
 
       const badgeRect = badge.getBoundingClientRect();
-      const top = bubbleRect.top + 4;
+      const top = bubbleRect.top + 1;
       const left = bubbleRect.left + Math.max(0, (bubbleRect.width - badgeRect.width) / 2);
 
       setLiveBadgePosition({ top, left, visible: true });
