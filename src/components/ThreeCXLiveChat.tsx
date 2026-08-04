@@ -51,6 +51,60 @@ const WIDGET_SCRIPT_ID = 'tcx-callus-js';
 
 type LiveBadgePosition = { top: number; left: number; visible: boolean };
 
+// Finds the widget's actual clickable bubble button (`.minimized-button`,
+// inside its shadow root — or, in rarer cases seen elsewhere in this file,
+// nested even deeper, or landed directly in the document) via the same
+// breadth-first shadow-root walk the position/badge logic below already
+// relies on. Self-contained rather than sharing code with that logic, on
+// purpose — this only needs to run once per call (a menu button click), not
+// continuously, and keeping it separate avoids touching the already-tuned
+// polling/observer logic for an unrelated feature.
+function findMinimizedButton(): HTMLElement | null {
+  const direct = document.getElementById('wp-live-chat-by-3CX');
+  if (direct) {
+    const btn = direct.querySelector('.minimized-button');
+    if (btn instanceof HTMLElement) return btn;
+  }
+
+  const queue: (Document | ShadowRoot)[] = [document];
+  const visited = new Set<Document | ShadowRoot>();
+
+  while (queue.length > 0) {
+    const root = queue.shift()!;
+    if (visited.has(root)) continue;
+    visited.add(root);
+
+    const widgetRoot = root.getElementById?.('wp-live-chat-by-3CX');
+    if (widgetRoot) {
+      const btn = widgetRoot.querySelector('.minimized-button');
+      if (btn instanceof HTMLElement) return btn;
+    }
+
+    const all = root.querySelectorAll('*');
+    for (const el of Array.from(all)) {
+      const shadow = (el as HTMLElement).shadowRoot;
+      if (shadow && !visited.has(shadow)) queue.push(shadow);
+    }
+  }
+
+  return null;
+}
+
+// Exported so other UI (e.g. a "Live Agent" menu button elsewhere in the
+// app) can trigger the same open action as clicking the bubble directly,
+// without needing to know anything about the widget's internal structure.
+// There's no documented/public API for this — the widget only exposes
+// itself as a clickable DOM element — so this simulates a real user click
+// on that element. Returns whether a button was actually found and clicked,
+// so callers can fall back (e.g. to a toast) if the widget hasn't mounted
+// yet.
+export function openThreeCXLiveChat(): boolean {
+  const button = findMinimizedButton();
+  if (!button) return false;
+  button.click();
+  return true;
+}
+
 const WIDGET_ROOT_OVERRIDE_CSS = `
   #wp-live-chat-by-3CX {
     position: absolute !important;

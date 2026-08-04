@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Logo } from '@/components/Logo';
 import ThemeToggle from '@/components/ui/ThemeToggle';
-import ThreeCXLiveChat from '@/components/ThreeCXLiveChat';
+import ThreeCXLiveChat, { openThreeCXLiveChat } from '@/components/ThreeCXLiveChat';
 import {
   ChevronRight,
   Home as HomeIcon,
@@ -28,7 +28,8 @@ import {
   Settings,
   Star,
   Search,
-  BookOpen
+  BookOpen,
+  Headset
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -1915,23 +1916,45 @@ export function ChatInterface() {
               {/* Shown on first load AND every subsequent Home visit — previously
                   this button only existed on the one-time 'welcome' message, so
                   clicking the Home icon never brought it back. */}
-              {!kbMode && appSettings?.aiEnabled !== false && (msg.id === 'welcome' || msg.sourceType === 'home') && (
-                <div className="flex justify-center pb-2">
+              {!kbMode && (msg.id === 'welcome' || msg.sourceType === 'home') && (
+                <div className="flex justify-center items-center gap-2 pb-2 flex-wrap">
+                  {appSettings?.aiEnabled !== false && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // Ask a Question must exit any in-progress flow — otherwise
+                        // that flow's input bar keeps rendering instead of the KB
+                        // question box, since their render conditions don't check
+                        // kbMode at all.
+                        setStatusFlow(false);
+                        setKycFlow(null);
+                        setRatingFlow(null);
+                        setKbMode(true);
+                      }}
+                      className="mt-1.5 text-[10px] px-3 py-1 rounded-full bg-[#f4a61b]/10 border border-[#f4a61b]/30 text-[#763717] hover:bg-[#f4a61b]/20 transition-colors font-medium"
+                    >
+                      ✨ {t('ui_ask_ai', 'Ask a Question')}
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => {
-                      // Ask a Question must exit any in-progress flow — otherwise
-                      // that flow's input bar keeps rendering instead of the KB
-                      // question box, since their render conditions don't check
-                      // kbMode at all.
-                      setStatusFlow(false);
-                      setKycFlow(null);
-                      setRatingFlow(null);
-                      setKbMode(true);
+                      // Same widget the floating bubble opens — this just
+                      // triggers it programmatically instead of requiring
+                      // the user to find and click the bubble themselves.
+                      const opened = openThreeCXLiveChat();
+                      if (!opened) {
+                        toast({
+                          title: t('ui_toast_error_title', 'Error'),
+                          description: t('ui_live_agent_unavailable', 'Live agent chat is still loading — please try again in a moment.'),
+                          variant: 'destructive'
+                        });
+                      }
                     }}
-                    className="mt-1.5 text-[10px] px-3 py-1 rounded-full bg-[#f4a61b]/10 border border-[#f4a61b]/30 text-[#763717] hover:bg-[#f4a61b]/20 transition-colors font-medium"
+                    className="mt-1.5 flex items-center gap-1 text-[10px] px-3 py-1 rounded-full bg-[#f4a61b]/10 border border-[#f4a61b]/30 text-[#763717] hover:bg-[#f4a61b]/20 transition-colors font-medium"
                   >
-                    ✨ {t('ui_ask_ai', 'Ask a Question')}
+                    <Headset size={11} />
+                    {t('ui_live_agent', 'Live Agent')}
                   </button>
                 </div>
               )}
