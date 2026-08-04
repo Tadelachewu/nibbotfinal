@@ -249,7 +249,8 @@ const WIDGET_ROOT_OVERRIDE_CSS = `
      used to start, landing a bit down from that top row rather than
      jammed at the very top; centered explicitly since the column layout's
      centering doesn't itself center the *text* within .operator_name. */
-  .operator-img-container {
+  .header-root.header-large .operator-img-container,
+  .header-root.calling-window .operator-img-container {
     position: absolute !important;
     top: 10px !important;
     left: 12px !important;
@@ -257,7 +258,8 @@ const WIDGET_ROOT_OVERRIDE_CSS = `
     height: 32px !important;
     margin: 0 !important;
   }
-  .operator_name {
+  .header-root.header-large .operator_name,
+  .header-root.calling-window .operator_name {
     text-align: center !important;
     width: 100% !important;
   }
@@ -337,7 +339,12 @@ export default function ThreeCXLiveChat() {
       // while the existing max(260, ...) floor still guarantees it never
       // exceeds the header-clearance-safe space on a short viewport.
       const availableHeight = Math.floor(Math.min(380, Math.max(260, footerRect.top - headerRect.bottom - 12)));
-      const availableWidth = Math.floor(Math.max(260, Math.min(320, containerRect.width - 16)));
+      // Floor raised from 260 to 300 — the header row (logo + title +
+      // "Powered by 3CX" + close button) doesn't fit in 260px regardless of
+      // .panel_head_title's own flex-grow/ellipsis handling; it truncated
+      // to near-nothing ("NIB Contact" → "B Con..."). 300px is still
+      // compact, just no longer narrower than the header actually needs.
+      const availableWidth = Math.floor(Math.max(300, Math.min(320, containerRect.width - 16)));
       const bubbleScale = containerRect.width < 420 ? 0.85 : 0.9;
 
       host.style.setProperty('--nib-3cx-panel-max-h', `${availableHeight}px`);
