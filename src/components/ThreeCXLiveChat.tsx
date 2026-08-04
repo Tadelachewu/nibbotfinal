@@ -91,8 +91,14 @@ const WIDGET_ROOT_OVERRIDE_CSS = `
   }
 
   /* The expanded chat panel: the widget's own bundle sizes it to a fixed
-     509px height by default (.panel_content.chat-form / .small-form), and
-     can additionally switch itself into a "full-screen" mode — literally
+     509px height by default across ALL its non-trivial panel_content
+     variants — .chat-form, .small-form, .small-form-height (used for the
+     pre-chat "enter your name and email" visitor-info form specifically;
+     missing this one is exactly what let that screen overlap the header —
+     confirmed by re-reading callus.js's compiled CSS, not guessed) and
+     .calling-window (voice calls; unused today since allow-call is off in
+     our config, included anyway in case that's ever turned on). It can
+     additionally switch itself into a "full-screen" mode — literally
      100vw x 100vh via its own !important rule — meant for embedding on a
      normal full-page website. Inside this app's own narrow chat card, either
      one is "too large, breaks out of the parent." Both are forced back to a
@@ -120,7 +126,9 @@ const WIDGET_ROOT_OVERRIDE_CSS = `
     max-width: calc(100vw - 24px) !important;
   }
   #wp-live-chat-by-3CX .panel_content.chat-form,
-  #wp-live-chat-by-3CX .panel_content.small-form {
+  #wp-live-chat-by-3CX .panel_content.small-form,
+  #wp-live-chat-by-3CX .panel_content.small-form-height,
+  #wp-live-chat-by-3CX .panel_content.calling-window {
     width: 300px !important;
     height: 420px !important;
     max-height: var(--nib-3cx-max-panel-height, 65vh) !important;
