@@ -61,6 +61,12 @@ const WIDGET_ROOT_OVERRIDE_CSS = `
     z-index: 30 !important;
     overflow: visible !important;
   }
+
+  #wp-live-chat-by-3CX .panel,
+  #wp-live-chat-by-3CX .panel_content {
+    max-height: var(--nib-3cx-panel-max-h, 520px) !important;
+    max-width: var(--nib-3cx-panel-max-w, 360px) !important;
+  }
 `;
 
 // React 19's JSX namespace lives under the `react` module (not the global
@@ -89,6 +95,25 @@ export default function ThreeCXLiveChat() {
     let observer: MutationObserver | null = null;
     let docObserver: MutationObserver | null = null;
 
+    const updatePanelSizing = () => {
+      const host = hostRef.current;
+      if (!host) return;
+      const footer = host.closest('footer');
+      const container = footer?.parentElement;
+      const header = container?.querySelector('header');
+      if (!(footer instanceof HTMLElement) || !(container instanceof HTMLElement) || !(header instanceof HTMLElement)) return;
+
+      const headerRect = header.getBoundingClientRect();
+      const footerRect = footer.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+
+      const availableHeight = Math.floor(Math.max(280, footerRect.top - headerRect.bottom - 12));
+      const availableWidth = Math.floor(Math.max(280, Math.min(360, containerRect.width - 16)));
+
+      host.style.setProperty('--nib-3cx-panel-max-h', `${availableHeight}px`);
+      host.style.setProperty('--nib-3cx-panel-max-w', `${availableWidth}px`);
+    };
+
     // Idempotent: re-appends the override style tag only if it's not
     // already present, so it's safe to call repeatedly from the observer
     // below without piling up duplicate <style> tags.
@@ -112,9 +137,7 @@ export default function ThreeCXLiveChat() {
       const badge = liveBadgeRef.current;
       if (!badge) return;
 
-      const candidate =
-        (root.querySelector('.minimized-button') as HTMLElement | null) ??
-        (root.querySelector('button, [role="button"], a') as HTMLElement | null);
+      const candidate = root.querySelector('.minimized-button') as HTMLElement | null;
       if (!candidate) {
         setLiveBadgePosition(prev => (prev.visible ? { ...prev, visible: false } : prev));
         return;
@@ -135,6 +158,7 @@ export default function ThreeCXLiveChat() {
 
     const ensureOverridesEverywhere = () => {
       ensureGlobalOverride();
+      updatePanelSizing();
 
       const queue: ShadowRoot[] = [];
       const visited = new Set<ShadowRoot>();
@@ -198,6 +222,9 @@ export default function ThreeCXLiveChat() {
       }
     }, 200);
 
+    updatePanelSizing();
+    window.addEventListener('resize', updatePanelSizing);
+
     if (!injected.current && !document.getElementById(WIDGET_SCRIPT_ID)) {
       injected.current = true;
       const script = document.createElement('script');
@@ -216,6 +243,7 @@ export default function ThreeCXLiveChat() {
       if (pollId) clearInterval(pollId);
       if (observer) observer.disconnect();
       if (docObserver) docObserver.disconnect();
+      window.removeEventListener('resize', updatePanelSizing);
     };
   }, []);
 
