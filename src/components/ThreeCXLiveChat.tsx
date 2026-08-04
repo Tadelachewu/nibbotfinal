@@ -53,6 +53,15 @@ const WIDGET_SCRIPT_ID = 'tcx-callus-js';
 const AVATAR_BG = '#f4a61b';
 const AVATAR_TEXT = '#763717';
 
+// One fixed panel size for every device — see the comment on
+// WIDGET_ROOT_OVERRIDE_CSS below for why this replaced the earlier
+// per-device measured approach. 280px matches the widget's own
+// --call-us-form-width-min floor (going smaller fights its internal
+// layout); 320px tall is short enough to clear this app's header on any
+// realistic viewport without needing to measure it at runtime.
+const PANEL_WIDTH_PX = 280;
+const PANEL_HEIGHT_PX = 320;
+
 const WIDGET_ROOT_OVERRIDE_CSS = `
   #wp-live-chat-by-3CX {
     position: absolute !important;
@@ -104,14 +113,13 @@ const WIDGET_ROOT_OVERRIDE_CSS = `
      one is "too large, breaks out of the parent." Both are forced back to a
      compact size here, regardless of which mode the widget's JS picks.
 
-     max-height reads --nib-3cx-max-panel-height, a custom property set (and
-     kept updated on resize) on the light-DOM host in the component below —
-     custom properties inherit into shadow trees, verified directly, so this
-     is the *actual* measured gap between this app's own header and the
-     panel's anchor point, not a flat vh guess. A flat vh guess is exactly
-     what broke on small phones: 65vh of a short mobile viewport is still
-     tall enough to overlap this app's own header, because vh has no idea
-     how much of that viewport this app's chrome already uses.
+     One fixed size for every device, deliberately, rather than measuring
+     available space per-device: PANEL_HEIGHT_PX (320px) is small enough
+     that it fits under this app's header with room to spare even on the
+     shortest realistic mobile viewport (a full 640px-tall phone screen
+     leaves ~530px between header and footer; 320px stays comfortably clear
+     of that with margin for shorter/landscape viewports too), so it holds
+     without needing to know this app's actual header height at runtime.
 
      Selectors are ID-anchored (#wp-live-chat-by-3CX ...) rather than plain
      classes so specificity reliably beats the widget's own scoped
@@ -120,28 +128,21 @@ const WIDGET_ROOT_OVERRIDE_CSS = `
      against the widget's actual compiled CSS, not assumed. */
   #wp-live-chat-by-3CX .panel,
   #wp-live-chat-by-3CX .panel.full-screen {
-    width: 300px !important;
-    height: 420px !important;
-    max-height: var(--nib-3cx-max-panel-height, 65vh) !important;
+    width: ${PANEL_WIDTH_PX}px !important;
+    height: ${PANEL_HEIGHT_PX}px !important;
+    max-height: ${PANEL_HEIGHT_PX}px !important;
     max-width: calc(100vw - 24px) !important;
   }
   #wp-live-chat-by-3CX .panel_content.chat-form,
   #wp-live-chat-by-3CX .panel_content.small-form,
   #wp-live-chat-by-3CX .panel_content.small-form-height,
   #wp-live-chat-by-3CX .panel_content.calling-window {
-    width: 300px !important;
-    height: 420px !important;
-    max-height: var(--nib-3cx-max-panel-height, 65vh) !important;
+    width: ${PANEL_WIDTH_PX}px !important;
+    height: ${PANEL_HEIGHT_PX}px !important;
+    max-height: ${PANEL_HEIGHT_PX}px !important;
     min-height: 0 !important;
   }
 `;
-
-// Reserved space above the panel so it never touches the app's own sticky
-// header, even after the exact measurement below.
-const HEADER_CLEARANCE_PX = 8;
-// Below this, the panel would be too cramped to be usable — better to let it
-// slightly approach the header than shrink into an unreadable strip.
-const MIN_PANEL_HEIGHT_PX = 280;
 
 // React 19's JSX namespace lives under the `react` module (not the global
 // scope), so augmenting it here — rather than `declare global { namespace JSX }`
@@ -203,37 +204,6 @@ export default function ThreeCXLiveChat() {
     return () => {
       cancelled = true;
       if (pollId) clearInterval(pollId);
-    };
-  }, []);
-
-  // Keeps --nib-3cx-max-panel-height (consumed by WIDGET_ROOT_OVERRIDE_CSS
-  // above) matched to the actual gap between this app's sticky header and
-  // the panel's anchor point, on this specific device/viewport/orientation
-  // — not a flat vh guess, which is what let the panel overlap the header
-  // on small phones in the first place. The host element itself is a static
-  // anchor point (position: absolute, right/bottom-anchored to the footer;
-  // its own box doesn't move or resize when the widget's panel opens or
-  // closes), so this only needs to react to actual viewport changes.
-  useEffect(() => {
-    const updateMaxHeight = () => {
-      const host = hostRef.current;
-      if (!host) return;
-      const anchorY = host.getBoundingClientRect().top;
-      const header = document.querySelector('header');
-      const headerBottom = header ? header.getBoundingClientRect().bottom : 0;
-      const available = Math.max(
-        MIN_PANEL_HEIGHT_PX,
-        Math.round(anchorY - headerBottom - HEADER_CLEARANCE_PX)
-      );
-      host.style.setProperty('--nib-3cx-max-panel-height', `${available}px`);
-    };
-
-    updateMaxHeight();
-    window.addEventListener('resize', updateMaxHeight);
-    window.addEventListener('orientationchange', updateMaxHeight);
-    return () => {
-      window.removeEventListener('resize', updateMaxHeight);
-      window.removeEventListener('orientationchange', updateMaxHeight);
     };
   }, []);
 
