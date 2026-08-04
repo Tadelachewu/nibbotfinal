@@ -151,6 +151,22 @@ const WIDGET_ROOT_OVERRIDE_CSS = `
     top: auto !important;
     z-index: 30 !important;
     overflow: visible !important;
+    /* The widget sets these CSS custom properties once, inline, on this
+       same root element (confirmed by reading callus.js) — every dark
+       element throughout the widget (.single-button, and others not yet
+       individually found) reads its background from one of these via
+       var(), rather than having its own hardcoded color. Redeclaring them
+       here with !important beats that inline declaration (verified
+       directly) and cascades down to every consumer at once, instead of
+       chasing each dark element's class name one at a time — which is
+       exactly what kept happening: .header-root, .footer-root, .start-new,
+       and .single-button all turned out to be four separate elements
+       found one screenshot at a time. This is the systemic fix; the
+       specific class overrides below are kept too, as a safety net for
+       whatever element doesn't route through one of these variables. */
+    --call-us-form-header-background: #feebe7 !important;
+    --call-us-plate-background-color: #feebe7 !important;
+    --call-us-plate-font-color: #763717 !important;
   }
 
   .panel,
