@@ -163,10 +163,24 @@ const WIDGET_ROOT_OVERRIDE_CSS = `
        and .single-button all turned out to be four separate elements
        found one screenshot at a time. This is the systemic fix; the
        specific class overrides below are kept too, as a safety net for
-       whatever element doesn't route through one of these variables. */
+       whatever element doesn't route through one of these variables.
+
+       --call-us-main-accent-color is set for a different, sharper reason:
+       most icon fills (.action-button, the send button) read
+       var(--call-us-main-accent-color, var(--call-us-form-header-background, ...))
+       — accent color first, form-header-background as their OWN fallback.
+       Left unset, that fallback resolved to the pink above, so the send
+       icon and similar controls rendered pink-on-pink and effectively
+       disappeared — confirmed directly (.send-trigger.send_enable svg
+       carries the widget's own !important on this exact fill). Setting
+       accent-color explicitly is what the widget's own fallback chain
+       checks FIRST, intercepting it before it ever reaches the pink
+       fallback, without needing to touch form-header-background itself
+       (still correctly colors .single-button's background). */
     --call-us-form-header-background: #feebe7 !important;
     --call-us-plate-background-color: #feebe7 !important;
     --call-us-plate-font-color: #763717 !important;
+    --call-us-main-accent-color: #763717 !important;
   }
 
   .panel,
