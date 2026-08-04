@@ -194,6 +194,33 @@ const WIDGET_ROOT_OVERRIDE_CSS = `
     color: #763717 !important;
     fill: #763717 !important;
   }
+
+  /* .header-root has two sizes in the widget's own CSS: a normal ~40px bar
+     during an active chat, and a "large" ~163px variant (.header-large /
+     .calling-window) that shows a big circular operator/logo image before
+     a chat starts — that big variant is what was "so large." Scoped to
+     just that variant so the already-compact normal header is untouched.
+     The circular logo itself (.operator-img-container, 130px default) is
+     shrunk separately — a smaller header alone wouldn't shrink the logo,
+     since the logo's size isn't derived from the header's height. */
+  .header-root.header-large,
+  .header-root.calling-window {
+    height: 120px !important;
+  }
+  .operator-img-container {
+    width: 56px !important;
+    height: 56px !important;
+  }
+
+  /* The "Start new" bar (.start-new) is a separate element from
+     .footer-root — its own background/text color, not inherited from the
+     footer fix above, which is why it was still dark. Same treatment as
+     the header: background matches, text darkened for contrast since its
+     default is also white-on-dark. */
+  .start-new {
+    background-color: #feebe7 !important;
+    color: #763717 !important;
+  }
 `;
 
 // React 19's JSX namespace lives under the `react` module (not the global
