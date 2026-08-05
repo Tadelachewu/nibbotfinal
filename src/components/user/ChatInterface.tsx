@@ -2262,13 +2262,15 @@ export function ChatInterface() {
             footer's top border regardless of footer height (icon column
             shown/hidden, font scaling, mobile vs desktop), and it can never
             render outside the chat card since it never escapes the footer's
-            positioning ancestor. Hidden while the "Ask a Question" bar is
-            open — that bar stacks on top of the footer and is taller than
-            it, so the bubble would otherwise overlap its input/Cancel
-            button. Also gated on liveAgentEnabled, same as the "Live Agent"
-            menu button — one admin switch now controls both entry points
-            into live chat, not just the menu one. */}
-        {!kbMode && appSettings?.liveAgentEnabled !== false && <ThreeCXLiveChat />}
+            positioning ancestor. Gated on liveAgentEnabled, same as the
+            "Live Agent" menu button — one admin switch controls both entry
+            points into live chat. Stays MOUNTED while the "Ask a Question"
+            bar is open (only visually hidden, via the `hidden` prop) —
+            conditionally unmounting it here used to fully destroy the 3CX
+            widget instance every time kbMode turned on, which broke the
+            "Live Agent" menu button (it calls openThreeCXLiveChat(), which
+            had nothing left to find). */}
+        {appSettings?.liveAgentEnabled !== false && <ThreeCXLiveChat hidden={kbMode} />}
       </footer>
     </div>
   );

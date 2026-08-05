@@ -302,7 +302,7 @@ declare module 'react' {
   }
 }
 
-export default function ThreeCXLiveChat() {
+export default function ThreeCXLiveChat({ hidden = false }: { hidden?: boolean }) {
   const injected = useRef(false);
   const hostRef = useRef<HTMLElement | null>(null);
   const liveBadgeRef = useRef<HTMLSpanElement | null>(null);
@@ -527,11 +527,30 @@ export default function ThreeCXLiveChat() {
         // crossed into the message list's scrollbar track/arrow on desktop;
         // CSS can't query the browser's actual scrollbar width, so this is a
         // measured-by-eye safety margin, not a computed value.
+        //
+        // `hidden` (e.g. while the "Ask a Question" bar is open, which would
+        // otherwise visually overlap this) is deliberately opacity+pointer-
+        // events, not conditionally unmounting this component. Unmounting
+        // was the actual bug behind "Live Agent chat is still loading":
+        // ChatInterface.tsx used to render `{!kbMode && <ThreeCXLiveChat />}`,
+        // which destroyed the <call-us-selector> host — and the 3CX widget
+        // instance inside it — every time kbMode turned on, so
+        // openThreeCXLiveChat() (which the always-visible "Live Agent" menu
+        // button calls) had no widget left to find. Hiding visually instead
+        // keeps the widget mounted and connected, so the menu button keeps
+        // working regardless of kbMode. opacity (not display:none) is
+        // deliberate too — some widgets skip their own click handling for
+        // display:none elements; opacity 0 keeps it "rendered" while still
+        // invisible and, via pointer-events:none, unreachable by real mouse
+        // clicks (programmatic .click() from openThreeCXLiveChat() is
+        // unaffected by pointer-events either way).
         style={{
           position: 'absolute',
           right: '4px',
           bottom: '100%',
           zIndex: 30,
+          opacity: hidden ? 0 : 1,
+          pointerEvents: hidden ? 'none' : undefined,
         }}
       />
       <span
@@ -540,7 +559,7 @@ export default function ThreeCXLiveChat() {
         style={{
           top: liveBadgePosition.top,
           left: liveBadgePosition.left,
-          opacity: liveBadgePosition.visible ? 1 : 0,
+          opacity: !hidden && liveBadgePosition.visible ? 1 : 0,
           pointerEvents: 'none',
           zIndex: 2147483647,
           transition: 'opacity 150ms ease',
