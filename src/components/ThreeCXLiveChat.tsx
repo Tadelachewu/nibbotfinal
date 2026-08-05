@@ -149,7 +149,12 @@ const WIDGET_ROOT_OVERRIDE_CSS = `
     bottom: 0 !important;
     left: auto !important;
     top: auto !important;
-    z-index: 30 !important;
+    /* 55, not 30 — the "Ask a Question" and KYC/status/rating input bars in
+       ChatInterface.tsx are both z-50, sticky, full-width, and render
+       directly above the footer: the exact spot this bubble is anchored
+       to. At z-30 those bars always covered it, any time either was open.
+       Above both guarantees the bubble is never covered by either. */
+    z-index: 55 !important;
     overflow: visible !important;
     /* The widget sets these CSS custom properties once, inline, on this
        same root element (confirmed by reading callus.js) — every dark
@@ -302,7 +307,7 @@ declare module 'react' {
   }
 }
 
-export default function ThreeCXLiveChat({ hidden = false }: { hidden?: boolean }) {
+export default function ThreeCXLiveChat() {
   const injected = useRef(false);
   const hostRef = useRef<HTMLElement | null>(null);
   const liveBadgeRef = useRef<HTMLSpanElement | null>(null);
@@ -528,29 +533,27 @@ export default function ThreeCXLiveChat({ hidden = false }: { hidden?: boolean }
         // CSS can't query the browser's actual scrollbar width, so this is a
         // measured-by-eye safety margin, not a computed value.
         //
-        // `hidden` (e.g. while the "Ask a Question" bar is open, which would
-        // otherwise visually overlap this) is deliberately opacity+pointer-
-        // events, not conditionally unmounting this component. Unmounting
-        // was the actual bug behind "Live Agent chat is still loading":
-        // ChatInterface.tsx used to render `{!kbMode && <ThreeCXLiveChat />}`,
-        // which destroyed the <call-us-selector> host — and the 3CX widget
-        // instance inside it — every time kbMode turned on, so
-        // openThreeCXLiveChat() (which the always-visible "Live Agent" menu
-        // button calls) had no widget left to find. Hiding visually instead
-        // keeps the widget mounted and connected, so the menu button keeps
-        // working regardless of kbMode. opacity (not display:none) is
-        // deliberate too — some widgets skip their own click handling for
-        // display:none elements; opacity 0 keeps it "rendered" while still
-        // invisible and, via pointer-events:none, unreachable by real mouse
-        // clicks (programmatic .click() from openThreeCXLiveChat() is
-        // unaffected by pointer-events either way).
+        // This used to also handle a `hidden` prop, toggled while the "Ask a
+        // Question" bar was open to avoid a visual overlap. Removed once the
+        // z-index below made that overlap impossible in the first place —
+        // ChatInterface.tsx's input bars are all z-50; this is z-55 — so
+        // there was nothing left for `hidden` to protect against. (An even
+        // earlier version conditionally unmounted this whole component
+        // instead of hiding it, which was the actual bug behind "Live Agent
+        // chat is still loading": it destroyed the 3CX widget instance
+        // every time kbMode turned on, so openThreeCXLiveChat() — which the
+        // always-visible "Live Agent" menu button calls — had no widget
+        // left to find.)
         style={{
           position: 'absolute',
           right: '4px',
           bottom: '100%',
-          zIndex: 30,
-          opacity: hidden ? 0 : 1,
-          pointerEvents: hidden ? 'none' : undefined,
+          // Matches #wp-live-chat-by-3CX's z-index in WIDGET_ROOT_OVERRIDE_CSS
+          // above — kept in sync so both the host's own stacking context and
+          // the widget content inside it agree. Higher than every input bar
+          // in ChatInterface.tsx (all z-50) so this can never be visually
+          // covered by any of them, regardless of which is open.
+          zIndex: 55,
         }}
       />
       <span
@@ -559,7 +562,7 @@ export default function ThreeCXLiveChat({ hidden = false }: { hidden?: boolean }
         style={{
           top: liveBadgePosition.top,
           left: liveBadgePosition.left,
-          opacity: !hidden && liveBadgePosition.visible ? 1 : 0,
+          opacity: liveBadgePosition.visible ? 1 : 0,
           pointerEvents: 'none',
           zIndex: 2147483647,
           transition: 'opacity 150ms ease',

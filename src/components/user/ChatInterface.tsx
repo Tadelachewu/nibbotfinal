@@ -1943,6 +1943,16 @@ export function ChatInterface() {
                     <button
                       type="button"
                       onClick={() => {
+                        // Close any in-progress flow first — most importantly
+                        // "Ask a Question": ThreeCXLiveChat renders with
+                        // `hidden={kbMode}` (opacity 0), so opening the widget
+                        // while kbMode is still true would open it invisibly
+                        // behind the still-showing question input bar.
+                        setKbMode(false);
+                        setKbQuestion('');
+                        setStatusFlow(false);
+                        setKycFlow(null);
+                        setRatingFlow(null);
                         // Same widget the floating bubble opens — this just
                         // triggers it programmatically instead of requiring
                         // the user to find and click the bubble themselves.
@@ -2152,7 +2162,13 @@ export function ChatInterface() {
           <div ref={messagesEndRef} className="h-4" />
         </div>
       </ScrollArea>
-      {(kycFlow || statusFlow || ratingFlow) && <div className="px-3 py-3 bg-card border-t flex flex-col gap-2 sticky bottom-0 z-50 animate-in slide-in-from-bottom-2 duration-300">
+      {/* pr-16 (not px-3 on the right) — the live chat bubble is anchored at
+          the footer's top-right corner with a higher z-index than this bar
+          now, specifically so it can never be visually covered by it; the
+          extra right padding here keeps this bar's OWN Send/Skip/Cancel
+          buttons from ending up spatially underneath — and therefore
+          unclickable behind — the bubble that now renders on top of them. */}
+      {(kycFlow || statusFlow || ratingFlow) && <div className="pl-3 pr-16 py-3 bg-card border-t flex flex-col gap-2 sticky bottom-0 z-50 animate-in slide-in-from-bottom-2 duration-300">
         <form onSubmit={handleUserInput} className="flex gap-2 w-full">
           <Input
             autoFocus
@@ -2181,7 +2197,11 @@ export function ChatInterface() {
         </form>
       </div>}
       {kbMode && !kycFlow && !statusFlow && !ratingFlow && (
-        <div className="px-3 py-3 bg-card border-t flex flex-col gap-2 sticky bottom-0 z-50 animate-in slide-in-from-bottom-2 duration-300">
+        // pr-16, same reasoning as the KYC/status/rating bar above — leaves
+        // room for the live chat bubble (higher z-index, anchored top-right
+        // of the footer) so it doesn't sit on top of this bar's own Cancel
+        // button, unclickable underneath it.
+        <div className="pl-3 pr-16 py-3 bg-card border-t flex flex-col gap-2 sticky bottom-0 z-50 animate-in slide-in-from-bottom-2 duration-300">
           <div className="flex items-center justify-between mb-1">
             <span className="text-[10px] font-semibold text-[#763717]/80 flex items-center gap-1">
               ✨ {t('ui_ask_ai', 'Ask a Question')}
@@ -2221,7 +2241,15 @@ export function ChatInterface() {
           </form>
         </div>
       )}
-      <footer className="relative bg-card border-t border-[#763717]/10 px-3 py-2.5 grid grid-cols-3 items-center gap-2 sticky bottom-0 z-40 shadow-[0_-1px_3px_rgba(0,0,0,0.05)]">
+      {/* z-[51], not z-40 — footer is `position:relative` with an explicit
+          z-index, so it establishes its own stacking context. That traps
+          the live-chat bubble's z-55 (a child of footer, see
+          ThreeCXLiveChat.tsx) inside it: comparisons against elements
+          OUTSIDE footer (the input bars below, z-50) use footer's OWN
+          z-index, not the bubble's — verified directly, since raising just
+          the bubble's z-index alone did not fix the coverage. 51 is the
+          minimum needed to beat the bars' z-50. */}
+      <footer className="relative bg-card border-t border-[#763717]/10 px-3 py-2.5 grid grid-cols-3 items-center gap-2 sticky bottom-0 z-[51] shadow-[0_-1px_3px_rgba(0,0,0,0.05)]">
         <Button
           variant="outline"
           size="sm"
@@ -2264,13 +2292,15 @@ export function ChatInterface() {
             render outside the chat card since it never escapes the footer's
             positioning ancestor. Gated on liveAgentEnabled, same as the
             "Live Agent" menu button — one admin switch controls both entry
-            points into live chat. Stays MOUNTED while the "Ask a Question"
-            bar is open (only visually hidden, via the `hidden` prop) —
-            conditionally unmounting it here used to fully destroy the 3CX
-            widget instance every time kbMode turned on, which broke the
-            "Live Agent" menu button (it calls openThreeCXLiveChat(), which
-            had nothing left to find). */}
-        {appSettings?.liveAgentEnabled !== false && <ThreeCXLiveChat hidden={kbMode} />}
+            points into live chat. Always mounted AND always visible now —
+            it no longer conditionally unmounts (that used to destroy the
+            3CX widget instance every time kbMode turned on, breaking the
+            "Live Agent" menu button) or hide itself via the `hidden` prop
+            (the bubble is z-index 55 in ThreeCXLiveChat.tsx, above every
+            input bar in this file, so it can no longer be visually covered
+            in the first place — no need to hide it to avoid an overlap
+            that can't happen anymore). */}
+        {appSettings?.liveAgentEnabled !== false && <ThreeCXLiveChat />}
       </footer>
     </div>
   );
