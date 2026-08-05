@@ -362,11 +362,19 @@ export default function ThreeCXLiveChat({ bubbleVisible = true }: ThreeCXLiveCha
       const availableWidth = Math.floor(Math.max(300, Math.min(320, containerRect.width - 16)));
       const bubbleScale = containerRect.width < 420 ? 0.85 : 0.9;
 
-      host.style.setProperty('--nib-3cx-panel-max-h', `${availableHeight}px`);
-      host.style.setProperty('--nib-3cx-panel-max-w', `${availableWidth}px`);
-      host.style.setProperty('--nib-3cx-bubble-scale', `${bubbleScale}`);
-      host.style.setProperty('--nib-3cx-bubble-opacity', bubbleVisible ? '1' : '0');
-      host.style.setProperty('--nib-3cx-bubble-pointer-events', bubbleVisible ? 'auto' : 'none');
+      const targets: HTMLElement[] = [host];
+      const shadowWidgetRoot = host.shadowRoot?.getElementById?.('wp-live-chat-by-3CX');
+      if (shadowWidgetRoot instanceof HTMLElement) targets.push(shadowWidgetRoot);
+      const docWidgetRoot = document.getElementById('wp-live-chat-by-3CX');
+      if (docWidgetRoot instanceof HTMLElement) targets.push(docWidgetRoot);
+
+      targets.forEach((t) => {
+        t.style.setProperty('--nib-3cx-panel-max-h', `${availableHeight}px`);
+        t.style.setProperty('--nib-3cx-panel-max-w', `${availableWidth}px`);
+        t.style.setProperty('--nib-3cx-bubble-scale', `${bubbleScale}`);
+        t.style.setProperty('--nib-3cx-bubble-opacity', bubbleVisible ? '1' : '0');
+        t.style.setProperty('--nib-3cx-bubble-pointer-events', bubbleVisible ? 'auto' : 'none');
+      });
     };
 
     // Idempotent: re-appends the override style tag only if it's not
@@ -532,8 +540,26 @@ export default function ThreeCXLiveChat({ bubbleVisible = true }: ThreeCXLiveCha
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
-    host.style.setProperty('--nib-3cx-bubble-opacity', bubbleVisible ? '1' : '0');
-    host.style.setProperty('--nib-3cx-bubble-pointer-events', bubbleVisible ? 'auto' : 'none');
+    const apply = () => {
+      const targets: HTMLElement[] = [host];
+      const shadowWidgetRoot = host.shadowRoot?.getElementById?.('wp-live-chat-by-3CX');
+      if (shadowWidgetRoot instanceof HTMLElement) targets.push(shadowWidgetRoot);
+      const docWidgetRoot = document.getElementById('wp-live-chat-by-3CX');
+      if (docWidgetRoot instanceof HTMLElement) targets.push(docWidgetRoot);
+      targets.forEach((t) => {
+        t.style.setProperty('--nib-3cx-bubble-opacity', bubbleVisible ? '1' : '0');
+        t.style.setProperty('--nib-3cx-bubble-pointer-events', bubbleVisible ? 'auto' : 'none');
+      });
+    };
+
+    apply();
+    let ticks = 0;
+    const id = setInterval(() => {
+      ticks += 1;
+      apply();
+      if (ticks >= 20) clearInterval(id);
+    }, 250);
+    return () => clearInterval(id);
   }, [bubbleVisible]);
 
   return (
