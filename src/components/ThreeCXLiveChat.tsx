@@ -197,6 +197,8 @@ const WIDGET_ROOT_OVERRIDE_CSS = `
   .minimized-button {
     transform: scale(var(--nib-3cx-bubble-scale, 0.9)) !important;
     transform-origin: bottom right !important;
+    opacity: var(--nib-3cx-bubble-opacity, 1) !important;
+    pointer-events: var(--nib-3cx-bubble-pointer-events, auto) !important;
     /* A deeper, bolder amber than the plain avatar gold (#f4a61b, still
        used for the "Live" badge text) — #f4a61b reads fine at small badge
        size but looks pale at full bubble size, so this bubble specifically
@@ -291,6 +293,10 @@ const WIDGET_ROOT_OVERRIDE_CSS = `
   .single-button svg {
     fill: #763717 !important;
   }
+
+  .powered-by {
+    display: none !important;
+  }
 `;
 
 // React 19's JSX namespace lives under the `react` module (not the global
@@ -307,7 +313,11 @@ declare module 'react' {
   }
 }
 
-export default function ThreeCXLiveChat() {
+export type ThreeCXLiveChatProps = {
+  bubbleVisible?: boolean;
+};
+
+export default function ThreeCXLiveChat({ bubbleVisible = true }: ThreeCXLiveChatProps) {
   const injected = useRef(false);
   const hostRef = useRef<HTMLElement | null>(null);
   const liveBadgeRef = useRef<HTMLSpanElement | null>(null);
@@ -355,6 +365,8 @@ export default function ThreeCXLiveChat() {
       host.style.setProperty('--nib-3cx-panel-max-h', `${availableHeight}px`);
       host.style.setProperty('--nib-3cx-panel-max-w', `${availableWidth}px`);
       host.style.setProperty('--nib-3cx-bubble-scale', `${bubbleScale}`);
+      host.style.setProperty('--nib-3cx-bubble-opacity', bubbleVisible ? '1' : '0');
+      host.style.setProperty('--nib-3cx-bubble-pointer-events', bubbleVisible ? 'auto' : 'none');
     };
 
     // Idempotent: re-appends the override style tag only if it's not
@@ -517,6 +529,13 @@ export default function ThreeCXLiveChat() {
     };
   }, []);
 
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    host.style.setProperty('--nib-3cx-bubble-opacity', bubbleVisible ? '1' : '0');
+    host.style.setProperty('--nib-3cx-bubble-pointer-events', bubbleVisible ? 'auto' : 'none');
+  }, [bubbleVisible]);
+
   return (
     <>
       <call-us-selector
@@ -556,20 +575,22 @@ export default function ThreeCXLiveChat() {
           zIndex: 55,
         }}
       />
-      <span
-        ref={liveBadgeRef}
-        className="fixed px-1 py-[1px] text-[8px] font-bold uppercase tracking-wide rounded-full bg-[#f4a61b] text-[#763717] border border-white shadow-sm select-none"
-        style={{
-          top: liveBadgePosition.top,
-          left: liveBadgePosition.left,
-          opacity: liveBadgePosition.visible ? 1 : 0,
-          pointerEvents: 'none',
-          zIndex: 2147483647,
-          transition: 'opacity 150ms ease',
-        }}
-      >
-        Live
-      </span>
+      {bubbleVisible && (
+        <span
+          ref={liveBadgeRef}
+          className="fixed px-1 py-[1px] text-[8px] font-bold uppercase tracking-wide rounded-full bg-[#f4a61b] text-[#763717] border border-white shadow-sm select-none"
+          style={{
+            top: liveBadgePosition.top,
+            left: liveBadgePosition.left,
+            opacity: liveBadgePosition.visible ? 1 : 0,
+            pointerEvents: 'none',
+            zIndex: 2147483647,
+            transition: 'opacity 150ms ease',
+          }}
+        >
+          Live
+        </span>
+      )}
     </>
   );
 }

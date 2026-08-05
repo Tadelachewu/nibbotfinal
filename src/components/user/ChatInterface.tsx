@@ -2300,7 +2300,9 @@ export function ChatInterface() {
             input bar in this file, so it can no longer be visually covered
             in the first place — no need to hide it to avoid an overlap
             that can't happen anymore). */}
-        {appSettings?.liveAgentEnabled !== false && <ThreeCXLiveChat />}
+        {appSettings?.liveAgentEnabled !== false && (
+          <ThreeCXLiveChat bubbleVisible={appSettings?.liveAgentBubbleEnabled !== false} />
+        )}
       </footer>
     </div>
   );

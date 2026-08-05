@@ -101,6 +101,7 @@ export interface AppSettings {
   showAdminPanelIcon?: boolean;
   aiEnabled?: boolean;
   liveAgentEnabled?: boolean;
+  liveAgentBubbleEnabled?: boolean;
 }
 
 export type MenuApprovalStatus = 'pending' | 'approved' | 'rejected';

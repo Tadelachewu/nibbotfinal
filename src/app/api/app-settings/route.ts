@@ -142,6 +142,7 @@ export async function GET() {
         appLogo: '',
         showAdminPanelIcon: true,
         liveAgentEnabled: true,
+        liveAgentBubbleEnabled: true,
         aiEnabled: kbConfig.enabled,
       }
     });
@@ -162,6 +163,7 @@ export async function GET() {
       appLogo: settings.appLogo ?? '',
       showAdminPanelIcon: settings.showAdminPanelIcon ?? true,
       liveAgentEnabled: settings.liveAgentEnabled ?? true,
+      liveAgentBubbleEnabled: (settings as any).liveAgentBubbleEnabled ?? true,
       reportId: settings.reportId
         ? {
           prefix: settings.reportId.prefix,
@@ -210,6 +212,7 @@ export async function PUT(req: Request) {
     const appLogoRaw = typeof body.appLogo === 'string' ? body.appLogo.trim() : '';
     const showAdminPanelIcon = typeof body.showAdminPanelIcon === 'boolean' ? body.showAdminPanelIcon : true;
     const liveAgentEnabled = typeof body.liveAgentEnabled === 'boolean' ? body.liveAgentEnabled : true;
+    const liveAgentBubbleEnabled = typeof body.liveAgentBubbleEnabled === 'boolean' ? body.liveAgentBubbleEnabled : true;
 
     let botAvatarImage: string | null = null;
     let userAvatarImage: string | null = null;
@@ -298,7 +301,7 @@ export async function PUT(req: Request) {
         userAvatarText,
         userAvatarImage,
         appLogo,
-        ...({ showAdminPanelIcon, liveAgentEnabled } as any)
+        ...({ showAdminPanelIcon, liveAgentEnabled, liveAgentBubbleEnabled } as any)
       },
       update: {
         supportedLanguages,
@@ -311,7 +314,7 @@ export async function PUT(req: Request) {
         userAvatarText,
         userAvatarImage,
         appLogo,
-        ...({ showAdminPanelIcon, liveAgentEnabled } as any)
+        ...({ showAdminPanelIcon, liveAgentEnabled, liveAgentBubbleEnabled } as any)
       },
       include: { reportId: true }
     });
@@ -347,6 +350,7 @@ export async function PUT(req: Request) {
         appLogo: saved.appLogo ?? '',
         showAdminPanelIcon: (saved as any).showAdminPanelIcon ?? true,
         liveAgentEnabled: (saved as any).liveAgentEnabled ?? true,
+        liveAgentBubbleEnabled: (saved as any).liveAgentBubbleEnabled ?? true,
         reportId: saved.reportId
           ? {
             prefix: saved.reportId.prefix,
