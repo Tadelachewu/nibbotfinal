@@ -628,9 +628,6 @@ export async function indexArticle(articleId: string): Promise<void> {
   if (!langTexts.length) return;
 
   for (const { lang, title, text } of langTexts) {
-    // title is the prefix here, same role breadcrumb+menu name plays for
-    // indexMenu() — carried into every section so isolated sections don't
-    // lose the article's own identity.
     const chunks = chunkStructuredText(title, text, config.chunkSize, config.chunkOverlap);
 
     for (let i = 0; i < chunks.length; i++) {
@@ -638,29 +635,15 @@ export async function indexArticle(articleId: string): Promise<void> {
       if (!chunk) continue;
       const tokenCount = Math.ceil(chunk.length / 4);
 
-      // Upsert via raw SQL (partial unique index not representable in Prisma upsert)
-      await prisma.$executeRaw`
-        INSERT INTO kb_chunks ("articleId", "chunkIndex", text, lang, "tokenCount")
-        VALUES (${articleId}, ${i}, ${chunk}, ${lang}, ${tokenCount})
-        ON CONFLICT ("articleId", "chunkIndex", lang)
-          WHERE "articleId" IS NOT NULL
-        DO UPDATE SET text = EXCLUDED.text, "tokenCount" = EXCLUDED."tokenCount",
-                      "indexedAt" = NOW()
-      `;
+      const row = await prisma.kBChunk.create({
+        data: { articleId, chunkIndex: i, text: chunk, lang, tokenCount },
+      });
       try {
-        const rows = await prisma.$queryRaw<[{ id: number }]>`
-          SELECT id FROM kb_chunks
-          WHERE "articleId" = ${articleId} AND "chunkIndex" = ${i} AND lang = ${lang}
-          LIMIT 1
+        const vec    = await embed(chunk, config.embeddingModel);
+        const vecStr = `[${vec.join(',')}]`;
+        await prisma.$executeRaw`
+          UPDATE kb_chunks SET embedding = ${vecStr}::vector WHERE id = ${row.id}
         `;
-        const rowId = rows[0]?.id;
-        if (rowId) {
-          const vec    = await embed(chunk, config.embeddingModel);
-          const vecStr = `[${vec.join(',')}]`;
-          await prisma.$executeRaw`
-            UPDATE kb_chunks SET embedding = ${vecStr}::vector WHERE id = ${rowId}
-          `;
-        }
       } catch (err) {
         console.error(`[KB] article embed failed articleId=${articleId} lang=${lang} chunkIndex=${i}:`, err);
       }
