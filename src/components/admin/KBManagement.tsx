@@ -10,8 +10,18 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetFooter,
+  SheetClose,
+} from '@/components/ui/sheet';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { Brain, RefreshCw, Trash2, Play, Settings, CheckCircle2, XCircle, Clock, Layers, ScrollText, FileText, Plus, Save, X, Eraser } from 'lucide-react';
+import { Brain, RefreshCw, Trash2, Play, Settings, CheckCircle2, XCircle, Clock, Layers, ScrollText, FileText, Plus, Save, X, Eraser, Eye } from 'lucide-react';
 import type { KBResult, KBQueryLogRow } from '@/lib/kb';
 import type { AppSettings } from '@/lib/types';
 import { WysiwygEditor } from './WysiwygEditor';
@@ -103,6 +113,7 @@ export function KBManagement() {
   const [logsCustomStartTime, setLogsCustomStartTime] = useState('00:00');
   const [logsCustomEndDate, setLogsCustomEndDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [logsCustomEndTime, setLogsCustomEndTime] = useState('23:59');
+  const [selectedLog, setSelectedLog] = useState<KBQueryLogRow | null>(null);
 
   // Articles tab
   const [articles, setArticles] = useState<KBArticle[]>([]);
@@ -942,11 +953,11 @@ export function KBManagement() {
                       <th className="text-left px-3 py-2 font-medium text-muted-foreground w-32">Time</th>
                       <th className="text-left px-3 py-2 font-medium text-muted-foreground">Question</th>
                       <th className="text-left px-3 py-2 font-medium text-muted-foreground">Answer</th>
-                      <th className="text-left px-3 py-2 font-medium text-muted-foreground w-40">Source</th>
+                      <th className="text-left px-3 py-2 font-medium text-muted-foreground w-28">Source</th>
                       <th className="text-center px-3 py-2 font-medium text-muted-foreground w-20">Confidence</th>
                       <th className="text-center px-3 py-2 font-medium text-muted-foreground w-16">Lang</th>
                       <th className="text-center px-3 py-2 font-medium text-muted-foreground w-16">ms</th>
-                      <th className="text-right px-3 py-2 font-medium text-muted-foreground w-28">Actions</th>
+                      <th className="text-right px-3 py-2 font-medium text-muted-foreground w-44">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -985,17 +996,32 @@ export function KBManagement() {
                             </span>
                           )}
                         </td>
-                        <td className="px-3 py-2 max-w-[160px]">
+                        <td className="px-3 py-2 max-w-[112px]">
                           {row.sourceNames && row.sourceNames.length > 0 ? (
-                            <div className="flex flex-wrap gap-1">
-                              {row.sourceNames.map((name, i) => (
-                                <Badge key={i} variant="outline" className="text-[9px] font-normal">
-                                  {name}
-                                </Badge>
-                              ))}
+                            <div className="flex items-center gap-1 flex-wrap leading-tight">
+                              <Badge
+                                variant="secondary"
+                                className="text-[9px] shrink-0 font-semibold bg-[#f4a61b]/15 text-[#763717] border-0"
+                              >
+                                {row.sourceNames.length} src
+                              </Badge>
+                              {row.sourceNames.length === 1 ? (
+                                <span className="block truncate text-[10px] text-muted-foreground max-w-[80px]" title={row.sourceNames[0]}>
+                                  {row.sourceNames[0]}
+                                </span>
+                              ) : row.sourceNames.length <= 2 ? (
+                                <span className="block truncate text-[10px] text-muted-foreground max-w-[80px]" title={row.sourceNames.join(' · ')}>
+                                  {row.sourceNames[0]}
+                                  {row.sourceNames[1] ? ` · ${row.sourceNames[1]}` : ''}
+                                </span>
+                              ) : (
+                                <span className="block truncate text-[10px] text-muted-foreground max-w-[80px]" title={row.sourceNames.join(' · ')}>
+                                  {row.sourceNames[0]} +{row.sourceNames.length - 1}
+                                </span>
+                              )}
                             </div>
                           ) : (
-                            <span className="text-muted-foreground">—</span>
+                            <span className="text-muted-foreground text-[10px]">—</span>
                           )}
                         </td>
                         <td className="px-3 py-2 text-center">
@@ -1017,17 +1043,30 @@ export function KBManagement() {
                           {row.durationMs != null ? row.durationMs : '—'}
                         </td>
                         <td className="px-3 py-2 text-right">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-7 px-2 text-[10px]"
-                            onClick={() => createArticleFromLog(row)}
-                            disabled={logsLoading || articleSaving}
-                            title="Create a disabled KB article draft from this question/answer"
-                          >
-                            Add to Articles
-                          </Button>
+                          <div className="inline-flex items-center gap-1.5 justify-end">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-2 text-[10px] gap-1"
+                              onClick={() => setSelectedLog(row)}
+                              title="View full question, answer, and source details"
+                            >
+                              <Eye size={11} />
+                              Details
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-2 text-[10px]"
+                              onClick={() => createArticleFromLog(row)}
+                              disabled={logsLoading || articleSaving}
+                              title="Create a disabled KB article draft from this question/answer"
+                            >
+                              Add to Articles
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1059,6 +1098,161 @@ export function KBManagement() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* ── Query Log Detail Drawer ── */}
+        <Sheet open={selectedLog !== null} onOpenChange={(o) => { if (!o) setSelectedLog(null); }}>
+          <SheetContent side="right" className="w-full sm:max-w-[560px] p-0 flex flex-col">
+            {selectedLog && (
+              <>
+                <SheetHeader className="px-5 pt-5 pb-3 border-b">
+                  <SheetTitle className="text-sm flex items-center gap-2">
+                    <ScrollText size={14} className="text-[#763717]" />
+                    Query Details
+                  </SheetTitle>
+                  <SheetDescription className="text-[11px] text-muted-foreground">
+                    Logged at {fmtDate(selectedLog.createdAt instanceof Date ? selectedLog.createdAt.toISOString() : String(selectedLog.createdAt))}
+                    {' · '}
+                    <span className="font-mono uppercase">{selectedLog.lang}</span>
+                    {' · '}
+                    <span className="font-mono">{selectedLog.durationMs != null ? `${selectedLog.durationMs} ms` : '—'}</span>
+                  </SheetDescription>
+                </SheetHeader>
+
+                <ScrollArea className="flex-1">
+                  <div className="px-5 py-4 space-y-5">
+                    {/* Confidence / status row */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {selectedLog.errorType ? (
+                        <Badge variant="outline" className="text-[10px] border-red-400 text-red-700">
+                          {selectedLog.errorType === 'timeout' ? 'Timeout' : 'Error'}
+                        </Badge>
+                      ) : selectedLog.noAnswer ? (
+                        <Badge variant="outline" className="text-[10px] border-amber-400 text-amber-700">No answer</Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] ${selectedLog.confidence === 'high' ? 'border-green-400 text-green-700' : 'border-yellow-400 text-yellow-700'}`}
+                        >
+                          Confidence: {selectedLog.confidence ?? '—'}
+                        </Badge>
+                      )}
+                      <span className="text-[10px] text-muted-foreground font-mono">ID #{selectedLog.id}</span>
+                      <span className="text-[10px] text-muted-foreground ml-auto">
+                        Session: <span className="font-mono">{String(selectedLog.sessionId || '—').slice(0, 12)}…</span>
+                      </span>
+                    </div>
+
+                    {/* Question */}
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Question</p>
+                      <div className="rounded-lg border bg-muted/20 px-3 py-2.5 text-xs leading-relaxed whitespace-pre-wrap break-words">
+                        {selectedLog.question || <span className="italic text-muted-foreground">(empty)</span>}
+                      </div>
+                    </div>
+
+                    {/* Answer */}
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Answer</p>
+                      {selectedLog.errorType ? (
+                        <div className="rounded-lg border border-red-300 bg-red-50 px-3 py-2.5 text-xs text-red-700 italic whitespace-pre-wrap break-words">
+                          {selectedLog.errorType === 'timeout'
+                            ? 'Generation timed out — no response was produced for this query.'
+                            : 'An internal error occurred while answering this query.'}
+                        </div>
+                      ) : selectedLog.noAnswer ? (
+                        <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs text-amber-700 italic whitespace-pre-wrap break-words">
+                          No confident answer found — the KB did not respond to this query.
+                        </div>
+                      ) : (
+                        <div className="rounded-lg border bg-muted/20 px-3 py-2.5 text-xs leading-relaxed whitespace-pre-wrap break-words">
+                          {selectedLog.answer || <span className="italic text-muted-foreground">(empty)</span>}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Sources */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          Sources Cited
+                        </p>
+                        <Badge variant="secondary" className="text-[9px] font-semibold bg-[#f4a61b]/15 text-[#763717] border-0">
+                          {(selectedLog.sourceNames?.length ?? 0)} total
+                        </Badge>
+                      </div>
+                      {selectedLog.sourceNames && selectedLog.sourceNames.length > 0 ? (
+                        <div className="rounded-lg border divide-y">
+                          {selectedLog.sourceNames.map((name, i) => (
+                            <div
+                              key={i}
+                              className="px-3 py-2 flex items-center gap-2.5 hover:bg-muted/20 transition-colors"
+                            >
+                              <Badge variant="outline" className="shrink-0 text-[9px] font-semibold text-muted-foreground w-8 justify-center">
+                                #{i + 1}
+                              </Badge>
+                              <span className="text-xs truncate">{name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="rounded-lg border px-3 py-3 text-xs text-muted-foreground italic">
+                          No sources recorded for this entry.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Raw source IDs for reference (if any) */}
+                    {selectedLog.sourceMenuIds && selectedLog.sourceMenuIds.length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          Source IDs
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {selectedLog.sourceMenuIds.map((id, i) => (
+                            <span
+                              key={i}
+                              className="px-1.5 py-0.5 rounded bg-muted/30 border font-mono text-[9px] text-muted-foreground max-w-[180px] truncate"
+                              title={id}
+                            >
+                              {id}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </ScrollArea>
+
+                <SheetFooter className="px-5 py-3 border-t gap-2 flex-col sm:flex-row">
+                  <SheetClose asChild>
+                    <Button type="button" variant="outline" size="sm" className="text-xs h-8">
+                      Close
+                    </Button>
+                  </SheetClose>
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="sm"
+                    className="text-xs h-8 bg-[#763717] hover:bg-[#763717]/90 text-white gap-1.5"
+                    onClick={() => {
+                      createArticleFromLog(selectedLog);
+                      setSelectedLog(null);
+                    }}
+                    disabled={!!selectedLog.errorType || selectedLog.noAnswer || logsLoading || articleSaving}
+                    title={
+                      !!selectedLog.errorType || selectedLog.noAnswer
+                        ? 'This log has no AI answer to turn into an article.'
+                        : 'Create a disabled KB article draft from this question/answer'
+                    }
+                  >
+                    <Plus size={12} />
+                    Add to Articles
+                  </Button>
+                </SheetFooter>
+              </>
+            )}
+          </SheetContent>
+        </Sheet>
 
         {/* ── Articles Tab ── */}
         <TabsContent value="articles" className="space-y-4 m-0">
