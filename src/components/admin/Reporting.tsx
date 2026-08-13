@@ -140,7 +140,7 @@ export function Reporting() {
     if (timeRange === 'today') {
       start = startOfDay(now);
     } else if (timeRange === 'week') {
-      start = startOfWeek(now);
+      start = startOfWeek(now, { weekStartsOn: 1 });
     } else if (timeRange === 'month') {
       start = startOfMonth(now);
     } else {
@@ -254,7 +254,7 @@ export function Reporting() {
     if (timeRange === 'today') {
       startDate = startOfDay(now);
     } else if (timeRange === 'week') {
-      startDate = startOfWeek(now);
+      startDate = startOfWeek(now, { weekStartsOn: 1 });
     } else if (timeRange === 'month') {
       startDate = startOfMonth(now);
     } else {
@@ -546,12 +546,12 @@ export function Reporting() {
 
     let timeRangeStr = '';
     if (timeRange === 'today') {
-      timeRangeStr = `${format(now, 'yyyy-MM-dd')} 00:00 to ${format(now, 'yyyy-MM-dd HH:mm:ss')}`;
+      timeRangeStr = `${format(now, 'yyyy-MM-dd')} 00:00 to ${format(endOfDay(now), 'yyyy-MM-dd HH:mm:ss')}`;
     } else if (timeRange === 'custom') {
       timeRangeStr = `${customStartDate} ${customStartTime} to ${customEndDate} ${customEndTime}`;
     } else {
-      const start = timeRange === 'week' ? startOfWeek(now) : startOfMonth(now);
-      timeRangeStr = `${format(start, 'yyyy-MM-dd HH:mm')} to ${format(now, 'yyyy-MM-dd HH:mm:ss')}`;
+      const start = timeRange === 'week' ? startOfWeek(now, { weekStartsOn: 1 }) : startOfMonth(now);
+      timeRangeStr = `${format(start, 'yyyy-MM-dd HH:mm')} to ${format(endOfDay(now), 'yyyy-MM-dd HH:mm:ss')}`;
     }
 
     if (activeTab === 'activity') {

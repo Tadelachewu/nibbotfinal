@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { startOfDay, endOfDay, subDays } from 'date-fns';
 import { useAdminAuth } from './AdminAuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -285,15 +286,14 @@ export function KBManagement() {
         to.setHours(endHour, endMin, 59, 999);
       } else {
         const now = new Date();
-        from = new Date(now);
         if (filter === 'today') {
-          from.setHours(0, 0, 0, 0);
+          from = startOfDay(now);
         } else if (filter === '7d') {
-          from.setDate(from.getDate() - 7);
+          from = startOfDay(subDays(now, 7));
         } else {
-          from.setDate(from.getDate() - 30);
+          from = startOfDay(subDays(now, 30));
         }
-        to = now;
+        to = endOfDay(now);
       }
       const params = new URLSearchParams({
         from: from.toISOString(),

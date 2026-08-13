@@ -4,7 +4,7 @@ import prisma from '@/lib/prisma';
 // Configuration helpers
 // ---------------------------------------------------------------------------
 
-const OLLAMA_URL   = (process.env.OLLAMA_URL   || 'http://localhost:11434').replace(/\/$/, '');
+const OLLAMA_URL = (process.env.OLLAMA_URL || 'http://localhost:11434').replace(/\/$/, '');
 const RERANKER_URL = (process.env.RERANKER_URL || 'http://localhost:8001').replace(/\/$/, '');
 const VECTOR_DIMS = Number(process.env.KB_VECTOR_DIMS || 1024);
 
@@ -19,19 +19,19 @@ let cachedConfig: { value: Awaited<ReturnType<typeof loadKBConfig>>; expiresAt: 
 async function loadKBConfig() {
   const cfg = await prisma.kBConfig.findUnique({ where: { id: 1 } });
   return {
-    enabled:         cfg?.enabled         ?? (process.env.KB_ENABLED !== 'false'),
-    embeddingModel:  cfg?.embeddingModel  ?? (process.env.OLLAMA_EMBED_MODEL   || 'bge-m3'),
+    enabled: cfg?.enabled ?? (process.env.KB_ENABLED !== 'false'),
+    embeddingModel: cfg?.embeddingModel ?? (process.env.OLLAMA_EMBED_MODEL || 'bge-m3'),
     generationModel: cfg?.generationModel ?? (process.env.OLLAMA_GENERATE_MODEL || 'aya:8b'),
-    chunkSize:       cfg?.chunkSize       ?? Number(process.env.KB_CHUNK_SIZE || 350),
-    chunkOverlap:    cfg?.chunkOverlap    ?? 60,
-    topK:            cfg?.topK            ?? Number(process.env.KB_TOP_K || 5),
-    minScore:        cfg?.minScore        ?? Number(process.env.KB_MIN_SCORE || 0.5),
-    temperature:     cfg?.temperature     ?? Number(process.env.KB_TEMPERATURE || 0.2),
+    chunkSize: cfg?.chunkSize ?? Number(process.env.KB_CHUNK_SIZE || 350),
+    chunkOverlap: cfg?.chunkOverlap ?? 60,
+    topK: cfg?.topK ?? Number(process.env.KB_TOP_K || 5),
+    minScore: cfg?.minScore ?? Number(process.env.KB_MIN_SCORE || 0.5),
+    temperature: cfg?.temperature ?? Number(process.env.KB_TEMPERATURE || 0.2),
     rerankerEnabled: cfg?.rerankerEnabled ?? (process.env.KB_RERANKER_ENABLED === 'true'),
-    rerankerModel:   cfg?.rerankerModel   ?? (process.env.KB_RERANKER_MODEL || 'bge-reranker-base'),
-    rerankPoolSize:  cfg?.rerankPoolSize  ?? Number(process.env.KB_RERANK_POOL_SIZE || 15),
-    rerankMinScore:  cfg?.rerankMinScore  ?? Number(process.env.KB_RERANK_MIN_SCORE || 0.25),
-    systemPrompt:    cfg?.systemPrompt    ?? null,
+    rerankerModel: cfg?.rerankerModel ?? (process.env.KB_RERANKER_MODEL || 'bge-reranker-base'),
+    rerankPoolSize: cfg?.rerankPoolSize ?? Number(process.env.KB_RERANK_POOL_SIZE || 15),
+    rerankMinScore: cfg?.rerankMinScore ?? Number(process.env.KB_RERANK_MIN_SCORE || 0.25),
+    systemPrompt: cfg?.systemPrompt ?? null,
   };
 }
 
@@ -108,7 +108,7 @@ async function generate(
       options: { temperature, ...(numPredict ? { num_predict: numPredict } : {}) },
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'user',   content: userPrompt },
+        { role: 'user', content: userPrompt },
       ],
     }),
     signal: AbortSignal.timeout(timeoutMs),
@@ -151,7 +151,7 @@ async function generateStreaming(
       options: { temperature, ...(numPredict ? { num_predict: numPredict } : {}) },
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'user',   content: userPrompt },
+        { role: 'user', content: userPrompt },
       ],
     }),
     signal: AbortSignal.timeout(timeoutMs),
@@ -386,7 +386,7 @@ function splitIntoSections(text: string): { heading: string | null; body: string
   if (parts[0]?.trim()) sections.push({ heading: null, body: parts[0].trim() });
   for (let i = 1; i < parts.length; i += 2) {
     const heading = parts[i]?.trim() || null;
-    const body    = parts[i + 1]?.trim() || '';
+    const body = parts[i + 1]?.trim() || '';
     if (heading || body) sections.push({ heading, body });
   }
   return sections.length ? sections : [{ heading: null, body: text.trim() }];
@@ -477,7 +477,7 @@ export async function indexMenu(menuId: string, force = false): Promise<void> {
   }
 
   const breadcrumb = await buildBreadcrumb(menuId);
-  const config     = await getKBConfig();
+  const config = await getKBConfig();
 
   // buildBreadcrumb() already ends with the menu's own (English) name, so
   // appending it again duplicates it ("About Us\nAbout Us\n..." in every
@@ -504,7 +504,7 @@ export async function indexMenu(menuId: string, force = false): Promise<void> {
   if (menu.translations && typeof menu.translations === 'object') {
     for (const [lang, val] of Object.entries(menu.translations as Record<string, any>)) {
       if (!lang || lang === 'en' || lang === 'am') continue;
-      const name    = typeof val?.name === 'string'    ? val.name    : '';
+      const name = typeof val?.name === 'string' ? val.name : '';
       const content = typeof val?.content === 'string' ? htmlToText(val.content) : '';
       if (content.trim().length > 10) {
         langTexts.push({ lang, prefix: withName(name || menu.name), text: content });
@@ -526,7 +526,7 @@ export async function indexMenu(menuId: string, force = false): Promise<void> {
         update: { text: chunk, tokenCount: Math.ceil(chunk.length / 4) },
       });
       try {
-        const vec    = await embed(chunk, config.embeddingModel);
+        const vec = await embed(chunk, config.embeddingModel);
         const vecStr = `[${vec.join(',')}]`;
         await prisma.$executeRaw`
           UPDATE kb_chunks SET "embedding" = ${vecStr}::vector WHERE id = ${row.id}
@@ -549,7 +549,7 @@ export async function rebuildAll(): Promise<{ indexed: number; failed: number }>
     select: { id: true },
   });
   let indexed = 0;
-  let failed  = 0;
+  let failed = 0;
   for (const { id } of menus) {
     try {
       await indexMenu(id, true);
@@ -615,7 +615,7 @@ export async function indexArticle(articleId: string): Promise<void> {
     for (const [lang, val] of Object.entries(article.translations as Record<string, any>)) {
       if (!lang || lang === 'en' || lang === 'am') continue;
       const title = typeof val?.title === 'string' ? val.title : article.title;
-      const body  = typeof val?.body  === 'string' ? htmlToText(val.body) : '';
+      const body = typeof val?.body === 'string' ? htmlToText(val.body) : '';
       if (body.trim().length > 10) langTexts.push({ lang, title, text: body });
     }
   }
@@ -639,7 +639,7 @@ export async function indexArticle(articleId: string): Promise<void> {
         data: { articleId, chunkIndex: i, text: chunk, lang, tokenCount },
       });
       try {
-        const vec    = await embed(chunk, config.embeddingModel);
+        const vec = await embed(chunk, config.embeddingModel);
         const vecStr = `[${vec.join(',')}]`;
         await prisma.$executeRaw`
           UPDATE kb_chunks SET embedding = ${vecStr}::vector WHERE id = ${row.id}
@@ -657,11 +657,11 @@ export async function indexArticle(articleId: string): Promise<void> {
 // ---------------------------------------------------------------------------
 
 type ChunkRow = {
-  id:        number;
-  menuId:    string;  // contains articleId for article-sourced chunks
-  menuName:  string;  // contains article title for article-sourced chunks
-  text:      string;
-  vecScore:  number;
+  id: number;
+  menuId: string;  // contains articleId for article-sourced chunks
+  menuName: string;  // contains article title for article-sourced chunks
+  text: string;
+  vecScore: number;
 };
 
 // plainto_tsquery ANDs every word together — a question like "What are NIB's
@@ -847,8 +847,8 @@ async function hybridSearch(
   // being switched on for the public.
   includeDisabledArticles: boolean = false,
 ): Promise<(ChunkRow & { score: number })[]> {
-  const vecStr    = `[${queryVec.join(',')}]`;
-  const limit     = fetchLimit;
+  const vecStr = `[${queryVec.join(',')}]`;
+  const limit = fetchLimit;
   const orTsQuery = buildOrTsQuery(question);
   // 'simple' does no stemming at all — "contact" and "Contacts" are two
   // unrelated lexemes to it, so a lexically-obvious match can score zero.
@@ -897,9 +897,9 @@ async function hybridSearch(
   ]);
 
   // Build rank maps (1-based)
-  const vecRank  = new Map<number, number>();
+  const vecRank = new Map<number, number>();
   const bm25Rank = new Map<number, number>();
-  vecRows.forEach((r, i)  => vecRank.set(Number(r.id),  i + 1));
+  vecRows.forEach((r, i) => vecRank.set(Number(r.id), i + 1));
   bm25Rows.forEach((r, i) => bm25Rank.set(Number(r.id), i + 1));
 
   // Merge unique chunks
@@ -922,7 +922,7 @@ async function hybridSearch(
   // RRF: score = 1/(K+vec_rank) + 1/(K+bm25_rank)
   const K = 60;
   const scored = Array.from(chunkMap.values()).map(chunk => {
-    const vr = vecRank.get(chunk.id)  ?? (limit + 1);
+    const vr = vecRank.get(chunk.id) ?? (limit + 1);
     const br = bm25Rank.get(chunk.id) ?? (limit + 1);
     return { ...chunk, score: 1 / (K + vr) + 1 / (K + br) };
   });
@@ -1012,11 +1012,11 @@ export function sanitizeQuestion(raw: string): string {
 
 // In-memory rate limiter (per sessionId): 10 queries/minute
 const rlMap = new Map<string, { count: number; resetAt: number }>();
-const RL_LIMIT  = 10;
+const RL_LIMIT = 10;
 const RL_WINDOW = 60_000;
 
 function checkRateLimit(sessionId: string): void {
-  const now   = Date.now();
+  const now = Date.now();
   const entry = rlMap.get(sessionId);
   if (!entry || entry.resetAt < now) {
     rlMap.set(sessionId, { count: 1, resetAt: now + RL_WINDOW });
@@ -1043,12 +1043,12 @@ if (typeof setInterval !== 'undefined') {
 export type KBSource = { menuId: string; menuName: string; score: number };
 
 export type KBResult =
-  | { noAnswer: true;  suggestedMenus: { id: string; name: string }[] }
+  | { noAnswer: true; suggestedMenus: { id: string; name: string }[] }
   | { noAnswer: false; answer: string; sources: KBSource[]; confidence: 'high' | 'medium' | 'low' };
 
 export async function queryKB(
   question: string,
-  lang:     string,
+  lang: string,
   sessionId: string,
   opts: {
     includeDisabledArticles?: boolean;
@@ -1199,9 +1199,9 @@ export async function queryKB(
     }
 
     const confidence: 'high' | 'medium' | 'low' =
-      topScore >= 0.85   ? 'high'
-      : topScore >= scoreThreshold ? 'medium'
-      : 'low';
+      topScore >= 0.85 ? 'high'
+        : topScore >= scoreThreshold ? 'medium'
+          : 'low';
 
     if (!chunks.length || confidence === 'low') {
       const suggested = await prisma.menuItem.findMany({
@@ -1223,28 +1223,13 @@ export async function queryKB(
           sessionId,
           userMessage: cleanQ,
           botResponse: '',
-          status:      'failed',
-          endpoint:    '/api/kb/query',
-          tags:        ['kb_query', 'no_answer', `lang:${lang}`],
+          status: 'failed',
+          endpoint: '/api/kb/query',
+          tags: ['kb_query', 'no_answer', `lang:${lang}`],
         },
       }).catch(console.error);
       return { noAnswer: true, suggestedMenus: suggested };
     }
-
-    // `chunks` so far is a fixed-size slice (pool.slice(0, topK) or the top
-    // `topK` reranked results) — it always contains exactly K entries when
-    // the KB has at least K chunks, regardless of whether all of them are
-    // actually relevant. topScore/confidence above only checks the *best*
-    // chunk, so an unrelated but low-scoring chunk that merely filled out
-    // the slice (e.g. "About Us" ranking 4th on a "capital of France" test
-    // query it has nothing to do with) still ends up in the LLM context and
-    // gets cited as a source. Drop anything below the same threshold that
-    // gated confidence — the chunk that produced topScore is guaranteed to
-    // survive this, so `chunks` can't come out empty here.
-    const relevant = (reranked && !usedVecConfidence)
-      ? chunks.filter(c => ((c as RerankedChunk).rerankScore) >= scoreThreshold)
-      : chunks.filter(c => c.vecScore >= scoreThreshold);
-    if (relevant.length) chunks = relevant;
 
     // Enumeration questions ("what types of X does the bank offer") need every
     // chunk belonging to the one dominant page, not just whichever individual
@@ -1257,6 +1242,12 @@ export async function queryKB(
     // chunk's page has more chunks sitting in the wider retrieval pool, that's
     // a signal the whole page is relevant, not just the one best-scoring
     // passage — pull the rest of that page's pooled chunks in too.
+    //
+    // NOTE: this must run BEFORE the per-chunk relevance filter below, because
+    // enumeration backfill adds sibling chunks that scored below topK on their
+    // own but belong to the same (already-confident) dominant page. Filtering
+    // first and then backfilling would leave unfiltered siblings in the set
+    // with no second-pass — see bug (B).
     const ENUMERATION_HINTS = /\b(types?|kinds?|categories|category|list|all|various|different|options)\b/i;
     if (ENUMERATION_HINTS.test(cleanQ)) {
       const topMenuId = chunks[0]?.menuId;
@@ -1272,6 +1263,43 @@ export async function queryKB(
         }
       }
     }
+
+    // `chunks` so far is a fixed-size slice (pool.slice(0, topK) or the top
+    // `topK` reranked results) plus, for enumeration queries, any sibling
+    // chunks backfilled from the dominant page. The initial topScore/
+    // confidence check above only gates on the *single best* chunk — so
+    // anything else that merely filled out the slice (or got backfilled in
+    // the enumeration step) still ends up in the LLM context and cited as a
+    // source unless we explicitly drop it here. Two filters:
+    //
+    //   1. Absolute threshold: same scoreThreshold that gated confidence.
+    //      The chunk that produced topScore is guaranteed to survive this.
+    //
+    //   2. Relative-to-best floor: chunks whose relevance score is more than
+    //      a fixed gap below the best chunk are almost certainly off-topic
+    //      filler that ranked inside topK by chance. Without this, answers
+    //      to greetings or generic questions ("How are you doing?") end up
+    //      citing 10+ unrelated pages because each scored just barely above
+    //      the absolute minimum on noisy BM25 token overlap.
+    //
+    // Reranker score range is ~0..1, vector cosine is ~-1..1 so gap values
+    // are expressed as fractions of the best chunk's own score distance from
+    // the threshold — that keeps the filter well-calibrated for both modes.
+    const isRerankMode = reranked && !usedVecConfidence;
+    const scoreOf = (c: ChunkRow & { score: number }): number =>
+      isRerankMode ? (c as RerankedChunk).rerankScore : c.vecScore;
+    let filtered = chunks.filter(c => scoreOf(c) >= scoreThreshold);
+    if (filtered.length) {
+      const bestScore = scoreOf(filtered[0]);
+      const RELATIVE_DROP = isRerankMode ? 0.50 : 0.35;
+      const relFloor = Math.max(scoreThreshold, bestScore * RELATIVE_DROP);
+      filtered = filtered.filter(c => scoreOf(c) >= relFloor);
+    }
+    // Never end up with an empty set right after confidence said "answer" —
+    // the absolute filter already preserved topScore's chunk, and the
+    // relative floor is <= bestScore by construction, so this is just a
+    // defensive guard.
+    if (filtered.length) chunks = filtered;
 
     // Labeling each block with its source menu/article keeps the model from
     // conflating facts across sources when several are in context together —
@@ -1333,7 +1361,7 @@ export async function queryKB(
     sources.sort((a, b) => b.score - a.score);
 
     const durationMs = Date.now() - startMs;
-    const sourceIds  = sources.map(s => s.menuId);
+    const sourceIds = sources.map(s => s.menuId);
 
     // Audit log — what the user asked and what the AI answered (non-blocking)
     prisma.$executeRaw`
@@ -1349,9 +1377,9 @@ export async function queryKB(
         sessionId,
         userMessage: cleanQ,
         botResponse: answer,
-        status:      'success',
-        endpoint:    '/api/kb/query',
-        tags:        ['kb_query', `lang:${lang}`, `confidence:${confidence}`],
+        status: 'success',
+        endpoint: '/api/kb/query',
+        tags: ['kb_query', `lang:${lang}`, `confidence:${confidence}`],
       },
     }).catch(console.error);
 
@@ -1373,10 +1401,10 @@ export async function queryKB(
         sessionId,
         userMessage: cleanQ,
         botResponse: '',
-        status:      'error',
-        endpoint:    '/api/kb/query',
+        status: 'error',
+        endpoint: '/api/kb/query',
         errorDetails: String(err?.message ?? err).slice(0, 500),
-        tags:        ['kb_query', errorType, `lang:${lang}`],
+        tags: ['kb_query', errorType, `lang:${lang}`],
       },
     }).catch(console.error);
     throw err;
@@ -1417,7 +1445,7 @@ export async function getKBQueryLogs(opts: {
   limit?: number;
   offset?: number;
 }): Promise<{ rows: KBQueryLogRow[]; total: number }> {
-  const limit  = Math.min(opts.limit  ?? 50, 200);
+  const limit = Math.min(opts.limit ?? 50, 200);
   const offset = opts.offset ?? 0;
 
   const [rawRows, countResult] = await Promise.all([
@@ -1425,17 +1453,17 @@ export async function getKBQueryLogs(opts: {
       SELECT id, "sessionId", question, answer, "noAnswer", confidence,
              "sourceMenuIds", lang, "durationMs", "errorType", "createdAt"
       FROM   kb_query_logs
-      WHERE  (${ opts.from ? opts.from : null }::timestamptz IS NULL OR "createdAt" >= ${ opts.from ?? null }::timestamptz)
-        AND  (${ opts.to   ? opts.to   : null }::timestamptz IS NULL OR "createdAt" <= ${ opts.to   ?? null }::timestamptz)
+      WHERE  (${opts.from ? opts.from : null}::timestamptz IS NULL OR "createdAt" >= ${opts.from ?? null}::timestamptz)
+        AND  (${opts.to ? opts.to : null}::timestamptz IS NULL OR "createdAt" <= ${opts.to ?? null}::timestamptz)
       ORDER  BY "createdAt" DESC
-      LIMIT  ${ limit }
-      OFFSET ${ offset }
+      LIMIT  ${limit}
+      OFFSET ${offset}
     `,
     prisma.$queryRaw<[{ count: bigint }]>`
       SELECT COUNT(*)::bigint AS count
       FROM   kb_query_logs
-      WHERE  (${ opts.from ? opts.from : null }::timestamptz IS NULL OR "createdAt" >= ${ opts.from ?? null }::timestamptz)
-        AND  (${ opts.to   ? opts.to   : null }::timestamptz IS NULL OR "createdAt" <= ${ opts.to   ?? null }::timestamptz)
+      WHERE  (${opts.from ? opts.from : null}::timestamptz IS NULL OR "createdAt" >= ${opts.from ?? null}::timestamptz)
+        AND  (${opts.to ? opts.to : null}::timestamptz IS NULL OR "createdAt" <= ${opts.to ?? null}::timestamptz)
     `,
   ]);
 
@@ -1448,7 +1476,7 @@ export async function getKBQueryLogs(opts: {
       prisma.menuItem.findMany({ where: { id: { in: allIds } }, select: { id: true, name: true } }),
       prisma.kBArticle.findMany({ where: { id: { in: allIds } }, select: { id: true, title: true } }),
     ]);
-    for (const m of menus)    nameMap.set(m.id, m.name);
+    for (const m of menus) nameMap.set(m.id, m.name);
     for (const a of articles) nameMap.set(a.id, a.title);
   }
 
@@ -1470,16 +1498,16 @@ export async function getKBStatus(): Promise<
   });
 
   return menus.map(m => ({
-    id:          m.id,
-    name:        m.name,
-    status:      m.approvalStatus === 'approved' ? 'active' : m.approvalStatus ?? 'pending',
-    approved:    m.approvalStatus === 'approved',
-    chunkCount:  m.kbChunks.length,
+    id: m.id,
+    name: m.name,
+    status: m.approvalStatus === 'approved' ? 'active' : m.approvalStatus ?? 'pending',
+    approved: m.approvalStatus === 'approved',
+    chunkCount: m.kbChunks.length,
     lastIndexed: m.kbChunks.length
       ? m.kbChunks.reduce<string>((latest, c) => {
-          const t = new Date(c.indexedAt).toISOString();
-          return t > latest ? t : latest;
-        }, new Date(0).toISOString())
+        const t = new Date(c.indexedAt).toISOString();
+        return t > latest ? t : latest;
+      }, new Date(0).toISOString())
       : null,
     kbEnabled: m.kbEnabled,
   }));

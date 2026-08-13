@@ -102,7 +102,7 @@ export function ReportsManagement() {
     if (timeRange === 'today') {
       start = startOfDay(now);
     } else if (timeRange === 'week') {
-      start = startOfWeek(now);
+      start = startOfWeek(now, { weekStartsOn: 1 });
     } else if (timeRange === 'month') {
       start = startOfMonth(now);
     } else {
