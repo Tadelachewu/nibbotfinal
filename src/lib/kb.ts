@@ -1248,7 +1248,7 @@ export async function queryKB(
     // own but belong to the same (already-confident) dominant page. Filtering
     // first and then backfilling would leave unfiltered siblings in the set
     // with no second-pass — see bug (B).
-    const ENUMERATION_HINTS = /\b(types?|kinds?|categories|category|list|all|various|different|options)\b/i;
+    const ENUMERATION_HINTS = /\b(types?|kinds?|categories|category|list|all|various|different|options|fees?|charges?|rates?|prices?|items?|products?|services?|what are|which are)\b/i;
     if (ENUMERATION_HINTS.test(cleanQ)) {
       const topMenuId = chunks[0]?.menuId;
       if (topMenuId) {
@@ -1329,11 +1329,23 @@ export async function queryKB(
       '"how many core values are there"), count the listed items yourself rather than ' +
       'saying the count isn\'t stated — but never count or estimate anything not ' +
       'actually enumerated in the context. ' +
+      'IMPORTANT: When the user asks for a list, all items, all fees, all charges, ' +
+      'all types, all categories, or any other enumeration-style question, you MUST ' +
+      'list EVERY relevant item found in the context. Do NOT stop early, do NOT ' +
+      'summarize with a partial list, and do NOT say "including" followed by just ' +
+      'a few items. Enumerate every single applicable entry in full, each on its ' +
+      'own line or as its own numbered/bulleted item, until you have covered them ' +
+      'all. Double-check at the end that you haven\'t missed any entry from the ' +
+      'context that matches the question. ' +
       'If the context does not contain a clear answer, say so honestly. ' +
       'Be helpful and clear. Reply in the same language as the user\'s question.';
 
+    const isEnumeration = ENUMERATION_HINTS.test(cleanQ);
     const userPrompt = `Context:\n${context}\n\nQuestion: ${searchQ}`;
-    const genOpts = { temperature: config.temperature, numPredict: 600 };
+    const genOpts = {
+      temperature: config.temperature,
+      numPredict: isEnumeration ? 1500 : 600,
+    };
     const answer = opts.onToken
       ? await generateStreaming(systemPrompt, userPrompt, config.generationModel, genOpts, opts.onToken)
       : await generate(systemPrompt, userPrompt, config.generationModel, genOpts);
