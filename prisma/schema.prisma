@@ -415,6 +415,20 @@ model KBQueryLog {
   sourceMenuIds String[] @default([])
   lang          String
   durationMs    Int?
+  // -------- Per-stage timing breakdown (all ms, nullable when a stage is
+  // skipped or never reached) — so the admin Query Audit Log can surface
+  // which part of the pipeline is making responses slow.
+  rewriteMs     Int? // follow-up question rewrite
+  normalizeMs   Int? // typo-correction + casing + synonym expansion
+  embedMs       Int? // embedding the user question
+  retrieveMs    Int? // hybridSearch: vector + BM25 + RRF merge
+  rerankMs      Int? // cross-encoder rerank (if enabled+en)
+  generateMs    Int? // Ollama /api.chat (including stream drain)
+  //
+  // Hints for analysis — not timing per se, but useful context when reading
+  // the breakdown, e.g. "why did retrieveMs jump on this query?"
+  contextChunks Int? // how many chunks were actually sent to the LLM
+  tokensOut     Int? // answer length (approx tokens = length/4)
   // Null for a normal answer or a low-confidence "No Answer" — those aren't
   // infra failures. Set to 'timeout' or 'error' only when queryKB() threw
   // (Ollama unreachable/timed out) before it could produce either outcome,

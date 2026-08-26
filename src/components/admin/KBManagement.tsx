@@ -1220,6 +1220,96 @@ export function KBManagement() {
                         </div>
                       </div>
                     )}
+
+                    {/* ── Performance Timing Breakdown ── */}
+                    {(() => {
+                      const stages: { key: string; label: string; color: string; ms: number | null }[] = [
+                        { key: 'rewriteMs',   label: 'Rewrite',    color: 'bg-slate-400',   ms: selectedLog.rewriteMs   ?? null },
+                        { key: 'normalizeMs', label: 'Normalize',  color: 'bg-purple-400',  ms: selectedLog.normalizeMs ?? null },
+                        { key: 'embedMs',     label: 'Embed',      color: 'bg-blue-400',    ms: selectedLog.embedMs     ?? null },
+                        { key: 'retrieveMs',  label: 'Retrieve',   color: 'bg-cyan-500',    ms: selectedLog.retrieveMs  ?? null },
+                        { key: 'rerankMs',    label: 'Rerank',     color: 'bg-indigo-400',  ms: selectedLog.rerankMs    ?? null },
+                        { key: 'generateMs',  label: 'Generate',   color: 'bg-[#f4a61b]',   ms: selectedLog.generateMs  ?? null },
+                      ];
+                      const totalMs = stages.reduce((s, x) => s + (x.ms ?? 0), 0);
+                      const hasAny = stages.some(x => x.ms != null);
+                      if (!hasAny) return null;
+                      return (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                              Performance Breakdown
+                            </p>
+                            <Badge variant="secondary" className="text-[9px] font-semibold bg-[#f4a61b]/15 text-[#763717] border-0">
+                              {selectedLog.durationMs != null ? `Total ${selectedLog.durationMs} ms` : '—'}
+                            </Badge>
+                          </div>
+
+                          {/* Stacked mini bar */}
+                          {totalMs > 0 && (
+                            <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden flex">
+                              {stages.map(s => (
+                                s.ms && s.ms > 0 ? (
+                                  <div
+                                    key={s.key}
+                                    className={s.color}
+                                    title={`${s.label}: ${s.ms} ms (${((s.ms / (selectedLog.durationMs ?? totalMs)) * 100).toFixed(0)}%)`}
+                                    style={{ width: `${(s.ms / (selectedLog.durationMs ?? totalMs)) * 100}%` }}
+                                  />
+                                ) : null
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Stage list w/ % */}
+                          <div className="rounded-lg border divide-y">
+                            {stages.map(s => {
+                              const pct = (s.ms && selectedLog.durationMs)
+                                ? (s.ms / selectedLog.durationMs) * 100
+                                : null;
+                              return (
+                                <div key={s.key} className="px-3 py-2 flex items-center gap-2.5 text-xs">
+                                  <div className={`w-2.5 h-2.5 rounded-sm shrink-0 ${s.color}`} />
+                                  <span className="w-20 shrink-0 font-medium">{s.label}</span>
+                                  <span className="font-mono tabular-nums text-muted-foreground w-20 shrink-0">
+                                    {s.ms != null ? `${s.ms} ms` : '—'}
+                                  </span>
+                                  {pct != null ? (
+                                    <>
+                                      <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                                        <div
+                                          className={s.color}
+                                          style={{ width: `${Math.min(100, pct)}%`, height: '100%' }}
+                                        />
+                                      </div>
+                                      <span className="font-mono tabular-nums text-[10px] text-muted-foreground w-12 shrink-0 text-right">
+                                        {pct.toFixed(0)}%
+                                      </span>
+                                    </>
+                                  ) : (
+                                    <span className="flex-1 text-[10px] italic text-muted-foreground text-right">
+                                      {s.ms == null ? 'skipped' : ''}
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })}
+
+                            {/* Hints row */}
+                            {(selectedLog.contextChunks != null || selectedLog.tokensOut != null) && (
+                              <div className="px-3 py-2 flex items-center gap-4 text-[10px] text-muted-foreground">
+                                <span>
+                                  Context chunks: <span className="font-mono tabular-nums text-foreground">{selectedLog.contextChunks ?? '—'}</span>
+                                </span>
+                                <span>
+                                  Answer tokens (est.): <span className="font-mono tabular-nums text-foreground">{selectedLog.tokensOut ?? '—'}</span>
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </ScrollArea>
 

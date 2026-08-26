@@ -1080,6 +1080,21 @@ export async function queryKB(
   // kb_query_logs (errorType set) and interaction_logs (status: 'error'),
   // then rethrows so the API route's existing 503/500 handling is untouched.
   try {
+    // ---- Per-stage timing accumulators (ms) ------------------------------
+    // Every stage below writes its wall-clock time here; null means "never
+    // ran or was skipped" (important for analysis — a 0 looks like the stage
+    // ran instantly, which is wrong). All values are written to the audit
+    // log by the three INSERT statements below (answer / no-answer / error).
+    let rewriteMs: number | null = null;
+    let normalizeMs: number | null = null;
+    let embedMs: number | null = null;
+    let retrieveMs: number | null = null;
+    let rerankMs: number | null = null;
+    let generateMs: number | null = null;
+    let contextChunks: number | null = null;
+    let tokensOut: number | null = null;
+    const mark = () => Date.now();
+
     // The KB pipeline is otherwise fully stateless per request — a follow-up
     // like "How many are there?" has no antecedent for "there" on its own,
     // and was measured retrieving a completely unrelated chunk (branch/ATM
@@ -1088,16 +1103,24 @@ export async function queryKB(
     // ellipsis against it first so retrieval runs on a standalone question.
     // Only runs when there's history (i.e. never adds latency to a first
     // turn), and any failure just falls back to the original question.
-    const rewrittenQ = opts.history?.length
-      ? await rewriteFollowUp(cleanQ, opts.history, config.generationModel)
-      : null;
+    let rewrittenQ: string | null = null;
+    if (opts.history?.length) {
+      const t0 = mark();
+      rewrittenQ = await rewriteFollowUp(cleanQ, opts.history, config.generationModel);
+      rewriteMs = mark() - t0;
+    }
     const effectiveQ = rewrittenQ ?? cleanQ;
 
     // Retrieval/generation use the typo-corrected, synonym-expanded question;
     // kb_query_logs and interactionLog below intentionally keep logging the
     // original `cleanQ` — audit trails should reflect what the user actually typed.
+    const tNorm = mark();
     const searchQ = await normalizeQuery(expandSynonyms(effectiveQ));
+    normalizeMs = mark() - tNorm;
+
+    const tEmbed = mark();
     const qVec = await embed(searchQ, config.embeddingModel);
+    embedMs = mark() - tEmbed;
 
     // Retrieve a wider pool when reranking so the cross-encoder has real
     // candidates to sort through (config.rerankPoolSize, e.g. 15 → rerank → topK).
@@ -1108,7 +1131,9 @@ export async function queryKB(
     const fetchLimit = willRerank
       ? Math.max(config.rerankPoolSize, config.topK)
       : config.topK * 4;
+    const tRet = mark();
     let pool = await hybridSearch(qVec, searchQ, lang, fetchLimit, includeDisabledArticles);
+    retrieveMs = mark() - tRet;
 
     // A standalone rewrite necessarily names the entity the pronoun referred
     // to (e.g. "it" -> "NIB") to be valid on its own — but in a single-
@@ -1123,9 +1148,15 @@ export async function queryKB(
     // for follow-ups like "How many are there?", whose original wording
     // alone has no distinctive content word to retrieve on at all.
     if (rewrittenQ && rewrittenQ !== cleanQ) {
+      const tN0 = mark();
       const rawSearchQ = await normalizeQuery(expandSynonyms(cleanQ));
+      normalizeMs = (normalizeMs ?? 0) + (mark() - tN0);
+      const tE0 = mark();
       const rawVec = await embed(rawSearchQ, config.embeddingModel);
+      embedMs = (embedMs ?? 0) + (mark() - tE0);
+      const tR0 = mark();
       const rawPool = await hybridSearch(rawVec, rawSearchQ, lang, fetchLimit, includeDisabledArticles);
+      retrieveMs = (retrieveMs ?? 0) + (mark() - tR0);
       const merged = new Map<number, ChunkRow & { score: number }>();
       for (const c of [...pool, ...rawPool]) {
         const existing = merged.get(c.id);
@@ -1156,9 +1187,11 @@ export async function queryKB(
     // field actually decided the outcome, not just "did reranking run."
     let usedVecConfidence = false;
 
+    const tRerank = mark();
     const reranked = willRerank
       ? await rerankWithCrossEncoder(searchQ, pool, config.topK)
       : null;
+    if (willRerank) rerankMs = mark() - tRerank;
 
     if (reranked) {
       chunks = reranked;
@@ -1212,8 +1245,14 @@ export async function queryKB(
       });
       const durationMs = Date.now() - startMs;
       prisma.$executeRaw`
-        INSERT INTO kb_query_logs ("sessionId","question","noAnswer","lang","durationMs")
-        VALUES (${sessionId},${cleanQ},${true},${lang},${durationMs})
+        INSERT INTO kb_query_logs
+          ("sessionId","question","noAnswer","lang","durationMs",
+           "rewriteMs","normalizeMs","embedMs","retrieveMs","rerankMs","generateMs",
+           "contextChunks","tokensOut")
+        VALUES
+          (${sessionId},${cleanQ},${true},${lang},${durationMs},
+           ${rewriteMs},${normalizeMs},${embedMs},${retrieveMs},${rerankMs},${generateMs},
+           ${contextChunks},${tokensOut})
       `.catch(() => null);
       // Surfaced in Interaction Logs too (status 'failed', not 'error') — the
       // system worked correctly and honestly said it doesn't know; it's a KB
@@ -1249,16 +1288,26 @@ export async function queryKB(
     // first and then backfilling would leave unfiltered siblings in the set
     // with no second-pass — see bug (B).
     const ENUMERATION_HINTS = /\b(types?|kinds?|categories|category|list|all|various|different|options|fees?|charges?|rates?|prices?|items?|products?|services?|what are|which are)\b/i;
-    if (ENUMERATION_HINTS.test(cleanQ)) {
+    const isEnumeration = ENUMERATION_HINTS.test(cleanQ);
+    // IDs of chunks that were added via enumeration backfill. These chunks
+    // scored poorly *individually* (often 0.0x the best chunk) because the
+    // reranker/vector search is scored per-passage, not per-page. But for an
+    // enumeration query they are REQUIRED content — the whole point of
+    // backfilling is to pull them in. Filtering them out in the per-chunk
+    // relevance step below would be exactly bug (B) the comment above warns
+    // about, so we tag them here and exempt them from RELATIVE_DROP later.
+    const backfilledIds = new Set<number>();
+    if (isEnumeration) {
       const topMenuId = chunks[0]?.menuId;
       if (topMenuId) {
         const included = new Set(chunks.map(c => c.id));
-        const MAX_CHUNKS_AFTER_BACKFILL = 20;
+        const MAX_CHUNKS_AFTER_BACKFILL = 30;
         for (const c of pool) {
           if (chunks.length >= MAX_CHUNKS_AFTER_BACKFILL) break;
           if (c.menuId === topMenuId && !included.has(c.id)) {
             chunks.push(c);
             included.add(c.id);
+            backfilledIds.add(c.id);
           }
         }
       }
@@ -1291,9 +1340,19 @@ export async function queryKB(
     let filtered = chunks.filter(c => scoreOf(c) >= scoreThreshold);
     if (filtered.length) {
       const bestScore = scoreOf(filtered[0]);
-      const RELATIVE_DROP = isRerankMode ? 0.50 : 0.35;
+      // Enumeration queries: sibling chunks (e.g. individual fee items after
+      // a "Fees & Charges" heading) routinely score 1/5th or less of the
+      // best chunk on their own, but they ARE the answer. Tightening this
+      // filter to 0.50 / 0.35 of best is exactly what made a 14-item list
+      // stop at 4. For enumerations we keep the absolute floor only; for
+      // regular queries the relative floor stays calibrated.
+      const RELATIVE_DROP = isEnumeration
+        ? (isRerankMode ? 0.10 : 0.05)
+        : (isRerankMode ? 0.50 : 0.35);
       const relFloor = Math.max(scoreThreshold, bestScore * RELATIVE_DROP);
-      filtered = filtered.filter(c => scoreOf(c) >= relFloor);
+      filtered = filtered.filter(c =>
+        scoreOf(c) >= relFloor || backfilledIds.has(c.id),
+      );
     }
     // Never end up with an empty set right after confidence said "answer" —
     // the absolute filter already preserved topScore's chunk, and the
@@ -1340,15 +1399,23 @@ export async function queryKB(
       'If the context does not contain a clear answer, say so honestly. ' +
       'Be helpful and clear. Reply in the same language as the user\'s question.';
 
-    const isEnumeration = ENUMERATION_HINTS.test(cleanQ);
+    // isEnumeration + backfilledIds are already computed above (pre-filter),
+    // so reuse the same flag here rather than re-running the regex.
     const userPrompt = `Context:\n${context}\n\nQuestion: ${searchQ}`;
     const genOpts = {
       temperature: config.temperature,
-      numPredict: isEnumeration ? 1500 : 600,
+      // For long list/enumeration answers, 1500 tokens can still be tight
+      // with Aya/Qwen-style models. 2500 tokens ≈ ~1875 chars of output,
+      // enough for 20+ bullet items comfortably even if the model is verbose.
+      numPredict: isEnumeration ? 2500 : 600,
     };
+    contextChunks = chunks.length;
+    const tGen = mark();
     const answer = opts.onToken
       ? await generateStreaming(systemPrompt, userPrompt, config.generationModel, genOpts, opts.onToken)
       : await generate(systemPrompt, userPrompt, config.generationModel, genOpts);
+    generateMs = mark() - tGen;
+    tokensOut = Math.ceil(answer.length / 4);
 
     // Sources are built strictly from `chunks` — the exact context actually
     // sent to the LLM for this answer — never from the wider retrieval pool or
@@ -1378,9 +1445,13 @@ export async function queryKB(
     // Audit log — what the user asked and what the AI answered (non-blocking)
     prisma.$executeRaw`
       INSERT INTO kb_query_logs
-        ("sessionId","question","answer","noAnswer","confidence","sourceMenuIds","lang","durationMs")
+        ("sessionId","question","answer","noAnswer","confidence","sourceMenuIds","lang","durationMs",
+         "rewriteMs","normalizeMs","embedMs","retrieveMs","rerankMs","generateMs",
+         "contextChunks","tokensOut")
       VALUES
-        (${sessionId},${cleanQ},${answer},${false},${confidence},${sourceIds},${lang},${durationMs})
+        (${sessionId},${cleanQ},${answer},${false},${confidence},${sourceIds},${lang},${durationMs},
+         ${rewriteMs},${normalizeMs},${embedMs},${retrieveMs},${rerankMs},${generateMs},
+         ${contextChunks},${tokensOut})
     `.catch(() => null);
 
     // General interaction log (non-blocking)
@@ -1405,8 +1476,15 @@ export async function queryKB(
     const errorType = isTimeout ? 'timeout' : 'error';
     const durationMs = Date.now() - startMs;
     prisma.$executeRaw`
-      INSERT INTO kb_query_logs ("sessionId","question","noAnswer","lang","durationMs","errorType")
-      VALUES (${sessionId},${cleanQ},${true},${lang},${durationMs},${errorType})
+      INSERT INTO kb_query_logs
+        ("sessionId","question","noAnswer","lang","durationMs","errorType",
+         "rewriteMs","normalizeMs","embedMs","retrieveMs","rerankMs","generateMs",
+         "contextChunks","tokensOut")
+      VALUES
+        (${sessionId},${cleanQ},${true},${lang},${durationMs},${errorType},
+         ${rewriteMs ?? null},${normalizeMs ?? null},${embedMs ?? null},
+         ${retrieveMs ?? null},${rerankMs ?? null},${generateMs ?? null},
+         ${contextChunks ?? null},${tokensOut ?? null})
     `.catch(() => null);
     prisma.interactionLog.create({
       data: {
@@ -1443,6 +1521,17 @@ export type KBQueryLogRow = {
   sourceNames: string[];
   lang: string;
   durationMs: number | null;
+  // -------- Per-stage timing breakdown (ms) — null means stage was skipped
+  // or never reached before a failure/early exit.
+  rewriteMs: number | null;
+  normalizeMs: number | null;
+  embedMs: number | null;
+  retrieveMs: number | null;
+  rerankMs: number | null;
+  generateMs: number | null;
+  // Context / output hints (useful for reading the timing breakdown):
+  contextChunks: number | null;
+  tokensOut: number | null;
   // Null for a normal answer or a plain low-confidence no-answer. Set to
   // 'timeout' or 'error' only when the query threw before either of those
   // could be produced (Ollama unreachable/too slow) — distinguishes "we
@@ -1463,7 +1552,9 @@ export async function getKBQueryLogs(opts: {
   const [rawRows, countResult] = await Promise.all([
     prisma.$queryRaw<Omit<KBQueryLogRow, 'sourceNames'>[]>`
       SELECT id, "sessionId", question, answer, "noAnswer", confidence,
-             "sourceMenuIds", lang, "durationMs", "errorType", "createdAt"
+             "sourceMenuIds", lang, "durationMs", "errorType", "createdAt",
+             "rewriteMs", "normalizeMs", "embedMs", "retrieveMs", "rerankMs", "generateMs",
+             "contextChunks", "tokensOut"
       FROM   kb_query_logs
       WHERE  (${opts.from ? opts.from : null}::timestamptz IS NULL OR "createdAt" >= ${opts.from ?? null}::timestamptz)
         AND  (${opts.to ? opts.to : null}::timestamptz IS NULL OR "createdAt" <= ${opts.to ?? null}::timestamptz)
