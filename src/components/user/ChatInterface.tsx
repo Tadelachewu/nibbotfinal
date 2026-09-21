@@ -963,7 +963,7 @@ export function ChatInterface() {
             answerText += evt.text;
             upsertBotMessage({
               sourceType: 'kb_result',
-              kbResult: { noAnswer: false, answer: answerText, sources: [], confidence: 'low' },
+              kbResult: { noAnswer: false, answer: answerText, sources: [], confidence: 'low', queryLogId: null },
             });
           } else if (evt.type === 'result' && evt.data) {
             settled = true;

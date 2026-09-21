@@ -7,6 +7,13 @@ import prisma from '@/lib/prisma';
 const OLLAMA_URL = (process.env.OLLAMA_URL || 'http://localhost:11434').replace(/\/$/, '');
 const RERANKER_URL = (process.env.RERANKER_URL || 'http://localhost:8001').replace(/\/$/, '');
 const VECTOR_DIMS = Number(process.env.KB_VECTOR_DIMS || 1024);
+// Optional alternative to Ollama for chat generation only (see
+// generateViaProvider() below) — embeddings and the AI Evaluation judge
+// always use Ollama regardless of this. The key is server-only env config,
+// deliberately never stored in kb_config / returned by any admin API
+// response (see KBConfig.openrouterModel's schema comment).
+const OPENROUTER_URL = (process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1').replace(/\/$/, '');
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
 
 // Short-lived cache — queryKB() calls getKBConfig() on every single request,
 // which otherwise means a DB round trip before any real work starts. Config
@@ -22,6 +29,8 @@ async function loadKBConfig() {
     enabled: cfg?.enabled ?? (process.env.KB_ENABLED !== 'false'),
     embeddingModel: cfg?.embeddingModel ?? (process.env.OLLAMA_EMBED_MODEL || 'bge-m3'),
     generationModel: cfg?.generationModel ?? (process.env.OLLAMA_GENERATE_MODEL || 'aya:8b'),
+    generationProvider: (cfg?.generationProvider === 'openrouter' ? 'openrouter' : 'ollama') as 'ollama' | 'openrouter',
+    openrouterModel: cfg?.openrouterModel ?? (process.env.OPENROUTER_MODEL || null),
     chunkSize: cfg?.chunkSize ?? Number(process.env.KB_CHUNK_SIZE || 350),
     chunkOverlap: cfg?.chunkOverlap ?? 60,
     topK: cfg?.topK ?? Number(process.env.KB_TOP_K || 5),
@@ -83,7 +92,11 @@ async function embed(text: string, model: string): Promise<number[]> {
   return data.embedding;
 }
 
-async function generate(
+// Exported so the AI Evaluation judge (src/lib/eval/judge.ts) can call Ollama
+// through this exact tested path (retry/timeout/think:false handling)
+// instead of a second hand-rolled implementation. Never called from any
+// production request path other than queryKB() itself.
+export async function generate(
   systemPrompt: string,
   userPrompt: string,
   model: string,
@@ -191,6 +204,284 @@ async function generateStreaming(
   return full.trim();
 }
 
+// ---------------------------------------------------------------------------
+// OpenRouter — optional alternative to Ollama for chat generation only (see
+// generateViaProvider()/generateViaProviderStreaming() below, and
+// KBConfig.generationProvider). OpenRouter's API is OpenAI-compatible over
+// plain HTTP, so this follows the same "no SDK, plain fetch" convention as
+// the Ollama wrappers above rather than adding the `openai` package as a
+// dependency.
+//
+// Explicitly sends `reasoning: { enabled: false }` on every request — the
+// same reasoning as Ollama's `think: false` above, and not optional the way
+// the original version of this comment assumed: measured directly against
+// nvidia/nemotron-3-ultra (a reasoning-tuned model), a request with no
+// `reasoning` field at all still reasoned by default, and on the
+// short-budget rewriteFollowUp() call (numPredict=60) it spent the entire
+// budget narrating its reasoning in plain prose inside `content` itself —
+// not in a separate `reasoning_content` field the extraction logic below
+// could filter out — and got cut off before ever emitting the real rewrite,
+// corrupting the question sent into retrieval/generation downstream.
+// Omitting `reasoning` is not "reasoning off" for every model; only an
+// explicit `enabled: false` reliably is.
+// ---------------------------------------------------------------------------
+
+function assertOpenRouterConfigured(): void {
+  if (!OPENROUTER_API_KEY) {
+    throw new Error('OpenRouter generation selected but OPENROUTER_API_KEY is not set in .env');
+  }
+}
+
+// OpenRouter returning HTTP 200 with an embedded error body is not the same
+// failure shape as Ollama being unreachable — measured directly against the
+// free tier: repeated identical requests interleaved success and failure
+// ("Upstream error from Nvidia: Service temporarily overloaded"), i.e. a
+// genuine transient load spike, not a deterministic break. That's worth one
+// short-backoff retry, unlike fetchWithRetry's deliberate refusal to retry
+// timeouts above (a too-slow model will time out again immediately; an
+// overloaded upstream often clears within a second).
+function isTransientOpenRouterError(err: { message?: string; code?: number } | undefined): boolean {
+  if (!err) return false;
+  if (err.code === 429 || err.code === 502 || err.code === 503 || err.code === 504) return true;
+  return /overloaded|rate.?limit|temporarily unavailable|try again/i.test(err.message || '');
+}
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const OPENROUTER_MAX_ATTEMPTS = 2;
+
+async function generateOpenRouter(
+  systemPrompt: string,
+  userPrompt: string,
+  model: string,
+  opts: { temperature?: number; timeoutMs?: number; numPredict?: number } = {},
+): Promise<string> {
+  assertOpenRouterConfigured();
+  const { temperature = 0.2, timeoutMs = 90_000, numPredict } = opts;
+
+  for (let attempt = 1; attempt <= OPENROUTER_MAX_ATTEMPTS; attempt++) {
+  const res = await fetchWithRetry(`${OPENROUTER_URL}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+      // OpenRouter-specific: prefer deterministic JSON-free answers and ask
+      // the underlying provider to omit any "thinking" blocks from the
+      // content field. Some providers (Gemini/Gemma reasoning, Claude) still
+      // send `content: null` alongside a separate `reasoning_content` — the
+      // extraction code below handles both cases.
+      'HTTP-Referer': 'https://nibbank.local',
+      'X-Title': 'NIB International Bank Assistant',
+    },
+    body: JSON.stringify({
+      model,
+      temperature,
+      reasoning: { enabled: false },
+      ...(numPredict ? { max_tokens: numPredict } : {}),
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+    }),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`OpenRouter generate ${res.status}: ${body}`);
+  }
+  const data = (await res.json()) as {
+    // OpenRouter can return HTTP 200 with an error body instead of a real
+    // completion — measured directly: "Upstream error from Nvidia: Service
+    // temporarily overloaded" came back as status 200 in ~1/3 of real calls
+    // against the free tier. res.ok alone does NOT catch this; without this
+    // check, the content-extraction logic below silently found nothing and
+    // returned an empty string instead of surfacing the failure — unlike
+    // Ollama's equivalent path, which always throws on a genuine failure.
+    error?: { message?: string; code?: number };
+    choices?: {
+      message?: {
+        content?: string | Array<{ type?: string; text?: string }> | null;
+        reasoning_content?: string | null;
+      };
+      text?: string;
+    }[];
+  };
+  if (data.error) {
+    if (isTransientOpenRouterError(data.error) && attempt < OPENROUTER_MAX_ATTEMPTS) {
+      await sleep(600 * attempt);
+      continue;
+    }
+    throw new Error(`OpenRouter generate error (code ${data.error.code ?? 'unknown'}): ${data.error.message || JSON.stringify(data.error)}`);
+  }
+  const msg = data.choices?.[0]?.message;
+  let content = '';
+  // Case 1: plain string content (most providers, e.g. GPT-4o, Llama)
+  if (typeof msg?.content === 'string' && msg.content) content = msg.content;
+  // Case 2: Anthropic-style array of content parts — join `text` fields
+  else if (Array.isArray(msg?.content)) {
+    content = msg.content
+      .filter(p => p && p.type !== 'tool_use' && typeof p.text === 'string')
+      .map(p => (p as { text: string }).text)
+      .join(' ');
+  }
+  // Case 3: `choices[0].text` (legacy completions shape; rare but some providers wrap this way)
+  if (!content && typeof data.choices?.[0]?.text === 'string') {
+    content = data.choices[0].text;
+  }
+  // Case 4: Some reasoning models send answer content in
+  // `reasoning_content` only and leave `content` as null/empty. This is
+  // genuinely the real answer for e.g. some self-hosted models behind
+  // OpenRouter — prefer this over returning an empty string that the UI
+  // renders as no AI answer at all.
+  if (!content && typeof msg?.reasoning_content === 'string' && msg.reasoning_content) {
+    content = msg.reasoning_content;
+  }
+  return String(content || '').trim();
+  }
+  throw new Error('OpenRouter generate: exhausted retries against a transiently overloaded upstream');
+}
+
+// Same streaming contract as generateStreaming() above (onToken fires per
+// delta, full text returned at the end) — different wire format underneath:
+// OpenAI-style SSE (`data: {...}` lines, `choices[0].delta.content`,
+// terminated by a literal `data: [DONE]`) rather than Ollama's
+// newline-delimited JSON. Non-`data:` lines (e.g. OpenRouter's `: ` keep-alive
+// comments) are skipped.
+async function generateOpenRouterStreaming(
+  systemPrompt: string,
+  userPrompt: string,
+  model: string,
+  opts: { temperature?: number; timeoutMs?: number; numPredict?: number } = {},
+  onToken: (delta: string) => void,
+): Promise<string> {
+  assertOpenRouterConfigured();
+  const { temperature = 0.2, timeoutMs = 90_000, numPredict } = opts;
+
+  for (let attempt = 1; attempt <= OPENROUTER_MAX_ATTEMPTS; attempt++) {
+  const res = await fetchWithRetry(`${OPENROUTER_URL}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model,
+      stream: true,
+      temperature,
+      reasoning: { enabled: false },
+      ...(numPredict ? { max_tokens: numPredict } : {}),
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+    }),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (!res.ok || !res.body) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`OpenRouter generate ${res.status}: ${body}`);
+  }
+  // Same 200-with-error-body failure mode as generateOpenRouter() above, but
+  // for a streaming request the error comes back as a single JSON object
+  // instead of an SSE stream — detected via content-type rather than trying
+  // to SSE-parse it (which would just find no `data:` lines and silently
+  // return an empty answer). Safe to retry here specifically: this check
+  // runs before any onToken() delta has been emitted, so a retry is
+  // invisible to the caller — no partial stream has reached the user yet.
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('event-stream')) {
+    const text = await res.text().catch(() => '');
+    let parsed: { error?: { message?: string; code?: number } } = {};
+    try { parsed = JSON.parse(text); } catch { /* not JSON either — surfaced raw below */ }
+    if (isTransientOpenRouterError(parsed.error) && attempt < OPENROUTER_MAX_ATTEMPTS) {
+      await sleep(600 * attempt);
+      continue;
+    }
+    throw new Error(parsed.error
+      ? `OpenRouter generate error (code ${parsed.error.code ?? 'unknown'}): ${parsed.error.message}`
+      : `OpenRouter generate: unexpected non-streaming response: ${text.slice(0, 500)}`);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let full = '';
+  let buf = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let nl: number;
+    while ((nl = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, nl).trim();
+      buf = buf.slice(nl + 1);
+      if (!line.startsWith('data:')) continue;
+      const payload = line.slice(5).trim();
+      if (payload === '[DONE]') return full.trim();
+      let obj: { choices?: { delta?: { content?: string } }[] };
+      try {
+        obj = JSON.parse(payload);
+      } catch {
+        continue;
+      }
+      const delta = obj.choices?.[0]?.delta;
+      // OpenRouter/OpenAI emit different delta keys per provider:
+      //   - content             — standard answer text
+      //   - reasoning_content   — hidden thinking from reasoning models
+      //       (Gemma 3, Gemini Flash thinking, Claude). We intentionally
+      //       NEVER stream reasoning chunks to the user (they read as
+      //       garbled output) but we also mustn't confuse a reasoning-only
+      //       delta with "end of stream". Continue accumulating until a
+      //       real `content` delta arrives.
+      //   - Array-of-parts delta: some providers send the same structured
+      //       content shape as the non-streaming extraction handles above.
+      let contentDelta = '';
+      if (typeof delta?.content === 'string' && delta.content) {
+        contentDelta = delta.content;
+      } else if (Array.isArray(delta?.content)) {
+        contentDelta = delta.content
+          .filter(p => p && p.type !== 'tool_use' && typeof p.text === 'string')
+          .map(p => (p as { text: string }).text)
+          .join('');
+      }
+      if (contentDelta) {
+        full += contentDelta;
+        onToken(contentDelta);
+      }
+    }
+  }
+  return full.trim();
+  }
+  throw new Error('OpenRouter generate: exhausted retries against a transiently overloaded upstream');
+}
+
+// Dispatches chat generation to whichever provider KBConfig.generationProvider
+// selects. Used by queryKB() for both the follow-up rewrite step and the
+// final answer — NOT used by the AI Evaluation judge (src/lib/eval/judge.ts),
+// which calls the exported generate() above directly and is intentionally
+// kept on Ollama regardless of this setting.
+async function generateViaProvider(
+  config: Awaited<ReturnType<typeof loadKBConfig>>,
+  systemPrompt: string,
+  userPrompt: string,
+  opts: { temperature?: number; timeoutMs?: number; numPredict?: number } = {},
+): Promise<string> {
+  if (config.generationProvider === 'openrouter') {
+    return generateOpenRouter(systemPrompt, userPrompt, config.openrouterModel || config.generationModel, opts);
+  }
+  return generate(systemPrompt, userPrompt, config.generationModel, opts);
+}
+
+async function generateViaProviderStreaming(
+  config: Awaited<ReturnType<typeof loadKBConfig>>,
+  systemPrompt: string,
+  userPrompt: string,
+  opts: { temperature?: number; timeoutMs?: number; numPredict?: number },
+  onToken: (delta: string) => void,
+): Promise<string> {
+  if (config.generationProvider === 'openrouter') {
+    return generateOpenRouterStreaming(systemPrompt, userPrompt, config.openrouterModel || config.generationModel, opts, onToken);
+  }
+  return generateStreaming(systemPrompt, userPrompt, config.generationModel, opts, onToken);
+}
+
 // Resolves a follow-up question's pronouns/ellipsis (e.g. "How many are
 // there?") into a standalone one using the immediately preceding Q&A turn,
 // so retrieval doesn't have to guess what "there" refers to. Kept to a short
@@ -200,7 +491,7 @@ async function generateStreaming(
 async function rewriteFollowUp(
   question: string,
   history: { question: string; answer: string }[],
-  model: string,
+  config: Awaited<ReturnType<typeof loadKBConfig>>,
 ): Promise<string> {
   const context = history
     .map(h => `Q: ${h.question}\nA: ${h.answer}`)
@@ -213,7 +504,7 @@ async function rewriteFollowUp(
     'quotes. If the follow-up already stands alone, output it unchanged.';
   const userPrompt = `Conversation so far:\n${context}\n\nFollow-up question: ${question}\n\nStandalone question:`;
   try {
-    const rewritten = await generate(systemPrompt, userPrompt, model, {
+    const rewritten = await generateViaProvider(config, systemPrompt, userPrompt, {
       temperature: 0,
       numPredict: 60,
       timeoutMs: 15_000,
@@ -1043,8 +1334,44 @@ if (typeof setInterval !== 'undefined') {
 export type KBSource = { menuId: string; menuName: string; score: number };
 
 export type KBResult =
-  | { noAnswer: true; suggestedMenus: { id: string; name: string }[] }
-  | { noAnswer: false; answer: string; sources: KBSource[]; confidence: 'high' | 'medium' | 'low' };
+  | { noAnswer: true; suggestedMenus: { id: string; name: string }[]; queryLogId: number | null }
+  | { noAnswer: false; answer: string; sources: KBSource[]; confidence: 'high' | 'medium' | 'low'; queryLogId: number | null };
+
+// ---------------------------------------------------------------------------
+// Evaluation trace — an optional, caller-supplied side channel (see
+// src/lib/eval/runner.ts). When opts.trace below is passed, queryKB() fills
+// it in as it goes so an evaluation run can score retrieval/context/
+// generation against exactly what a real user's request would have done —
+// without changing KBResult's shape or adding any cost for ordinary callers
+// (/api/kb/query, admin Test AI), which never pass it.
+// ---------------------------------------------------------------------------
+export type QueryTraceChunk = { id: number; menuId: string; menuName: string; text: string; vecScore: number; score: number };
+export type QueryTraceRerankedChunk = QueryTraceChunk & { rerankScore: number };
+
+export type QueryTrace = {
+  config?: Awaited<ReturnType<typeof loadKBConfig>>;
+  searchQ?: string;
+  pool?: QueryTraceChunk[];
+  willRerank?: boolean;
+  reranked?: QueryTraceRerankedChunk[] | null;
+  usedVecConfidence?: boolean;
+  isEnumeration?: boolean;
+  backfilledIds?: number[];
+  chunks?: (QueryTraceChunk & { rerankScore?: number })[];
+  topScore?: number;
+  scoreThreshold?: number;
+  confidence?: 'high' | 'medium' | 'low';
+  systemPrompt?: string;
+  context?: string;
+  noAnswer?: boolean;
+  queryLogId?: number | null;
+  timings?: {
+    rewriteMs: number | null; normalizeMs: number | null; embedMs: number | null;
+    retrieveMs: number | null; rerankMs: number | null; generateMs: number | null;
+    totalMs: number;
+  };
+  error?: string;
+};
 
 export async function queryKB(
   question: string,
@@ -1060,6 +1387,9 @@ export async function queryKB(
     // is unchanged either way — it inherently can't stream since later
     // steps depend on its result.
     onToken?: (delta: string) => void;
+    // Evaluation-only side channel — see QueryTrace above. Never set by
+    // production callers.
+    trace?: QueryTrace;
   } = {},
 ): Promise<KBResult> {
   const includeDisabledArticles = opts.includeDisabledArticles ?? false;
@@ -1071,6 +1401,32 @@ export async function queryKB(
   if (!config.enabled) {
     throw Object.assign(new Error('kb_disabled'), { code: 503 });
   }
+  if (opts.trace) opts.trace.config = config;
+
+  // ---- Per-stage timing accumulators (ms) ---------------------------------
+  // Every stage below writes its wall-clock time here; null means "never ran
+  // or was skipped" (important for analysis — a 0 looks like the stage ran
+  // instantly, which is wrong). All values are written to the audit log by
+  // the three INSERT statements below (answer / no-answer / error).
+  //
+  // Declared here, before the try, rather than inside it (as originally
+  // written) — the catch block below reads these same variables for its own
+  // error-path audit-log insert, but a `let` declared inside a try block is
+  // out of scope in the corresponding catch block (confirmed via
+  // `tsc --noEmit`: TS2304 "Cannot find name" on all eight names). That
+  // catch path would have thrown a fresh ReferenceError the moment it ever
+  // actually ran (Ollama down/timeout) instead of logging the failure.
+  // Hoisting the declarations to function scope fixes that with no change
+  // to what gets recorded on the success/no-answer paths.
+  let rewriteMs: number | null = null;
+  let normalizeMs: number | null = null;
+  let embedMs: number | null = null;
+  let retrieveMs: number | null = null;
+  let rerankMs: number | null = null;
+  let generateMs: number | null = null;
+  let contextChunks: number | null = null;
+  let tokensOut: number | null = null;
+  const mark = () => Date.now();
 
   // Everything below can fail on a real infra problem (Ollama unreachable or
   // too slow to answer in time) rather than a KB content gap. Those two
@@ -1080,20 +1436,6 @@ export async function queryKB(
   // kb_query_logs (errorType set) and interaction_logs (status: 'error'),
   // then rethrows so the API route's existing 503/500 handling is untouched.
   try {
-    // ---- Per-stage timing accumulators (ms) ------------------------------
-    // Every stage below writes its wall-clock time here; null means "never
-    // ran or was skipped" (important for analysis — a 0 looks like the stage
-    // ran instantly, which is wrong). All values are written to the audit
-    // log by the three INSERT statements below (answer / no-answer / error).
-    let rewriteMs: number | null = null;
-    let normalizeMs: number | null = null;
-    let embedMs: number | null = null;
-    let retrieveMs: number | null = null;
-    let rerankMs: number | null = null;
-    let generateMs: number | null = null;
-    let contextChunks: number | null = null;
-    let tokensOut: number | null = null;
-    const mark = () => Date.now();
 
     // The KB pipeline is otherwise fully stateless per request — a follow-up
     // like "How many are there?" has no antecedent for "there" on its own,
@@ -1106,7 +1448,7 @@ export async function queryKB(
     let rewrittenQ: string | null = null;
     if (opts.history?.length) {
       const t0 = mark();
-      rewrittenQ = await rewriteFollowUp(cleanQ, opts.history, config.generationModel);
+      rewrittenQ = await rewriteFollowUp(cleanQ, opts.history, config);
       rewriteMs = mark() - t0;
     }
     const effectiveQ = rewrittenQ ?? cleanQ;
@@ -1117,6 +1459,7 @@ export async function queryKB(
     const tNorm = mark();
     const searchQ = await normalizeQuery(expandSynonyms(effectiveQ));
     normalizeMs = mark() - tNorm;
+    if (opts.trace) opts.trace.searchQ = searchQ;
 
     const tEmbed = mark();
     const qVec = await embed(searchQ, config.embeddingModel);
@@ -1163,6 +1506,13 @@ export async function queryKB(
         if (!existing || c.score > existing.score) merged.set(c.id, c);
       }
       pool = Array.from(merged.values()).sort((a, b) => b.score - a.score);
+    }
+
+    if (opts.trace) {
+      opts.trace.willRerank = willRerank;
+      opts.trace.pool = pool.map(c => ({
+        id: c.id, menuId: c.menuId, menuName: c.menuName, text: c.text, vecScore: c.vecScore, score: c.score,
+      }));
     }
 
     // Rerank (if enabled) before computing confidence — the cross-encoder's own
@@ -1231,10 +1581,26 @@ export async function queryKB(
       scoreThreshold = config.minScore;
     }
 
+    if (opts.trace) {
+      opts.trace.reranked = reranked
+        ? reranked.map(c => ({
+          id: c.id, menuId: c.menuId, menuName: c.menuName, text: c.text,
+          vecScore: c.vecScore, score: c.score, rerankScore: c.rerankScore,
+        }))
+        : null;
+      opts.trace.usedVecConfidence = usedVecConfidence;
+    }
+
     const confidence: 'high' | 'medium' | 'low' =
       topScore >= 0.85 ? 'high'
         : topScore >= scoreThreshold ? 'medium'
           : 'low';
+
+    if (opts.trace) {
+      opts.trace.topScore = topScore;
+      opts.trace.scoreThreshold = scoreThreshold;
+      opts.trace.confidence = confidence;
+    }
 
     if (!chunks.length || confidence === 'low') {
       const suggested = await prisma.menuItem.findMany({
@@ -1244,16 +1610,31 @@ export async function queryKB(
         take: 3,
       });
       const durationMs = Date.now() - startMs;
-      prisma.$executeRaw`
-        INSERT INTO kb_query_logs
-          ("sessionId","question","noAnswer","lang","durationMs",
-           "rewriteMs","normalizeMs","embedMs","retrieveMs","rerankMs","generateMs",
-           "contextChunks","tokensOut")
-        VALUES
-          (${sessionId},${cleanQ},${true},${lang},${durationMs},
-           ${rewriteMs},${normalizeMs},${embedMs},${retrieveMs},${rerankMs},${generateMs},
-           ${contextChunks},${tokensOut})
-      `.catch(() => null);
+      let queryLogId: number | null = null;
+      try {
+        const rows = await prisma.$queryRaw<{ id: number }[]>`
+          INSERT INTO kb_query_logs
+            ("sessionId","question","noAnswer","lang","durationMs",
+             "rewriteMs","normalizeMs","embedMs","retrieveMs","rerankMs","generateMs",
+             "contextChunks","tokensOut")
+          VALUES
+            (${sessionId},${cleanQ},${true},${lang},${durationMs},
+             ${rewriteMs},${normalizeMs},${embedMs},${retrieveMs},${rerankMs},${generateMs},
+             ${contextChunks},${tokensOut})
+          RETURNING id
+        `;
+        queryLogId = rows[0]?.id ?? null;
+      } catch {
+        // Audit-log failure must never block the response.
+      }
+      if (opts.trace) {
+        opts.trace.noAnswer = true;
+        opts.trace.queryLogId = queryLogId;
+        opts.trace.timings = {
+          rewriteMs, normalizeMs, embedMs, retrieveMs, rerankMs, generateMs,
+          totalMs: durationMs,
+        };
+      }
       // Surfaced in Interaction Logs too (status 'failed', not 'error') — the
       // system worked correctly and honestly said it doesn't know; it's a KB
       // content gap to review, not an infra fault.
@@ -1267,7 +1648,7 @@ export async function queryKB(
           tags: ['kb_query', 'no_answer', `lang:${lang}`],
         },
       }).catch(console.error);
-      return { noAnswer: true, suggestedMenus: suggested };
+      return { noAnswer: true, suggestedMenus: suggested, queryLogId };
     }
 
     // Enumeration questions ("what types of X does the bank offer") need every
@@ -1319,39 +1700,74 @@ export async function queryKB(
     // confidence check above only gates on the *single best* chunk — so
     // anything else that merely filled out the slice (or got backfilled in
     // the enumeration step) still ends up in the LLM context and cited as a
-    // source unless we explicitly drop it here. Two filters:
-    //
-    //   1. Absolute threshold: same scoreThreshold that gated confidence.
-    //      The chunk that produced topScore is guaranteed to survive this.
-    //
-    //   2. Relative-to-best floor: chunks whose relevance score is more than
-    //      a fixed gap below the best chunk are almost certainly off-topic
-    //      filler that ranked inside topK by chance. Without this, answers
-    //      to greetings or generic questions ("How are you doing?") end up
-    //      citing 10+ unrelated pages because each scored just barely above
-    //      the absolute minimum on noisy BM25 token overlap.
-    //
-    // Reranker score range is ~0..1, vector cosine is ~-1..1 so gap values
-    // are expressed as fractions of the best chunk's own score distance from
-    // the threshold — that keeps the filter well-calibrated for both modes.
+    // source unless we explicitly drop it here.
     const isRerankMode = reranked && !usedVecConfidence;
     const scoreOf = (c: ChunkRow & { score: number }): number =>
       isRerankMode ? (c as RerankedChunk).rerankScore : c.vecScore;
-    let filtered = chunks.filter(c => scoreOf(c) >= scoreThreshold);
-    if (filtered.length) {
-      const bestScore = scoreOf(filtered[0]);
-      // Enumeration queries: sibling chunks (e.g. individual fee items after
-      // a "Fees & Charges" heading) routinely score 1/5th or less of the
-      // best chunk on their own, but they ARE the answer. Tightening this
-      // filter to 0.50 / 0.35 of best is exactly what made a 14-item list
-      // stop at 4. For enumerations we keep the absolute floor only; for
-      // regular queries the relative floor stays calibrated.
-      const RELATIVE_DROP = isEnumeration
-        ? (isRerankMode ? 0.10 : 0.05)
-        : (isRerankMode ? 0.50 : 0.35);
-      const relFloor = Math.max(scoreThreshold, bestScore * RELATIVE_DROP);
-      filtered = filtered.filter(c =>
-        scoreOf(c) >= relFloor || backfilledIds.has(c.id),
+
+    let filtered: (ChunkRow & { score: number })[];
+    if (isRerankMode) {
+      // Two filters, unchanged from the original calibration:
+      //   1. Absolute threshold: same scoreThreshold that gated confidence.
+      //      The chunk that produced topScore is guaranteed to survive this.
+      //   2. Relative-to-best floor: chunks whose relevance score is more
+      //      than a fixed gap below the best chunk are almost certainly
+      //      off-topic filler that ranked inside topK by chance.
+      // Reranker scores span ~0..1 widely enough (a confident match can be
+      // 0.9+, noise near 0) that a multiplicative ratio meaningfully
+      // separates "close to best" from "just riding along" — this mode is
+      // untouched by the vector-mode fix below.
+      filtered = chunks.filter(c => scoreOf(c) >= scoreThreshold);
+      if (filtered.length) {
+        const bestScore = scoreOf(filtered[0]);
+        // Enumeration queries: sibling chunks (e.g. individual fee items
+        // after a "Fees & Charges" heading) routinely score 1/5th or less of
+        // the best chunk on their own, but they ARE the answer. Tightening
+        // this filter to 0.50/0.10 of best is exactly what made a 14-item
+        // list stop at 4.
+        const RELATIVE_DROP = isEnumeration ? 0.10 : 0.50;
+        const relFloor = Math.max(scoreThreshold, bestScore * RELATIVE_DROP);
+        filtered = filtered.filter(c => scoreOf(c) >= relFloor || backfilledIds.has(c.id));
+      }
+    } else {
+      // Vector-similarity (cosine) mode. The multiplicative relative floor
+      // above does NOT work here: docs/AI_CONFIG.md measured genuinely
+      // correct short/listy content scoring 0.37-0.55 cosine similarity —
+      // scores cluster too tightly for any ratio-of-best to land above
+      // minScore, so `Math.max(scoreThreshold, bestScore * ratio)` always
+      // collapsed straight back to the flat scoreThreshold, silently
+      // dropping any correct-but-not-best chunk below it. Measured
+      // concretely: for "when is nib bank established," the chunk
+      // containing "Established on May 26, 1999" ranked #5 in the retrieved
+      // pool at vecScore 0.4683 — just under a 0.5 minScore — and was
+      // silently excluded from context on both Ollama and OpenRouter alike
+      // (this filtering is provider-independent), leaving neither model able
+      // to answer a question its own top-ranked retrieval had already found
+      // the answer to.
+      //
+      // A flat additive gap from the best score was tried first and
+      // measurably overcorrected: it also pulled 3 unrelated pages
+      // ("psychology", "Rag", "Opening Account") into the sources for a
+      // plain "how are you doing" greeting, because that query's own best
+      // match (0.537) was itself only barely above minScore, so a fixed gap
+      // below it reached down into pure noise — exactly the "10+ unrelated
+      // pages on greetings" failure this filter exists to prevent.
+      //
+      // The actual distinguishing signal, measured against both cases: the
+      // History chunk sits on the SAME source page ("About Us") as the
+      // chunk that set topScore — a sibling section of a page we already
+      // have high confidence is relevant. The greeting's stray chunks are
+      // all from OTHER, unrelated pages. So: a chunk from a different page
+      // than the best match still needs to clear the ordinary confidence
+      // bar on its own; only a same-page sibling gets the relaxed floor —
+      // it's topically anchored by that page's own confident match, not
+      // just coincidentally similar.
+      const bestChunk = chunks.reduce((best, c) => (c.vecScore > best.vecScore ? c : best), chunks[0]);
+      const SAME_PAGE_GAP = isEnumeration ? 0.25 : 0.15;
+      filtered = chunks.filter(c =>
+        c.vecScore >= scoreThreshold ||
+        backfilledIds.has(c.id) ||
+        (c.menuId === bestChunk.menuId && c.vecScore >= bestChunk.vecScore - SAME_PAGE_GAP),
       );
     }
     // Never end up with an empty set right after confidence said "answer" —
@@ -1359,6 +1775,15 @@ export async function queryKB(
     // relative floor is <= bestScore by construction, so this is just a
     // defensive guard.
     if (filtered.length) chunks = filtered;
+
+    if (opts.trace) {
+      opts.trace.isEnumeration = isEnumeration;
+      opts.trace.backfilledIds = Array.from(backfilledIds);
+      opts.trace.chunks = chunks.map(c => ({
+        id: c.id, menuId: c.menuId, menuName: c.menuName, text: c.text, vecScore: c.vecScore, score: c.score,
+        ...(reranked && !usedVecConfidence ? { rerankScore: (c as RerankedChunk).rerankScore } : {}),
+      }));
+    }
 
     // Labeling each block with its source menu/article keeps the model from
     // conflating facts across sources when several are in context together —
@@ -1399,6 +1824,11 @@ export async function queryKB(
       'If the context does not contain a clear answer, say so honestly. ' +
       'Be helpful and clear. Reply in the same language as the user\'s question.';
 
+    if (opts.trace) {
+      opts.trace.context = context;
+      opts.trace.systemPrompt = systemPrompt;
+    }
+
     // isEnumeration + backfilledIds are already computed above (pre-filter),
     // so reuse the same flag here rather than re-running the regex.
     const userPrompt = `Context:\n${context}\n\nQuestion: ${searchQ}`;
@@ -1412,8 +1842,8 @@ export async function queryKB(
     contextChunks = chunks.length;
     const tGen = mark();
     const answer = opts.onToken
-      ? await generateStreaming(systemPrompt, userPrompt, config.generationModel, genOpts, opts.onToken)
-      : await generate(systemPrompt, userPrompt, config.generationModel, genOpts);
+      ? await generateViaProviderStreaming(config, systemPrompt, userPrompt, genOpts, opts.onToken)
+      : await generateViaProvider(config, systemPrompt, userPrompt, genOpts);
     generateMs = mark() - tGen;
     tokensOut = Math.ceil(answer.length / 4);
 
@@ -1442,17 +1872,36 @@ export async function queryKB(
     const durationMs = Date.now() - startMs;
     const sourceIds = sources.map(s => s.menuId);
 
-    // Audit log — what the user asked and what the AI answered (non-blocking)
-    prisma.$executeRaw`
-      INSERT INTO kb_query_logs
-        ("sessionId","question","answer","noAnswer","confidence","sourceMenuIds","lang","durationMs",
-         "rewriteMs","normalizeMs","embedMs","retrieveMs","rerankMs","generateMs",
-         "contextChunks","tokensOut")
-      VALUES
-        (${sessionId},${cleanQ},${answer},${false},${confidence},${sourceIds},${lang},${durationMs},
-         ${rewriteMs},${normalizeMs},${embedMs},${retrieveMs},${rerankMs},${generateMs},
-         ${contextChunks},${tokensOut})
-    `.catch(() => null);
+    // Audit log — what the user asked and what the AI answered (non-blocking).
+    // RETURNING id lets feedback (thumbs up/down, see /api/kb/feedback) and
+    // the AI Evaluation system's runner correlate back to this specific
+    // logged query later.
+    let queryLogId: number | null = null;
+    try {
+      const rows = await prisma.$queryRaw<{ id: number }[]>`
+        INSERT INTO kb_query_logs
+          ("sessionId","question","answer","noAnswer","confidence","sourceMenuIds","lang","durationMs",
+           "rewriteMs","normalizeMs","embedMs","retrieveMs","rerankMs","generateMs",
+           "contextChunks","tokensOut")
+        VALUES
+          (${sessionId},${cleanQ},${answer},${false},${confidence},${sourceIds},${lang},${durationMs},
+           ${rewriteMs},${normalizeMs},${embedMs},${retrieveMs},${rerankMs},${generateMs},
+           ${contextChunks},${tokensOut})
+        RETURNING id
+      `;
+      queryLogId = rows[0]?.id ?? null;
+    } catch {
+      // Audit-log failure must never block the response.
+    }
+
+    if (opts.trace) {
+      opts.trace.noAnswer = false;
+      opts.trace.queryLogId = queryLogId;
+      opts.trace.timings = {
+        rewriteMs, normalizeMs, embedMs, retrieveMs, rerankMs, generateMs,
+        totalMs: durationMs,
+      };
+    }
 
     // General interaction log (non-blocking)
     prisma.interactionLog.create({
@@ -1466,7 +1915,7 @@ export async function queryKB(
       },
     }).catch(console.error);
 
-    return { noAnswer: false, answer, sources, confidence };
+    return { noAnswer: false, answer, sources, confidence, queryLogId };
   } catch (err: any) {
     // Rethrown below unchanged — this only adds logging. checkRateLimit()'s
     // 429 and the kb_disabled 503 above are deliberate, expected rejections
@@ -1475,6 +1924,13 @@ export async function queryKB(
     const isTimeout = err instanceof Error && err.name === 'TimeoutError';
     const errorType = isTimeout ? 'timeout' : 'error';
     const durationMs = Date.now() - startMs;
+    if (opts.trace) {
+      opts.trace.error = String(err?.message ?? err);
+      opts.trace.timings = {
+        rewriteMs, normalizeMs, embedMs, retrieveMs, rerankMs, generateMs,
+        totalMs: durationMs,
+      };
+    }
     prisma.$executeRaw`
       INSERT INTO kb_query_logs
         ("sessionId","question","noAnswer","lang","durationMs","errorType",

@@ -6,7 +6,7 @@ import { ReportsManagement } from '@/components/admin/ReportsManagement';
 import { Dashboard } from '@/components/admin/Dashboard';
 import { Toaster } from '@/components/ui/toaster';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ListTree, ClipboardList, LayoutDashboard, Globe, Activity, Users, BarChart3, Brain } from 'lucide-react';
+import { ListTree, ClipboardList, LayoutDashboard, Globe, Activity, Users, BarChart3, Brain, FlaskConical } from 'lucide-react';
 import { LocalizationManagement } from '@/components/admin/LocalizationManagement';
 import { LogViewer } from '@/components/admin/LogViewer';
 import { Reporting } from '@/components/admin/Reporting';
@@ -14,6 +14,7 @@ import { AdminAuthProvider, useAdminAuth } from '@/components/admin/AdminAuthCon
 import { AdminLoginPage } from '@/components/admin/AdminLoginPage';
 import { UsersManagement } from '@/components/admin/UsersManagement';
 import { KBManagement } from '@/components/admin/KBManagement';
+import { EvalManagement } from '@/components/admin/EvalManagement';
 
 function CheckerConsole() {
   return (
@@ -73,7 +74,7 @@ function AdminConsole() {
               <h2 className="text-2xl font-bold tracking-tight">System Console</h2>
               <p className="text-muted-foreground">Monitor performance and manage your conversational platform.</p>
             </div>
-            <TabsList className="grid grid-cols-8 w-full md:w-[1200px] bg-muted/20 p-1 border shadow-sm">
+            <TabsList className="grid grid-cols-9 w-full md:w-[1350px] bg-muted/20 p-1 border shadow-sm">
               <TabsTrigger value="dashboard" className="flex items-center gap-2 text-xs md:text-sm">
                 <LayoutDashboard size={14} />
                 Dashboard
@@ -105,6 +106,10 @@ function AdminConsole() {
               <TabsTrigger value="kb" className="flex items-center gap-2 text-xs md:text-sm">
                 <Brain size={14} />
                 Knowledge Base
+              </TabsTrigger>
+              <TabsTrigger value="eval" className="flex items-center gap-2 text-xs md:text-sm">
+                <FlaskConical size={14} />
+                AI Evaluation
               </TabsTrigger>
             </TabsList>
           </div>
@@ -139,6 +144,10 @@ function AdminConsole() {
 
           <TabsContent value="kb" className="m-0 border-none p-0 outline-none">
             <KBManagement />
+          </TabsContent>
+
+          <TabsContent value="eval" className="m-0 border-none p-0 outline-none">
+            <EvalManagement />
           </TabsContent>
         </Tabs>
       </main>

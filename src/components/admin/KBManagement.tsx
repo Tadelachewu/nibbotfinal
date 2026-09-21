@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
 import {
   Sheet,
   SheetContent,
@@ -72,6 +73,8 @@ interface KBConfig {
   enabled: boolean;
   embeddingModel: string;
   generationModel: string;
+  generationProvider: 'ollama' | 'openrouter';
+  openrouterModel: string | null;
   rerankerEnabled: boolean;
   rerankerModel: string | null;
   rerankPoolSize: number;
@@ -518,7 +521,7 @@ export function KBManagement() {
 
           if (evt.type === 'chunk' && evt.text) {
             answerText += evt.text;
-            setTestResult({ noAnswer: false, answer: answerText, sources: [], confidence: 'low' });
+            setTestResult({ noAnswer: false, answer: answerText, sources: [], confidence: 'low', queryLogId: null });
           } else if (evt.type === 'result' && evt.data) {
             settled = true;
             setTestResult(evt.data);
@@ -553,6 +556,10 @@ export function KBManagement() {
       if (typeof configForm.enabled === 'boolean') body.enabled = configForm.enabled;
       if (typeof configForm.embeddingModel === 'string') body.embeddingModel = configForm.embeddingModel;
       if (typeof configForm.generationModel === 'string') body.generationModel = configForm.generationModel;
+      if (configForm.generationProvider === 'ollama' || configForm.generationProvider === 'openrouter')
+        body.generationProvider = configForm.generationProvider;
+      if (typeof configForm.openrouterModel === 'string' || configForm.openrouterModel === null)
+        body.openrouterModel = configForm.openrouterModel;
       if (typeof configForm.rerankerEnabled === 'boolean') body.rerankerEnabled = configForm.rerankerEnabled;
       if (typeof configForm.rerankerModel === 'string') body.rerankerModel = configForm.rerankerModel;
       if (typeof configForm.rerankPoolSize === 'number') body.rerankPoolSize = configForm.rerankPoolSize;
@@ -1665,6 +1672,38 @@ export function KBManagement() {
                       />
                       <p className="text-[10px] text-muted-foreground">Ollama model for generating answers.</p>
                     </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="kb-gen-provider" className="text-xs">Generation provider</Label>
+                      <Select
+                        value={configForm.generationProvider ?? 'ollama'}
+                        onValueChange={v => setConfigForm(f => ({ ...f, generationProvider: v as 'ollama' | 'openrouter' }))}
+                      >
+                        <SelectTrigger id="kb-gen-provider" className="text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ollama">Ollama (local)</SelectItem>
+                          <SelectItem value="openrouter">OpenRouter (API)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[10px] text-muted-foreground">
+                        Only affects the final answer + follow-up question rewriting — embeddings and the AI Evaluation judge always use Ollama.
+                        OpenRouter requires <code className="font-mono">OPENROUTER_API_KEY</code> in <code className="font-mono">.env</code> (server-only, never shown here).
+                      </p>
+                    </div>
+                    {configForm.generationProvider === 'openrouter' && (
+                      <div className="space-y-1">
+                        <Label htmlFor="kb-openrouter-model" className="text-xs">OpenRouter model</Label>
+                        <Input
+                          id="kb-openrouter-model"
+                          type="text"
+                          value={configForm.openrouterModel ?? ''}
+                          onChange={e => setConfigForm(f => ({ ...f, openrouterModel: e.target.value || null }))}
+                          placeholder="nvidia/nemotron-3-ultra-550b-a55b:free"
+                          maxLength={200}
+                          className="text-xs font-mono"
+                        />
+                        <p className="text-[10px] text-muted-foreground">Model id as listed on openrouter.ai/models — kept separate from the Ollama model above so switching back doesn't lose either choice.</p>
+                      </div>
+                    )}
                     <div className="space-y-1">
                       <Label htmlFor="kb-temperature" className="text-xs">Generation temperature</Label>
                       <Input

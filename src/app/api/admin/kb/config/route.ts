@@ -35,6 +35,10 @@ export async function PUT(req: Request) {
     data.embeddingModel = body.embeddingModel.trim();
   if (typeof body.generationModel === 'string' && body.generationModel.trim())
     data.generationModel = body.generationModel.trim();
+  if (body.generationProvider === 'ollama' || body.generationProvider === 'openrouter')
+    data.generationProvider = body.generationProvider;
+  if (body.openrouterModel === null || typeof body.openrouterModel === 'string')
+    data.openrouterModel = body.openrouterModel || null;
   if (Number.isFinite(body.chunkSize)   && body.chunkSize  >= 100) data.chunkSize  = body.chunkSize;
   if (Number.isFinite(body.chunkOverlap)&& body.chunkOverlap >= 0) data.chunkOverlap = body.chunkOverlap;
   if (Number.isFinite(body.topK)        && body.topK >= 1)         data.topK       = body.topK;
