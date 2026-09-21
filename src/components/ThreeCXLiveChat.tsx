@@ -149,11 +149,11 @@ const WIDGET_ROOT_OVERRIDE_CSS = `
     bottom: 0 !important;
     left: auto !important;
     top: auto !important;
-    /* 55, not 30 — the "Ask a Question" and KYC/status/rating input bars in
-       ChatInterface.tsx are both z-50, sticky, full-width, and render
-       directly above the footer: the exact spot this bubble is anchored
-       to. At z-30 those bars always covered it, any time either was open.
-       Above both guarantees the bubble is never covered by either. */
+    /* 55, not 30 — the KYC/status/rating input bars in ChatInterface.tsx
+       are z-50, sticky, full-width, and render directly above the footer:
+       the exact spot this bubble is anchored to. At z-30 those bars always
+       covered it, any time one was open. Above them guarantees the bubble
+       is never covered. */
     z-index: 55 !important;
     overflow: visible !important;
     /* The widget sets these CSS custom properties once, inline, on this
@@ -578,17 +578,13 @@ export default function ThreeCXLiveChat({ bubbleVisible = true }: ThreeCXLiveCha
         // CSS can't query the browser's actual scrollbar width, so this is a
         // measured-by-eye safety margin, not a computed value.
         //
-        // This used to also handle a `hidden` prop, toggled while the "Ask a
-        // Question" bar was open to avoid a visual overlap. Removed once the
-        // z-index below made that overlap impossible in the first place —
-        // ChatInterface.tsx's input bars are all z-50; this is z-55 — so
-        // there was nothing left for `hidden` to protect against. (An even
-        // earlier version conditionally unmounted this whole component
-        // instead of hiding it, which was the actual bug behind "Live Agent
-        // chat is still loading": it destroyed the 3CX widget instance
-        // every time kbMode turned on, so openThreeCXLiveChat() — which the
-        // always-visible "Live Agent" menu button calls — had no widget
-        // left to find.)
+        // The z-index below (ChatInterface.tsx's input bars are all z-50;
+        // this is z-55) keeps the bubble from ever being covered, so it never
+        // needs to hide itself. Do not conditionally unmount this component:
+        // that destroys the 3CX widget instance, leaving
+        // openThreeCXLiveChat() — which the always-visible "Live Agent" menu
+        // button calls — no widget to find ("Live Agent chat is still
+        // loading").
         style={{
           position: 'absolute',
           right: '4px',

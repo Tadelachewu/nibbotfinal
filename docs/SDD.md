@@ -271,7 +271,6 @@ graph LR
 | **Rich Text** | TipTap | 2.11.5 | WYSIWYG editor for menu content |
 | **Charts** | Recharts | 2.15.1 | Dashboard data visualization |
 | **Validation** | Zod | 3.24.2 | Schema validation |
-| **AI (Optional)** | Genkit + Google GenAI | 1.28.0 | AI flow scaffolding (present in deps) |
 
 ---
 
@@ -480,7 +479,6 @@ sequenceDiagram
 | Integration | Status | Evidence |
 |:---|:---|:---|
 | Firebase App Hosting | Configured | `apphosting.yaml` (maxInstances: 1) |
-| Google GenAI (Genkit) | Dependency present | `package.json`, `src/ai/` directory exists |
 | Third-party REST APIs | Dynamic via `apiConfig` | Menu items can proxy to arbitrary endpoints configured by admins |
 | External OAuth/SSO | Not explicitly identified in implementation | — |
 

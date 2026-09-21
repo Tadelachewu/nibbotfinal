@@ -5,8 +5,6 @@
   "scripts": {
     "dev": "next dev --turbopack -p 9003",
     "dev:io": "node -e \"process.env.NODE_ENV='development'; require('./server.js')\"",
-    "genkit:dev": "genkit start -- tsx src/ai/dev.ts",
-    "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
     "build": "next build",
     "postinstall": "prisma generate",
     "start": "node -e \"process.env.NODE_ENV='production'; require('./server.js')\"",

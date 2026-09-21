@@ -6,8 +6,6 @@ import { useConnectivity } from '@/hooks/useConnectivity';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { MenuItem, KYCField, TableColumn, Language, UserReport, KYCFieldType, AppSettings } from '@/lib/types';
 import { ChatBubble } from './ChatBubble';
-import { KBAnswerBubble } from './KBAnswerBubble';
-import type { KBResult } from '@/lib/kb';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Logo } from '@/components/Logo';
@@ -72,8 +70,7 @@ interface Message {
   relatedOptions?: MenuItem[];
   relatedDescription?: string;
   isKYC?: boolean;
-  sourceType?: 'menu' | 'menu_intro' | 'menu_back' | 'menu_click' | 'home' | 'status_prompt' | 'status_result' | 'kyc_prompt' | 'api_table' | 'kb_result';
-  kbResult?: KBResult;
+  sourceType?: 'menu' | 'menu_intro' | 'menu_back' | 'menu_click' | 'home' | 'status_prompt' | 'status_result' | 'kyc_prompt' | 'api_table';
   sourceMenuId?: string;
   sourceRootKey?: string;
   statusLookupId?: string;
@@ -235,9 +232,6 @@ export function ChatInterface() {
   const [ratingFlow, setRatingFlow] = useState<{ reportId: string; rating: number } | null>(null);
   const [kycInput, setKycInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [kbMode, setKbMode] = useState(false);
-  const [kbQuestion, setKbQuestion] = useState('');
-  const [kbLoading, setKbLoading] = useState(false);
   const [loadingText, setLoadingText] = useState('');
   const [loadingMoreId, setLoadingMoreId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -877,127 +871,6 @@ export function ChatInterface() {
     }
   };
 
-  const handleKBQuery = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const q = kbQuestion.trim();
-    if (!q || kbLoading) return;
-
-    const userMsgId = `kb-user-${Date.now()}`;
-    const botMsgId = `kb-bot-${Date.now()}`;
-
-    // Grab the immediately preceding KB Q&A turn (if any) so the backend can
-    // resolve a follow-up like "How many are there?" against it — the KB
-    // pipeline itself is otherwise fully stateless per request.
-    let prevTurn: { question: string; answer: string } | undefined;
-    for (let i = history.length - 1; i >= 0; i--) {
-      const msg = history[i];
-      if (msg.sender === 'bot' && msg.sourceType === 'kb_result' && msg.kbResult && !msg.kbResult.noAnswer) {
-        const userMsg = [...history.slice(0, i)].reverse().find(m => m.sender === 'user' && m.sourceType === 'kb_result');
-        if (userMsg?.text) {
-          prevTurn = { question: userMsg.text, answer: msg.kbResult.answer };
-        }
-        break;
-      }
-    }
-
-    setHistory(prev => [...prev, { id: userMsgId, sender: 'user', text: q, sourceType: 'kb_result' }]);
-    setKbQuestion('');
-    setKbLoading(true);
-
-    // The answer streams in token-by-token (see /api/kb/query) rather than
-    // arriving as one blocking response — generation alone was measured
-    // taking 16-80s+ end to end, and a single blank wait that long reads as
-    // a frozen app. `added` tracks whether the bot bubble has been inserted
-    // into history yet: it's deferred until the first chunk (or the final
-    // result, for a no-answer/error) so nothing appears during retrieval,
-    // which itself still isn't streamable.
-    let added = false;
-    let answerText = '';
-    const upsertBotMessage = (patch: Partial<Message>) => {
-      setHistory(prev => {
-        if (!added) {
-          added = true;
-          return [...prev, { id: botMsgId, sender: 'bot', ...patch } as Message];
-        }
-        return prev.map(m => (m.id === botMsgId ? { ...m, ...patch } : m));
-      });
-    };
-
-    try {
-      const res = await fetch('/api/kb/query', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          question: q,
-          lang: currentLang?.code || 'en',
-          sessionId: userData.id,
-          history: prevTurn ? [prevTurn] : undefined,
-        }),
-        credentials: 'same-origin',
-      });
-
-      if (!res.body) throw new Error('no_stream');
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = '';
-      let settled = false;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        let nl: number;
-        while ((nl = buf.indexOf('\n')) >= 0) {
-          const line = buf.slice(0, nl).trim();
-          buf = buf.slice(nl + 1);
-          if (!line) continue;
-          let evt: { type: string; text?: string; data?: KBResult; status?: number; message?: string };
-          try {
-            evt = JSON.parse(line);
-          } catch {
-            continue;
-          }
-
-          if (evt.type === 'chunk' && evt.text) {
-            answerText += evt.text;
-            upsertBotMessage({
-              sourceType: 'kb_result',
-              kbResult: { noAnswer: false, answer: answerText, sources: [], confidence: 'low', queryLogId: null },
-            });
-          } else if (evt.type === 'result' && evt.data) {
-            settled = true;
-            upsertBotMessage({ sourceType: 'kb_result', kbResult: evt.data });
-          } else if (evt.type === 'error') {
-            settled = true;
-            const msg429 = t('ui_kb_ratelimit', 'You\'ve sent too many questions. Please wait a moment and try again.');
-            const errText = evt.status === 429
-              ? msg429
-              : (evt.message || t('ui_kb_error', 'Knowledge base is temporarily unavailable. Please use the menu or contact support.'));
-            upsertBotMessage({ sourceType: undefined, kbResult: undefined, text: errText });
-          }
-        }
-      }
-
-      if (!settled) {
-        // Stream ended without a final result/error event (connection drop mid-answer).
-        upsertBotMessage({
-          sourceType: undefined,
-          kbResult: undefined,
-          text: t('ui_kb_error', 'Knowledge base is temporarily unavailable. Please use the menu or contact support.'),
-        });
-      }
-    } catch {
-      upsertBotMessage({
-        sourceType: undefined,
-        kbResult: undefined,
-        text: t('ui_kb_error', 'Knowledge base is temporarily unavailable. Please use the menu or contact support.'),
-      });
-    } finally {
-      setKbLoading(false);
-    }
-  };
-
   const handleUserInput = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!kycInput.trim()) return;
@@ -1449,7 +1322,7 @@ export function ChatInterface() {
   const navigateTo = async (menu: MenuItem) => {
     const startTime = Date.now();
     // Clicking any menu must exit other mutually-exclusive input flows
-    // (report status lookup, rating, KB question mode) — otherwise their
+    // (report status lookup, rating) — otherwise their
     // input bar keeps rendering underneath whatever this menu opens next
     // (a KYC/param form, a plain submenu, etc.), since those bars' render
     // conditions don't check for a menu navigation happening. Also clears
@@ -1457,7 +1330,6 @@ export function ChatInterface() {
     // menu itself needs KYC fields, it's set again below.
     setStatusFlow(false);
     setRatingFlow(null);
-    setKbMode(false);
     setKycFlow(null);
     const runtime = await fetchRuntimeConfig().catch(() => ({ menus }));
     const activeMenus = runtime.menus;
@@ -1666,11 +1538,9 @@ export function ChatInterface() {
   const handleHome = () => {
     setMenuHistory([]);
     setCurrentMenuId(null);
-    setKbMode(false);
-    setKbQuestion('');
     // Home must exit any in-progress flow (report status lookup, KYC form,
     // rating) — otherwise that flow's input bar keeps rendering underneath
-    // the home screen since its render condition is independent of kbMode.
+    // the home screen.
     setStatusFlow(false);
     setKycFlow(null);
     setRatingFlow(null);
@@ -1701,8 +1571,6 @@ export function ChatInterface() {
   };
 
   const startUserGuide = () => {
-    setKbMode(false);
-    setKbQuestion('');
     setStatusFlow(false);
     setKycFlow(null);
     setRatingFlow(null);
@@ -1889,14 +1757,7 @@ export function ChatInterface() {
           </div>
         ) : null}
         <div className="flex flex-col min-h-full">
-          {history.map(msg => msg.sender === 'bot' && msg.kbResult ? (
-            <KBAnswerBubble
-              key={msg.id}
-              result={msg.kbResult}
-              onMenuClick={() => handleHome()}
-              onBack={() => { setKbMode(false); setKbQuestion(''); }}
-            />
-          ) : (
+          {history.map(msg => (
             <ChatBubble
               key={msg.id}
               isBot={msg.sender === 'bot'}
@@ -1915,41 +1776,14 @@ export function ChatInterface() {
               )}
               {/* Shown on first load AND every subsequent Home visit — previously
                   this button only existed on the one-time 'welcome' message, so
-                  clicking the Home icon never brought it back. Stays visible
-                  even while kbMode is active (the "Ask a Question" input bar
-                  is a separate element below) — both buttons remain
-                  reachable rather than disappearing once one is clicked. */}
+                  clicking the Home icon never brought it back. */}
               {(msg.id === 'welcome' || msg.sourceType === 'home') && (
                 <div className="flex justify-center items-center gap-2 pb-2 flex-wrap">
-                  {appSettings?.aiEnabled !== false && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        // Ask a Question must exit any in-progress flow — otherwise
-                        // that flow's input bar keeps rendering instead of the KB
-                        // question box, since their render conditions don't check
-                        // kbMode at all.
-                        setStatusFlow(false);
-                        setKycFlow(null);
-                        setRatingFlow(null);
-                        setKbMode(true);
-                      }}
-                      className="mt-1.5 text-[10px] px-3 py-1 rounded-full bg-[#f4a61b]/10 border border-[#f4a61b]/30 text-[#763717] hover:bg-[#f4a61b]/20 transition-colors font-medium"
-                    >
-                      ✨ {t('ui_ask_ai', 'Ask a Question')}
-                    </button>
-                  )}
                   {appSettings?.liveAgentEnabled !== false && (
                     <button
                       type="button"
                       onClick={() => {
-                        // Close any in-progress flow first — most importantly
-                        // "Ask a Question": ThreeCXLiveChat renders with
-                        // `hidden={kbMode}` (opacity 0), so opening the widget
-                        // while kbMode is still true would open it invisibly
-                        // behind the still-showing question input bar.
-                        setKbMode(false);
-                        setKbQuestion('');
+                        // Close any in-progress flow first.
                         setStatusFlow(false);
                         setKycFlow(null);
                         setRatingFlow(null);
@@ -2196,51 +2030,6 @@ export function ChatInterface() {
           )}
         </form>
       </div>}
-      {kbMode && !kycFlow && !statusFlow && !ratingFlow && (
-        // pr-16, same reasoning as the KYC/status/rating bar above — leaves
-        // room for the live chat bubble (higher z-index, anchored top-right
-        // of the footer) so it doesn't sit on top of this bar's own Cancel
-        // button, unclickable underneath it.
-        <div className="pl-3 pr-16 py-3 bg-card border-t flex flex-col gap-2 sticky bottom-0 z-50 animate-in slide-in-from-bottom-2 duration-300">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] font-semibold text-[#763717]/80 flex items-center gap-1">
-              ✨ {t('ui_ask_ai', 'Ask a Question')}
-            </span>
-            <button
-              type="button"
-              onClick={() => { setKbMode(false); setKbQuestion(''); }}
-              className="text-[10px] text-muted-foreground hover:text-destructive transition-colors font-bold uppercase px-1"
-            >
-              {t('ui_cancel', 'Cancel')}
-            </button>
-          </div>
-          <form onSubmit={handleKBQuery} className="flex gap-2 w-full">
-            <Input
-              autoFocus
-              type="text"
-              value={kbQuestion}
-              onChange={e => setKbQuestion(e.target.value)}
-              placeholder={t('ui_kb_placeholder', 'Type your question...')}
-              disabled={kbLoading}
-              maxLength={500}
-              className="flex-1 min-w-0 shadow-inner text-xs h-8"
-            />
-            <Button
-              type="submit"
-              size="icon"
-              variant="outline"
-              disabled={kbLoading || !kbQuestion.trim()}
-              className="rounded-xl h-8 w-8 shrink-0 bg-card text-[#763717] hover:text-[#763717] hover:bg-[#f4a61b]/10 border-[#f4a61b]"
-            >
-              {kbLoading ? (
-                <span className="text-[10px] animate-spin">⏳</span>
-              ) : (
-                <Send size={14} />
-              )}
-            </Button>
-          </form>
-        </div>
-      )}
       {/* z-[51], not z-40 — footer is `position:relative` with an explicit
           z-index, so it establishes its own stacking context. That traps
           the live-chat bubble's z-55 (a child of footer, see
@@ -2292,14 +2081,11 @@ export function ChatInterface() {
             render outside the chat card since it never escapes the footer's
             positioning ancestor. Gated on liveAgentEnabled, same as the
             "Live Agent" menu button — one admin switch controls both entry
-            points into live chat. Always mounted AND always visible now —
-            it no longer conditionally unmounts (that used to destroy the
-            3CX widget instance every time kbMode turned on, breaking the
-            "Live Agent" menu button) or hide itself via the `hidden` prop
-            (the bubble is z-index 55 in ThreeCXLiveChat.tsx, above every
-            input bar in this file, so it can no longer be visually covered
-            in the first place — no need to hide it to avoid an overlap
-            that can't happen anymore). */}
+            points into live chat. Always mounted AND always visible — it
+            never conditionally unmounts (that would destroy the 3CX widget
+            instance and break the "Live Agent" menu button). The bubble is
+            z-index 55 in ThreeCXLiveChat.tsx, above every input bar in
+            this file, so it can't be visually covered. */}
         {appSettings?.liveAgentEnabled !== false && (
           <ThreeCXLiveChat bubbleVisible={appSettings?.liveAgentBubbleEnabled !== false} />
         )}

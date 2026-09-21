@@ -99,7 +99,6 @@ export interface AppSettings {
   userAvatarImage?: string;
   appLogo?: string;
   showAdminPanelIcon?: boolean;
-  aiEnabled?: boolean;
   liveAgentEnabled?: boolean;
   liveAgentBubbleEnabled?: boolean;
 }
@@ -120,7 +119,6 @@ export type MenuUpdatePayload = {
   order?: number;
   isActive?: boolean;
   trackClicks?: boolean;
-  kbEnabled?: boolean;
   translations?: MenuItem['translations'] | null;
   attachedMenuIds?: string[] | null;
 };
@@ -150,7 +148,6 @@ export interface MenuItem {
   pendingRejectionReason?: string;
   attachedMenuIds?: string[];
   trackClicks?: boolean;
-  kbEnabled?: boolean;
   clickCount?: number;
   sessionClickCount?: number; // Unique sessions that clicked this
   translations?: Record<string, {

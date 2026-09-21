@@ -9,7 +9,6 @@ Key components (mapping to files)
 - Database: `src/lib/prisma.ts` — Prisma client connected to `DATABASE_URL`.
 - Admin APIs & app API routes: `src/app/api/**` — e.g. `src/app/api/menus/route.ts`, `src/app/api/admin/auth/session/route.ts`.
 - Firebase (end-user client auth + Firestore tools): `src/firebase/*`.
-- AI flows: `src/ai/genkit.ts` and `src/ai/flows/*` (server-side GenKit flows such as `admin-content-suggester.ts`).
 - Frontend UI: `src/components/*` — user chat UI at `src/components/user/ChatInterface.tsx` and admin contexts.
 - Rate limiting and security helpers: `src/lib/rateLimit.ts`, `src/lib/security.ts`.
 
@@ -48,14 +47,6 @@ End-user (client) flow
 3. When a user interacts with the chat UI, the component calls API routes (e.g., `/api/menus`, `/api/reports`) or server-side flows that may:
    - Use `menus.apiConfig` to call external APIs (validated by `src/lib/security.ts`).
    - Persist reports or analytics via Prisma to the database.
-
-AI and server-side flows
-- The application runs GenKit-based AI flows server-side under `src/ai/`.
-- Example: `src/ai/flows/admin-content-suggester.ts` defines a GenKit flow that:
-  1. Accepts a prompt and optional context (server action).
-  2. Runs the pre-defined GenKit prompt against the plugin configured in `src/ai/genkit.ts`.
-  3. Returns structured output to the caller (used by admin UI to produce content drafts).
-- AI code executes on the server (Server Actions / API routes) to keep keys and model access out of the browser.
 
 Realtime & presence
 1. Clients open a Socket.IO connection to the server engine (`server.js`).
@@ -269,7 +260,6 @@ Best practices for this session design
 - Log security events (login success/failure, lockouts, CSRF verification failures) with `logSecurityEvent` for post‑incident analysis.
 - Bind sessions to IP/UA only when your client environments are stable; excessive binding can break legitimate mobile/ISP changes.
 - Avoid storing PII inside opaque `sessionId` values used for presence; treat them as analytics tokens only.
-- Prefer server-side AI and token handling (GenKit flows) so secrets and billing never go to the browser.
 - Rate-limit authentication endpoints and add lockouts for repeated failures (already implemented in `login/route.ts`).
 - Test session-save behavior in Server Components vs API Routes: cookie writes can fail in some server contexts — handle save errors gracefully (as the code does).
 
@@ -324,11 +314,7 @@ This section gives a compact, algorithmic view of the most common flows in the a
    - For presence: emit Socket.IO `user_active` with `sessionId` -> `server.js` writes `ZADD online_users <now> <sessionId>` to Redis.
    - For interactions: include `sessionId` in API bodies (clicks, reports). Server persists interaction with `sessionId` for dedupe and analytics (handlers under `src/app/api/`).
 
-4) AI content generation (admin-only flow)
-   - Client: triggers server action to run GenKit flow (e.g., `suggestAdminContent`).
-   - Server (`src/ai/flows/*`): validate admin session if required, run `ai.defineFlow()` which calls configured provider via `src/ai/genkit.ts`, return structured output to caller.
-
-5) Logout / forced revoke
+4) Logout / forced revoke
    - Logout endpoint: `session.destroy(); await session.save();` clears cookie and session state.
    - Forced revoke: increment `adminCredential.sessionVersion` in DB; subsequent `getValidatedAdminSession()` comparisons will invalidate cookie without tracking every session id.
 

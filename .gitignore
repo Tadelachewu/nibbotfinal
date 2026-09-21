@@ -37,7 +37,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-.genkit/*
 .env*
 
 # firebase
@@ -47,10 +46,3 @@ firestore-debug.log
 # uploaded files (served via route handler, not static)
 /public/uploads/
 /storage/uploads/
-
-# reranker-service (Python) — venv/cache are large, machine-local, and
-# reproducible from requirements.txt; never commit them
-reranker-service/.venv/
-reranker-service/__pycache__/
-reranker-service/**/__pycache__/
-*.pyc

@@ -4,7 +4,6 @@ import prisma from '@/lib/prisma';
 import { getValidatedAdminSession, rotateCsrfToken, verifyCsrfToken } from '@/lib/session';
 import { logSecurityEvent } from '@/lib/logger';
 import { sanitizeHtml } from '@/lib/security';
-import { indexMenu } from '@/lib/kb';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -155,7 +154,6 @@ function buildMenuResponse(menu: any, isAdmin: boolean = false) {
     approvalStatus: menu.approvalStatus ?? 'approved',
     attachedMenuIds,
     trackClicks: Boolean(menu.trackClicks),
-    kbEnabled: Boolean((menu as any).kbEnabled),
     clickCount: menu.clickCount ?? 0,
     sessionClickCount: menu.sessionClickCount ?? 0,
     translations: (menu.translations as any) ?? undefined,
@@ -392,9 +390,6 @@ export async function POST(req: Request) {
     ip: session.ip,
     userAgent: session.userAgent
   });
-
-  // KB indexing — runs after response; new menus start as 'pending' so skip for now
-  // (indexMenu is triggered on approval in /api/menus/[id])
 
   const nextToken = await rotateCsrfToken(session);
   const res = NextResponse.json({ status: 'success', data: created ? buildMenuResponse(created, true) : null });
