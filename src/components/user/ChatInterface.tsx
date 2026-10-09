@@ -1872,14 +1872,29 @@ export function ChatInterface() {
                         setRatingFlow(null);
                         handleLiveAgentClick();
                       }}
-                      className="mt-1.5 flex items-center gap-1 text-[10px] px-3 py-1 rounded-full bg-[#f4a61b]/10 border border-[#f4a61b]/30 text-[#763717] hover:bg-[#f4a61b]/20 transition-colors font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+                      // Connecting is an "active, working" state, not a
+                      // disabled one — brighter background + a subtle ring
+                      // instead of the usual dim/grayed-out disabled look,
+                      // so it reads as "in progress" rather than "broken."
+                      // Loader2 (not an emoji) matches the spinner already
+                      // used for the main chat's own loading bubble above.
+                      className={`mt-1.5 flex items-center gap-1.5 text-[10px] px-3 py-1 rounded-full border font-medium transition-all duration-300 disabled:cursor-not-allowed ${
+                        liveAgentConnecting
+                          ? 'bg-[#f4a61b]/25 border-[#f4a61b]/60 text-[#763717] shadow-sm ring-2 ring-[#f4a61b]/20'
+                          : 'bg-[#f4a61b]/10 border-[#f4a61b]/30 text-[#763717] hover:bg-[#f4a61b]/20'
+                      }`}
                     >
                       {liveAgentConnecting ? (
-                        <span className="text-[10px] animate-spin">⏳</span>
+                        <>
+                          <Loader2 size={11} className="animate-spin shrink-0" />
+                          <span className="animate-pulse">{t('ui_live_agent_connecting', 'Connecting…')}</span>
+                        </>
                       ) : (
-                        <Headset size={11} />
+                        <>
+                          <Headset size={11} />
+                          {t('ui_live_agent', 'Live Agent')}
+                        </>
                       )}
-                      {liveAgentConnecting ? t('ui_live_agent_connecting', 'Connecting…') : t('ui_live_agent', 'Live Agent')}
                     </button>
                   )}
                 </div>
