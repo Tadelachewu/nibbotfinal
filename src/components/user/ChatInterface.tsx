@@ -2087,7 +2087,7 @@ export function ChatInterface() {
             z-index 55 in ThreeCXLiveChat.tsx, above every input bar in
             this file, so it can't be visually covered. */}
         {appSettings?.liveAgentEnabled !== false && (
-          <ThreeCXLiveChat bubbleVisible={appSettings?.liveAgentBubbleEnabled !== false} />
+          <ThreeCXLiveChat />
         )}
       </footer>
     </div>

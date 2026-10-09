@@ -41,15 +41,13 @@
 // viewport corner — that's the risk of overriding an undocumented,
 // unversioned third-party bundle instead of a supported API.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { getCspNonce } from '@/lib/csp';
 
 const PHONESYSTEM_URL = 'https://callcenter.nibbank.com.et';
 const PARTY = 'LiveChat854959';
 const WIDGET_SCRIPT_SRC = '/vendor/3cx/callus';
 const WIDGET_SCRIPT_ID = 'tcx-callus-js';
-
-type LiveBadgePosition = { top: number; left: number; visible: boolean };
 
 // #wp-live-chat-by-3CX (the <call-us> element) is ITSELF a custom element
 // that attaches a SECOND, nested shadow root once it actually connects to
@@ -197,8 +195,14 @@ const WIDGET_ROOT_OVERRIDE_CSS = `
   .minimized-button {
     transform: scale(var(--nib-3cx-bubble-scale, 0.9)) !important;
     transform-origin: bottom right !important;
-    opacity: var(--nib-3cx-bubble-opacity, 1) !important;
-    pointer-events: var(--nib-3cx-bubble-pointer-events, auto) !important;
+    /* Permanently hidden — the floating bubble itself is gone by design.
+       It stays in the DOM (never conditionally rendered/unmounted) because
+       openThreeCXLiveChat() below finds this exact element and calls
+       .click() on it synthetically — a synthetic click fires regardless of
+       opacity/pointer-events, so the "Live Agent" menu button keeps working
+       with the bubble invisible to real users. */
+    opacity: 0 !important;
+    pointer-events: none !important;
     /* A deeper, bolder amber than the plain avatar gold (#f4a61b, still
        used for the "Live" badge text) — #f4a61b reads fine at small badge
        size but looks pale at full bubble size, so this bubble specifically
@@ -313,15 +317,9 @@ declare module 'react' {
   }
 }
 
-export type ThreeCXLiveChatProps = {
-  bubbleVisible?: boolean;
-};
-
-export default function ThreeCXLiveChat({ bubbleVisible = true }: ThreeCXLiveChatProps) {
+export default function ThreeCXLiveChat() {
   const injected = useRef(false);
   const hostRef = useRef<HTMLElement | null>(null);
-  const liveBadgeRef = useRef<HTMLSpanElement | null>(null);
-  const [liveBadgePosition, setLiveBadgePosition] = useState<LiveBadgePosition>({ top: 0, left: 0, visible: false });
 
   useEffect(() => {
     let cancelled = false;
@@ -372,8 +370,6 @@ export default function ThreeCXLiveChat({ bubbleVisible = true }: ThreeCXLiveCha
         t.style.setProperty('--nib-3cx-panel-max-h', `${availableHeight}px`);
         t.style.setProperty('--nib-3cx-panel-max-w', `${availableWidth}px`);
         t.style.setProperty('--nib-3cx-bubble-scale', `${bubbleScale}`);
-        t.style.setProperty('--nib-3cx-bubble-opacity', bubbleVisible ? '1' : '0');
-        t.style.setProperty('--nib-3cx-bubble-pointer-events', bubbleVisible ? 'auto' : 'none');
       });
     };
 
@@ -395,29 +391,6 @@ export default function ThreeCXLiveChat({ bubbleVisible = true }: ThreeCXLiveCha
       style.textContent = WIDGET_ROOT_OVERRIDE_CSS;
       document.head.appendChild(style);
     };
-
-    function updateLiveBadgePosition(root: HTMLElement) {
-      const badge = liveBadgeRef.current;
-      if (!badge) return;
-
-      const candidate = resolveMinimizedButton(root);
-      if (!candidate) {
-        setLiveBadgePosition(prev => (prev.visible ? { ...prev, visible: false } : prev));
-        return;
-      }
-
-      const bubbleRect = candidate.getBoundingClientRect();
-      if (bubbleRect.width <= 0 || bubbleRect.height <= 0) {
-        setLiveBadgePosition(prev => (prev.visible ? { ...prev, visible: false } : prev));
-        return;
-      }
-
-      const badgeRect = badge.getBoundingClientRect();
-      const top = bubbleRect.top - Math.min(6, Math.floor(badgeRect.height * 0.6));
-      const left = bubbleRect.left + Math.max(0, (bubbleRect.width - badgeRect.width) / 2);
-
-      setLiveBadgePosition({ top, left, visible: true });
-    }
 
     const observeRoot = (shadowRoot: ShadowRoot) => {
       if (observedRoots.has(shadowRoot)) return;
@@ -445,7 +418,6 @@ export default function ThreeCXLiveChat({ bubbleVisible = true }: ThreeCXLiveCha
 
         const root = sr.getElementById('wp-live-chat-by-3CX') as HTMLElement | null;
         if (root) {
-          updateLiveBadgePosition(root);
           // #wp-live-chat-by-3CX's real content — .minimized-button
           // included — lives in ITS OWN nested shadow root (see
           // resolveMinimizedButton above), which the generic
@@ -463,9 +435,6 @@ export default function ThreeCXLiveChat({ bubbleVisible = true }: ThreeCXLiveCha
           }
         }
       }
-
-      const docRoot = document.getElementById('wp-live-chat-by-3CX') as HTMLElement | null;
-      if (docRoot) updateLiveBadgePosition(docRoot);
     };
 
     // The widget's shadow root exists as soon as its custom element class
@@ -537,33 +506,7 @@ export default function ThreeCXLiveChat({ bubbleVisible = true }: ThreeCXLiveCha
     };
   }, []);
 
-  useEffect(() => {
-    const host = hostRef.current;
-    if (!host) return;
-    const apply = () => {
-      const targets: HTMLElement[] = [host];
-      const shadowWidgetRoot = host.shadowRoot?.getElementById?.('wp-live-chat-by-3CX');
-      if (shadowWidgetRoot instanceof HTMLElement) targets.push(shadowWidgetRoot);
-      const docWidgetRoot = document.getElementById('wp-live-chat-by-3CX');
-      if (docWidgetRoot instanceof HTMLElement) targets.push(docWidgetRoot);
-      targets.forEach((t) => {
-        t.style.setProperty('--nib-3cx-bubble-opacity', bubbleVisible ? '1' : '0');
-        t.style.setProperty('--nib-3cx-bubble-pointer-events', bubbleVisible ? 'auto' : 'none');
-      });
-    };
-
-    apply();
-    let ticks = 0;
-    const id = setInterval(() => {
-      ticks += 1;
-      apply();
-      if (ticks >= 20) clearInterval(id);
-    }, 250);
-    return () => clearInterval(id);
-  }, [bubbleVisible]);
-
   return (
-    <>
       <call-us-selector
         ref={hostRef}
         phonesystem-url={PHONESYSTEM_URL}
@@ -597,22 +540,5 @@ export default function ThreeCXLiveChat({ bubbleVisible = true }: ThreeCXLiveCha
           zIndex: 55,
         }}
       />
-      {bubbleVisible && (
-        <span
-          ref={liveBadgeRef}
-          className="fixed px-1 py-[1px] text-[8px] font-bold uppercase tracking-wide rounded-full bg-[#f4a61b] text-[#763717] border border-white shadow-sm select-none"
-          style={{
-            top: liveBadgePosition.top,
-            left: liveBadgePosition.left,
-            opacity: liveBadgePosition.visible ? 1 : 0,
-            pointerEvents: 'none',
-            zIndex: 2147483647,
-            transition: 'opacity 150ms ease',
-          }}
-        >
-          Live
-        </span>
-      )}
-    </>
   );
 }

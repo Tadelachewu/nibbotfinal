@@ -213,7 +213,6 @@ model AppSettings {
   appLogo            String?  @db.Text
   showAdminPanelIcon Boolean  @default(true)
   liveAgentEnabled   Boolean  @default(true)
-  liveAgentBubbleEnabled Boolean @default(true)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
