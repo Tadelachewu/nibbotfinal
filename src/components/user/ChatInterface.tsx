@@ -882,7 +882,7 @@ export function ChatInterface() {
   // widget never connected to the PBX, or an unexpected exception), not
   // just that the button didn't work. A logging failure must never surface
   // to the user, hence the swallowed .catch().
-  const logLiveAgentFailure = (reason: string, details: string) => {
+  const logLiveAgentFailure = (reason: string, details: string, responseTime: number) => {
     fetch('/api/logs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -893,6 +893,7 @@ export function ChatInterface() {
         status: 'failed',
         endpoint: 'live_agent',
         errorDetails: details,
+        responseTime,
         tags: ['live_agent', 'failed', reason],
       }),
     }).catch(() => { /* logging failure must never surface to the user */ });
@@ -904,6 +905,7 @@ export function ChatInterface() {
     // bubble themselves. openThreeCXLiveChat() retries internally for a few
     // seconds, so the button shows "Connecting…" rather than looking
     // unresponsive while that happens.
+    const startedAt = Date.now();
     setLiveAgentConnecting(true);
     try {
       const result = await openThreeCXLiveChat();
@@ -919,7 +921,13 @@ export function ChatInterface() {
           description: t('ui_live_agent_unavailable', 'We couldn\'t connect to live chat right now. Please try again in a few minutes, or reach us another way via the Contacts menu.'),
           variant: 'destructive'
         });
-        logLiveAgentFailure(result.reason, `${result.reason}: ${result.message}`);
+        // responseTime here is the real diagnostic signal: ~6000ms means
+        // openThreeCXLiveChat() genuinely exhausted its retry window (the
+        // widget never became available in time); a number far below that
+        // means something failed fast, before retrying even made sense —
+        // different problems, same toast text, so the log is what tells
+        // them apart.
+        logLiveAgentFailure(result.reason, `${result.reason}: ${result.message}`, Date.now() - startedAt);
       }
     } catch (err) {
       // Defensive: openThreeCXLiveChat() is a bounded retry loop with no
@@ -939,7 +947,7 @@ export function ChatInterface() {
         description: t('ui_live_agent_unavailable', 'We couldn\'t connect to live chat right now. Please try again in a few minutes, or reach us another way via the Contacts menu.'),
         variant: 'destructive'
       });
-      logLiveAgentFailure('unexpected_exception', `unexpected_exception: ${message}`);
+      logLiveAgentFailure('unexpected_exception', `unexpected_exception: ${message}`, Date.now() - startedAt);
     } finally {
       setLiveAgentConnecting(false);
     }
