@@ -152,13 +152,63 @@ let widgetScriptState: 'pending' | 'loaded' | 'error' = 'pending';
 // The specific, actionable reasons openThreeCXLiveChat() can fail with —
 // each maps to a genuinely different fix (see the human-readable mapping
 // below), not just "it didn't work."
-export type LiveChatFailureReason = 'script_not_loaded' | 'widget_not_mounted' | 'widget_not_connected';
+export type LiveChatFailureReason =
+  | 'script_not_loaded'
+  | 'widget_not_mounted'
+  | 'widget_not_connected'
+  | 'click_did_not_open_panel';
 
 export const LIVE_CHAT_FAILURE_MESSAGES: Record<LiveChatFailureReason, string> = {
   script_not_loaded: 'The 3CX widget script failed to load (network error or CSP block loading /vendor/3cx/callus).',
   widget_not_mounted: 'The widget script loaded but the <call-us-selector> element never mounted in the DOM.',
   widget_not_connected: 'The widget mounted but never finished connecting to the PBX (network/DNS failure, or this origin is not whitelisted in the 3CX admin console under Live Chat > Your Website).',
+  click_did_not_open_panel: 'A clickable widget button was found and clicked, but no chat panel became visible afterward — the widget is likely in a broken/stale state (e.g. after earlier failed connection attempts).',
 };
+
+// Same resolve-through-shadow-roots approach as resolveMinimizedButton()
+// above, for the chat panel instead of the bubble button. Both classes are
+// confirmed real, targetable elements — WIDGET_ROOT_OVERRIDE_CSS below
+// already styles '.panel, .panel_content' for the open chat window.
+function resolvePanel(widgetRoot: HTMLElement): HTMLElement | null {
+  const direct = widgetRoot.querySelector('.panel');
+  if (direct instanceof HTMLElement) return direct;
+  const nested = widgetRoot.shadowRoot;
+  if (nested) {
+    const panel = nested.querySelector('.panel');
+    if (panel instanceof HTMLElement) return panel;
+  }
+  return null;
+}
+
+function isPanelVisiblyOpen(): boolean {
+  const root = findWidgetRoot();
+  if (!root) return false;
+  const panel = resolvePanel(root);
+  if (!panel) return false;
+  const rect = panel.getBoundingClientRect();
+  return rect.width > 0 && rect.height > 0;
+}
+
+// Clicking .minimized-button finding a DOM element is NOT proof the chat
+// panel actually opened — measured directly: after repeated failed PBX
+// connection attempts, the widget can end up in a state where a stale
+// .minimized-button element still matches but clicking it does nothing
+// visible. Without this check, that silently reported `{ opened: true }` —
+// zero toast, zero log, by design, since that path assumes real success —
+// which is exactly what produced "says nothing, looks stuck" on a later
+// click. Polls briefly rather than checking once, since the panel's open
+// animation isn't instant.
+const CLICK_VERIFY_INTERVAL_MS = 150;
+const CLICK_VERIFY_TIMEOUT_MS = 2000;
+
+async function verifyPanelOpened(): Promise<boolean> {
+  const deadline = Date.now() + CLICK_VERIFY_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    if (isPanelVisiblyOpen()) return true;
+    await new Promise(resolve => setTimeout(resolve, CLICK_VERIFY_INTERVAL_MS));
+  }
+  return isPanelVisiblyOpen();
+}
 
 function diagnoseFailure(): LiveChatFailureReason {
   if (widgetScriptState !== 'loaded') return 'script_not_loaded';
@@ -196,7 +246,13 @@ export async function openThreeCXLiveChat(): Promise<OpenLiveChatResult> {
     const button = findMinimizedButton();
     if (button) {
       button.click();
-      return { opened: true };
+      const reallyOpened = await verifyPanelOpened();
+      if (reallyOpened) return { opened: true };
+      return {
+        opened: false,
+        reason: 'click_did_not_open_panel',
+        message: LIVE_CHAT_FAILURE_MESSAGES.click_did_not_open_panel,
+      };
     }
     if (Date.now() >= deadline) break;
     await new Promise(resolve => setTimeout(resolve, OPEN_RETRY_INTERVAL_MS));
