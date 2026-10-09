@@ -1803,9 +1803,16 @@ export function ChatInterface() {
                         const opened = await openThreeCXLiveChat();
                         setLiveAgentConnecting(false);
                         if (!opened) {
+                          // By this point openThreeCXLiveChat() has already
+                          // retried for 6 real seconds — telling the user to
+                          // "try again in a moment" is misleading (we just
+                          // did) and unhelpful if the underlying problem is
+                          // persistent (e.g. no network route to the PBX).
+                          // Point at a real alternative — the admin-managed
+                          // Contacts menu — rather than a dead-end retry loop.
                           toast({
-                            title: t('ui_toast_error_title', 'Error'),
-                            description: t('ui_live_agent_unavailable', 'Live agent chat is still loading — please try again in a moment.'),
+                            title: t('ui_live_agent_error_title', 'Live Chat Unavailable'),
+                            description: t('ui_live_agent_unavailable', 'We couldn\'t connect to live chat right now. Please try again in a few minutes, or reach us another way via the Contacts menu.'),
                             variant: 'destructive'
                           });
                         }
