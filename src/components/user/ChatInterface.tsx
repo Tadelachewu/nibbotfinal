@@ -234,6 +234,11 @@ export function ChatInterface() {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingText, setLoadingText] = useState('');
   const [loadingMoreId, setLoadingMoreId] = useState<string | null>(null);
+  // "Live Agent" button state — openThreeCXLiveChat() retries for a few
+  // seconds internally (the widget's PBX handshake isn't instant even on a
+  // working network), so this gives the user visible feedback instead of
+  // the button looking unresponsive during that window.
+  const [liveAgentConnecting, setLiveAgentConnecting] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -1782,7 +1787,8 @@ export function ChatInterface() {
                   {appSettings?.liveAgentEnabled !== false && (
                     <button
                       type="button"
-                      onClick={() => {
+                      disabled={liveAgentConnecting}
+                      onClick={async () => {
                         // Close any in-progress flow first.
                         setStatusFlow(false);
                         setKycFlow(null);
@@ -1790,7 +1796,12 @@ export function ChatInterface() {
                         // Same widget the floating bubble opens — this just
                         // triggers it programmatically instead of requiring
                         // the user to find and click the bubble themselves.
-                        const opened = openThreeCXLiveChat();
+                        // openThreeCXLiveChat() retries internally for a few
+                        // seconds, so this button shows "Connecting…" rather
+                        // than looking unresponsive while that happens.
+                        setLiveAgentConnecting(true);
+                        const opened = await openThreeCXLiveChat();
+                        setLiveAgentConnecting(false);
                         if (!opened) {
                           toast({
                             title: t('ui_toast_error_title', 'Error'),
@@ -1799,10 +1810,14 @@ export function ChatInterface() {
                           });
                         }
                       }}
-                      className="mt-1.5 flex items-center gap-1 text-[10px] px-3 py-1 rounded-full bg-[#f4a61b]/10 border border-[#f4a61b]/30 text-[#763717] hover:bg-[#f4a61b]/20 transition-colors font-medium"
+                      className="mt-1.5 flex items-center gap-1 text-[10px] px-3 py-1 rounded-full bg-[#f4a61b]/10 border border-[#f4a61b]/30 text-[#763717] hover:bg-[#f4a61b]/20 transition-colors font-medium disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      <Headset size={11} />
-                      {t('ui_live_agent', 'Live Agent')}
+                      {liveAgentConnecting ? (
+                        <span className="text-[10px] animate-spin">⏳</span>
+                      ) : (
+                        <Headset size={11} />
+                      )}
+                      {liveAgentConnecting ? t('ui_live_agent_connecting', 'Connecting…') : t('ui_live_agent', 'Live Agent')}
                     </button>
                   )}
                 </div>

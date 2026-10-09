@@ -114,14 +114,31 @@ function findMinimizedButton(): HTMLElement | null {
 // without needing to know anything about the widget's internal structure.
 // There's no documented/public API for this — the widget only exposes
 // itself as a clickable DOM element — so this simulates a real user click
-// on that element. Returns whether a button was actually found and clicked,
-// so callers can fall back (e.g. to a toast) if the widget hasn't mounted
-// yet.
-export function openThreeCXLiveChat(): boolean {
-  const button = findMinimizedButton();
-  if (!button) return false;
-  button.click();
-  return true;
+// on that element. Resolves to whether a button was actually found and
+// clicked, so callers can fall back (e.g. to a toast) if the widget never
+// became available.
+//
+// Retries for a few seconds rather than checking once — the widget's own
+// handshake with the PBX (script load -> custom element upgrade -> connect)
+// genuinely takes a few seconds after page load even on a working network,
+// and findMinimizedButton() returning null during that window doesn't mean
+// the widget is unavailable, only that it hasn't finished connecting yet.
+// A single synchronous check previously surfaced "still loading" errors
+// during completely normal startup, not just genuine failures.
+const OPEN_RETRY_INTERVAL_MS = 300;
+const OPEN_RETRY_TIMEOUT_MS = 6000;
+
+export async function openThreeCXLiveChat(): Promise<boolean> {
+  const deadline = Date.now() + OPEN_RETRY_TIMEOUT_MS;
+  for (;;) {
+    const button = findMinimizedButton();
+    if (button) {
+      button.click();
+      return true;
+    }
+    if (Date.now() >= deadline) return false;
+    await new Promise(resolve => setTimeout(resolve, OPEN_RETRY_INTERVAL_MS));
+  }
 }
 
 // Injected as-is into EVERY shadow root ensureOverridesEverywhere discovers
