@@ -876,6 +876,75 @@ export function ChatInterface() {
     }
   };
 
+  // Fire-and-forget — reuses the same /api/logs endpoint and
+  // InteractionLog table every other chat exchange logs to, so Admin > Logs
+  // shows *why* each Live Agent failure happened (script never loaded,
+  // widget never connected to the PBX, or an unexpected exception), not
+  // just that the button didn't work. A logging failure must never surface
+  // to the user, hence the swallowed .catch().
+  const logLiveAgentFailure = (reason: string, details: string) => {
+    fetch('/api/logs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: userData.id,
+        userMessage: '(clicked Live Agent)',
+        botResponse: '',
+        status: 'failed',
+        endpoint: 'live_agent',
+        errorDetails: details,
+        tags: ['live_agent', 'failed', reason],
+      }),
+    }).catch(() => { /* logging failure must never surface to the user */ });
+  };
+
+  const handleLiveAgentClick = async () => {
+    // Same widget the floating bubble opens — this just triggers it
+    // programmatically instead of requiring the user to find and click the
+    // bubble themselves. openThreeCXLiveChat() retries internally for a few
+    // seconds, so the button shows "Connecting…" rather than looking
+    // unresponsive while that happens.
+    setLiveAgentConnecting(true);
+    try {
+      const result = await openThreeCXLiveChat();
+      if (!result.opened) {
+        // By this point openThreeCXLiveChat() has already retried for 6
+        // real seconds — telling the user to "try again in a moment" is
+        // misleading (we just did) and unhelpful if the underlying problem
+        // is persistent (e.g. no network route to the PBX). Point at a
+        // real alternative — the admin-managed Contacts menu — rather than
+        // a dead-end retry loop.
+        toast({
+          title: t('ui_live_agent_error_title', 'Live Chat Unavailable'),
+          description: t('ui_live_agent_unavailable', 'We couldn\'t connect to live chat right now. Please try again in a few minutes, or reach us another way via the Contacts menu.'),
+          variant: 'destructive'
+        });
+        logLiveAgentFailure(result.reason, `${result.reason}: ${result.message}`);
+      }
+    } catch (err) {
+      // Defensive: openThreeCXLiveChat() is a bounded retry loop with no
+      // I/O of its own and shouldn't throw — but if the 3rd-party widget's
+      // own click handler, or some browser/DOM edge case, ever surfaces an
+      // exception here, the user must still get feedback instead of silent
+      // failure. Without this catch, the finally block below is the only
+      // thing standing between a thrown error and liveAgentConnecting
+      // staying stuck `true` forever — which disables the button
+      // (disabled={liveAgentConnecting}) so every subsequent click does
+      // nothing at all, with no visible error. That exact symptom (works a
+      // few times, then goes completely silent) is precisely what a
+      // missing try/catch here would produce.
+      const message = err instanceof Error ? err.message : String(err);
+      toast({
+        title: t('ui_live_agent_error_title', 'Live Chat Unavailable'),
+        description: t('ui_live_agent_unavailable', 'We couldn\'t connect to live chat right now. Please try again in a few minutes, or reach us another way via the Contacts menu.'),
+        variant: 'destructive'
+      });
+      logLiveAgentFailure('unexpected_exception', `unexpected_exception: ${message}`);
+    } finally {
+      setLiveAgentConnecting(false);
+    }
+  };
+
   const handleUserInput = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!kycInput.trim()) return;
@@ -1788,34 +1857,12 @@ export function ChatInterface() {
                     <button
                       type="button"
                       disabled={liveAgentConnecting}
-                      onClick={async () => {
+                      onClick={() => {
                         // Close any in-progress flow first.
                         setStatusFlow(false);
                         setKycFlow(null);
                         setRatingFlow(null);
-                        // Same widget the floating bubble opens — this just
-                        // triggers it programmatically instead of requiring
-                        // the user to find and click the bubble themselves.
-                        // openThreeCXLiveChat() retries internally for a few
-                        // seconds, so this button shows "Connecting…" rather
-                        // than looking unresponsive while that happens.
-                        setLiveAgentConnecting(true);
-                        const opened = await openThreeCXLiveChat();
-                        setLiveAgentConnecting(false);
-                        if (!opened) {
-                          // By this point openThreeCXLiveChat() has already
-                          // retried for 6 real seconds — telling the user to
-                          // "try again in a moment" is misleading (we just
-                          // did) and unhelpful if the underlying problem is
-                          // persistent (e.g. no network route to the PBX).
-                          // Point at a real alternative — the admin-managed
-                          // Contacts menu — rather than a dead-end retry loop.
-                          toast({
-                            title: t('ui_live_agent_error_title', 'Live Chat Unavailable'),
-                            description: t('ui_live_agent_unavailable', 'We couldn\'t connect to live chat right now. Please try again in a few minutes, or reach us another way via the Contacts menu.'),
-                            variant: 'destructive'
-                          });
-                        }
+                        handleLiveAgentClick();
                       }}
                       className="mt-1.5 flex items-center gap-1 text-[10px] px-3 py-1 rounded-full bg-[#f4a61b]/10 border border-[#f4a61b]/30 text-[#763717] hover:bg-[#f4a61b]/20 transition-colors font-medium disabled:opacity-60 disabled:cursor-not-allowed"
                     >

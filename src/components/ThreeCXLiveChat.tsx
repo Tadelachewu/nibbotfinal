@@ -109,6 +109,64 @@ function findMinimizedButton(): HTMLElement | null {
   return null;
 }
 
+// Diagnostic-only counterpart to findMinimizedButton() above — finds the
+// widget's root element (#wp-live-chat-by-3CX) itself, regardless of
+// whether its button is resolvable yet. Only called once, after
+// openThreeCXLiveChat()'s retry window is exhausted, to classify *why* it
+// failed instead of just reporting a bare "didn't work." Deliberately a
+// separate walk rather than reusing findMinimizedButton's, for the same
+// reason noted there — keeping an unrelated concern out of the tuned,
+// frequently-called lookup.
+function findWidgetRoot(): HTMLElement | null {
+  const direct = document.getElementById('wp-live-chat-by-3CX');
+  if (direct instanceof HTMLElement) return direct;
+
+  const queue: (Document | ShadowRoot)[] = [document];
+  const visited = new Set<Document | ShadowRoot>();
+
+  while (queue.length > 0) {
+    const root = queue.shift()!;
+    if (visited.has(root)) continue;
+    visited.add(root);
+
+    const widgetRoot = root.getElementById?.('wp-live-chat-by-3CX');
+    if (widgetRoot instanceof HTMLElement) return widgetRoot;
+
+    const all = root.querySelectorAll('*');
+    for (const el of Array.from(all)) {
+      const shadow = (el as HTMLElement).shadowRoot;
+      if (shadow && !visited.has(shadow)) queue.push(shadow);
+    }
+  }
+
+  return null;
+}
+
+// Tracked at module scope (not component state) because
+// openThreeCXLiveChat() is a standalone exported function, called from
+// outside any component instance, and there's only ever one widget script
+// on the page. Set from the script's own onload/onerror in the component
+// effect below.
+let widgetScriptState: 'pending' | 'loaded' | 'error' = 'pending';
+
+// The specific, actionable reasons openThreeCXLiveChat() can fail with —
+// each maps to a genuinely different fix (see the human-readable mapping
+// below), not just "it didn't work."
+export type LiveChatFailureReason = 'script_not_loaded' | 'widget_not_mounted' | 'widget_not_connected';
+
+export const LIVE_CHAT_FAILURE_MESSAGES: Record<LiveChatFailureReason, string> = {
+  script_not_loaded: 'The 3CX widget script failed to load (network error or CSP block loading /vendor/3cx/callus).',
+  widget_not_mounted: 'The widget script loaded but the <call-us-selector> element never mounted in the DOM.',
+  widget_not_connected: 'The widget mounted but never finished connecting to the PBX (network/DNS failure, or this origin is not whitelisted in the 3CX admin console under Live Chat > Your Website).',
+};
+
+function diagnoseFailure(): LiveChatFailureReason {
+  if (widgetScriptState !== 'loaded') return 'script_not_loaded';
+  const root = findWidgetRoot();
+  if (!root) return 'widget_not_mounted';
+  return 'widget_not_connected';
+}
+
 // Exported so other UI (e.g. a "Live Agent" menu button elsewhere in the
 // app) can trigger the same open action as clicking the bubble directly,
 // without needing to know anything about the widget's internal structure.
@@ -128,17 +186,23 @@ function findMinimizedButton(): HTMLElement | null {
 const OPEN_RETRY_INTERVAL_MS = 300;
 const OPEN_RETRY_TIMEOUT_MS = 6000;
 
-export async function openThreeCXLiveChat(): Promise<boolean> {
+export type OpenLiveChatResult =
+  | { opened: true }
+  | { opened: false; reason: LiveChatFailureReason; message: string };
+
+export async function openThreeCXLiveChat(): Promise<OpenLiveChatResult> {
   const deadline = Date.now() + OPEN_RETRY_TIMEOUT_MS;
   for (;;) {
     const button = findMinimizedButton();
     if (button) {
       button.click();
-      return true;
+      return { opened: true };
     }
-    if (Date.now() >= deadline) return false;
+    if (Date.now() >= deadline) break;
     await new Promise(resolve => setTimeout(resolve, OPEN_RETRY_INTERVAL_MS));
   }
+  const reason = diagnoseFailure();
+  return { opened: false, reason, message: LIVE_CHAT_FAILURE_MESSAGES[reason] };
 }
 
 // Injected as-is into EVERY shadow root ensureOverridesEverywhere discovers
@@ -510,6 +574,11 @@ export default function ThreeCXLiveChat() {
       // for this externally-hosted script to load under the app's strict CSP.
       const nonce = getCspNonce();
       if (nonce) script.setAttribute('nonce', nonce);
+      // Feeds diagnoseFailure() above — module-level state persists across
+      // remounts, so this only needs to run on the one effect invocation
+      // that actually creates the tag.
+      script.onload = () => { widgetScriptState = 'loaded'; };
+      script.onerror = () => { widgetScriptState = 'error'; };
       document.body.appendChild(script);
     }
 
